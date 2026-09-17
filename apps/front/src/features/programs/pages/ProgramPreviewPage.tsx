@@ -654,6 +654,16 @@ function ExerciseEditor({
             + {exercise.name}
           </span>
         ) : null}
+        {exercise.supersetGroupId && !exercise.supersetWithPrevious ? (
+          <small>
+            استراحت بین حرکات: {exercise.supersetRestBetweenSeconds ?? 0} ثانیه؛ بعد از جفت: {exercise.supersetRestAfterSeconds ?? 90} ثانیه
+          </small>
+        ) : null}
+        {exercise.dropSet ? (
+          <span className={styles.supersetBadge} data-testid="drop-set-badge">
+            دراپ‌ست: {exercise.dropSet.drops} دراپ با کاهش {exercise.dropSet.reduction_percent}٪
+          </span>
+        ) : null}
       </FormField>
       <FormField label="ست">
         <Input

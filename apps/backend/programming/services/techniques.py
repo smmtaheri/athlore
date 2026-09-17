@@ -12,17 +12,23 @@ def enabled_techniques_for_level(
     level: str,
     allowed_names: set[str] | None = None,
 ) -> list[CoachTechnique]:
-    configs = list(
-        CoachTechnique.objects.filter(coach=coach, enabled=True)
+    coach_configs = list(
+        CoachTechnique.objects.filter(coach=coach)
         .select_related("base_technique")
         .order_by("name")
     )
+    configs = [config for config in coach_configs if config.enabled]
     enabled = [
         config
         for config in configs
         if not config.allowed_levels or level in (config.allowed_levels or [])
     ]
-    configured_base_ids = {config.base_technique_id for config in configs if config.base_technique_id}
+    # A disabled override must also suppress the platform default. Otherwise a
+    # coach cannot turn off a public technique for the levels where the platform
+    # would otherwise enable it automatically.
+    configured_base_ids = {
+        config.base_technique_id for config in coach_configs if config.base_technique_id
+    }
     normalized_names = {_technique_text(value) for value in (allowed_names or set())}
     for base in TrainingTechnique.objects.filter(is_active=True).order_by("sort_order", "name"):
         if base.id in configured_base_ids:
@@ -55,6 +61,20 @@ def _parameters(config: CoachTechnique) -> dict[str, Any]:
     return dict(config.parameters or {})
 
 
+def _superset_parameters(config: CoachTechnique) -> dict[str, Any]:
+    params = {
+        "pairing_mode": "same_muscle_isolation",
+        "max_pairs": config.max_per_session or 1,
+        "allow_compound": False,
+        "rest_between_exercises_seconds": 0,
+        "rest_after_pair_seconds": 90,
+    }
+    params.update(_parameters(config))
+    if "pairing" in params and "pairing_mode" not in config.parameters:
+        params["pairing_mode"] = params["pairing"]
+    return params
+
+
 def _technique_text(value: str) -> str:
     return str(value or "").replace("‌", " ").strip().lower()
 
@@ -67,12 +87,22 @@ def _append_technique(exercise: dict, payload: dict) -> None:
 def _apply_superset(days: list[dict], config: CoachTechnique) -> int:
     from programming.services.training_selection import _apply_real_supersets
 
-    params = _parameters(config)
+    params = _superset_parameters(config)
     max_pairs = int(params.get("max_pairs") or config.max_per_session or 1)
     applied = 0
     for day in days:
         before = sum(1 for exercise in day.get("exercises", []) if exercise.get("supersetGroupId"))
-        _apply_real_supersets(day.get("exercises", []), allow=True, max_pairs=max_pairs)
+        _apply_real_supersets(
+            day.get("exercises", []),
+            allow=True,
+            max_pairs=max_pairs,
+            pairing_mode=str(params.get("pairing_mode") or "same_muscle_isolation"),
+            allow_compound=bool(params.get("allow_compound")),
+            rest_between_exercises_seconds=int(
+                params.get("rest_between_exercises_seconds") or 0
+            ),
+            rest_after_pair_seconds=int(params.get("rest_after_pair_seconds") or 0),
+        )
         for exercise in day.get("exercises", []):
             if exercise.get("supersetGroupId"):
                 _append_technique(

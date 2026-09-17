@@ -12,6 +12,7 @@ from typing import Any
 
 from accounts.models import (
     CoachExercisePreference,
+    CoachTechnique,
     Exercise,
     ExerciseAlias,
     ExerciseBankGroup,
@@ -649,8 +650,71 @@ def _prescribe(
     }
 
 
-def _apply_real_supersets(day_exercises: list[dict], *, allow: bool, max_pairs: int = 1) -> None:
-    """Pair only consecutive same-muscle arm isolations; never tag a lone exercise."""
+_ANTAGONIST_MUSCLE_PAIRS = {
+    frozenset({"سینه", "زیربغل"}),
+    frozenset({"جلو بازو", "پشت بازو"}),
+    frozenset({"چهارسر ران", "همسترینگ"}),
+    frozenset({"chest", "back"}),
+    frozenset({"biceps", "triceps"}),
+    frozenset({"quadriceps", "hamstrings"}),
+}
+
+
+def _canonical_muscle(value: str) -> str:
+    aliases = {
+        "پشت": "زیربغل",
+        "back": "back",
+        "لَت": "زیربغل",
+        "lats": "back",
+    }
+    normalized = str(value or "").replace("‌", " ").strip().lower()
+    return aliases.get(normalized, normalized)
+
+
+def _superset_pair_allowed(
+    first: dict,
+    second: dict,
+    *,
+    pairing_mode: str,
+    allow_compound: bool,
+) -> bool:
+    first_muscle = _canonical_muscle(first.get("targetMuscle", ""))
+    second_muscle = _canonical_muscle(second.get("targetMuscle", ""))
+    if not first_muscle or not second_muscle or "شکم" in {first_muscle, second_muscle}:
+        return False
+
+    first_class = _movement_class(first["name"], first["targetMuscle"])
+    second_class = _movement_class(second["name"], second["targetMuscle"])
+    if not allow_compound and "compound" in {first_class, second_class}:
+        return False
+
+    if pairing_mode == "same_muscle_isolation":
+        return (
+            first_muscle == second_muscle
+            and first_muscle in {_canonical_muscle(item) for item in ARM_MUSCLES}
+            and first_class == "isolation"
+            and second_class == "isolation"
+        )
+    if pairing_mode == "same_muscle":
+        return first_muscle == second_muscle
+    if pairing_mode == "antagonist":
+        return frozenset({first_muscle, second_muscle}) in _ANTAGONIST_MUSCLE_PAIRS
+    if pairing_mode == "any_eligible":
+        return first_muscle != second_muscle or allow_compound
+    return False
+
+
+def _apply_real_supersets(
+    day_exercises: list[dict],
+    *,
+    allow: bool,
+    max_pairs: int = 1,
+    pairing_mode: str = "same_muscle_isolation",
+    allow_compound: bool = False,
+    rest_between_exercises_seconds: int = 0,
+    rest_after_pair_seconds: int = 90,
+) -> None:
+    """Pair consecutive exercises according to a structured coach strategy."""
     for ex in day_exercises:
         ex["supersetGroupId"] = None
         ex["supersetWithPrevious"] = False
@@ -663,22 +727,25 @@ def _apply_real_supersets(day_exercises: list[dict], *, allow: bool, max_pairs: 
     while i < len(day_exercises) - 1 and pairs_made < max_pairs:
         a = day_exercises[i]
         b = day_exercises[i + 1]
-        same_arm = (
-            a["targetMuscle"] == b["targetMuscle"]
-            and a["targetMuscle"] in ARM_MUSCLES
-            and _movement_class(a["name"], a["targetMuscle"]) == "isolation"
-            and _movement_class(b["name"], b["targetMuscle"]) == "isolation"
-        )
-        if same_arm:
+        if _superset_pair_allowed(
+            a,
+            b,
+            pairing_mode=pairing_mode,
+            allow_compound=allow_compound,
+        ):
             group_id = f"ss-{_stable_id(a['name'], b['name'], i)}"
             a["supersetGroupId"] = group_id
             a["supersetWithPrevious"] = False
             a["supersetPartnerName"] = b["name"]
+            a["supersetRestBetweenSeconds"] = max(0, rest_between_exercises_seconds)
+            a["supersetRestAfterSeconds"] = max(0, rest_after_pair_seconds)
             if not a.get("notes"):
                 a["notes"] = f"سوپرست با {b['name']}"
             b["supersetGroupId"] = group_id
             b["supersetWithPrevious"] = True
             b["supersetPartnerName"] = a["name"]
+            b["supersetRestBetweenSeconds"] = max(0, rest_between_exercises_seconds)
+            b["supersetRestAfterSeconds"] = max(0, rest_after_pair_seconds)
             b["notes"] = f"سوپرست با {a['name']}"
             pairs_made += 1
             i += 2
@@ -865,6 +932,9 @@ def build_training_days(
     structured_technique_keys: set[str] = set()
     structured_technique_evidence: list[dict] = []
     structured_technique_handler = None
+    has_superset_override = CoachTechnique.objects.filter(
+        coach=coach, base_technique__handler_key="superset"
+    ).exists()
     from programming.services.techniques import enabled_techniques_for_level
 
     allowed_technique_names = set(level_rule.allowed_techniques or []) if level_rule else set()
@@ -1104,7 +1174,12 @@ def build_training_days(
 
         _apply_real_supersets(
             day_exercises,
-            allow=allow_superset and apply_general and not structured_technique_handler,
+            allow=(
+                allow_superset
+                and apply_general
+                and not structured_technique_handler
+                and not has_superset_override
+            ),
             max_pairs=int(style.get("supersets") or 0) or (1 if allow_superset else 0),
         )
         day_exercises = _trim_day_to_budget(day_exercises, day_budget)

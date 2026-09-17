@@ -22,6 +22,15 @@ export interface TrainingExercise {
   supersetGroupId?: string | null;
   supersetWithPrevious?: boolean;
   supersetPartnerName?: string | null;
+  supersetRestBetweenSeconds?: number;
+  supersetRestAfterSeconds?: number;
+  dropSet?: { drops: number; reduction_percent: number };
+  techniques?: Array<{
+    key: string;
+    name: string;
+    handler?: string;
+    parameters?: Record<string, unknown>;
+  }>;
 }
 
 export interface TrainingDay {

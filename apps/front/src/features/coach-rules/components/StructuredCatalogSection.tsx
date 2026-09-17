@@ -53,9 +53,68 @@ type Technique = {
   enabled: boolean;
   source: "platform" | "coach_override" | "coach_private";
   base_technique_key: string | null;
+  handler_key?: string;
   handler_status: "implemented" | "manual_only";
   parameter_schema?: Record<string, unknown>;
+  public_definition?: { parameter_schema?: Record<string, unknown> } | null;
 };
+
+const pairingModeOptions = [
+  { value: "same_muscle_isolation", label: "ایزوله‌های هم‌عضله" },
+  { value: "same_muscle", label: "حرکات هم‌عضله" },
+  { value: "antagonist", label: "عضلات مخالف" },
+  { value: "any_eligible", label: "هر دو حرکت مجاز" }
+];
+
+function techniqueHandler(technique: Technique) {
+  return technique.handler_key || technique.base_technique_key || "";
+}
+
+function defaultTechniqueParameters(handler: string): Record<string, unknown> {
+  if (handler === "superset") {
+    return {
+      pairing_mode: "same_muscle_isolation",
+      max_pairs: 1,
+      allow_compound: false,
+      rest_between_exercises_seconds: 0,
+      rest_after_pair_seconds: 90
+    };
+  }
+  if (handler === "drop_set") {
+    return { drops: 1, reduction_percent: 20 };
+  }
+  return {};
+}
+
+function techniqueParameters(technique: Technique) {
+  if (Object.keys(technique.parameters || {}).length > 0) {
+    return technique.parameters;
+  }
+  const schema = technique.parameter_schema || technique.public_definition?.parameter_schema;
+  if (schema) {
+    return Object.fromEntries(
+      Object.entries(schema).flatMap(([key, value]) =>
+        value && typeof value === "object" && "default" in value
+          ? [[key, (value as { default: unknown }).default]]
+          : []
+      )
+    );
+  }
+  return defaultTechniqueParameters(techniqueHandler(technique));
+}
+
+function techniqueLogic(technique: Technique) {
+  const handler = techniqueHandler(technique);
+  const params = techniqueParameters(technique);
+  if (handler === "superset") {
+    const pairing = pairingModeOptions.find((option) => option.value === params.pairing_mode)?.label || "تعریف نشده";
+    return `جفت‌سازی: ${pairing} · حداکثر جفت: ${String(params.max_pairs ?? 1)} · استراحت بعد از جفت: ${String(params.rest_after_pair_seconds ?? 90)} ثانیه`;
+  }
+  if (handler === "drop_set") {
+    return `${String(params.drops ?? 1)} دراپ · کاهش ${String(params.reduction_percent ?? 20)}٪`;
+  }
+  return "بدون handler خودکار";
+}
 
 type SecondaryTarget = { muscle_key: string; region_key: string };
 
@@ -272,6 +331,33 @@ export function StructuredCatalogSection() {
     }
   };
 
+  const deleteTechnique = async (id: string) => {
+    try {
+      await apiRequest(`/training-techniques/${id}/`, { method: "DELETE" });
+      setTechniques((current) => current.filter((item) => item.id !== id));
+      setTechniqueDraft(undefined);
+      setFeedback("تکنیک اختصاصی حذف شد.");
+    } catch {
+      setFeedback("حذف تکنیک انجام نشد.");
+    }
+  };
+
+  const startNewTechnique = () =>
+    setTechniqueDraft({
+      id: null,
+      key: "custom-technique",
+      name: "",
+      description: "",
+      execution_method: "",
+      allowed_levels: [],
+      max_per_session: 0,
+      parameters: {},
+      enabled: true,
+      source: "coach_private",
+      base_technique_key: null,
+      handler_status: "manual_only"
+    });
+
   return (
     <StackLike>
       <Card className={styles.pageStack}>
@@ -327,36 +413,59 @@ export function StructuredCatalogSection() {
         <Button iconStart={<Save size={17} />} onClick={() => void saveExercise()}>ذخیره حرکت</Button>
       </Card>
 
-      <TechniquesSection techniques={techniques} onEdit={setTechniqueDraft} onCreate={() => setTechniqueDraft({ id: null, key: "custom-technique", name: "", description: "", execution_method: "", allowed_levels: [], max_per_session: 0, parameters: {}, enabled: true, source: "coach_private", base_technique_key: null, handler_status: "manual_only" })} />
-      {techniqueDraft ? <TechniqueEditor draft={techniqueDraft} levels={taxonomy.levels} onChange={setTechniqueDraft} onCancel={() => setTechniqueDraft(undefined)} onSave={() => void saveTechnique()} /> : null}
+      <TechniquesSection techniques={techniques} onEdit={(row) => setTechniqueDraft({ ...row, parameters: techniqueParameters(row) })} onDelete={(id) => void deleteTechnique(id)} onCreate={startNewTechnique} />
+      {techniqueDraft ? <TechniqueEditor draft={techniqueDraft} levels={taxonomy.levels} publicTechniques={techniques.filter((item) => item.source === "platform")} onChange={setTechniqueDraft} onCancel={() => setTechniqueDraft(undefined)} onSave={() => void saveTechnique()} /> : null}
       {feedback ? <div role="status">{feedback}</div> : null}
     </StackLike>
   );
 }
 
-function TechniquesSection({ techniques, onCreate, onEdit }: { techniques: Technique[]; onCreate: () => void; onEdit: (technique: Technique) => void }) {
+function TechniquesSection({ techniques, onCreate, onEdit, onDelete }: { techniques: Technique[]; onCreate: () => void; onEdit: (technique: Technique) => void; onDelete: (id: string) => void }) {
   return <Card className={styles.pageStack}>
-    <div className={styles.ruleCardHeader}><div><h2 className={styles.ruleCardTitle}>تکنیک‌های تمرینی</h2><p>تعریف عمومی با تنظیم اختصاصی مربی override می‌شود. تکنیک بدون handler فقط ذخیره می‌شود و generator آن را خودکار اجرا نمی‌کند.</p></div><Button iconStart={<Plus size={18} />} onClick={onCreate}>تکنیک خصوصی</Button></div>
+    <div className={styles.ruleCardHeader}><div><h2 className={styles.ruleCardTitle}>تکنیک‌های تمرینی</h2><p>منطق اجرایی عمومی اینجا دیده می‌شود. با «تنظیم برای من» پارامترهای خودت را تعریف کن؛ تکنیک بدون handler فقط ذخیره می‌شود.</p></div><Button iconStart={<Plus size={18} />} onClick={onCreate}>تکنیک خصوصی</Button></div>
     <Table ariaLabel="تکنیک‌های تمرینی" data={techniques} getRowKey={(row) => row.id || row.key} columns={[
-      { id: "name", header: "تکنیک", cell: (row) => <><strong>{row.name}</strong><br /><small>{row.key}</small></> },
+      { id: "name", header: "تکنیک", cell: (row) => <><strong>{row.name}</strong><br /><small>{row.key}</small><br /><small>{row.description || "بدون توضیح"}</small></> },
+      { id: "logic", header: "منطق فعلی", cell: (row) => <small>{techniqueLogic(row)}</small> },
       { id: "source", header: "منبع", cell: (row) => row.source === "platform" ? "عمومی" : row.source === "coach_override" ? "تنظیم مربی" : "خصوصی مربی" },
       { id: "handler", header: "اجرا", cell: (row) => <StatusBadge variant={row.handler_status === "implemented" ? "success" : "warning"}>{row.handler_status === "implemented" ? "قابل اجرا" : "فقط ذخیره اطلاعات"}</StatusBadge> },
       { id: "enabled", header: "وضعیت", cell: (row) => row.source === "platform" ? "پیکربندی نشده" : row.enabled ? "فعال" : "غیرفعال" },
-      { id: "action", header: "عملیات", cell: (row) => row.source === "platform" ? <Button size="sm" variant="secondary" onClick={() => onEdit({ ...row, name: row.name, base_technique_key: row.key })}>تنظیم برای من</Button> : <Button size="sm" variant="secondary" onClick={() => onEdit(row)}>ویرایش</Button> }
+      { id: "action", header: "عملیات", cell: (row) => row.source === "platform" ? <Button size="sm" variant="secondary" onClick={() => onEdit({ ...row, name: row.name, base_technique_key: row.key })}>تنظیم برای من</Button> : <div className={styles.actionIconGroup}><Button size="sm" variant="secondary" onClick={() => onEdit(row)}>ویرایش</Button>{row.id ? <Button size="sm" variant="danger" onClick={() => onDelete(row.id as string)}>حذف</Button> : null}</div> }
     ]} />
   </Card>;
 }
 
-function TechniqueEditor({ draft, levels, onChange, onCancel, onSave }: { draft: Technique; levels: Array<{ key: string; name: string }>; onChange: (draft: Technique) => void; onCancel: () => void; onSave: () => void }) {
+function TechniqueEditor({ draft, levels, publicTechniques, onChange, onCancel, onSave }: { draft: Technique; levels: Array<{ key: string; name: string }>; publicTechniques: Technique[]; onChange: (draft: Technique) => void; onCancel: () => void; onSave: () => void }) {
+  const handler = techniqueHandler(draft);
+  const setParameter = (key: string, value: unknown) => onChange({ ...draft, parameters: { ...draft.parameters, [key]: value } });
+  const selectHandler = (value: string) => onChange({
+    ...draft,
+    base_technique_key: value || null,
+    handler_key: value || undefined,
+    handler_status: value ? "implemented" : "manual_only",
+    parameters: defaultTechniqueParameters(value)
+  });
   return <Card className={styles.pageStack}>
     <h2 className={styles.ruleCardTitle}>{draft.base_technique_key ? "تنظیم تکنیک عمومی" : "تکنیک خصوصی جدید"}</h2>
     <div className={styles.formGrid}>
       <FormField label="کلید"><Input disabled={Boolean(draft.id || draft.base_technique_key)} value={draft.key} onChange={(event) => onChange({ ...draft, key: event.target.value })} /></FormField>
       <FormField label="نام"><Input value={draft.name} onChange={(event) => onChange({ ...draft, name: event.target.value })} /></FormField>
+      <FormField label="نوع اجرای خودکار" hint="برای اجرای واقعی یک handler انتخاب کن"><Select disabled={Boolean(draft.base_technique_key)} options={[{ value: "", label: "فقط ذخیره اطلاعات" }, ...publicTechniques.filter((item) => item.handler_key).map((item) => ({ value: item.key, label: `${item.name} · ${item.key}` }))]} value={handler} onChange={(event) => selectHandler(event.target.value)} placeholder="انتخاب handler" /></FormField>
       <FormField className={styles.fullField} label="توضیح"><Textarea value={draft.description} onChange={(event) => onChange({ ...draft, description: event.target.value })} /></FormField>
       <FormField className={styles.fullField} label="روش اجرا"><Textarea value={draft.execution_method} onChange={(event) => onChange({ ...draft, execution_method: event.target.value })} /></FormField>
       <FormField label="حداکثر در هر جلسه"><Input min={0} type="number" value={draft.max_per_session} onChange={(event) => onChange({ ...draft, max_per_session: Number(event.target.value) })} /></FormField>
-      <FormField label="پارامترها (JSON)"><Textarea value={JSON.stringify(draft.parameters, null, 2)} onChange={(event) => { try { onChange({ ...draft, parameters: JSON.parse(event.target.value) }); } catch { /* Keep the last valid object while typing. */ } }} /></FormField>
+      {handler === "superset" ? <>
+        <FormField label="روش جفت‌سازی"><Select options={pairingModeOptions} value={String(draft.parameters.pairing_mode || "same_muscle_isolation")} onChange={(event) => setParameter("pairing_mode", event.target.value)} /></FormField>
+        <FormField label="حداکثر جفت در هر روز"><Input min={1} max={10} type="number" value={Number(draft.parameters.max_pairs || 1)} onChange={(event) => setParameter("max_pairs", Number(event.target.value))} /></FormField>
+        <FormField label="استراحت بین دو حرکت (ثانیه)"><Input min={0} type="number" value={Number(draft.parameters.rest_between_exercises_seconds || 0)} onChange={(event) => setParameter("rest_between_exercises_seconds", Number(event.target.value))} /></FormField>
+        <FormField label="استراحت بعد از جفت (ثانیه)"><Input min={0} type="number" value={Number(draft.parameters.rest_after_pair_seconds ?? 90)} onChange={(event) => setParameter("rest_after_pair_seconds", Number(event.target.value))} /></FormField>
+        <Checkbox checked={Boolean(draft.parameters.allow_compound)} label="اجازه استفاده از حرکات ترکیبی" onChange={(event) => setParameter("allow_compound", event.target.checked)} />
+      </> : null}
+      {handler === "drop_set" ? <>
+        <FormField label="تعداد دراپ"><Input min={1} max={3} type="number" value={Number(draft.parameters.drops || 1)} onChange={(event) => setParameter("drops", Number(event.target.value))} /></FormField>
+        <FormField label="درصد کاهش بار"><Input min={1} max={80} type="number" value={Number(draft.parameters.reduction_percent || 20)} onChange={(event) => setParameter("reduction_percent", Number(event.target.value))} /></FormField>
+      </> : null}
+      {!handler ? <FormField className={styles.fullField} label="پارامترهای دستی (JSON)"><Textarea value={JSON.stringify(draft.parameters, null, 2)} onChange={(event) => { try { onChange({ ...draft, parameters: JSON.parse(event.target.value) }); } catch { /* Keep the last valid object while typing. */ } }} /></FormField> : null}
+      {handler ? <div className={styles.fullField}><small>این handler در generator پیاده‌سازی شده است و پارامترهای بالا در evidence تولید برنامه ثبت می‌شوند.</small></div> : null}
       <div className={styles.fullField}><strong>سطح‌های مجاز؛ خالی یعنی همه</strong>{levels.map((level) => <Checkbox key={level.key} checked={draft.allowed_levels.includes(level.key)} label={level.name} onChange={(event) => onChange({ ...draft, allowed_levels: event.target.checked ? [...draft.allowed_levels, level.key] : draft.allowed_levels.filter((item) => item !== level.key) })} />)}</div>
       <Switch checked={draft.enabled} label="فعال" onCheckedChange={(enabled) => onChange({ ...draft, enabled })} />
     </div>

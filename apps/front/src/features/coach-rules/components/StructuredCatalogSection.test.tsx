@@ -51,6 +51,26 @@ describe("StructuredCatalogSection", () => {
       return [
         {
           id: null,
+          key: "superset",
+          name: "سوپرست",
+          description: "دو حرکت سازگار پشت سر هم.",
+          execution_method: "جفت کن و بعد استراحت بده.",
+          allowed_levels: [],
+          max_per_session: 0,
+          parameters: {},
+          enabled: false,
+          source: "platform",
+          base_technique_key: "superset",
+          handler_key: "superset",
+          handler_status: "implemented",
+          parameter_schema: {
+            pairing_mode: { default: "same_muscle_isolation" },
+            max_pairs: { default: 1 },
+            rest_after_pair_seconds: { default: 90 }
+          }
+        },
+        {
+          id: null,
           key: "custom_manual",
           name: "تکنیک اختصاصی",
           description: "",
@@ -76,5 +96,18 @@ describe("StructuredCatalogSection", () => {
 
     await user.click(screen.getByRole("button", { name: "آرشیو" }));
     expect(apiRequestMock).toHaveBeenCalledWith("/exercises/exercise-1/", { method: "DELETE" });
+  });
+
+  it("shows executable technique logic and structured superset settings", async () => {
+    const user = userEvent.setup();
+    render(<StructuredCatalogSection />);
+
+    expect(await screen.findByText(/جفت‌سازی:/)).toBeInTheDocument();
+    expect(screen.getByText("قابل اجرا")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "تنظیم برای من" }));
+
+    expect(screen.getByText("روش جفت‌سازی")).toBeInTheDocument();
+    expect(screen.getByText("استراحت بعد از جفت (ثانیه)")).toBeInTheDocument();
+    expect(screen.getByText(/این handler در generator پیاده‌سازی شده است/)).toBeInTheDocument();
   });
 });

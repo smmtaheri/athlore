@@ -35,6 +35,12 @@ from accounts.models import (
 
 VALID_LEVELS = {"beginner", "intermediate", "advanced"}
 VALID_IMPORTANCE = {"high", "medium", "low"}
+SUPERSET_PAIRING_MODES = {
+    "same_muscle_isolation",
+    "same_muscle",
+    "antagonist",
+    "any_eligible",
+}
 
 
 def ensure_rule_set(coach: CoachProfile) -> CoachRuleSet:
@@ -233,6 +239,72 @@ def _technique_handler_status(technique: TrainingTechnique | None) -> str:
     if technique and technique.handler_key:
         return "implemented"
     return "manual_only"
+
+
+def _normalize_technique_parameters(
+    handler_key: str, value: Any, *, field: str = "parameters"
+) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValidationError({field: ["Expected an object."]})
+
+    params = copy.deepcopy(value)
+    if handler_key == "superset":
+        # `pairing` was the original public parameter name. Keep accepting it
+        # while storing the clearer structured name for new configurations.
+        pairing_mode = str(
+            params.get("pairing_mode") or params.get("pairing") or "same_muscle_isolation"
+        ).strip()
+        if pairing_mode not in SUPERSET_PAIRING_MODES:
+            raise ValidationError(
+                {field: [f"Unsupported superset pairing mode: {pairing_mode}"]}
+            )
+        params["pairing_mode"] = pairing_mode
+        if "max_pairs" in params:
+            try:
+                max_pairs = int(params["max_pairs"])
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({field: ["max_pairs must be an integer."]}) from exc
+            if max_pairs < 1 or max_pairs > 10:
+                raise ValidationError({field: ["max_pairs must be between 1 and 10."]})
+            params["max_pairs"] = max_pairs
+        for key, maximum in (
+            ("rest_between_exercises_seconds", 600),
+            ("rest_after_pair_seconds", 900),
+        ):
+            if key not in params:
+                continue
+            try:
+                seconds = int(params[key])
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({field: [f"{key} must be an integer."]}) from exc
+            if seconds < 0 or seconds > maximum:
+                raise ValidationError({field: [f"{key} is outside the allowed range."]})
+            params[key] = seconds
+        if "allow_compound" in params and not isinstance(params["allow_compound"], bool):
+            raise ValidationError({field: ["allow_compound must be boolean."]})
+        params["allow_compound"] = bool(params.get("allow_compound", False))
+    elif handler_key == "drop_set":
+        if "drops" in params:
+            try:
+                drops = int(params["drops"])
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({field: ["drops must be an integer."]}) from exc
+            if drops < 1 or drops > 3:
+                raise ValidationError({field: ["drops must be between 1 and 3."]})
+            params["drops"] = drops
+        if "reduction_percent" in params:
+            try:
+                reduction = int(params["reduction_percent"])
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({field: ["reduction_percent must be an integer."]}) from exc
+            if reduction < 1 or reduction > 80:
+                raise ValidationError(
+                    {field: ["reduction_percent must be between 1 and 80."]}
+                )
+            params["reduction_percent"] = reduction
+    return params
 
 
 def serialize_coach_technique(config: CoachTechnique) -> dict:
@@ -870,6 +942,9 @@ def create_coach_technique(coach: CoachProfile, payload: dict) -> CoachTechnique
         max_per_session = max(0, int(payload.get("max_per_session") or 0))
     except (TypeError, ValueError) as exc:
         raise ValidationError({"max_per_session": ["Must be a non-negative integer."]}) from exc
+    parameters = _normalize_technique_parameters(
+        base.handler_key if base else "", payload.get("parameters"), field="parameters"
+    )
     return CoachTechnique.objects.create(
         coach=coach,
         base_technique=base,
@@ -879,13 +954,30 @@ def create_coach_technique(coach: CoachProfile, payload: dict) -> CoachTechnique
         execution_method=str(payload.get("execution_method") or ""),
         allowed_levels=levels,
         max_per_session=max_per_session,
-        parameters=payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {},
+        parameters=parameters,
         enabled=bool(payload.get("enabled", True)),
     )
 
 
 @transaction.atomic
 def update_coach_technique(config: CoachTechnique, payload: dict) -> CoachTechnique:
+    base = config.base_technique
+    if "base_technique_key" in payload and not base:
+        base_key = str(payload.get("base_technique_key") or "").strip().lower()
+        if base_key:
+            try:
+                base = TrainingTechnique.objects.get(key=base_key, is_active=True)
+            except TrainingTechnique.DoesNotExist as exc:
+                raise ValidationError(
+                    {"base_technique_key": ["Unknown public technique."]}
+                ) from exc
+            if CoachTechnique.objects.filter(
+                coach=config.coach, base_technique=base
+            ).exclude(pk=config.pk).exists():
+                raise ValidationError(
+                    {"base_technique_key": ["This technique is already configured."]}
+                )
+            config.base_technique = base
     if "name" in payload:
         config.name = str(payload.get("name") or "").strip() or config.name
     if "description" in payload:
@@ -900,9 +992,11 @@ def update_coach_technique(config: CoachTechnique, payload: dict) -> CoachTechni
         except (TypeError, ValueError) as exc:
             raise ValidationError({"max_per_session": ["Must be a non-negative integer."]}) from exc
     if "parameters" in payload:
-        if not isinstance(payload.get("parameters"), dict):
-            raise ValidationError({"parameters": ["Expected an object."]})
-        config.parameters = payload["parameters"]
+        config.parameters = _normalize_technique_parameters(
+            base.handler_key if base else "",
+            payload["parameters"],
+            field="parameters",
+        )
     if "enabled" in payload:
         config.enabled = bool(payload["enabled"])
     config.save()

@@ -82,6 +82,9 @@ class StructuredCatalogApiTests(APITestCase):
         self.assertEqual(public.status_code, 200)
         self.assertIn("superset", {row["key"] for row in public.data})
         self.assertIn("drop_set", {row["key"] for row in public.data})
+        superset_public = next(row for row in public.data if row["key"] == "superset")
+        self.assertIn("pairing_mode", superset_public["parameter_schema"])
+        self.assertIn("rest_after_pair_seconds", superset_public["parameter_schema"])
 
         override = self.client.post(
             "/api/v1/training-techniques/",
@@ -235,3 +238,59 @@ class StructuredCatalogGeneratorTests(APITestCase):
         )
         self.assertEqual(days[0]["exercises"][0]["dropSet"], {"drops": 2, "reduction_percent": 25})
         self.assertTrue(any(item["handler"] == "drop_set" for item in evidence))
+
+    def test_structured_superset_handler_uses_coach_pairing_definition(self):
+        response = self.client.post(
+            "/api/v1/training-techniques/",
+            {
+                "key": "superset",
+                "name": "سوپرست عضلات مخالف",
+                "base_technique_key": "superset",
+                "allowed_levels": ["intermediate"],
+                "max_per_session": 2,
+                "parameters": {
+                    "pairing_mode": "antagonist",
+                    "max_pairs": 2,
+                    "allow_compound": True,
+                    "rest_between_exercises_seconds": 0,
+                    "rest_after_pair_seconds": 90,
+                },
+            },
+            format="json",
+            **auth_header(self.tokens),
+        )
+        self.assertEqual(response.status_code, 201)
+
+        days, evidence, _handled = apply_structured_techniques(
+            [
+                {
+                    "exercises": [
+                        {
+                            "name": "پرس سینه هالتر",
+                            "targetMuscle": "سینه",
+                            "sets": 3,
+                            "supersetGroupId": None,
+                            "techniques": [],
+                            "notes": "",
+                        },
+                        {
+                            "name": "زیربغل دستگاه",
+                            "targetMuscle": "زیربغل",
+                            "sets": 3,
+                            "supersetGroupId": None,
+                            "techniques": [],
+                            "notes": "",
+                        },
+                    ]
+                }
+            ],
+            self.coach,
+            "intermediate",
+        )
+        first, second = days[0]["exercises"]
+        self.assertEqual(first["supersetGroupId"], second["supersetGroupId"])
+        self.assertEqual(first["supersetRestBetweenSeconds"], 0)
+        self.assertEqual(first["supersetRestAfterSeconds"], 90)
+        self.assertEqual(first["techniques"][0]["parameters"]["pairing_mode"], "antagonist")
+        self.assertEqual(evidence[0]["status"], "applied")
+        self.assertEqual(evidence[0]["parameters"]["max_pairs"], 2)
