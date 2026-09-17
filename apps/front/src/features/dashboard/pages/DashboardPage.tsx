@@ -224,6 +224,7 @@ export function BodyCheckTodaySection({ asOf, items }: { asOf: string; items: Bo
   const missing = items.filter((item) => bodyCheckState(item) === "missing");
   const partial = items.filter((item) => bodyCheckState(item) === "partial");
   const complete = items.filter((item) => bodyCheckState(item) === "complete");
+  const logged = items.filter((item) => item.isLogged);
   return (
     <Card className={mvpStyles.bodyCheckCard}>
       <div className={mvpStyles.bodyCheckHeader}>
@@ -232,6 +233,11 @@ export function BodyCheckTodaySection({ asOf, items }: { asOf: string; items: Bo
           <p className={styles.sectionDescription}>
             {formatBodyCheckDate(asOf)} · وضعیت شاگردهای دارای دوره فعال امروز
           </p>
+          {items.length > 0 ? (
+            <p className={styles.sectionDescription}>
+              از {items.length} شاگرد دارای دوره فعال، {logged.length} نفر امروز بادی‌چک را ثبت کرده‌اند و {missing.length} نفر هنوز ثبت نکرده‌اند.
+            </p>
+          ) : null}
         </div>
         {items.length > 0 ? <StatusBadge>{items.length} دوره فعال</StatusBadge> : null}
       </div>
@@ -244,6 +250,8 @@ export function BodyCheckTodaySection({ asOf, items }: { asOf: string; items: Bo
       ) : (
         <>
           <div className={mvpStyles.bodyCheckCounts}>
+            <StatusBadge>{items.length} کل</StatusBadge>
+            <StatusBadge variant="success">{logged.length} ثبت‌شده</StatusBadge>
             <StatusBadge variant="warning">{missing.length} ثبت نشده</StatusBadge>
             <StatusBadge variant="info">{partial.length} ناقص</StatusBadge>
             <StatusBadge variant="success">{complete.length} کامل</StatusBadge>

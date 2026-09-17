@@ -55,6 +55,9 @@ describe("Coach body-check dashboard", () => {
 
     expect(screen.getByText("نیاز به پیگیری")).toBeInTheDocument();
     expect(screen.getByText("ثبت کامل امروز")).toBeInTheDocument();
+    expect(screen.getByText("از 3 شاگرد دارای دوره فعال، 2 نفر امروز بادی‌چک را ثبت کرده‌اند و 1 نفر هنوز ثبت نکرده‌اند.")).toBeInTheDocument();
+    expect(screen.getByText("3 کل")).toBeInTheDocument();
+    expect(screen.getByText("2 ثبت‌شده")).toBeInTheDocument();
     expect(screen.getByText("1 ثبت نشده")).toBeInTheDocument();
     expect(screen.getByText("1 ناقص")).toBeInTheDocument();
     expect(screen.getByText("1 کامل")).toBeInTheDocument();
