@@ -38,7 +38,17 @@ ensure_monorepo() {
 
   echo "==> Syncing Athlore monorepo to origin/main (${ATHLORE_ROOT})"
   git -C "${ATHLORE_ROOT}" fetch origin main
-  git -C "${ATHLORE_ROOT}" checkout -B main origin/main
+
+  if git -C "${ATHLORE_ROOT}" rev-parse --verify HEAD >/dev/null 2>&1; then
+    git -C "${ATHLORE_ROOT}" checkout -B main origin/main
+  else
+    # The legacy files are currently untracked because their nested Git
+    # metadata was removed during the migration. Stage them temporarily so
+    # checkout can safely replace tracked files with the monorepo versions.
+    # Ignored runtime files such as infra/deployment/.env are not staged.
+    git -C "${ATHLORE_ROOT}" add --all
+  fi
+
   # The deployment host is not for manual commits. This preserves ignored
   # runtime files such as infra/deployment/.env while updating tracked code.
   git -C "${ATHLORE_ROOT}" reset --hard origin/main
