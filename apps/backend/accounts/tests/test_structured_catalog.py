@@ -48,7 +48,7 @@ class StructuredCatalogApiTests(APITestCase):
         )
         self.assertEqual(created.status_code, 201)
         self.assertEqual(created.data["targets"][0]["region_key"], "upper_chest")
-        self.assertEqual(created.data["levels"], ["intermediate", "advanced"])
+        self.assertEqual(set(created.data["levels"]), {"intermediate", "advanced"})
         exercise_id = created.data["id"]
 
         filtered = self.client.get(

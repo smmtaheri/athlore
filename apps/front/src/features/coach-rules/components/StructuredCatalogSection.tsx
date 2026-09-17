@@ -308,7 +308,7 @@ export function StructuredCatalogSection() {
         <div className={styles.formGrid}>
           <FormField label="نام فارسی" required><Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></FormField>
           <FormField label="نام انگلیسی"><Input value={draft.name_en} onChange={(event) => setDraft({ ...draft, name_en: event.target.value })} /></FormField>
-          <FormField label="نام‌های جایگزین"><Input value={draft.aliases} onChange={(event) => setDraft({ ...draft, aliases: event.target.value })} hint="با کاما جدا کنید" /></FormField>
+          <FormField hint="با کاما جدا کنید" label="نام‌های جایگزین"><Input value={draft.aliases} onChange={(event) => setDraft({ ...draft, aliases: event.target.value })} /></FormField>
           <FormField label="عضله اصلی" required><Select options={muscleOptions} value={draft.primary_muscle} onChange={(event) => setDraft({ ...draft, primary_muscle: event.target.value, primary_region: "" })} placeholder="انتخاب کنید" /></FormField>
           <FormField label="ناحیه عضله اصلی"><Select options={(taxonomy.muscles.find((muscle) => muscle.key === draft.primary_muscle)?.regions || []).map((region) => ({ label: region.name, value: region.key }))} value={draft.primary_region} onChange={(event) => setDraft({ ...draft, primary_region: event.target.value })} placeholder="بدون ناحیه" /></FormField>
           <FormField label="عضله فرعی"><Select options={muscleOptions} value={draft.secondary_muscle} onChange={(event) => setDraft({ ...draft, secondary_muscle: event.target.value, secondary_region: "" })} placeholder="انتخاب عضله" /></FormField>

@@ -11,6 +11,7 @@ function renderRoute(path: string) {
     AUTH_STORAGE_KEY,
     JSON.stringify({
       token: "mock-token-arman-vaezi",
+      role: "coach",
       user: {
         createdAt: "2026-07-31T00:00:00.000Z",
         email: "arman@example.com",
@@ -23,7 +24,7 @@ function renderRoute(path: string) {
   return render(
     <AuthProvider>
       <MemoryRouter initialEntries={[path]}>
-        <AppRoutes />
+        <AppRoutes surface="coach" />
       </MemoryRouter>
     </AuthProvider>
   );
