@@ -42,6 +42,8 @@ export interface BodyCheckReportSummary {
   avgNutritionAdherenceScore: number | null;
   avgSleepDurationMinutes: number | null;
   avgSleepQualityScore: number | null;
+  avgSleepStartTime: string | null;
+  avgWakeTime: string | null;
   cycleLengthDays: number;
   deltaToGoalKg: number | null;
   goalWeightKg: number;
@@ -52,7 +54,9 @@ export interface BodyCheckReportSummary {
   nutritionScoreDays: number;
   sleepDurationDays: number;
   sleepQualityDays: number;
+  sleepStartTimeDays: number;
   startingWeightKg: number;
+  wakeTimeDays: number;
 }
 
 export interface BodyCheckPhoto {

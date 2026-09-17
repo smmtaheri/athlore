@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from math import atan2, cos, pi, sin
 from zoneinfo import ZoneInfo
 
 from django.core.exceptions import ValidationError
@@ -55,6 +56,21 @@ def compute_sleep_duration_minutes(sleep_start: time | None, wake: time | None) 
     if end_dt <= start_dt:
         end_dt += timedelta(days=1)
     return int((end_dt - start_dt).total_seconds() // 60)
+
+
+def average_clock_time(values: list[time]) -> str | None:
+    """Return a circular mean clock time, so 23:30 + 00:30 averages to midnight."""
+    if not values:
+        return None
+    angles = [
+        2 * pi * ((value.hour * 60 + value.minute) / (24 * 60))
+        for value in values
+    ]
+    angle = atan2(sum(sin(value) for value in angles), sum(cos(value) for value in angles))
+    if angle < 0:
+        angle += 2 * pi
+    minutes = int(round(angle * (24 * 60) / (2 * pi))) % (24 * 60)
+    return time(hour=minutes // 60, minute=minutes % 60).isoformat()
 
 
 def day_number_for(cycle: BodyCheckCycle, local_date: date) -> int:
@@ -535,6 +551,8 @@ def aggregate_report(cycle: BodyCheckCycle) -> dict:
     sleep_quality_values = [
         e.sleep_quality_score for e in entries if e.sleep_quality_score is not None
     ]
+    sleep_start_values = [e.sleep_start_time for e in entries if e.sleep_start_time is not None]
+    wake_values = [e.wake_time for e in entries if e.wake_time is not None]
 
     def _avg(values: list) -> float | None:
         if not values:
@@ -559,6 +577,10 @@ def aggregate_report(cycle: BodyCheckCycle) -> dict:
         "nutrition_score_days": len(nutrition_values),
         "avg_sleep_duration_minutes": _avg(sleep_duration_values),
         "sleep_duration_days": len(sleep_duration_values),
+        "avg_sleep_start_time": average_clock_time(sleep_start_values),
+        "sleep_start_time_days": len(sleep_start_values),
+        "avg_wake_time": average_clock_time(wake_values),
+        "wake_time_days": len(wake_values),
         "avg_sleep_quality_score": _avg(sleep_quality_values),
         "sleep_quality_days": len(sleep_quality_values),
     }

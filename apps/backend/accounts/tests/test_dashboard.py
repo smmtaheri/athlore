@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -248,6 +248,15 @@ class DashboardApiTests(APITestCase):
             weight_kg=Decimal("80.0"),
             status=Student.Status.ACTIVE,
         )
+        expired_student = Student.objects.create(
+            coach=self.coach_a,
+            full_name="شاگرد دوره تمام‌شده",
+            age=30,
+            gender=Student.Gender.MALE,
+            height_cm=Decimal("180.0"),
+            weight_kg=Decimal("82.0"),
+            status=Student.Status.ACTIVE,
+        )
         logged_cycle = create_cycle(
             self.coach_a,
             logged_student,
@@ -269,12 +278,21 @@ class DashboardApiTests(APITestCase):
             starting_weight_kg=Decimal("80"),
             goal_weight_kg=Decimal("75"),
         )
+        create_cycle(
+            self.coach_a,
+            expired_student,
+            start_date=today - timedelta(days=30),
+            starting_weight_kg=Decimal("82"),
+            goal_weight_kg=Decimal("78"),
+        )
         from students.body_check_models import BodyCheckDailyEntry
 
         BodyCheckDailyEntry.objects.create(
             cycle=logged_cycle,
             local_date=today,
             actual_weight_kg=Decimal("85.5"),
+            sleep_start_time=time(23, 30),
+            wake_time=time(7, 0),
             sleep_quality_score=8,
         )
 
@@ -286,5 +304,9 @@ class DashboardApiTests(APITestCase):
         self.assertEqual([item["student_name"] for item in items], ["شاگرد ثبت‌نشده", "شاگرد ثبت‌شده"])
         self.assertFalse(items[0]["is_logged"])
         self.assertEqual(items[1]["actual_weight_kg"], 85.5)
+        self.assertEqual(items[1]["sleep_start_time"], "23:30:00")
+        self.assertEqual(items[1]["wake_time"], "07:00:00")
+        self.assertTrue(items[1]["completion"]["has_sleep"])
         self.assertEqual(items[1]["sleep_quality_score"], 8)
         self.assertNotIn("شاگرد مربی دیگر", [item["student_name"] for item in items])
+        self.assertNotIn("شاگرد دوره تمام‌شده", [item["student_name"] for item in items])

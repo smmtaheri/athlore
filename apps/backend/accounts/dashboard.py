@@ -27,6 +27,8 @@ def _build_body_check_today(coach: CoachProfile, today: date) -> list[dict]:
             coach=coach,
             status=BodyCheckCycle.Status.ACTIVE,
             student__archived_at__isnull=True,
+            start_date__lte=today,
+            end_date__gte=today,
         )
         .select_related("student")
         .order_by("student__full_name", "student_id")
@@ -37,13 +39,11 @@ def _build_body_check_today(coach: CoachProfile, today: date) -> list[dict]:
 
     items: list[dict] = []
     for cycle in cycles:
-        day = None
-        if cycle.start_date <= today <= cycle.end_date:
-            day = body_check_services.serialize_entry(
-                entries_by_cycle.get(cycle.id),
-                cycle=cycle,
-                local_date=today,
-            )
+        day = body_check_services.serialize_entry(
+            entries_by_cycle.get(cycle.id),
+            cycle=cycle,
+            local_date=today,
+        )
 
         items.append(
             {
@@ -51,14 +51,17 @@ def _build_body_check_today(coach: CoachProfile, today: date) -> list[dict]:
                 "student_id": str(cycle.student_id),
                 "student_name": cycle.student.full_name,
                 "local_date": today.isoformat(),
-                "status": day["status"] if day else "not_logged",
-                "is_logged": bool(day and day["is_logged"]),
-                "actual_weight_kg": day["actual_weight_kg"] if day else None,
-                "target_weight_kg": day["target_weight_kg"] if day else None,
-                "weight_delta_kg": day["weight_delta_kg"] if day else None,
-                "sleep_duration_minutes": day["sleep_duration_minutes"] if day else None,
-                "sleep_quality_score": day["sleep_quality_score"] if day else None,
-                "nutrition_adherence_score": day["nutrition_adherence_score"] if day else None,
+                "status": day["status"],
+                "is_logged": day["is_logged"],
+                "completion": day["completion"],
+                "actual_weight_kg": day["actual_weight_kg"],
+                "target_weight_kg": day["target_weight_kg"],
+                "weight_delta_kg": day["weight_delta_kg"],
+                "sleep_start_time": day["sleep_start_time"],
+                "wake_time": day["wake_time"],
+                "sleep_duration_minutes": day["sleep_duration_minutes"],
+                "sleep_quality_score": day["sleep_quality_score"],
+                "nutrition_adherence_score": day["nutrition_adherence_score"],
             }
         )
 

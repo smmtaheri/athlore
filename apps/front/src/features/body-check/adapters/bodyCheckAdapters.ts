@@ -77,6 +77,8 @@ export function bodyCheckReportFromApi(dto: Record<string, unknown>): BodyCheckR
     avgNutritionAdherenceScore: numOrNull(dto.avg_nutrition_adherence_score),
     avgSleepDurationMinutes: numOrNull(dto.avg_sleep_duration_minutes),
     avgSleepQualityScore: numOrNull(dto.avg_sleep_quality_score),
+    avgSleepStartTime: dto.avg_sleep_start_time == null ? null : str(dto.avg_sleep_start_time),
+    avgWakeTime: dto.avg_wake_time == null ? null : str(dto.avg_wake_time),
     cycleLengthDays: num(dto.cycle_length_days, 30),
     deltaToGoalKg: numOrNull(dto.delta_to_goal_kg),
     goalWeightKg: num(dto.goal_weight_kg),
@@ -87,7 +89,9 @@ export function bodyCheckReportFromApi(dto: Record<string, unknown>): BodyCheckR
     nutritionScoreDays: num(dto.nutrition_score_days),
     sleepDurationDays: num(dto.sleep_duration_days),
     sleepQualityDays: num(dto.sleep_quality_days),
-    startingWeightKg: num(dto.starting_weight_kg)
+    sleepStartTimeDays: num(dto.sleep_start_time_days),
+    startingWeightKg: num(dto.starting_weight_kg),
+    wakeTimeDays: num(dto.wake_time_days)
   };
 }
 

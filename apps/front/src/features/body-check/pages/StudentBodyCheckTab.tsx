@@ -18,6 +18,8 @@ import {
 } from "../services/bodyCheckRepository";
 import { BodyCheckPhotoImage } from "../components/BodyCheckPhotoImage";
 import {
+  formatBodyCheckDate,
+  formatClockTime,
   formatDeltaKg,
   formatKg,
   formatSleepDuration,
@@ -244,7 +246,7 @@ export function StudentBodyCheckTab({
                   size="sm"
                   variant={cycle.id === activeId ? "primary" : "secondary"}
                 >
-                  {cycle.startDate} · {cycle.status === "active" ? "فعال" : "بسته"}
+                  {formatBodyCheckDate(cycle.startDate)} · {cycle.status === "active" ? "فعال" : "بسته"}
                 </Button>
               ))}
             </div>
@@ -298,7 +300,7 @@ export function BodyCheckReportView({
         <p className={styles.eyebrow}>گزارش بادی چک</p>
         <h2 className={styles.title}>{studentName}</h2>
         <p className={styles.muted}>
-          {cycle.startDate} تا {cycle.endDate} ·{" "}
+          {formatBodyCheckDate(cycle.startDate)} تا {formatBodyCheckDate(cycle.endDate)} ·{" "}
           <StatusBadge variant={cycle.status === "active" ? "info" : "neutral"}>
             {cycle.status === "active" ? "فعال" : "بسته"}
           </StatusBadge>
@@ -332,6 +334,12 @@ export function BodyCheckReportView({
               {report.sleepDurationDays} روز)
             </p>
             <p className={styles.muted}>
+              ساعت خواب: {formatClockTime(report.avgSleepStartTime)} ({report.sleepStartTimeDays} روز)
+            </p>
+            <p className={styles.muted}>
+              ساعت بیداری: {formatClockTime(report.avgWakeTime)} ({report.wakeTimeDays} روز)
+            </p>
+            <p className={styles.muted}>
               نمره خواب: {report.avgSleepQualityScore ?? "—"} ({report.sleepQualityDays} روز)
             </p>
           </Card>
@@ -348,6 +356,8 @@ export function BodyCheckReportView({
                 <th>هدف</th>
                 <th>واقعی</th>
                 <th>اختلاف</th>
+                <th>ساعت خواب</th>
+                <th>ساعت بیداری</th>
                 <th>خواب</th>
                 <th>نمره خواب</th>
                 <th>نمره رژیم</th>
@@ -357,13 +367,15 @@ export function BodyCheckReportView({
             <tbody>
               {(cycle.days || []).map((day) => (
                 <tr key={day.localDate}>
-                  <td>{day.localDate}</td>
+                  <td>{formatBodyCheckDate(day.localDate, true)}</td>
                   <td>{day.dayNumber}</td>
                   <td>{day.targetWeightKg ?? "—"}</td>
                   <td className={day.isLogged ? undefined : styles.missingCell}>
                     {day.actualWeightKg ?? "—"}
                   </td>
                   <td>{day.weightDeltaKg ?? "—"}</td>
+                  <td>{formatClockTime(day.sleepStartTime)}</td>
+                  <td>{formatClockTime(day.wakeTime)}</td>
                   <td>{formatSleepDuration(day.sleepDurationMinutes)}</td>
                   <td>{day.sleepQualityScore ?? "—"}</td>
                   <td>{day.nutritionAdherenceScore ?? "—"}</td>

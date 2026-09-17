@@ -56,6 +56,18 @@
   gap: var(--space-3);
 }
 
+.bodyCheckCounts,
+.bodyCheckGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.bodyCheckGroup {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .bodyCheckItem {
   display: grid;
   min-width: 0;

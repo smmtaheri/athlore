@@ -65,6 +65,8 @@ function cycle(overrides: Partial<BodyCheckCycle> = {}): BodyCheckCycle {
     id: "e1",
     isLogged: true,
     nutritionAdherenceScore: 8,
+    sleepStartTime: "23:30:00",
+    wakeTime: "07:00:00",
     status: "logged",
     weightDeltaKg: -0.5
   };
@@ -84,6 +86,8 @@ function cycle(overrides: Partial<BodyCheckCycle> = {}): BodyCheckCycle {
       avgNutritionAdherenceScore: 8,
       avgSleepDurationMinutes: null,
       avgSleepQualityScore: null,
+      avgSleepStartTime: "23:30:00",
+      avgWakeTime: "07:00:00",
       cycleLengthDays: 30,
       deltaToGoalKg: 2.5,
       goalWeightKg: 82,
@@ -94,7 +98,9 @@ function cycle(overrides: Partial<BodyCheckCycle> = {}): BodyCheckCycle {
       nutritionScoreDays: 1,
       sleepDurationDays: 0,
       sleepQualityDays: 0,
-      startingWeightKg: 85
+      sleepStartTimeDays: 0,
+      startingWeightKg: 85,
+      wakeTimeDays: 0
     },
     startDate: "2026-08-20",
     startingWeightKg: 85,
@@ -212,6 +218,10 @@ describe("Body Check student UI", () => {
     expect(screen.getByText(/1 از 30|۱ از ۳۰/)).toBeInTheDocument();
     expect(screen.getByText(/ثبت‌نشده: 29|ثبت‌نشده: ۲۹/)).toBeInTheDocument();
     expect(screen.getAllByText("ثبت‌نشده").length).toBeGreaterThan(1);
+    expect(screen.getByRole("columnheader", { name: "ساعت خواب" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "ساعت بیداری" })).toBeInTheDocument();
+    expect(screen.getByText(/ساعت خواب:/)).toBeInTheDocument();
+    expect(screen.getByText(/ساعت بیداری:/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "چاپ گزارش" })).not.toBeInTheDocument();
   });
 

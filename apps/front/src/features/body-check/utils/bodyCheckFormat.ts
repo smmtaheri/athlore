@@ -8,6 +8,38 @@ export function formatSleepDuration(minutes: number | null | undefined): string 
   return `${h} ساعت و ${m} دقیقه`;
 }
 
+function localDateFromIso(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  const result = new Date(Number(year), Number(month) - 1, Number(day), 12);
+  return Number.isNaN(result.getTime()) ? null : result;
+}
+
+/** Format a Body Check calendar day in the Persian calendar without changing its ISO value. */
+export function formatBodyCheckDate(value: string | null | undefined, short = false): string {
+  if (!value) return "—";
+  const date = localDateFromIso(value);
+  if (!date) return value;
+  return new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
+    day: "numeric",
+    month: short ? "numeric" : "long",
+    year: "numeric"
+  }).format(date);
+}
+
+export function formatClockTime(value: string | null | undefined): string {
+  if (!value) return "ثبت نشده";
+  const match = /^(\d{2}):(\d{2})/.exec(value);
+  if (!match) return value;
+  const date = new Date(2000, 0, 1, Number(match[1]), Number(match[2]));
+  return new Intl.DateTimeFormat("fa-IR", {
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit"
+  }).format(date);
+}
+
 export function formatKg(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
   return `${value.toLocaleString("fa-IR", { maximumFractionDigits: 1 })} کیلو`;

@@ -970,6 +970,7 @@ export function programPatchToApi(program: Partial<GeneratedProgram>): Record<st
 export function dashboardFromApi(dto: Record<string, unknown>): DashboardMetrics {
   return {
     activeStudents: num(dto.active_students),
+    asOf: str(dto.as_of),
     bodyCheckToday: ((dto.body_check_today as Record<string, unknown>[]) || []).map(
       bodyCheckTodayFromApi
     ),
@@ -994,19 +995,27 @@ export function dashboardFromApi(dto: Record<string, unknown>): DashboardMetrics
 }
 
 function bodyCheckTodayFromApi(dto: Record<string, unknown>): BodyCheckTodayItem {
+  const completion = (dto.completion as Record<string, unknown>) || {};
   return {
     actualWeightKg: nullableNum(dto.actual_weight_kg),
+    completion: {
+      hasNutrition: Boolean(completion.has_nutrition),
+      hasSleep: Boolean(completion.has_sleep),
+      hasWeight: Boolean(completion.has_weight)
+    },
     cycleId: str(dto.cycle_id),
     isLogged: Boolean(dto.is_logged),
     localDate: str(dto.local_date),
     nutritionAdherenceScore: nullableNum(dto.nutrition_adherence_score),
     sleepDurationMinutes: nullableNum(dto.sleep_duration_minutes),
     sleepQualityScore: nullableNum(dto.sleep_quality_score),
+    sleepStartTime: dto.sleep_start_time == null ? null : str(dto.sleep_start_time),
     status: dto.status === "logged" ? "logged" : "not_logged",
     studentId: str(dto.student_id),
     studentName: str(dto.student_name),
     targetWeightKg: nullableNum(dto.target_weight_kg),
-    weightDeltaKg: nullableNum(dto.weight_delta_kg)
+    weightDeltaKg: nullableNum(dto.weight_delta_kg),
+    wakeTime: dto.wake_time == null ? null : str(dto.wake_time)
   };
 }
 

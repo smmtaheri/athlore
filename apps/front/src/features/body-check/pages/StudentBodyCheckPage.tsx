@@ -7,7 +7,13 @@ import {
   type StudentBodyCheckRepository
 } from "../services/bodyCheckRepository";
 import { BodyCheckPhotoImage } from "../components/BodyCheckPhotoImage";
-import { formatKg, formatSleepDuration, scoreOptions, weekLabel } from "../utils/bodyCheckFormat";
+import {
+  formatBodyCheckDate,
+  formatKg,
+  formatSleepDuration,
+  scoreOptions,
+  weekLabel
+} from "../utils/bodyCheckFormat";
 import styles from "../components/bodyCheck.module.css";
 
 type DayFormState = {
@@ -238,7 +244,7 @@ export function StudentBodyCheckPage({
             </div>
             <p className={styles.muted}>
               {selectedDay
-                ? `روز ${selectedDay.dayNumber} · ${weekLabel(selectedDay.weekNumber)} · ${
+                ? `روز ${selectedDay.dayNumber} · ${formatBodyCheckDate(selectedDay.localDate)} · ${weekLabel(selectedDay.weekNumber)} · ${
                     selectedDay.isLogged ? "ثبت‌شده" : "ثبت‌نشده"
                   }`
                 : null}

@@ -19,7 +19,12 @@ import {
   type BodyCheckTodayItem,
   type DashboardMetrics
 } from "../services/dashboardMetrics";
-import { formatDeltaKg, formatKg } from "../../body-check/utils/bodyCheckFormat";
+import {
+  formatBodyCheckDate,
+  formatClockTime,
+  formatDeltaKg,
+  formatKg
+} from "../../body-check/utils/bodyCheckFormat";
 import styles from "../../programs/components/programFlow.module.css";
 import mvpStyles from "../../programs/components/mvp.module.css";
 
@@ -113,6 +118,7 @@ function DashboardContent({
 
   return (
     <div className={mvpStyles.pageStack}>
+      <BodyCheckTodaySection asOf={metrics.asOf} items={metrics.bodyCheckToday} />
       <div className={mvpStyles.metricGrid}>
         <Metric title="کل شاگردها" value={metrics.totalStudents} />
         <Metric title="شاگردهای فعال" value={metrics.activeStudents} />
@@ -154,7 +160,6 @@ function DashboardContent({
           </Button>
         </Link>
       </Card>
-      <BodyCheckTodaySection items={metrics.bodyCheckToday} />
       <div className={mvpStyles.twoColumn}>
         <DashboardList
           title="کارهای امروز"
@@ -197,14 +202,35 @@ function DashboardContent({
   );
 }
 
-function BodyCheckTodaySection({ items }: { items: BodyCheckTodayItem[] }) {
+type BodyCheckState = "complete" | "missing" | "partial";
+
+function bodyCheckState(item: BodyCheckTodayItem): BodyCheckState {
+  if (!item.isLogged) return "missing";
+  return item.completion.hasWeight && item.completion.hasSleep && item.completion.hasNutrition
+    ? "complete"
+    : "partial";
+}
+
+function sleepSummary(item: BodyCheckTodayItem): string {
+  if (item.sleepStartTime && item.wakeTime) {
+    return `خواب: ${formatClockTime(item.sleepStartTime)} تا ${formatClockTime(item.wakeTime)}`;
+  }
+  if (item.sleepStartTime) return `خواب: از ${formatClockTime(item.sleepStartTime)} · بیداری ثبت نشده`;
+  if (item.wakeTime) return `خواب: ساعت خواب ثبت نشده · بیداری ${formatClockTime(item.wakeTime)}`;
+  return "خواب: ثبت نشده";
+}
+
+export function BodyCheckTodaySection({ asOf, items }: { asOf: string; items: BodyCheckTodayItem[] }) {
+  const missing = items.filter((item) => bodyCheckState(item) === "missing");
+  const partial = items.filter((item) => bodyCheckState(item) === "partial");
+  const complete = items.filter((item) => bodyCheckState(item) === "complete");
   return (
     <Card className={mvpStyles.bodyCheckCard}>
       <div className={mvpStyles.bodyCheckHeader}>
         <div>
           <h2 className={styles.sectionTitle}>پیگیری بادی‌چک امروز</h2>
           <p className={styles.sectionDescription}>
-            وضعیت امروز شاگردهایی که دوره‌ی فعال بادی‌چک دارند
+            {formatBodyCheckDate(asOf)} · وضعیت شاگردهای دارای دوره فعال امروز
           </p>
         </div>
         {items.length > 0 ? <StatusBadge>{items.length} دوره فعال</StatusBadge> : null}
@@ -216,8 +242,31 @@ function BodyCheckTodaySection({ items }: { items: BodyCheckTodayItem[] }) {
           title="دوره فعال بادی‌چک وجود ندارد"
         />
       ) : (
-        <div className={mvpStyles.bodyCheckList}>
-          {items.map((item) => (
+        <>
+          <div className={mvpStyles.bodyCheckCounts}>
+            <StatusBadge variant="warning">{missing.length} ثبت نشده</StatusBadge>
+            <StatusBadge variant="info">{partial.length} ناقص</StatusBadge>
+            <StatusBadge variant="success">{complete.length} کامل</StatusBadge>
+          </div>
+          <BodyCheckGroup items={[...missing, ...partial]} title="نیاز به پیگیری" />
+          <BodyCheckGroup items={complete} title="ثبت کامل امروز" />
+        </>
+      )}
+    </Card>
+  );
+}
+
+function BodyCheckGroup({ items, title }: { items: BodyCheckTodayItem[]; title: string }) {
+  if (items.length === 0) return null;
+  return (
+    <div className={mvpStyles.bodyCheckGroup}>
+      <strong>{title}</strong>
+      <div className={mvpStyles.bodyCheckList}>
+        {items.map((item) => {
+          const state = bodyCheckState(item);
+          const label = state === "missing" ? "ثبت نشده" : state === "partial" ? "ثبت ناقص" : "کامل";
+          const variant = state === "missing" ? "warning" : state === "partial" ? "info" : "success";
+          return (
             <Link
               className={mvpStyles.bodyCheckItem}
               key={item.cycleId}
@@ -225,32 +274,21 @@ function BodyCheckTodaySection({ items }: { items: BodyCheckTodayItem[] }) {
             >
               <div className={mvpStyles.bodyCheckIdentity}>
                 <strong>{item.studentName}</strong>
-                <StatusBadge variant={item.isLogged ? "success" : "warning"}>
-                  {item.isLogged ? "ثبت شده" : "ثبت نشده"}
-                </StatusBadge>
+                <StatusBadge variant={variant}>{label}</StatusBadge>
               </div>
               <div className={mvpStyles.bodyCheckDetails}>
-                <span>
-                  وزن: {item.actualWeightKg == null ? "ثبت نشده" : formatKg(item.actualWeightKg)}
-                </span>
-                <span>
-                  هدف امروز: {item.targetWeightKg == null ? "ثبت نشده" : formatKg(item.targetWeightKg)}
-                </span>
-                <span>
-                  اختلاف: {item.weightDeltaKg == null ? "ثبت نشده" : formatDeltaKg(item.weightDeltaKg)}
-                </span>
-                <span>
-                  نمره خواب: {item.sleepQualityScore == null ? "ثبت نشده" : `${item.sleepQualityScore} از ۱۰`}
-                </span>
-                <span>
-                  رعایت رژیم: {item.nutritionAdherenceScore == null ? "ثبت نشده" : `${item.nutritionAdherenceScore} از ۱۰`}
-                </span>
+                <span>وزن: {item.actualWeightKg == null ? "ثبت نشده" : formatKg(item.actualWeightKg)}</span>
+                <span>هدف: {item.targetWeightKg == null ? "ثبت نشده" : formatKg(item.targetWeightKg)}</span>
+                <span>اختلاف: {item.weightDeltaKg == null ? "ثبت نشده" : formatDeltaKg(item.weightDeltaKg)}</span>
+                <span>{sleepSummary(item)}</span>
+                <span>نمره خواب: {item.sleepQualityScore == null ? "ثبت نشده" : `${item.sleepQualityScore} از ۱۰`}</span>
+                <span>رژیم: {item.nutritionAdherenceScore == null ? "ثبت نشده" : `${item.nutritionAdherenceScore} از ۱۰`}</span>
               </div>
             </Link>
-          ))}
-        </div>
-      )}
-    </Card>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

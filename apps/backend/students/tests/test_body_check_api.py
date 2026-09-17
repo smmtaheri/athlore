@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import time, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -13,6 +13,7 @@ from rest_framework.test import APIClient
 from accounts.models import CoachProfile
 from students.body_check_models import BodyCheckDailyEntry
 from students.body_check_services import (
+    average_clock_time,
     create_cycle,
     local_today,
     suggest_daily_targets_kg,
@@ -160,12 +161,26 @@ class BodyCheckApiTests(TestCase):
         self.assertEqual(agg["avg_nutrition_adherence_score"], 7.0)
         self.assertEqual(agg["sleep_duration_days"], 1)
         self.assertEqual(agg["avg_sleep_duration_minutes"], 480)
+        self.assertEqual(agg["sleep_start_time_days"], 1)
+        self.assertEqual(agg["avg_sleep_start_time"], "23:00:00")
+        self.assertEqual(agg["wake_time_days"], 1)
+        self.assertEqual(agg["avg_wake_time"], "07:00:00")
         # Calendar marks unlogged days explicitly
         unlogged = [d for d in report.data["days"] if d["status"] == "not_logged"]
         self.assertEqual(len(unlogged), 28)
         for day in unlogged:
             self.assertIsNone(day["actual_weight_kg"])
             self.assertFalse(day["is_logged"])
+
+    def test_clock_time_average_crosses_midnight(self):
+        self.assertEqual(
+            average_clock_time([time(23, 30), time(0, 30)]),
+            "00:00:00",
+        )
+        self.assertEqual(
+            average_clock_time([time(7, 0), time(8, 0)]),
+            "07:30:00",
+        )
 
     def test_student_cannot_log_future_or_other_student_cycle(self):
         create_cycle(

@@ -5,21 +5,29 @@ import type { StudentVisit } from "../../students/types/monthlyVisit";
 
 export interface BodyCheckTodayItem {
   actualWeightKg: number | null;
+  completion: {
+    hasNutrition: boolean;
+    hasSleep: boolean;
+    hasWeight: boolean;
+  };
   cycleId: string;
   isLogged: boolean;
   localDate: string;
   nutritionAdherenceScore: number | null;
   sleepDurationMinutes: number | null;
   sleepQualityScore: number | null;
+  sleepStartTime: string | null;
   status: "logged" | "not_logged";
   studentId: string;
   studentName: string;
   targetWeightKg: number | null;
   weightDeltaKg: number | null;
+  wakeTime: string | null;
 }
 
 export interface DashboardMetrics {
   activeStudents: number;
+  asOf: string;
   bodyCheckToday: BodyCheckTodayItem[];
   draftPrograms: number;
   finalPrograms: number;
@@ -64,6 +72,7 @@ export function calculateDashboardMetrics({
 
   return {
     activeStudents: students.filter((student) => student.status === "active").length,
+    asOf: new Date().toISOString().slice(0, 10),
     bodyCheckToday: [],
     draftPrograms: programs.filter((program) => program.status === "draft").length,
     finalPrograms: programs.filter((program) => ["active", "ready"].includes(program.status))
