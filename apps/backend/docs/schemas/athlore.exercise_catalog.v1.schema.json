@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://athlore.ir/schemas/athlore.exercise_catalog.v1.schema.json",
+  "title": "Athlore Exercise Catalog V1",
+  "description": "Coach-owned exercise catalog. Ownership is supplied by the CLI --coach-id, never by this document.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "source", "exercises"],
+  "properties": {
+    "schema": { "const": "athlore.exercise_catalog.v1" },
+    "version": { "const": 1 },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["review_status", "documents"],
+      "properties": {
+        "review_status": { "const": "confirmed" },
+        "documents": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "exercises": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/exercise" }
+    }
+  },
+  "$defs": {
+    "externalKey": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,159}$"
+    },
+    "stringArray": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["muscle_key", "region_key", "role"],
+      "properties": {
+        "muscle_key": { "type": "string", "minLength": 1 },
+        "region_key": { "type": ["string", "null"] },
+        "role": { "enum": ["primary", "secondary"] }
+      }
+    },
+    "exercise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "external_key",
+        "name_fa",
+        "name_en",
+        "aliases_fa",
+        "targets",
+        "levels",
+        "equipment_keys",
+        "movement_pattern",
+        "is_preferred",
+        "is_prohibited",
+        "priority",
+        "coach_notes",
+        "source_document"
+      ],
+      "properties": {
+        "external_key": { "$ref": "#/$defs/externalKey" },
+        "name_fa": { "type": "string", "minLength": 1 },
+        "name_en": { "type": "string", "minLength": 1 },
+        "aliases_fa": { "$ref": "#/$defs/stringArray" },
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/target" }
+        },
+        "levels": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["beginner", "intermediate", "advanced"] }
+        },
+        "equipment_keys": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "movement_pattern": { "type": "string", "minLength": 1 },
+        "risk_tags": { "$ref": "#/$defs/stringArray" },
+        "is_preferred": { "type": "boolean" },
+        "is_prohibited": { "type": "boolean" },
+        "priority": { "type": "integer", "minimum": 0 },
+        "coach_notes": { "type": "string", "minLength": 1 },
+        "source_document": { "type": "string", "minLength": 1 },
+        "is_active": { "type": "boolean", "default": true },
+        "is_archived": { "type": "boolean", "default": false }
+      }
+    }
+  }
+}

@@ -359,6 +359,9 @@ class Exercise(models.Model):
     name = models.CharField(max_length=160)
     # Canonical Persian display name (kept as `name` for backward compatibility).
     name_en = models.CharField(max_length=160, blank=True, default="")
+    # Stable identity supplied by an external catalog/import. Empty values are
+    # allowed for legacy/manual rows; non-empty values are unique per coach.
+    external_key = models.CharField(max_length=160, blank=True, default="")
     primary_muscle = models.CharField(max_length=80)
     secondary_muscles = models.JSONField(default=list, blank=True)
     equipment = models.CharField(max_length=80, blank=True, default="")
@@ -381,11 +384,17 @@ class Exercise(models.Model):
                 fields=["coach", "name", "primary_muscle"],
                 name="uniq_coach_exercise_name_muscle",
             ),
+            models.UniqueConstraint(
+                fields=["coach", "external_key"],
+                condition=~models.Q(external_key=""),
+                name="uniq_coach_exercise_external_key",
+            ),
         ]
         indexes = [
             models.Index(fields=["coach", "primary_muscle"]),
             models.Index(fields=["coach", "is_archived"]),
             models.Index(fields=["coach", "name"]),
+            models.Index(fields=["coach", "external_key"], name="ex_coach_external_idx"),
         ]
 
     def __str__(self) -> str:

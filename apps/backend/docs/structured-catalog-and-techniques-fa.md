@@ -26,3 +26,50 @@
 ## اثر در تولید برنامه
 
 generator ابتدا حرکت‌های فعال و coach-scoped کاتالوگ ساختاریافته را بررسی می‌کند و سطح، ناحیه هدف، تجهیزات، ممنوعیت و اولویت را اعمال می‌کند. در صورت کمبود داده، fallbackهای قبلی حفظ شده‌اند. در evidence مربوط به GenerationRun، حرکت‌های انتخاب‌شده، منبع کاتالوگ، موارد حذف‌شده و دلیل حذف، و تکنیک‌های اعمال‌شده همراه پارامترهایشان ثبت می‌شود.
+
+## ورود کاتالوگ از عکس، متن یا ویس
+
+ورودی خام مربی (عکس، متن یا ویس) ابتدا بیرون از دیتابیس به یک JSON با قرارداد
+`athlore.exercise_catalog.v1` تبدیل و توسط مربی بازبینی می‌شود. دست‌خط، نام حرکت،
+ناحیه، سطح یا تجهیزات مبهم نباید حدس زده شود؛ در این حالت مقدار `source.review_status`
+نباید `confirmed` باشد و importer آن را رد می‌کند.
+
+Schema رسمی در مسیر زیر است:
+
+`apps/backend/docs/schemas/athlore.exercise_catalog.v1.schema.json`
+
+فایل JSON نباید `coach_id` داشته باشد. مقصد فقط از UUID واقعی `CoachProfile.id` در
+command گرفته می‌شود. `external_key` هر حرکت، کلید پایدار upsert در محدوده همان مربی
+است و taxonomyهای عضله، ناحیه و تجهیزات فقط با `key` واقعی فعال resolve می‌شوند.
+
+پس از deploy کدی که command را دارد و apply شدن migration مربوط، flow production این است:
+
+```bash
+cd /root/athlore/apps/backend
+
+# فقط بررسی؛ هیچ سطری نوشته نمی‌شود
+.venv/bin/python manage.py import_exercise_catalog \
+  --coach-id <COACH_PROFILE_UUID> \
+  --file /path/to/catalog.json \
+  --replace-primary-muscle-key chest \
+  --dry-run --json
+
+# فقط بعد از dry-run بدون error و بازبینی فهرست حذف‌ها
+.venv/bin/python manage.py import_exercise_catalog \
+  --coach-id <COACH_PROFILE_UUID> \
+  --file /path/to/catalog.json \
+  --replace-primary-muscle-key chest \
+  --apply --json
+```
+
+`--replace-primary-muscle-key chest` فقط رکوردهای همان مربی را که primary target قطعی
+آن‌ها `chest` است (به‌علاوه رکوردهای legacy قابل‌تشخیص همان taxonomy) هدف می‌گیرد. aliasها،
+relationها، preferenceها و referenceهای دقیق آن حرکت‌ها پاک‌سازی می‌شوند و نام آن‌ها از
+گروه‌های بانک حرکت همان مربی حذف می‌شود؛ گروه و داده سایر عضلات باقی می‌ماند. حذف و import
+در یک `transaction.atomic` هستند و خطای validation یا verification کل عملیات را rollback
+می‌کند. نبودن یک حرکت در فایل جدید، بدون این پرچم هیچ archive یا حذفی ایجاد نمی‌کند.
+
+خروجی `--json` شامل مقصد مربی، created/updated/skipped/deleted/errors، taxonomyهای resolveشده
+و فهرست دقیق حذف‌هاست. اجرای مجدد با همان فایل idempotent است. importer هیچ داده‌ای از
+مربی دیگر را query برای تغییر یا overwrite نمی‌کند و کلید مالکیت را از محتوای فایل قبول
+نمی‌کند.

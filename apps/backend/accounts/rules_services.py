@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import re
 from typing import Any
 
 from django.db import transaction
@@ -41,6 +42,11 @@ SUPERSET_PAIRING_MODES = {
     "antagonist",
     "any_eligible",
 }
+EXERCISE_EXTERNAL_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,159}$")
+
+
+def _valid_external_key(value: str) -> bool:
+    return bool(EXERCISE_EXTERNAL_KEY_RE.fullmatch(value))
 
 
 def ensure_rule_set(coach: CoachProfile) -> CoachRuleSet:
@@ -165,6 +171,7 @@ def serialize_exercise(ex: Exercise, preference: CoachExercisePreference | None 
         "id": str(ex.id),
         "name": ex.name,
         "name_en": ex.name_en,
+        "external_key": ex.external_key,
         "primary_muscle": ex.primary_muscle,
         "secondary_muscles": list(ex.secondary_muscles or []),
         "equipment": ex.equipment,
@@ -811,6 +818,7 @@ def delete_template(template: ProgramTemplate) -> None:
 @transaction.atomic
 def create_exercise(coach: CoachProfile, payload: dict) -> Exercise:
     name = str(payload.get("name") or "").strip()
+    external_key = str(payload.get("external_key") or "").strip().lower()
     primary = str(payload.get("primary_muscle") or "").strip()
     targets = payload.get("targets")
     if targets:
@@ -827,12 +835,17 @@ def create_exercise(coach: CoachProfile, payload: dict) -> Exercise:
             primary = primary or primary_key
     if not name or not primary:
         raise ValidationError({"name": ["name and a primary muscle are required."]})
+    if external_key and not _valid_external_key(external_key):
+        raise ValidationError({"external_key": ["Use 1-160 lowercase letters, numbers, '.', '_' or '-'."]})
     if Exercise.objects.filter(coach=coach, name=name, primary_muscle=primary).exists():
         raise ValidationError({"name": ["Exercise already exists for this muscle."]})
+    if external_key and Exercise.objects.filter(coach=coach, external_key=external_key).exists():
+        raise ValidationError({"external_key": ["Exercise external_key already exists for this coach."]})
     ex = Exercise.objects.create(
         coach=coach,
         name=name,
         name_en=str(payload.get("name_en") or ""),
+        external_key=external_key,
         primary_muscle=primary,
         secondary_muscles=_as_str_list(payload.get("secondary_muscles", []), "secondary_muscles"),
         equipment=str(payload.get("equipment") or ""),
@@ -884,6 +897,17 @@ def update_exercise(exercise: Exercise, payload: dict) -> Exercise:
         exercise.name = str(payload["name"]).strip() or exercise.name
     if "name_en" in payload:
         exercise.name_en = str(payload["name_en"] or "")
+    if "external_key" in payload:
+        external_key = str(payload["external_key"] or "").strip().lower()
+        if external_key and not _valid_external_key(external_key):
+            raise ValidationError(
+                {"external_key": ["Use 1-160 lowercase letters, numbers, '.', '_' or '-'."]}
+            )
+        if external_key and Exercise.objects.filter(
+            coach=exercise.coach, external_key=external_key
+        ).exclude(pk=exercise.pk).exists():
+            raise ValidationError({"external_key": ["Exercise external_key already exists for this coach."]})
+        exercise.external_key = external_key
     if "primary_muscle" in payload:
         exercise.primary_muscle = str(payload["primary_muscle"]).strip() or exercise.primary_muscle
     if "secondary_muscles" in payload:
