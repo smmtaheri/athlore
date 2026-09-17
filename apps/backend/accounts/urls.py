@@ -5,8 +5,11 @@ from accounts.rules_views import (
     CoachRulesAggregateView,
     ExerciseDetailView,
     ExerciseListCreateView,
+    ExerciseTaxonomyView,
     ProgramTemplateDetailView,
     ProgramTemplateListCreateView,
+    TrainingTechniqueDetailView,
+    TrainingTechniqueListCreateView,
 )
 from accounts.template_views import NutritionTemplateDetailView, SupplementTemplateDetailView
 from accounts.views import LoginView, LogoutView, MeCoachView, MeView, RefreshView, RegisterView
@@ -57,5 +60,16 @@ urlpatterns = [
         "exercises/<uuid:exercise_id>/",
         ExerciseDetailView.as_view(),
         name="exercise-detail",
+    ),
+    path("exercise-taxonomy/", ExerciseTaxonomyView.as_view(), name="exercise-taxonomy"),
+    path(
+        "training-techniques/",
+        TrainingTechniqueListCreateView.as_view(),
+        name="training-techniques",
+    ),
+    path(
+        "training-techniques/<uuid:technique_id>/",
+        TrainingTechniqueDetailView.as_view(),
+        name="training-technique-detail",
     ),
 ]

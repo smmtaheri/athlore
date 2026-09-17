@@ -704,6 +704,7 @@ export function generationEvidenceFromProgramGeneratorMeta(
 ): GenerationEvidence {
   return {
     equipment: [],
+    exerciseCatalog: { excluded: [], selected: [] },
     exerciseSelection: {
       excludedMovements: [],
       historical: [],
@@ -716,6 +717,7 @@ export function generationEvidenceFromProgramGeneratorMeta(
     muscleFocus: { priorityMuscles: [], weakMuscles: [] },
     nutritionSupplement: { nutritionSelectionReasons: [], supplementSelectionReasons: [] },
     studentId,
+    techniques: [],
     warnings: asStringArray(meta.warnings)
   };
 }
@@ -728,10 +730,13 @@ export function generationEvidenceFromProgramGeneratorMeta(
  * `input_snapshot` / `output_snapshot`, not a dedicated evidence object.
  */
 export function generationEvidenceFromApi(dto: Record<string, unknown>): GenerationEvidence {
-  const explicitEvidence = (dto.evidence as Record<string, unknown>) || null;
   const inputSnapshot = (dto.input_snapshot as Record<string, unknown>) || {};
   const outputSnapshot = (dto.output_snapshot as Record<string, unknown>) || {};
   const generatorMeta = (outputSnapshot.generator as Record<string, unknown>) || {};
+  const explicitEvidence =
+    (dto.evidence as Record<string, unknown>) ||
+    (generatorMeta.evidence as Record<string, unknown>) ||
+    null;
   const request = (dto.request as Record<string, unknown>) || {};
   const student = (inputSnapshot.student as Record<string, unknown>) || {};
   const goals = (student.goals as Record<string, unknown>) || {};
@@ -759,6 +764,7 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
       template.days_per_week ?? generatorMeta.days_per_week ?? request.days_per_week
     ),
     equipment: equipmentList,
+    exerciseCatalog: { excluded: [], selected: [] },
     exerciseSelection: {
       excludedMovements: asStringArray(injuries.disallowed_exercises),
       historical: [],
@@ -782,6 +788,7 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
     studentGoal: goals.primary_goal ? str(goals.primary_goal) : undefined,
     studentId: str(dto.student_id ?? student.id ?? ""),
     studentLevel: template.level ? str(template.level) : undefined,
+    techniques: [],
     templateId: template.id
       ? str(template.id)
       : request.template_id
@@ -822,6 +829,22 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
         to: str(item.to)
       }))
     },
+    exerciseCatalog: {
+      excluded: (Array.isArray(explicitEvidence.structured_catalog_excluded)
+        ? (explicitEvidence.structured_catalog_excluded as Record<string, unknown>[])
+        : []
+      ).map((item) => ({ name: str(item.name), reason: str(item.reason) })),
+      selected: (Array.isArray(explicitEvidence.structured_catalog_selected)
+        ? (explicitEvidence.structured_catalog_selected as Record<string, unknown>[])
+        : []
+      ).map((item) => ({
+        levels: asStringArray(item.levels),
+        name: str(item.name),
+        reason: item.reason ? str(item.reason) : undefined,
+        regions: asStringArray(item.regions),
+        source: str(item.source)
+      }))
+    },
     injuryRules: explicitEvidence.injury_rules
       ? asStringArray(explicitEvidence.injury_rules)
       : injuryRules,
@@ -829,7 +852,18 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
       nutritionSelectionReasons: asStringArray(explicitEvidence.nutrition_selection_reasons),
       supplementSelectionReasons: asStringArray(explicitEvidence.supplement_selection_reasons)
     },
-    ruleSetId: explicitEvidence.rule_set_id ? str(explicitEvidence.rule_set_id) : base.ruleSetId
+    ruleSetId: explicitEvidence.rule_set_id ? str(explicitEvidence.rule_set_id) : base.ruleSetId,
+    techniques: (Array.isArray(explicitEvidence.techniques)
+      ? (explicitEvidence.techniques as Record<string, unknown>[])
+      : []
+    ).map((item) => ({
+      appliedCount: num(item.applied_count),
+      handler: item.handler ? str(item.handler) : undefined,
+      name: str(item.name),
+      parameters: (item.parameters as Record<string, unknown>) || {},
+      source: item.source ? str(item.source) : undefined,
+      status: str(item.status)
+    }))
   };
 }
 

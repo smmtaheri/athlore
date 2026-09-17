@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts import rules_services
-from accounts.models import Exercise, ProgramTemplate
+from accounts.models import CoachTechnique, Exercise, ProgramTemplate
 from common.pagination import StandardLimitOffsetPagination
 from common.permissions import IsAuthenticatedCoach, get_owned_object, get_request_coach
 
@@ -87,7 +87,14 @@ class ExerciseListCreateView(APIView):
 
     def get(self, request):
         coach = get_request_coach(request)
-        qs = Exercise.objects.filter(coach=coach).prefetch_related("preferences")
+        qs = Exercise.objects.filter(coach=coach).prefetch_related(
+            "preferences",
+            "aliases",
+            "muscle_targets__muscle",
+            "muscle_targets__region",
+            "suitable_level_rows",
+            "equipment_rows__equipment",
+        )
         include_archived = (request.query_params.get("include_archived") or "").lower() in {
             "1",
             "true",
@@ -97,16 +104,35 @@ class ExerciseListCreateView(APIView):
             qs = qs.filter(is_archived=False)
         muscle = request.query_params.get("primary_muscle") or request.query_params.get("muscle")
         if muscle:
-            qs = qs.filter(primary_muscle__icontains=muscle)
+            qs = qs.filter(
+                Q(primary_muscle__icontains=muscle)
+                | Q(muscle_targets__muscle__key=muscle)
+                | Q(muscle_targets__muscle__name__icontains=muscle)
+            )
+        region = request.query_params.get("region") or request.query_params.get("region_key")
+        if region:
+            qs = qs.filter(
+                Q(muscle_targets__region__key=region)
+                | Q(muscle_targets__region__name__icontains=region)
+            )
         level = request.query_params.get("level")
         if level:
-            qs = qs.filter(level=level)
+            qs = qs.filter(Q(level=level) | Q(suitable_level_rows__level=level))
+        equipment = request.query_params.get("equipment") or request.query_params.get("equipment_key")
+        if equipment:
+            qs = qs.filter(
+                Q(equipment__icontains=equipment)
+                | Q(equipment_rows__equipment__key=equipment)
+                | Q(equipment_rows__equipment__name__icontains=equipment)
+            )
         search = (request.query_params.get("search") or "").strip()
         if search:
             qs = qs.filter(
                 Q(name__icontains=search)
+                | Q(name_en__icontains=search)
                 | Q(primary_muscle__icontains=search)
                 | Q(equipment__icontains=search)
+                | Q(aliases__alias__icontains=search)
             )
         preferred = request.query_params.get("is_preferred")
         if preferred is not None:
@@ -146,4 +172,51 @@ class ExerciseDetailView(APIView):
         coach = get_request_coach(request)
         exercise = get_owned_object(Exercise.objects.all(), coach=coach, pk=exercise_id)
         rules_services.archive_exercise(exercise)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ExerciseTaxonomyView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def get(self, request):
+        get_request_coach(request)
+        return Response(rules_services.serialize_taxonomy())
+
+
+class TrainingTechniqueListCreateView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def get(self, request):
+        coach = get_request_coach(request)
+        return Response(rules_services.get_coach_techniques(coach))
+
+    def post(self, request):
+        coach = get_request_coach(request)
+        config = rules_services.create_coach_technique(coach, request.data)
+        return Response(
+            rules_services.serialize_coach_technique(config),
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class TrainingTechniqueDetailView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def get(self, request, technique_id):
+        coach = get_request_coach(request)
+        config = get_owned_object(
+            CoachTechnique.objects.select_related("base_technique"), coach=coach, pk=technique_id
+        )
+        return Response(rules_services.serialize_coach_technique(config))
+
+    def patch(self, request, technique_id):
+        coach = get_request_coach(request)
+        config = get_owned_object(CoachTechnique.objects.select_related("base_technique"), coach=coach, pk=technique_id)
+        config = rules_services.update_coach_technique(config, request.data)
+        return Response(rules_services.serialize_coach_technique(config))
+
+    def delete(self, request, technique_id):
+        coach = get_request_coach(request)
+        config = get_owned_object(CoachTechnique.objects.all(), coach=coach, pk=technique_id)
+        rules_services.delete_coach_technique(config)
         return Response(status=status.HTTP_204_NO_CONTENT)

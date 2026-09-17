@@ -150,6 +150,14 @@ export function GenerationEvidencePanel({
             value={<ChipList items={evidence.exerciseSelection.preferred} />}
           />
           <EvidenceRow
+            label="حرکات کاتالوگ ساختاریافته"
+            value={<CatalogSelectionList selected={evidence.exerciseCatalog?.selected || []} excluded={evidence.exerciseCatalog?.excluded || []} />}
+          />
+          <EvidenceRow
+            label="تکنیک‌های اعمال‌شده"
+            value={<TechniqueList items={evidence.techniques || []} />}
+          />
+          <EvidenceRow
             label="سابقه تاریخی استفاده‌شده"
             value={<ChipList items={evidence.exerciseSelection.historical} />}
           />
@@ -212,6 +220,51 @@ function ReplacementList({ items }: { items: GenerationEvidenceReplacement[] }) 
         <li key={`${item.from}-${item.to}-${index}`}>
           {item.from} ← {item.to}
           {item.reason ? ` (${item.reason})` : ""}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CatalogSelectionList({
+  excluded,
+  selected
+}: {
+  excluded: Array<{ name: string; reason: string }>;
+  selected: Array<{ levels: string[]; name: string; reason?: string; regions: string[]; source: string }>;
+}) {
+  if (!selected.length && !excluded.length) {
+    return <span>—</span>;
+  }
+  return (
+    <ul className={styles.metaList}>
+      {selected.map((item) => (
+        <li key={`selected-${item.name}`}>
+          انتخاب شد: {item.name} ({item.source || "کاتالوگ مربی"}{item.reason ? `، ${item.reason}` : ""})
+        </li>
+      ))}
+      {excluded.map((item, index) => (
+        <li key={`excluded-${item.name}-${index}`}>
+          حذف شد: {item.name} ({item.reason || "قانون فیلتر"})
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function TechniqueList({
+  items
+}: {
+  items: Array<{ appliedCount: number; handler?: string; name: string; status: string }>;
+}) {
+  if (!items.length) {
+    return <span>—</span>;
+  }
+  return (
+    <ul className={styles.metaList}>
+      {items.map((item) => (
+        <li key={`${item.name}-${item.handler || "manual"}`}>
+          {item.name}: {item.status}، تعداد اجرا {item.appliedCount}
         </li>
       ))}
     </ul>

@@ -182,10 +182,18 @@ def _passes_level(
     level: str,
     catalog_by_name: dict[str, Exercise],
     pref_by_exercise_id: dict[str, CoachExercisePreference],
+    structured_catalog_by_name: dict[str, dict] | None = None,
 ) -> bool:
     ex = catalog_by_name.get(name)
     if ex is None:
         return True
+    structured = (structured_catalog_by_name or {}).get(name) or {}
+    structured_levels = set(structured.get("levels") or [])
+    if structured_levels:
+        if "all" in structured_levels or level in structured_levels:
+            return True
+        pref = pref_by_exercise_id.get(str(ex.id))
+        return bool(pref and level in (pref.suitable_levels or []))
     if not ex.level or ex.level == "all" or ex.level == level:
         return True
     pref = pref_by_exercise_id.get(str(ex.id))
@@ -195,7 +203,10 @@ def _passes_level(
 
 
 def _passes_equipment_hard(
-    name: str, tokens: set[str] | None, catalog_by_name: dict[str, Exercise]
+    name: str,
+    tokens: set[str] | None,
+    catalog_by_name: dict[str, Exercise],
+    structured_catalog_by_name: dict[str, dict] | None = None,
 ) -> bool:
     """Hard equipment constraint. ``None`` = unrestricted (unknown / full gym)."""
     if tokens is None:
@@ -205,7 +216,16 @@ def _passes_equipment_hard(
         # Unknown catalog entry: allow only when no explicit equipment tokens required,
         # or treat as bodyweight-friendly string heuristics.
         return _name_looks_bodyweight(name) if not tokens else _name_matches_tokens(name, tokens)
+    structured = (structured_catalog_by_name or {}).get(name) or {}
+    structured_equipment = structured.get("equipment_names") or []
     eq = (ex.equipment or "").strip()
+    if structured_equipment:
+        if not tokens:
+            return any(_matches_any(item, BODYWEIGHT_TOKENS) for item in structured_equipment)
+        return any(
+            any(token in item.lower() or item in token for token in tokens)
+            for item in structured_equipment
+        )
     if not eq or any(t in eq.lower() or t in eq for t in BODYWEIGHT_TOKENS):
         return True
     if not tokens:
@@ -278,7 +298,7 @@ def _bank_for_muscle(bank_groups: list[ExerciseBankGroup], muscle: str) -> Exerc
         g = group.group_name or ""
         if muscle in g or g in muscle:
             return group
-        # Arman bank uses "جلوبازو" / "پشت‌بازو" / "سرشانه و کتف" / "شکم و اصلاحی"
+        # Legacy bank groups may use compact Persian muscle labels.
         if muscle == "جلو بازو" and ("جلو" in g and "بازو" in g):
             return group
         if muscle == "پشت بازو" and ("پشت" in g and "بازو" in g):
@@ -297,13 +317,36 @@ def _candidate_names(
     muscle: str,
     bank_groups: list[ExerciseBankGroup],
     catalog: dict[tuple[str, str], Exercise],
+    structured_catalog_by_name: dict[str, dict],
     preferred_names: set[str],
     level: str,
     apply_bank: bool,
-) -> tuple[list[str], set[str]]:
-    """Return (ordered candidates, names that came from coach bank)."""
+    region_keys: set[str] | None = None,
+) -> tuple[list[str], set[str], set[str]]:
+    """Return (ordered candidates, legacy-bank names, structured-catalog names)."""
     raw: list[str] = []
     from_bank: set[str] = set()
+    from_structured: set[str] = set()
+    structured = []
+    if apply_bank:
+        structured = [
+            (name, metadata)
+            for name, metadata in structured_catalog_by_name.items()
+            if normalize_muscle(str(metadata.get("primary_muscle") or "")) == muscle
+            and (
+                not region_keys
+                or bool(set(metadata.get("region_keys") or []).intersection(region_keys))
+            )
+        ]
+    structured.sort(
+        key=lambda item: (
+            0 if item[0] in preferred_names else 1,
+            -int(item[1].get("priority") or 0),
+            item[0],
+        )
+    )
+    raw.extend(name for name, _metadata in structured)
+    from_structured.update(name for name, _metadata in structured)
     bank = _bank_for_muscle(bank_groups, muscle) if apply_bank else None
     if bank:
         favorites = list(bank.favorite_exercises or [])
@@ -318,10 +361,10 @@ def _candidate_names(
         raw.extend(extra)
         from_bank.update(extra)
     for (pm, name), _ex in sorted(catalog.items(), key=lambda x: x[0][1]):
-        if normalize_muscle(pm) == muscle and name in preferred_names:
+        if normalize_muscle(pm) == muscle and name in preferred_names and name not in from_structured:
             raw.insert(0, name)
     raw.extend(_FALLBACK.get(muscle, []))
-    return _unique(raw), from_bank
+    return _unique(raw), from_bank, from_structured
 
 
 def _filter_candidates(
@@ -338,13 +381,35 @@ def _filter_candidates(
     replacements_applied: list[dict],
     excluded_equipment: list[dict],
     muscle: str,
+    structured_catalog_by_name: dict[str, dict] | None = None,
+    excluded_reasons: list[dict] | None = None,
+    excluded_catalog_by_name: dict[str, str] | None = None,
 ) -> list[str]:
     after: list[str] = []
     for name in names:
+        if name in (excluded_catalog_by_name or {}):
+            if excluded_reasons is not None:
+                excluded_reasons.append(
+                    {
+                        "name": name,
+                        "reason": (excluded_catalog_by_name or {}).get(name),
+                    }
+                )
+            continue
         if name in used or _fuzzy_forbidden(name, used):
             continue
         is_forbidden = name in forbidden or _fuzzy_forbidden(name, forbidden)
         if is_forbidden:
+            if excluded_reasons is not None:
+                pref = pref_by_exercise_id.get(
+                    str(catalog_by_name[name].id)
+                ) if name in catalog_by_name else None
+                excluded_reasons.append(
+                    {
+                        "name": name,
+                        "reason": "coach_prohibited" if pref and pref.is_prohibited else "forbidden_rule",
+                    }
+                )
             rule_info = injury_alternative_map.get(name)
             replaced = False
             if rule_info:
@@ -370,12 +435,26 @@ def _filter_candidates(
         after.append(name)
 
     if apply_level:
-        after = [n for n in after if _passes_level(n, level, catalog_by_name, pref_by_exercise_id)]
+        level_after = []
+        for name in after:
+            if _passes_level(
+                name,
+                level,
+                catalog_by_name,
+                pref_by_exercise_id,
+                structured_catalog_by_name,
+            ):
+                level_after.append(name)
+            elif excluded_reasons is not None:
+                excluded_reasons.append({"name": name, "reason": "level_not_suitable"})
+        after = level_after
 
     hard: list[str] = []
     dropped: list[str] = []
     for n in after:
-        if _passes_equipment_hard(n, equipment_tokens, catalog_by_name):
+        if _passes_equipment_hard(
+            n, equipment_tokens, catalog_by_name, structured_catalog_by_name
+        ):
             hard.append(n)
         else:
             dropped.append(n)
@@ -664,6 +743,8 @@ def build_training_days(
     bank_groups: list[ExerciseBankGroup],
     catalog: dict[tuple[str, str], Exercise],
     catalog_by_name: dict[str, Exercise],
+    structured_catalog_by_name: dict[str, dict],
+    excluded_catalog_by_name: dict[str, str],
     pref_by_exercise_id: dict[str, CoachExercisePreference],
     forbidden: set[str],
     injury_alternative_map: dict[str, dict],
@@ -671,9 +752,39 @@ def build_training_days(
     muscle_priorities_override: list[str],
     goals_override: str,
     warnings: list[str],
+    target_muscle: str = "",
+    target_region: str = "",
+    target_exercise_count: int | None = None,
 ) -> tuple[list[dict], dict]:
     equipment_tokens = available_equipment_tokens(student.equipment)
     goals = student.goals or {}
+    raw_region_inputs = [
+        *(goals.get("weak_muscles") or []),
+        *(goals.get("muscle_priorities") or []),
+        *muscle_priorities_override,
+        target_muscle,
+        target_region,
+    ]
+    region_aliases = {
+        "upper_chest": "upper_chest",
+        "upper chest": "upper_chest",
+        "بالاسینه": "upper_chest",
+        "بالا سینه": "upper_chest",
+        "mid_chest": "mid_chest",
+        "بخش میانی سینه": "mid_chest",
+        "lower_chest": "lower_chest",
+        "پایین سینه": "lower_chest",
+    }
+    structured_region_filters: dict[str, set[str]] = {}
+    for raw_value in raw_region_inputs:
+        key = region_aliases.get(str(raw_value).strip().lower())
+        if key:
+            structured_region_filters.setdefault("سینه", set()).add(key)
+    if target_region and target_muscle:
+        canonical_target = normalize_muscle(target_muscle)
+        normalized_region = region_aliases.get(str(target_region).strip().lower())
+        if normalized_region:
+            structured_region_filters.setdefault(canonical_target, set()).add(normalized_region)
     weak = {normalize_muscle(m) for m in (goals.get("weak_muscles") or [])}
     priority = {
         normalize_muscle(m)
@@ -690,8 +801,10 @@ def build_training_days(
             bank_name_set.update(group.beginner_friendly or [])
             bank_name_set.update(group.professional_friendly or [])
     for pref in pref_by_exercise_id.values():
-        if pref.is_preferred:
+        if pref.is_preferred or int(pref.priority or 0) > 0:
             preferred_names.add(pref.exercise.name)
+        if pref.exercise.name in structured_catalog_by_name:
+            structured_catalog_by_name[pref.exercise.name]["priority"] = int(pref.priority or 0)
 
     muscle_priority_map: dict[str, MusclePriority] = {}
     if apply_muscle:
@@ -744,7 +857,24 @@ def build_training_days(
         "historical_selected": [],
         "equipment_filters": [],
         "split_resolved": [{"title": t, "muscles": m} for t, m in parsed],
+        "structured_catalog_selected": [],
+        "structured_catalog_excluded": [],
+        "techniques": [],
     }
+
+    structured_technique_keys: set[str] = set()
+    structured_technique_evidence: list[dict] = []
+    structured_technique_handler = None
+    from programming.services.techniques import enabled_techniques_for_level
+
+    allowed_technique_names = set(level_rule.allowed_techniques or []) if level_rule else set()
+    for config in enabled_techniques_for_level(
+        coach, level, allowed_names=allowed_technique_names
+    ):
+        if config.base_technique and config.base_technique.handler_key:
+            structured_technique_keys.add(config.key)
+            if config.base_technique.handler_key == "superset":
+                structured_technique_handler = "superset"
 
     for index, (day_title, target_muscles) in enumerate(parsed):
         style = day_style_target(target_muscles, coach=coach)
@@ -763,6 +893,12 @@ def build_training_days(
         day_exercises: list[dict] = []
         for muscle in target_muscles:
             style_count = per_muscle_targets.get(muscle)
+            if (
+                target_exercise_count
+                and target_muscle
+                and normalize_muscle(target_muscle) == muscle
+            ):
+                style_count = (target_exercise_count, target_exercise_count)
             if style_count is None:
                 style_count = (2, 3) if muscle in ARM_MUSCLES | CORE_MUSCLES else (3, 4)
             roles = _roles_for_muscle(
@@ -781,14 +917,26 @@ def build_training_days(
                     roles = roles + [roles[-1]]
                     roles = roles[:hi]
 
-            candidates, from_bank = _candidate_names(
+            candidates, from_bank, from_structured = _candidate_names(
                 muscle=muscle,
                 bank_groups=bank_groups,
                 catalog=catalog,
+                structured_catalog_by_name=structured_catalog_by_name,
                 preferred_names=preferred_names,
                 level=level,
                 apply_bank=apply_bank,
+                region_keys=(structured_region_filters or {}).get(muscle),
             )
+            excluded_catalog_reasons: list[dict] = []
+            region_filter = (structured_region_filters or {}).get(muscle) or set()
+            if region_filter:
+                for name, metadata in structured_catalog_by_name.items():
+                    if normalize_muscle(str(metadata.get("primary_muscle") or "")) != muscle:
+                        continue
+                    if not set(metadata.get("region_keys") or []).intersection(region_filter):
+                        excluded_catalog_reasons.append(
+                            {"name": name, "reason": "target_region_mismatch"}
+                        )
             filtered = _filter_candidates(
                 names=candidates,
                 forbidden=forbidden,
@@ -802,7 +950,11 @@ def build_training_days(
                 replacements_applied=evidence["replacements_applied"],
                 excluded_equipment=evidence["equipment_filters"],
                 muscle=muscle,
+                structured_catalog_by_name=structured_catalog_by_name,
+                excluded_reasons=excluded_catalog_reasons,
+                excluded_catalog_by_name=excluded_catalog_by_name,
             )
+            evidence["structured_catalog_excluded"].extend(excluded_catalog_reasons)
             if not filtered:
                 warnings.append(f"missing_exercise_candidates:{muscle}")
                 for fallback in _FALLBACK.get(muscle, ["حرکت جایگزین کنترل‌شده"]):
@@ -854,8 +1006,23 @@ def build_training_days(
                     coach=coach,
                 )
                 selection_source = "fallback"
+                if name in from_structured:
+                    selection_source = "coach_structured_catalog"
+                    metadata = structured_catalog_by_name.get(name) or {}
+                    evidence["structured_catalog_selected"].append(
+                        {
+                            "exercise_id": str(ex_ref.id) if ex_ref else None,
+                            "name": name,
+                            "source": "coach_catalog",
+                            "reason": "active_owner_level_region_equipment_match",
+                            "primary_muscle": metadata.get("primary_muscle"),
+                            "regions": list(metadata.get("region_keys") or []),
+                            "levels": list(metadata.get("levels") or []),
+                        }
+                    )
                 if name in from_bank:
-                    selection_source = "coach_bank"
+                    if selection_source == "fallback":
+                        selection_source = "coach_bank"
                     evidence["selected_from_coach_bank"].append(name)
                 if name in preferred_names:
                     evidence["selected_due_to_preference"].append(name)
@@ -890,6 +1057,36 @@ def build_training_days(
                         "notes": ("حرکت اصلی جلسه؛ با گرم کردن کافی شروع شود." if idx == 0 else ""),
                         "replacement_notes": "",
                         "selection_source": selection_source,
+                        "catalog_source": "coach" if ex_ref else "fallback",
+                        "exercise_snapshot": (
+                            {
+                                "id": str(ex_ref.id),
+                                "name": ex_ref.name,
+                                "name_en": ex_ref.name_en,
+                                "primary_muscle": ex_ref.primary_muscle,
+                                "secondary_muscles": list(ex_ref.secondary_muscles or []),
+                                "equipment": ex_ref.equipment,
+                                "level": ex_ref.level,
+                                "movement_pattern": ex_ref.movement_pattern,
+                                "source_document": ex_ref.source_document,
+                                "targets": [
+                                    {
+                                        "muscle_key": target.muscle.key,
+                                        "region_key": target.region.key if target.region else None,
+                                        "role": target.role,
+                                    }
+                                    for target in ex_ref.muscle_targets.all()
+                                ],
+                                "levels": [
+                                    row.level for row in ex_ref.suitable_level_rows.all()
+                                ],
+                                "equipment_keys": [
+                                    row.equipment.key for row in ex_ref.equipment_rows.all()
+                                ],
+                            }
+                            if ex_ref
+                            else None
+                        ),
                         "supersetGroupId": None,
                         "supersetWithPrevious": False,
                         "supersetPartnerName": None,
@@ -907,7 +1104,7 @@ def build_training_days(
 
         _apply_real_supersets(
             day_exercises,
-            allow=allow_superset and apply_general,
+            allow=allow_superset and apply_general and not structured_technique_handler,
             max_pairs=int(style.get("supersets") or 0) or (1 if allow_superset else 0),
         )
         day_exercises = _trim_day_to_budget(day_exercises, day_budget)
@@ -931,6 +1128,16 @@ def build_training_days(
             }
         )
 
+    from programming.services.techniques import apply_structured_techniques
+
+    days, structured_technique_evidence, _handled = apply_structured_techniques(
+        days,
+        coach,
+        level,
+        allowed_names=allowed_technique_names,
+    )
+    evidence["techniques"] = structured_technique_evidence
+
     if goals_override and days:
         days[0]["notes"] = f"{days[0]['notes']} اهداف: {goals_override}"
 
@@ -938,4 +1145,13 @@ def build_training_days(
     evidence["selected_from_coach_bank"] = _unique(evidence["selected_from_coach_bank"])
     evidence["selected_due_to_preference"] = _unique(evidence["selected_due_to_preference"])
     evidence["preferred_selected"] = _unique(evidence["preferred_selected"])
+    selected_seen: set[str] = set()
+    selected_catalog = []
+    for item in evidence["structured_catalog_selected"]:
+        name = item.get("name")
+        if name in selected_seen:
+            continue
+        selected_seen.add(name)
+        selected_catalog.append(item)
+    evidence["structured_catalog_selected"] = selected_catalog
     return days, evidence

@@ -116,6 +116,20 @@ export interface GenerationEvidenceNutritionSupplement {
   supplementSelectionReasons: string[];
 }
 
+export interface GenerationEvidenceCatalog {
+  excluded: Array<{ name: string; reason: string }>;
+  selected: Array<{ levels: string[]; name: string; reason?: string; regions: string[]; source: string }>;
+}
+
+export interface GenerationEvidenceTechnique {
+  appliedCount: number;
+  handler?: string;
+  name: string;
+  parameters: Record<string, unknown>;
+  source?: string;
+  status: string;
+}
+
 /**
  * Structured, non-AI-prose explanation of why a program draft was generated
  * the way it was. Populated from the Program detail `generator` summary
@@ -124,6 +138,7 @@ export interface GenerationEvidenceNutritionSupplement {
 export interface GenerationEvidence {
   daysPerWeek?: number;
   equipment: string[];
+  exerciseCatalog?: GenerationEvidenceCatalog;
   exerciseSelection: GenerationEvidenceExerciseSelection;
   generationRunId: string;
   generatorVersion: string;
@@ -134,6 +149,7 @@ export interface GenerationEvidence {
   studentGoal?: string;
   studentId: string;
   studentLevel?: string;
+  techniques?: GenerationEvidenceTechnique[];
   templateId?: string;
   templateName?: string;
   visitDate?: string;

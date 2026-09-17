@@ -273,6 +273,68 @@ class GeneralRule(models.Model):
         return self.title
 
 
+class MuscleTaxonomy(models.Model):
+    """Platform-owned structured muscle used by the exercise catalog."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    key = models.SlugField(max_length=80, unique=True)
+    name = models.CharField(max_length=120)
+    name_en = models.CharField(max_length=120, blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class MuscleRegion(models.Model):
+    """Platform-owned region within a muscle, e.g. upper chest."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    muscle = models.ForeignKey(
+        MuscleTaxonomy,
+        on_delete=models.CASCADE,
+        related_name="regions",
+    )
+    key = models.SlugField(max_length=80)
+    name = models.CharField(max_length=120)
+    name_en = models.CharField(max_length=120, blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["muscle", "sort_order", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["muscle", "key"],
+                name="uniq_muscle_region_key",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.muscle.name}: {self.name}"
+
+
+class EquipmentTaxonomy(models.Model):
+    """Platform-owned equipment option used for structured filtering."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    key = models.SlugField(max_length=80, unique=True)
+    name = models.CharField(max_length=120)
+    name_en = models.CharField(max_length=120, blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Exercise(models.Model):
     """Coach-owned exercise bank entry (reusable catalog)."""
 
@@ -306,6 +368,7 @@ class Exercise(models.Model):
     risk_tags = models.JSONField(default=list, blank=True)
     # Reference document (e.g. a coach-provided PDF/program name) this entry was imported from.
     source_document = models.CharField(max_length=255, blank=True, default="")
+    coach_notes = models.TextField(blank=True, default="")
     is_active = models.BooleanField(default=True)
     is_archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -345,6 +408,7 @@ class CoachExercisePreference(models.Model):
     )
     is_preferred = models.BooleanField(default=False)
     is_prohibited = models.BooleanField(default=False)
+    priority = models.PositiveSmallIntegerField(default=0)
     suitable_levels = models.JSONField(default=list, blank=True)
     notes = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -360,6 +424,159 @@ class CoachExercisePreference(models.Model):
 
     def __str__(self) -> str:
         return f"pref:{self.exercise_id}"
+
+
+class ExerciseMuscleTarget(models.Model):
+    """Structured primary/secondary muscle and region relation for an exercise."""
+
+    class Role(models.TextChoices):
+        PRIMARY = "primary", "Primary"
+        SECONDARY = "secondary", "Secondary"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    exercise = models.ForeignKey(
+        Exercise,
+        on_delete=models.CASCADE,
+        related_name="muscle_targets",
+    )
+    muscle = models.ForeignKey(
+        MuscleTaxonomy,
+        on_delete=models.PROTECT,
+        related_name="exercise_targets",
+    )
+    region = models.ForeignKey(
+        MuscleRegion,
+        on_delete=models.PROTECT,
+        related_name="exercise_targets",
+        null=True,
+        blank=True,
+    )
+    role = models.CharField(max_length=16, choices=Role.choices)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["role", "sort_order", "muscle__name", "region__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["exercise", "muscle", "region", "role"],
+                name="uniq_exercise_muscle_target",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["muscle", "region", "role"],
+                name="ex_target_muscle_region_idx",
+            ),
+        ]
+
+
+class ExerciseSuitableLevel(models.Model):
+    """Structured multi-select level suitability for an exercise."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    exercise = models.ForeignKey(
+        Exercise,
+        on_delete=models.CASCADE,
+        related_name="suitable_level_rows",
+    )
+    level = models.CharField(max_length=20, choices=Exercise.Level.choices)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["exercise", "level"],
+                name="uniq_exercise_suitable_level",
+            ),
+        ]
+
+
+class ExerciseEquipment(models.Model):
+    """Structured equipment relation for an exercise."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    exercise = models.ForeignKey(
+        Exercise,
+        on_delete=models.CASCADE,
+        related_name="equipment_rows",
+    )
+    equipment = models.ForeignKey(
+        EquipmentTaxonomy,
+        on_delete=models.PROTECT,
+        related_name="exercise_rows",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["exercise", "equipment"],
+                name="uniq_exercise_equipment",
+            ),
+        ]
+
+
+class TrainingTechnique(models.Model):
+    """Public platform technique definition. Coach overrides live separately."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    key = models.SlugField(max_length=80, unique=True)
+    name = models.CharField(max_length=160)
+    description = models.TextField(blank=True, default="")
+    execution_method = models.TextField(blank=True, default="")
+    parameter_schema = models.JSONField(default=dict, blank=True)
+    handler_key = models.CharField(max_length=80, blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class CoachTechnique(models.Model):
+    """Coach-scoped configuration or private technique definition."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    coach = models.ForeignKey(
+        CoachProfile,
+        on_delete=models.CASCADE,
+        related_name="techniques",
+    )
+    base_technique = models.ForeignKey(
+        TrainingTechnique,
+        on_delete=models.SET_NULL,
+        related_name="coach_overrides",
+        null=True,
+        blank=True,
+    )
+    key = models.SlugField(max_length=80)
+    name = models.CharField(max_length=160)
+    description = models.TextField(blank=True, default="")
+    execution_method = models.TextField(blank=True, default="")
+    allowed_levels = models.JSONField(default=list, blank=True)
+    max_per_session = models.PositiveSmallIntegerField(default=0)
+    parameters = models.JSONField(default=dict, blank=True)
+    enabled = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["coach", "key"],
+                name="uniq_coach_technique_key",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["coach", "enabled"], name="coachtech_coach_enabled_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name}@{self.coach_id}"
 
 
 # Reference-bank (exercise aliases/history) and nutrition/supplement models live in a

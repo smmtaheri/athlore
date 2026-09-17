@@ -64,6 +64,45 @@ export interface ExerciseBankGroup {
   professionalFriendly: string[];
 }
 
+export interface StructuredExerciseTarget {
+  muscle: string;
+  muscleKey: string;
+  region?: string | null;
+  regionKey?: string | null;
+  role: "primary" | "secondary";
+}
+
+export interface StructuredExercise {
+  aliases: string[];
+  coachNotes: string;
+  equipmentKeys: string[];
+  id: string;
+  isActive: boolean;
+  isArchived: boolean;
+  isPreferred: boolean;
+  isProhibited: boolean;
+  levels: string[];
+  movementPattern: string;
+  name: string;
+  nameEn: string;
+  priority: number;
+  sourceDocument: string;
+  targets: StructuredExerciseTarget[];
+}
+
+export interface TrainingTechniqueConfig {
+  allowedLevels: string[];
+  baseTechniqueKey: string | null;
+  enabled: boolean;
+  handlerStatus: "implemented" | "manual_only";
+  id: string | null;
+  key: string;
+  maxPerSession: number;
+  name: string;
+  parameters: Record<string, unknown>;
+  source: "platform" | "coach_override" | "coach_private";
+}
+
 export interface GeneralCoachRule {
   category: string;
   description: string;
@@ -108,6 +147,7 @@ export interface SupplementTemplateSummary {
 
 export interface CoachRules {
   exerciseBank: ExerciseBankGroup[];
+  exerciseCatalog?: StructuredExercise[];
   generalRules: GeneralCoachRules;
   injuries: InjuryRule[];
   levels: LevelRule[];
@@ -117,6 +157,7 @@ export interface CoachRules {
   /** Optional — only present once the Backend aggregate includes it. */
   supplementTemplates?: SupplementTemplateSummary[];
   templates: ProgramTemplate[];
+  trainingTechniques?: TrainingTechniqueConfig[];
   updatedAt: string;
 }
 

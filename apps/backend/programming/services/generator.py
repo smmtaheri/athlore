@@ -575,6 +575,13 @@ def _generate_document_body(
             apply_general=apply_general,
             muscle_priorities_override=_as_str_list(request.get("muscle_priorities")),
             goals_override=str(request.get("goals") or ""),
+            target_muscle=str(request.get("target_muscle") or ""),
+            target_region=str(request.get("target_region") or ""),
+            target_exercise_count=(
+                int(request.get("exercise_count"))
+                if request.get("exercise_count") is not None
+                else None
+            ),
         )
         warnings.extend(train_warnings)
 
@@ -711,6 +718,9 @@ def _generate_document_body(
         "historical_selected": training_evidence.get("historical_selected", []),
         "equipment_filters": training_evidence.get("equipment_filters", []),
         "split_resolved": training_evidence.get("split_resolved", []),
+        "structured_catalog_selected": training_evidence.get("structured_catalog_selected", []),
+        "structured_catalog_excluded": training_evidence.get("structured_catalog_excluded", []),
+        "techniques": training_evidence.get("techniques", []),
         "nutrition": nutrition_evidence,
         "supplements": supplements_evidence,
         "warnings": list(warnings),
@@ -754,14 +764,50 @@ def _as_str_list(value: Any) -> list[str]:
 
 def _load_catalog(
     coach: CoachProfile,
-) -> tuple[dict[tuple[str, str], Exercise], dict[str, Exercise]]:
+) -> tuple[
+    dict[tuple[str, str], Exercise],
+    dict[str, Exercise],
+    dict[str, dict],
+    dict[str, str],
+]:
     """Priority #1: ownership + active-state filtering."""
     by_pair: dict[tuple[str, str], Exercise] = {}
     by_name: dict[str, Exercise] = {}
-    for ex in Exercise.objects.filter(coach=coach, is_archived=False, is_active=True):
+    metadata: dict[str, dict] = {}
+    excluded: dict[str, str] = {
+        exercise.name: "archived" if exercise.is_archived else "inactive"
+        for exercise in Exercise.objects.filter(coach=coach).only("name", "is_active", "is_archived")
+        if exercise.is_archived or not exercise.is_active
+    }
+    rows = (
+        Exercise.objects.filter(coach=coach, is_archived=False, is_active=True)
+        .prefetch_related(
+            "muscle_targets__muscle",
+            "muscle_targets__region",
+            "suitable_level_rows",
+            "equipment_rows__equipment",
+        )
+    )
+    for ex in rows:
         by_pair[(ex.primary_muscle, ex.name)] = ex
         by_name.setdefault(ex.name, ex)
-    return by_pair, by_name
+        targets = list(ex.muscle_targets.all())
+        primary_target = next((target for target in targets if target.role == "primary"), None)
+        metadata.setdefault(
+            ex.name,
+            {
+                "primary_muscle": primary_target.muscle.name if primary_target else ex.primary_muscle,
+                "region_keys": [
+                    target.region.key
+                    for target in targets
+                    if target.role == "primary" and target.region
+                ],
+                "levels": [row.level for row in ex.suitable_level_rows.all()],
+                "equipment_names": [row.equipment.name for row in ex.equipment_rows.all()],
+                "priority": 0,
+            },
+        )
+    return by_pair, by_name, metadata, excluded
 
 
 def _build_training(
@@ -778,12 +824,15 @@ def _build_training(
     apply_general: bool,
     muscle_priorities_override: list[str],
     goals_override: str,
+    target_muscle: str = "",
+    target_region: str = "",
+    target_exercise_count: int | None = None,
 ) -> tuple[dict, list[str], dict]:
     warnings: list[str] = []
     rule_set = ensure_rule_set(coach)
 
     # Priority #1 — ownership + active-state catalog.
-    catalog, catalog_by_name = _load_catalog(coach)
+    catalog, catalog_by_name, structured_catalog_by_name, excluded_catalog_by_name = _load_catalog(coach)
     pref_by_exercise_id = {
         str(p.exercise_id): p
         for p in CoachExercisePreference.objects.filter(coach=coach).select_related("exercise")
@@ -910,12 +959,17 @@ def _build_training(
         bank_groups=bank_groups if apply_bank else [],
         catalog=catalog,
         catalog_by_name=catalog_by_name,
+        structured_catalog_by_name=structured_catalog_by_name,
+        excluded_catalog_by_name=excluded_catalog_by_name,
         pref_by_exercise_id=pref_by_exercise_id,
         forbidden=forbidden,
         injury_alternative_map=injury_alternative_map,
         level_rule=level_rule,
         muscle_priorities_override=muscle_priorities_override,
         goals_override=goals_override,
+        target_muscle=target_muscle,
+        target_region=target_region,
+        target_exercise_count=target_exercise_count,
         warnings=warnings,
     )
 
@@ -940,6 +994,9 @@ def _build_training(
         "historical_selected": selection_evidence.get("historical_selected", []),
         "equipment_filters": selection_evidence.get("equipment_filters", []),
         "split_resolved": selection_evidence.get("split_resolved", []),
+        "structured_catalog_selected": selection_evidence.get("structured_catalog_selected", []),
+        "structured_catalog_excluded": selection_evidence.get("structured_catalog_excluded", []),
+        "techniques": selection_evidence.get("techniques", []),
     }
     return {"summary": summary, "days": days}, warnings, training_evidence
 

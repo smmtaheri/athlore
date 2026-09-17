@@ -6,6 +6,7 @@ import copy
 from typing import Any
 
 from django.db import transaction
+from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
@@ -14,14 +15,22 @@ from accounts.models import (
     CoachNutritionTemplate,
     CoachProfile,
     CoachRuleSet,
+    CoachTechnique,
+    EquipmentTaxonomy,
     CoachSupplementTemplate,
     Exercise,
     ExerciseBankGroup,
+    ExerciseEquipment,
+    ExerciseMuscleTarget,
+    ExerciseSuitableLevel,
     GeneralRule,
     InjuryRule,
     LevelRule,
+    MuscleRegion,
+    MuscleTaxonomy,
     MusclePriority,
     ProgramTemplate,
+    TrainingTechnique,
 )
 
 VALID_LEVELS = {"beginner", "intermediate", "advanced"}
@@ -141,7 +150,11 @@ def serialize_general_rule(r: GeneralRule) -> dict:
 def serialize_exercise(ex: Exercise, preference: CoachExercisePreference | None = None) -> dict:
     pref = preference
     if pref is None:
-        pref = ex.preferences.filter(coach_id=ex.coach_id).first()
+        prefetched = getattr(ex, "_coach_preferences", None)
+        if hasattr(ex, "_coach_preferences"):
+            pref = prefetched[0] if prefetched else None
+        else:
+            pref = ex.preferences.filter(coach_id=ex.coach_id).first()
     return {
         "id": str(ex.id),
         "name": ex.name,
@@ -154,16 +167,230 @@ def serialize_exercise(ex: Exercise, preference: CoachExercisePreference | None 
         "laterality": ex.laterality,
         "risk_tags": list(ex.risk_tags or []),
         "source_document": ex.source_document,
+        "coach_notes": ex.coach_notes,
         "aliases": list(ex.aliases.order_by("alias").values_list("alias", flat=True)),
+        "targets": [
+            {
+                "muscle_key": target.muscle.key,
+                "muscle": target.muscle.name,
+                "region_key": target.region.key if target.region else None,
+                "region": target.region.name if target.region else None,
+                "role": target.role,
+            }
+            for target in ex.muscle_targets.select_related("muscle", "region").all()
+        ],
+        "levels": list(
+            ex.suitable_level_rows.order_by("level").values_list("level", flat=True)
+        ),
+        "equipment_keys": list(
+            ex.equipment_rows.order_by("equipment__sort_order", "equipment__name")
+            .values_list("equipment__key", flat=True)
+        ),
         "is_active": ex.is_active,
         "is_archived": ex.is_archived,
         "is_preferred": bool(pref.is_preferred) if pref else False,
         "is_prohibited": bool(pref.is_prohibited) if pref else False,
+        "priority": int(pref.priority) if pref else 0,
         "suitable_levels": list(pref.suitable_levels or []) if pref else [],
         "preference_notes": pref.notes if pref else "",
         "created_at": ex.created_at.isoformat().replace("+00:00", "Z"),
         "updated_at": ex.updated_at.isoformat().replace("+00:00", "Z"),
     }
+
+
+def serialize_taxonomy() -> dict:
+    return {
+        "muscles": [
+            {
+                "key": muscle.key,
+                "name": muscle.name,
+                "name_en": muscle.name_en,
+                "regions": [
+                    {"key": region.key, "name": region.name, "name_en": region.name_en}
+                    for region in muscle.regions.all()
+                    if region.is_active
+                ],
+            }
+            for muscle in MuscleTaxonomy.objects.filter(is_active=True)
+            .prefetch_related("regions")
+            .order_by("sort_order", "name")
+        ],
+        "equipment": [
+            {"key": equipment.key, "name": equipment.name, "name_en": equipment.name_en}
+            for equipment in EquipmentTaxonomy.objects.filter(is_active=True).order_by(
+                "sort_order", "name"
+            )
+        ],
+        "levels": [
+            {"key": key, "name": {"beginner": "مبتدی", "intermediate": "متوسط", "advanced": "حرفه‌ای"}.get(key, label)}
+            for key, label in Exercise.Level.choices
+            if key != Exercise.Level.ALL
+        ],
+    }
+
+
+def _technique_handler_status(technique: TrainingTechnique | None) -> str:
+    if technique and technique.handler_key:
+        return "implemented"
+    return "manual_only"
+
+
+def serialize_coach_technique(config: CoachTechnique) -> dict:
+    base = config.base_technique
+    return {
+        "id": str(config.id),
+        "key": config.key,
+        "name": config.name,
+        "description": config.description,
+        "execution_method": config.execution_method,
+        "allowed_levels": list(config.allowed_levels or []),
+        "max_per_session": config.max_per_session,
+        "parameters": copy.deepcopy(config.parameters or {}),
+        "enabled": config.enabled,
+        "source": "coach_override" if base else "coach_private",
+        "base_technique_key": base.key if base else None,
+        "handler_key": base.handler_key if base else "",
+        "handler_status": _technique_handler_status(base),
+        "public_definition": (
+            {
+                "key": base.key,
+                "name": base.name,
+                "description": base.description,
+                "execution_method": base.execution_method,
+                "parameter_schema": copy.deepcopy(base.parameter_schema or {}),
+            }
+            if base
+            else None
+        ),
+        "created_at": config.created_at.isoformat().replace("+00:00", "Z"),
+        "updated_at": config.updated_at.isoformat().replace("+00:00", "Z"),
+    }
+
+
+def get_coach_techniques(coach: CoachProfile) -> list[dict]:
+    configs = {
+        config.base_technique_id: config
+        for config in CoachTechnique.objects.filter(coach=coach).select_related("base_technique")
+        if config.base_technique_id
+    }
+    rows = []
+    for base in TrainingTechnique.objects.filter(is_active=True).order_by("sort_order", "name"):
+        config = configs.get(base.id)
+        if config:
+            rows.append(serialize_coach_technique(config))
+        else:
+            rows.append(
+                {
+                    "id": None,
+                    "key": base.key,
+                    "name": base.name,
+                    "description": base.description,
+                    "execution_method": base.execution_method,
+                    "allowed_levels": [],
+                    "max_per_session": 0,
+                    "parameters": {},
+                    "enabled": False,
+                    "source": "platform",
+                    "base_technique_key": base.key,
+                    "handler_key": base.handler_key,
+                    "handler_status": _technique_handler_status(base),
+                    "parameter_schema": copy.deepcopy(base.parameter_schema or {}),
+                }
+            )
+    private = CoachTechnique.objects.filter(coach=coach, base_technique__isnull=True).order_by("name")
+    rows.extend(serialize_coach_technique(config) for config in private)
+    return rows
+
+
+def _validated_levels(value: Any, field: str = "levels") -> list[str]:
+    levels = _as_str_list(value, field)
+    allowed = VALID_LEVELS | {Exercise.Level.ALL}
+    invalid = sorted(set(levels) - allowed)
+    if invalid:
+        raise ValidationError({field: [f"Unsupported levels: {', '.join(invalid)}"]})
+    return list(dict.fromkeys(levels))
+
+
+def _taxonomy_by_key(model, key: str, field: str):
+    try:
+        return model.objects.get(key=key, is_active=True)
+    except model.DoesNotExist as exc:
+        raise ValidationError({field: [f"Unknown taxonomy key: {key}"]}) from exc
+
+
+def _sync_structured_exercise_data(exercise: Exercise, payload: dict) -> None:
+    if "targets" in payload:
+        targets = _as_list(payload.get("targets"))
+        if not targets:
+            raise ValidationError({"targets": ["At least one structured target is required."]})
+        ExerciseMuscleTarget.objects.filter(exercise=exercise).delete()
+        primary_targets = 0
+        for index, raw in enumerate(targets):
+            if not isinstance(raw, dict):
+                raise ValidationError({"targets": ["Every target must be an object."]})
+            muscle_key = str(raw.get("muscle_key") or "").strip()
+            role = str(raw.get("role") or ExerciseMuscleTarget.Role.SECONDARY).strip()
+            if role not in {choice[0] for choice in ExerciseMuscleTarget.Role.choices}:
+                raise ValidationError({"targets": [f"Unsupported role: {role}"]})
+            muscle = _taxonomy_by_key(MuscleTaxonomy, muscle_key, "targets")
+            region = None
+            region_key = str(raw.get("region_key") or "").strip()
+            if region_key:
+                try:
+                    region = MuscleRegion.objects.get(
+                        key=region_key, muscle=muscle, is_active=True
+                    )
+                except MuscleRegion.DoesNotExist as exc:
+                    raise ValidationError({"targets": [f"Unknown region key: {region_key}"]}) from exc
+            primary_targets += role == ExerciseMuscleTarget.Role.PRIMARY
+            ExerciseMuscleTarget.objects.create(
+                exercise=exercise,
+                muscle=muscle,
+                region=region,
+                role=role,
+                sort_order=index,
+            )
+        if primary_targets != 1:
+            raise ValidationError({"targets": ["Exactly one primary target is required."]})
+        primary = ExerciseMuscleTarget.objects.select_related("muscle").get(
+            exercise=exercise, role=ExerciseMuscleTarget.Role.PRIMARY
+        )
+        exercise.primary_muscle = primary.muscle.name
+        exercise.secondary_muscles = list(
+            ExerciseMuscleTarget.objects.filter(
+                exercise=exercise, role=ExerciseMuscleTarget.Role.SECONDARY
+            )
+            .select_related("muscle")
+            .values_list("muscle__name", flat=True)
+        )
+
+    if "levels" in payload:
+        levels = _validated_levels(payload.get("levels"))
+        ExerciseSuitableLevel.objects.filter(exercise=exercise).delete()
+        for level in levels:
+            ExerciseSuitableLevel.objects.create(exercise=exercise, level=level)
+        if levels:
+            exercise.level = levels[0] if len(levels) == 1 else Exercise.Level.ALL
+
+    if "equipment_keys" in payload:
+        keys = _as_str_list(payload.get("equipment_keys"), "equipment_keys")
+        ExerciseEquipment.objects.filter(exercise=exercise).delete()
+        equipments = [_taxonomy_by_key(EquipmentTaxonomy, key, "equipment_keys") for key in keys]
+        for equipment in equipments:
+            ExerciseEquipment.objects.create(exercise=exercise, equipment=equipment)
+        exercise.equipment = ", ".join(equipment.name for equipment in equipments)
+
+
+def _sync_exercise_aliases(exercise: Exercise, payload: dict) -> None:
+    if "aliases" not in payload:
+        return
+    aliases = _as_str_list(payload.get("aliases"), "aliases")
+    exercise.aliases.all().delete()
+    from accounts.nutrition_models import ExerciseAlias
+
+    ExerciseAlias.objects.bulk_create(
+        [ExerciseAlias(coach=exercise.coach, exercise=exercise, alias=alias) for alias in aliases]
+    )
 
 
 def serialize_nutrition_template_summary(t: CoachNutritionTemplate) -> dict:
@@ -219,6 +446,26 @@ def get_coach_rules_aggregate(coach: CoachProfile) -> dict:
         serialize_bank_group(g)
         for g in rule_set.exercise_bank_groups.order_by("sort_order", "group_name")
     ]
+    exercises = [
+        serialize_exercise(
+            ex,
+            preference=(getattr(ex, "_coach_preferences", None) or [None])[0],
+        )
+        for ex in coach.exercises.filter(is_archived=False)
+        .prefetch_related(
+            Prefetch(
+                "preferences",
+                queryset=CoachExercisePreference.objects.filter(coach=coach),
+                to_attr="_coach_preferences",
+            ),
+            "aliases",
+            "muscle_targets__muscle",
+            "muscle_targets__region",
+            "suitable_level_rows",
+            "equipment_rows__equipment",
+        )
+        .order_by("primary_muscle", "name")
+    ]
     general_items = [
         serialize_general_rule(r) for r in rule_set.general_rules.order_by("sort_order", "title")
     ]
@@ -238,6 +485,9 @@ def get_coach_rules_aggregate(coach: CoachProfile) -> dict:
         "injuries": injuries,
         "muscle_priorities": muscle_priorities,
         "exercise_bank": exercise_bank,
+        "exercise_catalog": exercises,
+        "exercise_taxonomy": serialize_taxonomy(),
+        "training_techniques": get_coach_techniques(coach),
         "general_rules": {
             "extra_notes": rule_set.general_extra_notes,
             "items": general_items,
@@ -490,27 +740,53 @@ def delete_template(template: ProgramTemplate) -> None:
 def create_exercise(coach: CoachProfile, payload: dict) -> Exercise:
     name = str(payload.get("name") or "").strip()
     primary = str(payload.get("primary_muscle") or "").strip()
+    targets = payload.get("targets")
+    if targets:
+        primary_target = next(
+            (target for target in targets if isinstance(target, dict) and target.get("role") == "primary"),
+            None,
+        )
+        primary_key = str(
+            (primary_target or {}).get("muscle_key") or (primary_target or {}).get("muscle") or ""
+        ).strip()
+        try:
+            primary = primary or MuscleTaxonomy.objects.get(key=primary_key, is_active=True).name
+        except MuscleTaxonomy.DoesNotExist:
+            primary = primary or primary_key
     if not name or not primary:
-        raise ValidationError({"name": ["name and primary_muscle are required."]})
+        raise ValidationError({"name": ["name and a primary muscle are required."]})
     if Exercise.objects.filter(coach=coach, name=name, primary_muscle=primary).exists():
         raise ValidationError({"name": ["Exercise already exists for this muscle."]})
     ex = Exercise.objects.create(
         coach=coach,
         name=name,
+        name_en=str(payload.get("name_en") or ""),
         primary_muscle=primary,
         secondary_muscles=_as_str_list(payload.get("secondary_muscles", []), "secondary_muscles"),
         equipment=str(payload.get("equipment") or ""),
         level=str(payload.get("level") or Exercise.Level.BEGINNER),
         movement_pattern=str(payload.get("movement_pattern") or ""),
+        laterality=str(payload.get("laterality") or ""),
         risk_tags=_as_str_list(payload.get("risk_tags", []), "risk_tags"),
+        source_document=str(payload.get("source_document") or ""),
+        coach_notes=str(payload.get("coach_notes") or ""),
         is_active=bool(payload.get("is_active", True)),
     )
+    _sync_structured_exercise_data(ex, payload)
+    _sync_exercise_aliases(ex, payload)
+    ex.save()
     _upsert_preference(coach, ex, payload)
     return ex
 
 
 def _upsert_preference(coach: CoachProfile, ex: Exercise, payload: dict) -> None:
-    pref_fields = ("is_preferred", "is_prohibited", "suitable_levels", "preference_notes")
+    pref_fields = (
+        "is_preferred",
+        "is_prohibited",
+        "priority",
+        "suitable_levels",
+        "preference_notes",
+    )
     if not any(k in payload for k in pref_fields):
         return
     pref, _ = CoachExercisePreference.objects.get_or_create(coach=coach, exercise=ex)
@@ -518,6 +794,11 @@ def _upsert_preference(coach: CoachProfile, ex: Exercise, payload: dict) -> None
         pref.is_preferred = bool(payload["is_preferred"])
     if "is_prohibited" in payload:
         pref.is_prohibited = bool(payload["is_prohibited"])
+    if "priority" in payload:
+        try:
+            pref.priority = max(0, int(payload.get("priority") or 0))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError({"priority": ["Priority must be a non-negative integer."]}) from exc
     if "suitable_levels" in payload:
         pref.suitable_levels = _as_str_list(payload.get("suitable_levels"), "suitable_levels")
     if "preference_notes" in payload:
@@ -529,6 +810,8 @@ def _upsert_preference(coach: CoachProfile, ex: Exercise, payload: dict) -> None
 def update_exercise(exercise: Exercise, payload: dict) -> Exercise:
     if "name" in payload:
         exercise.name = str(payload["name"]).strip() or exercise.name
+    if "name_en" in payload:
+        exercise.name_en = str(payload["name_en"] or "")
     if "primary_muscle" in payload:
         exercise.primary_muscle = str(payload["primary_muscle"]).strip() or exercise.primary_muscle
     if "secondary_muscles" in payload:
@@ -539,12 +822,20 @@ def update_exercise(exercise: Exercise, payload: dict) -> Exercise:
         exercise.level = str(payload["level"] or exercise.level)
     if "movement_pattern" in payload:
         exercise.movement_pattern = str(payload["movement_pattern"] or "")
+    if "laterality" in payload:
+        exercise.laterality = str(payload["laterality"] or "")
     if "risk_tags" in payload:
         exercise.risk_tags = _as_str_list(payload["risk_tags"], "risk_tags")
+    if "source_document" in payload:
+        exercise.source_document = str(payload["source_document"] or "")
+    if "coach_notes" in payload:
+        exercise.coach_notes = str(payload["coach_notes"] or "")
     if "is_active" in payload:
         exercise.is_active = bool(payload["is_active"])
     if "is_archived" in payload:
         exercise.is_archived = bool(payload["is_archived"])
+    _sync_structured_exercise_data(exercise, payload)
+    _sync_exercise_aliases(exercise, payload)
     exercise.save()
     _upsert_preference(exercise.coach, exercise, payload)
     return exercise
@@ -557,6 +848,69 @@ def archive_exercise(exercise: Exercise) -> Exercise:
     exercise.is_active = False
     exercise.save(update_fields=["is_archived", "is_active", "updated_at"])
     return exercise
+
+
+@transaction.atomic
+def create_coach_technique(coach: CoachProfile, payload: dict) -> CoachTechnique:
+    key = str(payload.get("key") or "").strip().lower()
+    name = str(payload.get("name") or "").strip()
+    if not key or not name:
+        raise ValidationError({"detail": "key and name are required."})
+    base_key = str(payload.get("base_technique_key") or "").strip().lower()
+    base = None
+    if base_key:
+        try:
+            base = TrainingTechnique.objects.get(key=base_key, is_active=True)
+        except TrainingTechnique.DoesNotExist as exc:
+            raise ValidationError({"base_technique_key": ["Unknown public technique."]}) from exc
+        if CoachTechnique.objects.filter(coach=coach, base_technique=base).exists():
+            raise ValidationError({"base_technique_key": ["This technique is already configured."]})
+    levels = _validated_levels(payload.get("allowed_levels", []), "allowed_levels")
+    try:
+        max_per_session = max(0, int(payload.get("max_per_session") or 0))
+    except (TypeError, ValueError) as exc:
+        raise ValidationError({"max_per_session": ["Must be a non-negative integer."]}) from exc
+    return CoachTechnique.objects.create(
+        coach=coach,
+        base_technique=base,
+        key=key,
+        name=name,
+        description=str(payload.get("description") or ""),
+        execution_method=str(payload.get("execution_method") or ""),
+        allowed_levels=levels,
+        max_per_session=max_per_session,
+        parameters=payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {},
+        enabled=bool(payload.get("enabled", True)),
+    )
+
+
+@transaction.atomic
+def update_coach_technique(config: CoachTechnique, payload: dict) -> CoachTechnique:
+    if "name" in payload:
+        config.name = str(payload.get("name") or "").strip() or config.name
+    if "description" in payload:
+        config.description = str(payload.get("description") or "")
+    if "execution_method" in payload:
+        config.execution_method = str(payload.get("execution_method") or "")
+    if "allowed_levels" in payload:
+        config.allowed_levels = _validated_levels(payload.get("allowed_levels"), "allowed_levels")
+    if "max_per_session" in payload:
+        try:
+            config.max_per_session = max(0, int(payload.get("max_per_session") or 0))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError({"max_per_session": ["Must be a non-negative integer."]}) from exc
+    if "parameters" in payload:
+        if not isinstance(payload.get("parameters"), dict):
+            raise ValidationError({"parameters": ["Expected an object."]})
+        config.parameters = payload["parameters"]
+    if "enabled" in payload:
+        config.enabled = bool(payload["enabled"])
+    config.save()
+    return config
+
+
+def delete_coach_technique(config: CoachTechnique) -> None:
+    config.delete()
 
 
 def deep_copy_json(value: Any) -> Any:

@@ -20,6 +20,7 @@ import { ApiError, persianMessageForApiError } from "../../../shared/api/errors"
 import { downloadCoachRulesPdf } from "../../../shared/api/exportPdf";
 import styles from "../../programs/components/programFlow.module.css";
 import { NutritionTemplatesSection } from "../components/NutritionTemplatesSection";
+import { StructuredCatalogSection } from "../components/StructuredCatalogSection";
 import { VisitFormTemplatesSection } from "../components/VisitFormTemplatesSection";
 import { SupplementTemplatesSection } from "../components/SupplementTemplatesSection";
 import {
@@ -152,7 +153,7 @@ export function CoachRulesPage({
       const nextRules = await repository.reset();
       setRules(nextRules);
       setStatus("loaded");
-      setFeedback("قوانین به fixture اولیه آرمان واعظی برگشت.");
+      setFeedback("قوانین به داده اولیه برگشت.");
       setConfirmReset(false);
     } catch {
       setStatus("loaded");
@@ -286,7 +287,7 @@ export function CoachRulesPage({
         open={confirmReset}
         title="بازنشانی قوانین مربی"
       >
-        قوانین فعلی با fixture اولیه آرمان واعظی جایگزین می شود.
+        قوانین فعلی با داده اولیه جایگزین می شود.
       </Modal>
     </PageContainer>
   );
@@ -327,7 +328,12 @@ function RulesSection({ rules, section, templatesRepository, updateRules }: Rule
     return <MuscleRules rules={rules} updateRules={updateRules} />;
   }
   if (section === "exercises") {
-    return <ExerciseBank rules={rules} updateRules={updateRules} />;
+    return (
+      <>
+        <StructuredCatalogSection />
+        <ExerciseBank rules={rules} updateRules={updateRules} />
+      </>
+    );
   }
   if (section === "nutritionTemplates") {
     return (
@@ -797,8 +803,8 @@ function ExerciseBank({ rules, updateRules }: RulesEditorProps) {
   return (
     <Card className={styles.pageStack}>
       <SectionHeader
-        description="بانک حرکات به تفکیک گروه عضلانی برای generator موقت استفاده می شود."
-        title="بانک حرکات"
+        description="این بخش legacy برای داده‌های قدیمی حفظ شده است؛ کاتالوگ ساختاریافته بالای صفحه منبع اصلی generator است."
+        title="بانک متنی قدیمی"
       />
       <div className={styles.cardGrid}>
         {rules.exerciseBank.map((group) => (
