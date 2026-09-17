@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8"/>
+  <title>{{ file_title }}</title>
+  <style>
+    @font-face {
+      font-family: "CoachNaskh";
+      src: url("{{ font_path }}");
+      font-weight: normal;
+      font-style: normal;
+    }
+    @page {
+      size: A4;
+      margin: 18mm 14mm 20mm 14mm;
+      @bottom-center {
+        content: "نسخه {{ version_label }} · صفحه " counter(page) " از " counter(pages);
+        font-family: "CoachNaskh", sans-serif;
+        font-size: 9pt;
+        color: #555;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "CoachNaskh", "DejaVu Sans", sans-serif;
+      direction: rtl;
+      text-align: right;
+      color: #1a1a1a;
+      font-size: 11pt;
+      line-height: 1.55;
+      margin: 0;
+    }
+    h1, h2, h3 { margin: 0 0 8pt; font-weight: normal; }
+    h1 { font-size: 18pt; }
+    h2 { font-size: 14pt; border-bottom: 1px solid #ccc; padding-bottom: 4pt; margin-top: 16pt; }
+    h3 { font-size: 12pt; margin-top: 12pt; }
+    .meta { font-size: 10pt; color: #333; margin: 2pt 0; }
+    .badge {
+      display: inline-block;
+      border: 1px solid #444;
+      padding: 2pt 8pt;
+      font-size: 9pt;
+      margin-top: 6pt;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8pt 0 12pt;
+      font-size: 10pt;
+    }
+    th, td {
+      border: 1px solid #bbb;
+      padding: 5pt 6pt;
+      vertical-align: top;
+      text-align: right;
+    }
+    th { background: #f3f3f3; }
+    .section { page-break-inside: avoid; }
+    .day { page-break-inside: avoid; margin-bottom: 14pt; }
+    .muted { color: #555; font-size: 10pt; }
+    .footer-note {
+      margin-top: 20pt;
+      padding-top: 8pt;
+      border-top: 1px solid #ddd;
+      font-size: 9pt;
+      color: #444;
+    }
+    ul { margin: 4pt 0 8pt; padding-right: 18pt; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="muted">{{ product_title }}</div>
+    <h1>{{ file_title }}</h1>
+    {% if subtitle %}<div class="meta">{{ subtitle }}</div>{% endif %}
+    {% if coach_name %}<div class="meta">مربی: {{ coach_name }}</div>{% endif %}
+    {% if student_name %}<div class="meta">شاگرد: {{ student_name }}</div>{% endif %}
+    <div class="meta">برنامه: {{ program_title }} · نوع: {{ program_type }}</div>
+    <div class="meta">شناسه برنامه: {{ program_id }} · شناسه نسخه: {{ program_version_id }}{% if pdf_artifact_id %} · PDF: {{ pdf_artifact_id }}{% endif %}</div>
+    <div class="meta">بازه: {{ date_range }}</div>
+    <div class="meta">نسخه نهایی: {{ version_label }}{% if finalized_at %} · {{ finalized_at }}{% endif %}</div>
+    <div class="badge">نسخه نهایی‌شده · Template {{ template_version }}</div>
+  </header>
+
+  <section class="section">
+    <h2>خلاصه شاگرد</h2>
+    {% if goal %}<div class="meta">هدف: {{ goal }}</div>{% endif %}
+    {% if level %}<div class="meta">سطح: {{ level }}</div>{% endif %}
+    {% if weekly_days %}<div class="meta">روزهای تمرین هفتگی: {{ weekly_days }}</div>{% endif %}
+    {% if limitations %}
+      <div class="meta">محدودیت‌ها:</div>
+      <ul>{% for item in limitations %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if coach_notes %}<div class="meta">یادداشت PDF مربی: {{ coach_notes }}</div>{% endif %}
+    {% if student_coach_notes %}<div class="meta">یادداشت مربی روی شاگرد: {{ student_coach_notes }}</div>{% endif %}
+    {% if contact_info %}<div class="meta">تماس: {{ contact_info }}</div>{% endif %}
+  </section>
+
+  {% if include_training %}
+  <section class="section">
+    <h2>تمرین</h2>
+    {% if training_summary %}<p class="muted">{{ training_summary }}</p>{% endif %}
+    {% for day in days %}
+      <div class="day">
+        <h3>{% if day.order %}روز {{ day.order }} — {% endif %}{{ day.title }}</h3>
+        {% if day.focus %}<div class="muted">تمرکز: {{ day.focus }}</div>{% endif %}
+        {% if day.notes %}<div class="muted">{{ day.notes }}</div>{% endif %}
+        {% if day.exercises %}
+        <table>
+          <thead>
+            <tr>
+              <th>حرکت</th>
+              <th>ست</th>
+              <th>تکرار</th>
+              <th>استراحت</th>
+              <th>تمپو/شدت</th>
+              <th>یادداشت</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ex in day.exercises %}
+            <tr>
+              <td>
+                {% if ex.supersetWithPrevious %}
+                  + {{ ex.name }}
+                {% else %}
+                  {{ ex.name }}
+                {% endif %}
+              </td>
+              <td>{{ ex.sets }}</td>
+              <td>{{ ex.reps }}</td>
+              <td>{{ ex.rest }}</td>
+              <td>{{ ex.tempo }}</td>
+              <td>{{ ex.notes }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if include_nutrition %}
+  <section class="section">
+    <h2>تغذیه</h2>
+    {% if nutrition_notes %}<p class="muted">{{ nutrition_notes }}</p>{% endif %}
+    {% for meal in meals %}
+      <h3>{{ meal.title }}</h3>
+      {% if meal.notes %}<div class="muted">{{ meal.notes }}</div>{% endif %}
+      {% if meal.items %}
+      <table>
+        <thead><tr><th>مورد</th><th>مقدار</th><th>یادداشت</th></tr></thead>
+        <tbody>
+          {% for item in meal.items %}
+          <tr>
+            <td>{{ item.description }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>{{ item.notes }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if include_supplements %}
+  <section class="section">
+    <h2>مکمل‌ها</h2>
+    <p class="muted">مکمل‌های زیر پیشنهاد مربی هستند و نسخه پزشکی محسوب نمی‌شوند.</p>
+    {% if supplement_notes %}<p class="muted">{{ supplement_notes }}</p>{% endif %}
+    {% if supplement_items %}
+    <table>
+      <thead>
+        <tr>
+          <th>نام</th>
+          <th>مقدار</th>
+          <th>زمان</th>
+          <th>دستور</th>
+          <th>یادداشت</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in supplement_items %}
+        <tr>
+          <td>{{ item.name }}</td>
+          <td>{{ item.amount }}</td>
+          <td>{{ item.timing }}</td>
+          <td>{{ item.instructions }}</td>
+          <td>{{ item.notes }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <div class="footer-note">
+    <div>تولید شده در {{ generated_at }} · نسخه برنامه {{ version_label }}</div>
+    <div>{{ safety_notice }}</div>
+  </div>
+</body>
+</html>

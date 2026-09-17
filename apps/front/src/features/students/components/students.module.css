@@ -1,0 +1,890 @@
+.alert {
+  border: 1px solid var(--alert-border, var(--color-border));
+  border-radius: var(--radius-md);
+  background: var(--alert-bg, var(--color-surface));
+  color: var(--alert-color, var(--color-text-primary));
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+.alertSuccess {
+  --alert-bg: var(--color-success-50);
+  --alert-border: rgb(22 163 74 / 22%);
+  --alert-color: var(--color-success-700);
+}
+
+.alertError {
+  --alert-bg: var(--color-danger-50);
+  --alert-border: rgb(239 68 68 / 22%);
+  --alert-color: var(--color-danger-700);
+}
+
+.filtersCard {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.filtersGrid {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(140px, 1fr)) auto;
+  gap: var(--space-4);
+  align-items: end;
+}
+
+.listMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}
+
+.desktopList {
+  display: block;
+}
+
+.mobileList {
+  display: none;
+}
+
+.studentNameCell {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.studentName {
+  color: var(--color-text-primary);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.badgeGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pdfIconActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pdfIconAction {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+}
+
+.pdfIconAction:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+}
+
+.pdfIconActionDanger:hover:not(:disabled) {
+  background: var(--color-danger-50);
+  color: var(--color-danger-700);
+}
+
+.tableActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.cardList {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.studentCard {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.studentCardHeader {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.avatar {
+  display: inline-flex;
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+}
+
+.studentCardTitle {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.studentCardTitleText {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.metric {
+  display: grid;
+  min-height: 74px;
+  gap: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  padding: var(--space-3);
+}
+
+.metricLabel {
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.metricValue {
+  color: var(--color-text-primary);
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.mobileActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.paginationRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-block-start: 1px solid var(--color-border);
+  padding-block-start: var(--space-4);
+}
+
+.form {
+  display: grid;
+  gap: var(--space-5);
+  padding-block-end: 88px;
+}
+
+.formSection {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  font-weight: 800;
+}
+
+.sectionHeader h2 {
+  margin: 0;
+  font-size: 1.0625rem;
+  letter-spacing: 0;
+}
+
+.sectionIcon {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.wideField {
+  grid-column: span 2;
+}
+
+.fullField {
+  grid-column: 1 / -1;
+}
+
+.choiceFieldset {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.choiceLegend {
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.choiceLegendRequired::after {
+  margin-inline-start: 4px;
+  color: var(--color-danger-500);
+  content: "*";
+}
+
+.choiceRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.checkboxGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chipCheckbox {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  padding: 0 var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.chipCheckbox:has(input:checked) {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+}
+
+.chipCheckbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary-600);
+}
+
+.disabledBlock {
+  opacity: 0.62;
+}
+
+.actionBar {
+  position: sticky;
+  z-index: 20;
+  inset-block-end: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: rgb(255 255 255 / 92%);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-4);
+  backdrop-filter: blur(12px);
+}
+
+.actionBarButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.actionHint {
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.profileHeaderCard {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.profileHeaderMain {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.profileAvatar {
+  display: inline-flex;
+  width: 84px;
+  height: 84px;
+  min-width: 84px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-surface-muted);
+  color: var(--color-primary-700);
+}
+
+.profileIdentity {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.profileNameRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.profileNameRow h2 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.profileIdentity p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+.profileSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+
+.profileSummaryItem {
+  display: grid;
+  min-height: 68px;
+  align-content: center;
+  gap: var(--space-1);
+  border-inline-end: 1px solid var(--color-border);
+  padding: var(--space-3) var(--space-4);
+}
+
+.profileSummaryItem:last-child {
+  border-inline-end: 0;
+}
+
+.profileSummaryItem span {
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.profileSummaryItem strong {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-primary);
+  font-size: 0.9375rem;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.profileActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.profileTabs {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  padding-inline: var(--space-3);
+}
+
+.profileTabs [role="tablist"] {
+  justify-content: space-around;
+  border-block-end: 0;
+  scrollbar-width: none;
+}
+
+.profileTabs [role="tablist"]::-webkit-scrollbar {
+  display: none;
+}
+
+.profileInfoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.profileInfoGrid > :nth-child(5),
+.profileInfoGrid > :nth-child(9) {
+  grid-column: 1 / -1;
+}
+
+.infoSectionCard {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+}
+
+.infoSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-block-end: 1px solid var(--color-border);
+  padding-block-end: var(--space-3);
+}
+
+.infoSectionHeader h2 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 1.0625rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.infoList {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.infoRow {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.45fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.infoRow dt {
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.infoRow dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.infoChipList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.emptyInfoValue {
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+}
+
+.coachNoteText {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-weight: 600;
+  line-height: 2;
+}
+
+.tabContentStack,
+.visitForm {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-5);
+}
+
+.tabHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.tabHeader h2,
+.cardTitle {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.tabHeader p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+.tabHeaderAction {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.summaryMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.summaryMetricCard {
+  position: relative;
+  display: grid;
+  min-height: 128px;
+  align-content: center;
+  gap: var(--space-2);
+}
+
+.summaryMetricIcon {
+  position: absolute;
+  inset-block-start: var(--space-4);
+  inset-inline-end: var(--space-4);
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+}
+
+.summaryMetricLabel,
+.summaryMetricHint,
+.subtleText {
+  color: var(--color-text-secondary);
+}
+
+.summaryMetricLabel {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.summaryMetricValue {
+  color: var(--color-text-primary);
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.summaryMetricHint {
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+.visitsLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  min-width: 0;
+  direction: ltr;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.visitsLayout > * {
+  direction: rtl;
+}
+
+.tabTableCard,
+.visitDetailsPanel {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.recordTitle {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  font-weight: 800;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.positiveText {
+  color: var(--color-danger-700);
+  font-weight: 800;
+}
+
+.successText {
+  color: var(--color-success-700);
+  font-weight: 800;
+}
+
+.dangerText {
+  margin: 0;
+  color: var(--color-danger-700);
+  font-weight: 800;
+  line-height: 1.8;
+}
+
+.modalText {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-primary);
+  line-height: 1.9;
+}
+
+.detailMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.checkboxList {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.detailBlock {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.detailBlock h3 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 0.9375rem;
+  font-weight: 800;
+}
+
+.compactMetric {
+  display: grid;
+  min-height: 74px;
+  gap: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  padding: var(--space-3);
+}
+
+.compactMetric span,
+.readonlyDetail span {
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.compactMetric strong {
+  color: var(--color-text-primary);
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.readonlyDetail {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.readonlyDetail p {
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+  font-weight: 600;
+  line-height: 1.9;
+  padding: var(--space-3);
+}
+
+.percentBarWrap {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 120px;
+  color: var(--color-success-700);
+  font-weight: 800;
+}
+
+.percentBarTrack {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-border);
+}
+
+.percentBarFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-success-500);
+}
+
+.visitStudentSummary {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (max-width: 1024px) {
+  .filtersGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .formGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profileSummaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profileSummaryItem:nth-child(2n) {
+    border-inline-end: 0;
+  }
+
+  .profileInfoGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .profileInfoGrid > :nth-child(5),
+  .profileInfoGrid > :nth-child(9) {
+    grid-column: auto;
+  }
+
+  .summaryMetricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .visitsLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .detailMetricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 780px) {
+  .desktopList {
+    display: none;
+  }
+
+  .mobileList {
+    display: block;
+  }
+
+  .filtersGrid,
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .wideField,
+  .fullField {
+    grid-column: auto;
+  }
+
+  .mobileActions,
+  .metricGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .actionBar {
+    inset-inline: var(--space-3);
+    border-radius: var(--radius-lg);
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actionBarButtons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .profileHeaderMain {
+    align-items: center;
+    text-align: center;
+    flex-direction: column;
+  }
+
+  .profileNameRow {
+    justify-content: center;
+  }
+
+  .profileSummaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .profileSummaryItem,
+  .profileSummaryItem:nth-child(2),
+  .profileSummaryItem:last-child {
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .profileSummaryItem:last-child {
+    border-block-end: 0;
+  }
+
+  .profileActions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .profileTabs {
+    padding-inline: 0;
+  }
+
+  .profileTabs [role="tablist"] {
+    justify-content: flex-start;
+    padding-inline: var(--space-2);
+  }
+
+  .infoRow {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+
+  .tabHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tabHeaderAction,
+  .tabHeaderAction > * {
+    width: 100%;
+  }
+
+  .summaryMetricGrid,
+  .detailMetricGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .summaryMetricCard {
+    min-height: 112px;
+  }
+
+  .visitForm .actionBarButtons {
+    grid-template-columns: 1fr;
+  }
+}

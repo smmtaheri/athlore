@@ -1,0 +1,273 @@
+import { ClipboardList } from "lucide-react";
+import type {
+  VisitFormAnswers,
+  VisitFormAnswerValue,
+  VisitFormFieldDefinition,
+  VisitFormSectionDefinition
+} from "../types/visitForm";
+import {
+  Checkbox,
+  FormField,
+  Input,
+  Select,
+  Switch,
+  Textarea
+} from "../../../components/ui";
+import { formatAnswerDisplay } from "./visitFormUtils";
+import { StudentFormSection } from "./StudentFormSection";
+import styles from "./students.module.css";
+
+export interface VisitDynamicFormProps {
+  answers: VisitFormAnswers;
+  coachNotes?: string;
+  disabled?: boolean;
+  notesLabel?: string;
+  notesTitle?: string;
+  onAnswersChange: (answers: VisitFormAnswers) => void;
+  onCoachNotesChange?: (notes: string) => void;
+  /** When true, fields without studentEditable stay read-only even if the form is open. */
+  respectStudentEditable?: boolean;
+  sections: VisitFormSectionDefinition[];
+  showNotes?: boolean;
+}
+
+export function VisitDynamicForm({
+  answers,
+  coachNotes = "",
+  disabled = false,
+  notesLabel = "یادداشت خصوصی مربی",
+  notesTitle = "یادداشت خصوصی مربی",
+  onAnswersChange,
+  onCoachNotesChange,
+  respectStudentEditable = false,
+  sections,
+  showNotes = false
+}: VisitDynamicFormProps) {
+  const setAnswer = (key: string, value: VisitFormAnswerValue) => {
+    onAnswersChange({ ...answers, [key]: value });
+  };
+
+  return (
+    <div className={styles.tabContentStack}>
+      {sections.map((section) => (
+        <StudentFormSection icon={ClipboardList} key={section.key} title={section.label}>
+          <div className={styles.formGrid}>
+            {section.fields.map((field) => {
+              const fieldDisabled =
+                disabled || (respectStudentEditable && field.studentEditable !== true);
+              return (
+                <VisitFormFieldControl
+                  disabled={fieldDisabled}
+                  field={field}
+                  key={field.key}
+                  onChange={(value) => setAnswer(field.key, value)}
+                  value={answers[field.key]}
+                />
+              );
+            })}
+          </div>
+        </StudentFormSection>
+      ))}
+
+      {showNotes && onCoachNotesChange ? (
+        <StudentFormSection icon={ClipboardList} title={notesTitle}>
+          <FormField htmlFor="visit-coach-private-notes" label={notesLabel}>
+            <Textarea
+              disabled={disabled}
+              id="visit-coach-private-notes"
+              onChange={(event) => onCoachNotesChange(event.target.value)}
+              rows={4}
+              value={coachNotes}
+            />
+          </FormField>
+        </StudentFormSection>
+      ) : null}
+    </div>
+  );
+}
+
+/** @deprecated Use VisitDynamicForm */
+export const AssessmentDynamicForm = VisitDynamicForm;
+
+export function VisitAnswersReadonly({
+  answers,
+  coachNotes,
+  sections
+}: {
+  answers: VisitFormAnswers;
+  coachNotes?: string;
+  sections: VisitFormSectionDefinition[];
+}) {
+  return (
+    <div className={styles.tabContentStack}>
+      {sections.map((section) => (
+        <StudentFormSection icon={ClipboardList} key={section.key} title={section.label}>
+          <div className={styles.detailMetricGrid}>
+            {section.fields.map((field) => (
+              <div className={styles.readonlyDetail} key={field.key}>
+                <span>{field.label}</span>
+                <p>{formatAnswerDisplay(field, answers[field.key])}</p>
+              </div>
+            ))}
+          </div>
+        </StudentFormSection>
+      ))}
+      {coachNotes !== undefined ? (
+        <StudentFormSection icon={ClipboardList} title="یادداشت خصوصی مربی">
+          <div className={styles.readonlyDetail}>
+            <span>یادداشت خصوصی مربی</span>
+            <p>{coachNotes || "ثبت نشده"}</p>
+          </div>
+        </StudentFormSection>
+      ) : null}
+    </div>
+  );
+}
+
+/** @deprecated Use VisitAnswersReadonly */
+export const AssessmentAnswersReadonly = VisitAnswersReadonly;
+
+interface VisitFormFieldControlProps {
+  disabled?: boolean;
+  field: VisitFormFieldDefinition;
+  onChange: (value: VisitFormAnswerValue) => void;
+  value: VisitFormAnswerValue | undefined;
+}
+
+function VisitFormFieldControl({
+  disabled = false,
+  field,
+  onChange,
+  value
+}: VisitFormFieldControlProps) {
+  const fieldId = `visit-field-${field.key}`;
+
+  if (field.type === "boolean") {
+    return (
+      <FormField
+        hint={field.helpText || undefined}
+        htmlFor={fieldId}
+        label={field.label}
+        required={field.required}
+      >
+        <Switch
+          checked={value === true}
+          disabled={disabled}
+          label={value === true ? "بله" : "خیر"}
+          onCheckedChange={(checked) => onChange(checked)}
+        />
+      </FormField>
+    );
+  }
+
+  if (field.type === "multi_select") {
+    const selected = Array.isArray(value) ? value.map(String) : [];
+    return (
+      <FormField hint={field.helpText || undefined} label={field.label} required={field.required}>
+        <div className={styles.checkboxList}>
+          {field.options.map((option) => {
+            const checked = selected.includes(option.value);
+            return (
+              <Checkbox
+                checked={checked}
+                disabled={disabled}
+                key={option.value}
+                label={option.label}
+                onChange={() => {
+                  if (checked) {
+                    onChange(selected.filter((item) => item !== option.value));
+                  } else {
+                    onChange([...selected, option.value]);
+                  }
+                }}
+              />
+            );
+          })}
+        </div>
+      </FormField>
+    );
+  }
+
+  if (field.type === "single_select") {
+    return (
+      <FormField
+        hint={field.helpText || undefined}
+        htmlFor={fieldId}
+        label={field.label}
+        required={field.required}
+      >
+        <Select
+          disabled={disabled}
+          id={fieldId}
+          onChange={(event) => onChange(event.target.value)}
+          options={field.options}
+          placeholder="انتخاب کنید"
+          value={value == null ? "" : String(value)}
+        />
+      </FormField>
+    );
+  }
+
+  if (field.type === "textarea") {
+    return (
+      <FormField
+        hint={field.helpText || undefined}
+        htmlFor={fieldId}
+        label={field.label}
+        required={field.required}
+      >
+        <Textarea
+          disabled={disabled}
+          id={fieldId}
+          onChange={(event) => onChange(event.target.value)}
+          rows={3}
+          value={value == null ? "" : String(value)}
+        />
+      </FormField>
+    );
+  }
+
+  if (field.type === "number") {
+    return (
+      <FormField
+        hint={field.helpText || undefined}
+        htmlFor={fieldId}
+        label={field.label}
+        required={field.required}
+      >
+        <Input
+          disabled={disabled}
+          id={fieldId}
+          onChange={(event) => {
+            const raw = event.target.value;
+            if (raw === "") {
+              onChange(null);
+              return;
+            }
+            const parsed = Number(raw);
+            onChange(Number.isFinite(parsed) ? parsed : null);
+          }}
+          type="number"
+          value={value == null || value === "" ? "" : String(value)}
+        />
+      </FormField>
+    );
+  }
+
+  return (
+    <FormField
+      hint={field.helpText || undefined}
+      htmlFor={fieldId}
+      label={field.label}
+      required={field.required}
+    >
+      <Input
+        disabled={disabled}
+        id={fieldId}
+        onChange={(event) => onChange(event.target.value)}
+        type={field.type === "date" ? "date" : "text"}
+        value={value == null ? "" : String(value)}
+      />
+    </FormField>
+  );
+}

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8"/>
+  <title>اطلاعات شاگرد</title>
+  <style>
+    @font-face { font-family: "CoachNaskh"; src: url("{{ font_path }}"); }
+    @page {
+      size: A4;
+      margin: 16mm 14mm 18mm 14mm;
+      @bottom-center {
+        content: "Student Profile · صفحه " counter(page) " از " counter(pages);
+        font-family: "CoachNaskh", sans-serif; font-size: 9pt; color: #555;
+      }
+    }
+    body { font-family: "CoachNaskh", sans-serif; direction: rtl; text-align: right; font-size: 10.5pt; line-height: 1.5; color: #1a1a1a; }
+    h1 { font-size: 16pt; margin: 0 0 8pt; }
+    h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 3pt; margin-top: 14pt; }
+    .meta { font-size: 9.5pt; margin: 2pt 0; color: #333; }
+    .muted { color: #666; font-size: 9pt; }
+    ul { margin: 4pt 0 8pt; padding-right: 16pt; }
+    table { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 6pt 0; }
+    th, td { border: 1px solid #bbb; padding: 4pt 5pt; text-align: right; vertical-align: top; }
+    th { background: #f3f3f3; }
+  </style>
+</head>
+<body>
+  <div class="muted">Athlore · خروجی اطلاعات شاگرد (فقط مربی)</div>
+  <h1>اطلاعات شاگرد: {{ student_name }}</h1>
+  <div class="meta">شناسه شاگرد: {{ student_id }}</div>
+  <div class="meta">موبایل: {{ phone }}</div>
+  <div class="meta">مربی: {{ coach_name }} ({{ coach_email }}) · شناسه مربی: {{ coach_id }}</div>
+  <div class="meta">آخرین به‌روزرسانی پروفایل: {{ profile_updated_at }}</div>
+  <div class="meta">زمان خروجی: {{ export_at }}</div>
+  <div class="meta">سن: {{ age }} · جنسیت: {{ gender }} · قد: {{ height_cm }} · وزن پروفایل: {{ weight_kg }}</div>
+  <div class="meta">وضعیت: {{ status }} · بایگانی: {{ archived_at }}</div>
+
+  <h2>اهداف و عضلات</h2>
+  <div class="meta">هدف اصلی: {{ primary_goal }} · هدف فرعی: {{ secondary_goal }}</div>
+  <div class="meta">عضلات ضعیف:</div><ul>{% for x in weak_muscles %}<li>{{ x }}</li>{% endfor %}</ul>
+  <div class="meta">عضلات قوی:</div><ul>{% for x in strong_muscles %}<li>{{ x }}</li>{% endfor %}</ul>
+  <div class="meta">اولویت عضلات:</div><ul>{% for x in muscle_priorities %}<li>{{ x }}</li>{% endfor %}</ul>
+
+  <h2>سابقه و شرایط تمرین</h2>
+  <div class="meta">سطح: {{ training_level }} · سابقه: {{ training_experience }}</div>
+  <div class="meta">تجربه وزنه آزاد: {{ free_weight }} · آشنایی فرم پایه: {{ basic_form }}</div>
+  <div class="meta">روز در هفته: {{ days_per_week }} · مدت جلسه: {{ session_duration }}</div>
+  <div class="meta">سبک ترجیحی: {{ training_preference }} · شدت: {{ intensity_preference }} · کاردیو: {{ cardio_preference }}</div>
+
+  <h2>آسیب و محدودیت</h2>
+  <div class="meta">آسیب فعال: {{ has_injury }} · نوع: {{ injury_type }}</div>
+  <div class="meta">حرکات غیرمجاز:</div><ul>{% for x in disallowed_exercises %}<li>{{ x }}</li>{% endfor %}</ul>
+  <div class="meta">حرکات آزاردهنده:</div><ul>{% for x in aggravating_movements %}<li>{{ x }}</li>{% endfor %}</ul>
+  <div class="meta">سبک‌های ناخوشایند: {{ disliked_exercises }}</div>
+  <div class="meta">حرکات مورد علاقه: {{ favorite_exercises }}</div>
+
+  <h2>تجهیزات و سبک زندگی</h2>
+  <div class="meta">دمبل: {{ eq_dumbbell }} · هالتر: {{ eq_barbell }} · کابل: {{ eq_cable }} · دستگاه: {{ eq_machines }} · باشگاه کامل: {{ eq_full_gym }}</div>
+  <div class="meta">شغل: {{ occupation }} · فعالیت روزانه: {{ daily_activity }}</div>
+  <div class="meta">خواب: {{ sleep }} · استرس: {{ stress }}</div>
+
+  <h2>یادداشت مربی (داخلی)</h2>
+  <p>{{ coach_notes }}</p>
+
+  <h2>ایمنی تغذیه و مکمل</h2>
+  <div class="meta">آلرژی‌ها:</div><ul>{% for x in food_allergies %}<li>{{ x }}</li>{% endfor %}</ul>
+  <div class="meta">عدم تحمل:</div><ul>{% for x in food_intolerances %}<li>{{ x }}</li>{% endfor %}</ul>
+  <div class="meta">محدودیت‌های غذایی:</div><ul>{% for x in dietary_restrictions %}<li>{{ x }}</li>{% endfor %}</ul>
+  <div class="meta">ترجیحات غذایی:</div><ul>{% for x in dietary_preferences %}<li>{{ x }}</li>{% endfor %}</ul>
+  <div class="meta">محدودیت مکمل:</div><ul>{% for x in supplement_restrictions %}<li>{{ x }}</li>{% endfor %}</ul>
+  <div class="meta">یادداشت پزشکی مرتبط: {{ relevant_medical_notes }}</div>
+  <div class="meta">یادداشت تغذیه: {{ nutrition_notes }}</div>
+
+  <h2>آخرین ویزیت و تاریخچه</h2>
+  <div class="meta">آخرین ویزیت: {{ latest_visit_date }} · شناسه: {{ latest_visit_id }}</div>
+  {% if visit_rows %}
+  <table>
+    <thead>
+      <tr>
+        <th>تاریخ</th><th>وزن</th><th>قبلی</th><th>انرژی</th><th>خواب</th><th>استرس</th>
+        <th>کمر</th><th>سینه</th><th>بازو</th><th>ران</th><th>لگن</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in visit_rows %}
+      <tr>
+        <td>{{ v.date }}</td><td>{{ v.weight }}</td><td>{{ v.prev_weight }}</td>
+        <td>{{ v.energy }}</td><td>{{ v.sleep }}</td><td>{{ v.stress }}</td>
+        <td>{{ v.waist }}</td><td>{{ v.chest }}</td><td>{{ v.arm }}</td><td>{{ v.thigh }}</td><td>{{ v.hip }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">— (بدون ویزیت)</p>{% endif %}
+</body>
+</html>

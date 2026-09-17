@@ -1,0 +1,1195 @@
+[
+  {
+    "canonical_name": "پرس سرشانه هالتر نشسته",
+    "name_en": "Seated Barbell Shoulder Press",
+    "category": "سرشانه و کتف",
+    "primary_muscle": "سرشانه",
+    "secondary_muscles": [
+      "پشت بازو"
+    ],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "push_vertical",
+    "aliases": [
+      "پرس شانه هالتر",
+      "پرس سرشانه با هالتر"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پرس سرشانه دمبل نشسته",
+    "name_en": "Seated Dumbbell Shoulder Press",
+    "category": "سرشانه و کتف",
+    "primary_muscle": "سرشانه",
+    "secondary_muscles": [
+      "پشت بازو"
+    ],
+    "equipment": "دمبل",
+    "laterality": "bilateral",
+    "movement_pattern": "push_vertical",
+    "aliases": [
+      "پرس شانه دمبل"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "نشر از جانب با دمبل",
+    "name_en": "Dumbbell Lateral Raise",
+    "category": "سرشانه و کتف",
+    "primary_muscle": "سرشانه",
+    "secondary_muscles": [],
+    "equipment": "دمبل",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "نشر جانبی",
+      "لترال رایز"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "نشر از جلو با دمبل",
+    "name_en": "Dumbbell Front Raise",
+    "category": "سرشانه و کتف",
+    "primary_muscle": "سرشانه",
+    "secondary_muscles": [],
+    "equipment": "دمبل",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "نشر جلو",
+      "فرانت رایز"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "نشر خم به جلو (دلتوئید خلفی)",
+    "name_en": "Bent-over Rear Delt Raise",
+    "category": "سرشانه و کتف",
+    "primary_muscle": "سرشانه",
+    "secondary_muscles": [
+      "زیربغل"
+    ],
+    "equipment": "دمبل",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "نشر خلفی",
+      "ریورس فلای",
+      "ریورس پک دک"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "شراگ با هالتر",
+    "name_en": "Barbell Shrug",
+    "category": "سرشانه و کتف",
+    "primary_muscle": "سرشانه",
+    "secondary_muscles": [
+      "ترقوه‌ای"
+    ],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "بالا انداختن شانه با هالتر"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "شراگ با دمبل",
+    "name_en": "Dumbbell Shrug",
+    "category": "سرشانه و کتف",
+    "primary_muscle": "سرشانه",
+    "secondary_muscles": [
+      "ترقوه‌ای"
+    ],
+    "equipment": "دمبل",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "کول با سیم‌کش ایستاده",
+    "name_en": "Standing Cable Face-pull-style Delt",
+    "category": "سرشانه و کتف",
+    "primary_muscle": "سرشانه",
+    "secondary_muscles": [],
+    "equipment": "سیم‌کش",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "کول سیم کش"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "آپ‌رایت رو با هالتر",
+    "name_en": "Barbell Upright Row",
+    "category": "سرشانه و کتف",
+    "primary_muscle": "سرشانه",
+    "secondary_muscles": [
+      "ترقوه‌ای"
+    ],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "pull_vertical",
+    "aliases": [
+      "کشش عمودی هالتر"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "فیس پول با سیم‌کش",
+    "name_en": "Cable Face Pull",
+    "category": "سرشانه و کتف",
+    "primary_muscle": "سرشانه",
+    "secondary_muscles": [
+      "زیربغل"
+    ],
+    "equipment": "سیم‌کش",
+    "laterality": "bilateral",
+    "movement_pattern": "pull_horizontal",
+    "aliases": [
+      "فیس پولی"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پرس آرنولد با دمبل",
+    "name_en": "Arnold Press",
+    "category": "سرشانه و کتف",
+    "primary_muscle": "سرشانه",
+    "secondary_muscles": [
+      "پشت بازو"
+    ],
+    "equipment": "دمبل",
+    "laterality": "bilateral",
+    "movement_pattern": "push_vertical",
+    "aliases": [
+      "آرنولد پرس"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پرس سرشانه با دستگاه",
+    "name_en": "Machine Shoulder Press",
+    "category": "سرشانه و کتف",
+    "primary_muscle": "سرشانه",
+    "secondary_muscles": [
+      "پشت بازو"
+    ],
+    "equipment": "دستگاه",
+    "laterality": "bilateral",
+    "movement_pattern": "push_vertical",
+    "aliases": [
+      "پرس شانه دستگاه"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پرس سینه تخت با هالتر",
+    "name_en": "Flat Barbell Bench Press",
+    "category": "سینه",
+    "primary_muscle": "سینه",
+    "secondary_muscles": [
+      "سرشانه",
+      "پشت بازو"
+    ],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "push_horizontal",
+    "aliases": [
+      "پرس هالتر تخت",
+      "پرس سینه با هالتر"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پرس سینه تخت با دمبل",
+    "name_en": "Flat Dumbbell Bench Press",
+    "category": "سینه",
+    "primary_muscle": "سینه",
+    "secondary_muscles": [
+      "سرشانه",
+      "پشت بازو"
+    ],
+    "equipment": "دمبل",
+    "laterality": "bilateral",
+    "movement_pattern": "push_horizontal",
+    "aliases": [
+      "پرس دمبل تخت"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پرس سینه بالاسینه با هالتر",
+    "name_en": "Incline Barbell Bench Press",
+    "category": "سینه",
+    "primary_muscle": "سینه بالا",
+    "secondary_muscles": [
+      "سرشانه"
+    ],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "push_horizontal",
+    "aliases": [
+      "پرس بالا سینه هالتر",
+      "پرس شیب مثبت هالتر"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پرس سینه بالاسینه با دمبل",
+    "name_en": "Incline Dumbbell Bench Press",
+    "category": "سینه",
+    "primary_muscle": "سینه بالا",
+    "secondary_muscles": [
+      "سرشانه"
+    ],
+    "equipment": "دمبل",
+    "laterality": "bilateral",
+    "movement_pattern": "push_horizontal",
+    "aliases": [
+      "پرس دمبل بالا سینه"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پرس سینه زیرسینه با هالتر",
+    "name_en": "Decline Barbell Bench Press",
+    "category": "سینه",
+    "primary_muscle": "سینه زیر",
+    "secondary_muscles": [],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "push_horizontal",
+    "aliases": [
+      "پرس زیر سینه",
+      "پرس دکلاین"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "فلای سینه با دمبل",
+    "name_en": "Dumbbell Chest Fly",
+    "category": "سینه",
+    "primary_muscle": "سینه",
+    "secondary_muscles": [],
+    "equipment": "دمبل",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "فالی سینه",
+      "فلای با دمبل"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "فلای با سیم‌کش (کراس‌اور)",
+    "name_en": "Cable Crossover Fly",
+    "category": "سینه",
+    "primary_muscle": "سینه",
+    "secondary_muscles": [],
+    "equipment": "سیم‌کش",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "کراس اور",
+      "فلای سیم کش"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "قفسه سینه با دستگاه (پک دک)",
+    "name_en": "Pec Deck Machine Fly",
+    "category": "سینه",
+    "primary_muscle": "سینه",
+    "secondary_muscles": [],
+    "equipment": "دستگاه",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "پک دک",
+      "قفسه با دستگاه"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "شنا سوئدی",
+    "name_en": "Push-up",
+    "category": "سینه",
+    "primary_muscle": "سینه",
+    "secondary_muscles": [
+      "سرشانه",
+      "پشت بازو"
+    ],
+    "equipment": "بدون وسیله",
+    "laterality": "bilateral",
+    "movement_pattern": "push_horizontal",
+    "aliases": [
+      "شنا روی زمین",
+      "پوش آپ"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "دیپ سینه با میز موازی",
+    "name_en": "Chest Dip (Parallel Bars)",
+    "category": "سینه",
+    "primary_muscle": "سینه زیر",
+    "secondary_muscles": [
+      "پشت بازو"
+    ],
+    "equipment": "میز دیپ",
+    "laterality": "bilateral",
+    "movement_pattern": "push_horizontal",
+    "aliases": [
+      "دیپ با میز",
+      "دیپ پارالل سینه"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پرس سینه با دستگاه اسمیت",
+    "name_en": "Smith Machine Bench Press",
+    "category": "سینه",
+    "primary_muscle": "سینه",
+    "secondary_muscles": [
+      "پشت بازو"
+    ],
+    "equipment": "اسمیت",
+    "laterality": "bilateral",
+    "movement_pattern": "push_horizontal",
+    "aliases": [
+      "پرس هالتر اسمیت"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پول‌اور با سیم‌کش",
+    "name_en": "Cable Pullover",
+    "category": "سینه",
+    "primary_muscle": "سینه",
+    "secondary_muscles": [
+      "زیربغل"
+    ],
+    "equipment": "سیم‌کش",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "پولاور"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "زیربغل هالتر خم (رو با هالتر)",
+    "name_en": "Bent-over Barbell Row",
+    "category": "زیربغل",
+    "primary_muscle": "زیربغل",
+    "secondary_muscles": [
+      "جلوبازو"
+    ],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "pull_horizontal",
+    "aliases": [
+      "رو با هالتر خم",
+      "بارفیکس دار زیربغل هالتر"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "زیربغل تک‌خم با دمبل",
+    "name_en": "Single-arm Dumbbell Row",
+    "category": "زیربغل",
+    "primary_muscle": "زیربغل",
+    "secondary_muscles": [
+      "جلوبازو"
+    ],
+    "equipment": "دمبل",
+    "laterality": "unilateral",
+    "movement_pattern": "pull_horizontal",
+    "aliases": [
+      "زیربغل دمبل",
+      "رو تک دمبل"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "زیربغل سیم‌کش از جلو (لت پول‌داون)",
+    "name_en": "Lat Pulldown",
+    "category": "زیربغل",
+    "primary_muscle": "زیربغل",
+    "secondary_muscles": [
+      "جلوبازو"
+    ],
+    "equipment": "سیم‌کش",
+    "laterality": "bilateral",
+    "movement_pattern": "pull_vertical",
+    "aliases": [
+      "لت پولی",
+      "زیربغل سیم کش نشسته",
+      "لت پولدون"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "زیربغل سیم‌کش نشسته دست جمع (سیتد رو)",
+    "name_en": "Seated Cable Row",
+    "category": "زیربغل",
+    "primary_muscle": "زیربغل",
+    "secondary_muscles": [
+      "جلوبازو"
+    ],
+    "equipment": "سیم‌کش",
+    "laterality": "bilateral",
+    "movement_pattern": "pull_horizontal",
+    "aliases": [
+      "رو با سیم کش نشسته",
+      "سیتد رو"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "بارفیکس دست باز",
+    "name_en": "Wide-grip Pull-up",
+    "category": "زیربغل",
+    "primary_muscle": "زیربغل",
+    "secondary_muscles": [
+      "جلوبازو"
+    ],
+    "equipment": "بارفیکس",
+    "laterality": "bilateral",
+    "movement_pattern": "pull_vertical",
+    "aliases": [
+      "بارفیکس"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "بارفیکس دست جمع",
+    "name_en": "Close-grip Chin-up",
+    "category": "زیربغل",
+    "primary_muscle": "زیربغل",
+    "secondary_muscles": [
+      "جلوبازو"
+    ],
+    "equipment": "بارفیکس",
+    "laterality": "bilateral",
+    "movement_pattern": "pull_vertical",
+    "aliases": [
+      "بارفیکس معکوس",
+      "چین آپ"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "زیربغل تی‌بار",
+    "name_en": "T-Bar Row",
+    "category": "زیربغل",
+    "primary_muscle": "زیربغل",
+    "secondary_muscles": [
+      "جلوبازو"
+    ],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "pull_horizontal",
+    "aliases": [
+      "تی بار رو"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پولاور با سیم‌کش (زیربغل)",
+    "name_en": "Cable Pullover (Back Focus)",
+    "category": "زیربغل",
+    "primary_muscle": "زیربغل",
+    "secondary_muscles": [
+      "سینه"
+    ],
+    "equipment": "سیم‌کش",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "پولاور زیربغل"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "زیربغل با دستگاه های رو",
+    "name_en": "High Row Machine",
+    "category": "زیربغل",
+    "primary_muscle": "زیربغل",
+    "secondary_muscles": [
+      "جلوبازو"
+    ],
+    "equipment": "دستگاه",
+    "laterality": "bilateral",
+    "movement_pattern": "pull_horizontal",
+    "aliases": [
+      "های رو"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "ددلیفت کلاسیک",
+    "name_en": "Conventional Deadlift",
+    "category": "زیربغل",
+    "primary_muscle": "زیربغل",
+    "secondary_muscles": [
+      "پا",
+      "شکم"
+    ],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "hinge",
+    "aliases": [
+      "دِدلیفت",
+      "لیفت مرده"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "هایپراکستنشن",
+    "name_en": "Hyperextension (Back Extension)",
+    "category": "زیربغل",
+    "primary_muscle": "زیربغل",
+    "secondary_muscles": [
+      "باسن"
+    ],
+    "equipment": "دستگاه",
+    "laterality": "bilateral",
+    "movement_pattern": "hinge",
+    "aliases": [
+      "هایپر اکستنشن",
+      "بک اکستنشن"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "جلوبازو ایستاده با هالتر",
+    "name_en": "Standing Barbell Curl",
+    "category": "جلوبازو",
+    "primary_muscle": "جلوبازو",
+    "secondary_muscles": [],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "جلو بازو با هالتر"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "جلوبازو ایستاده با دمبل تناوبی",
+    "name_en": "Alternating Dumbbell Curl",
+    "category": "جلوبازو",
+    "primary_muscle": "جلوبازو",
+    "secondary_muscles": [],
+    "equipment": "دمبل",
+    "laterality": "unilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "جلوبازو دمبل",
+      "جلو بازو دمبل تک به تک"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "جلوبازو لاری با هالتر",
+    "name_en": "Preacher Curl (Barbell)",
+    "category": "جلوبازو",
+    "primary_muscle": "جلوبازو",
+    "secondary_muscles": [],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "جلوبازو لاری",
+      "لاری بار"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "جلوبازو روی میز شیب (اسکات بنچ)",
+    "name_en": "Incline Bench Dumbbell Curl",
+    "category": "جلوبازو",
+    "primary_muscle": "جلوبازو",
+    "secondary_muscles": [],
+    "equipment": "دمبل",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "جلوبازو اسکات بنچ",
+      "جلو بازو روی میز شیب"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "جلوبازو دمبل نشسته روی میز شیب",
+    "name_en": "Seated Incline Dumbbell Curl",
+    "category": "جلوبازو",
+    "primary_muscle": "جلوبازو",
+    "secondary_muscles": [],
+    "equipment": "دمبل",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "جلوبازو شیب دمبل"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "جلوبازو چکشی با دمبل",
+    "name_en": "Hammer Curl",
+    "category": "جلوبازو",
+    "primary_muscle": "جلوبازو",
+    "secondary_muscles": [
+      "ساعد"
+    ],
+    "equipment": "دمبل",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "هامر کرل",
+      "جلو بازو چکش"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "جلوبازو با سیم‌کش و طناب",
+    "name_en": "Cable Rope Curl",
+    "category": "جلوبازو",
+    "primary_muscle": "جلوبازو",
+    "secondary_muscles": [],
+    "equipment": "سیم‌کش",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "جلوبازو سیم کش",
+      "کرل سیم کش"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "جلوبازو تک دست با میز لاری",
+    "name_en": "Single-arm Preacher Curl",
+    "category": "جلوبازو",
+    "primary_muscle": "جلوبازو",
+    "secondary_muscles": [],
+    "equipment": "دمبل",
+    "laterality": "unilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "تک دست لاری"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "جلوبازو با دستگاه (کرل ماشین)",
+    "name_en": "Machine Bicep Curl",
+    "category": "جلوبازو",
+    "primary_muscle": "جلوبازو",
+    "secondary_muscles": [],
+    "equipment": "دستگاه",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "جلوبازو دستگاه"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پشت بازو هالتر خوابیده (فرانسوی)",
+    "name_en": "Lying Barbell Triceps Extension",
+    "category": "پشت‌بازو",
+    "primary_muscle": "پشت بازو",
+    "secondary_muscles": [],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "پشت بازو فرانسوی",
+      "اسکال کراشر"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پشت بازو سیم‌کش ایستاده با طناب",
+    "name_en": "Standing Cable Rope Pushdown",
+    "category": "پشت‌بازو",
+    "primary_muscle": "پشت بازو",
+    "secondary_muscles": [],
+    "equipment": "سیم‌کش",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "پشت بازو سیم کش طناب",
+      "ترای‌پشدون طناب"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پشت بازو سیم‌کش با میله صاف",
+    "name_en": "Straight-bar Cable Pushdown",
+    "category": "پشت‌بازو",
+    "primary_muscle": "پشت بازو",
+    "secondary_muscles": [],
+    "equipment": "سیم‌کش",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "پشت بازو میله سیم کش"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پشت بازو دمبل تک دست خم (کیک بک)",
+    "name_en": "Dumbbell Triceps Kickback",
+    "category": "پشت‌بازو",
+    "primary_muscle": "پشت بازو",
+    "secondary_muscles": [],
+    "equipment": "دمبل",
+    "laterality": "unilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "کیک بک",
+      "پشت بازو دمبل خم"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "دیپ پشت بازو روی نیمکت",
+    "name_en": "Bench Dip",
+    "category": "پشت‌بازو",
+    "primary_muscle": "پشت بازو",
+    "secondary_muscles": [
+      "سینه"
+    ],
+    "equipment": "بدون وسیله",
+    "laterality": "bilateral",
+    "movement_pattern": "push_vertical",
+    "aliases": [
+      "دیپ روی نیمکت",
+      "بنچ دیپ"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پشت بازو هالتر بالای سر ایستاده",
+    "name_en": "Standing Overhead Barbell Extension",
+    "category": "پشت‌بازو",
+    "primary_muscle": "پشت بازو",
+    "secondary_muscles": [],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "پشت بازو هالتر سرور",
+      "اورهد اکستنشن هالتر"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پشت بازو تک دست دمبل بالای سر",
+    "name_en": "Single-arm Overhead Dumbbell Extension",
+    "category": "پشت‌بازو",
+    "primary_muscle": "پشت بازو",
+    "secondary_muscles": [],
+    "equipment": "دمبل",
+    "laterality": "unilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "پشت بازو تک دمبل بالای سر"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "دیپ موازی (پارالل) پشت‌بازو محور",
+    "name_en": "Parallel Bar Dip (Triceps Focus)",
+    "category": "پشت‌بازو",
+    "primary_muscle": "پشت بازو",
+    "secondary_muscles": [
+      "سینه"
+    ],
+    "equipment": "میز دیپ",
+    "laterality": "bilateral",
+    "movement_pattern": "push_vertical",
+    "aliases": [
+      "دیپ پارالل"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "اسکات با هالتر (پشت)",
+    "name_en": "Back Squat",
+    "category": "پا",
+    "primary_muscle": "پا",
+    "secondary_muscles": [
+      "باسن"
+    ],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "squat",
+    "aliases": [
+      "اسکوات هالتر",
+      "اسکات پشت"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "اسکات جلو با هالتر (فرانت اسکات)",
+    "name_en": "Front Squat",
+    "category": "پا",
+    "primary_muscle": "پا",
+    "secondary_muscles": [
+      "باسن"
+    ],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "squat",
+    "aliases": [
+      "فرانت اسکوات"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پرس پا با دستگاه",
+    "name_en": "Leg Press",
+    "category": "پا",
+    "primary_muscle": "پا",
+    "secondary_muscles": [
+      "باسن"
+    ],
+    "equipment": "دستگاه",
+    "laterality": "bilateral",
+    "movement_pattern": "squat",
+    "aliases": [
+      "لگ پرس"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "جلو پا با دستگاه (لگ اکستنشن)",
+    "name_en": "Leg Extension",
+    "category": "پا",
+    "primary_muscle": "چهارسررانی",
+    "secondary_muscles": [],
+    "equipment": "دستگاه",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "جلو پا دستگاه",
+      "لگ اکستنشن"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پشت پا با دستگاه نشسته",
+    "name_en": "Seated Leg Curl",
+    "category": "پا",
+    "primary_muscle": "همسترینگ",
+    "secondary_muscles": [],
+    "equipment": "دستگاه",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "پشت پا نشسته",
+      "لگ کرل نشسته"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پشت پا با دستگاه خوابیده",
+    "name_en": "Lying Leg Curl",
+    "category": "پا",
+    "primary_muscle": "همسترینگ",
+    "secondary_muscles": [],
+    "equipment": "دستگاه",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "پشت پا خوابیده",
+      "لگ کرل خوابیده"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "لانج با دمبل",
+    "name_en": "Dumbbell Lunge",
+    "category": "پا",
+    "primary_muscle": "پا",
+    "secondary_muscles": [
+      "باسن"
+    ],
+    "equipment": "دمبل",
+    "laterality": "unilateral",
+    "movement_pattern": "squat",
+    "aliases": [
+      "لانژ با دمبل"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "هاک اسکات با دستگاه",
+    "name_en": "Hack Squat Machine",
+    "category": "پا",
+    "primary_muscle": "پا",
+    "secondary_muscles": [
+      "باسن"
+    ],
+    "equipment": "دستگاه",
+    "laterality": "bilateral",
+    "movement_pattern": "squat",
+    "aliases": [
+      "هاک اسکوات"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "ساق پا ایستاده با دستگاه",
+    "name_en": "Standing Calf Raise",
+    "category": "پا",
+    "primary_muscle": "ساق پا",
+    "secondary_muscles": [],
+    "equipment": "دستگاه",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "ساق پا ایستاده",
+      "کالف ریز ایستاده"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "ساق پا نشسته با دستگاه",
+    "name_en": "Seated Calf Raise",
+    "category": "پا",
+    "primary_muscle": "ساق پا",
+    "secondary_muscles": [],
+    "equipment": "دستگاه",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "ساق پا نشسته",
+      "کالف ریز نشسته"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پرس پا تک پا با دستگاه",
+    "name_en": "Single-leg Leg Press",
+    "category": "پا",
+    "primary_muscle": "پا",
+    "secondary_muscles": [
+      "باسن"
+    ],
+    "equipment": "دستگاه",
+    "laterality": "unilateral",
+    "movement_pattern": "squat",
+    "aliases": [
+      "لگ پرس تک پا"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "اسکات گابلت با دمبل",
+    "name_en": "Goblet Squat",
+    "category": "پا",
+    "primary_muscle": "پا",
+    "secondary_muscles": [
+      "باسن"
+    ],
+    "equipment": "دمبل",
+    "laterality": "bilateral",
+    "movement_pattern": "squat",
+    "aliases": [
+      "گابلت اسکات"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "ددلیفت رومانیایی",
+    "name_en": "Romanian Deadlift",
+    "category": "پا",
+    "primary_muscle": "همسترینگ",
+    "secondary_muscles": [
+      "باسن",
+      "زیربغل"
+    ],
+    "equipment": "هالتر",
+    "laterality": "bilateral",
+    "movement_pattern": "hinge",
+    "aliases": [
+      "آر دی ال",
+      "رومانین ددلیفت"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "لانج معکوس با دمبل",
+    "name_en": "Reverse Dumbbell Lunge",
+    "category": "پا",
+    "primary_muscle": "پا",
+    "secondary_muscles": [
+      "باسن"
+    ],
+    "equipment": "دمبل",
+    "laterality": "unilateral",
+    "movement_pattern": "squat",
+    "aliases": [
+      "باک لانج پشت"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "کرانچ شکم روی زمین",
+    "name_en": "Floor Crunch",
+    "category": "شکم و اصلاحی",
+    "primary_muscle": "شکم",
+    "secondary_muscles": [],
+    "equipment": "بدون وسیله",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "دراز نشست شکم",
+      "کرانچ"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "زیرشکم پا از هوا با بارفیکس (آویزان)",
+    "name_en": "Hanging Leg Raise",
+    "category": "شکم و اصلاحی",
+    "primary_muscle": "شکم زیر",
+    "secondary_muscles": [],
+    "equipment": "بارفیکس",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "زیرشکم آویزان",
+      "لگ ریز بارفیکس"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "پلانک",
+    "name_en": "Plank",
+    "category": "شکم و اصلاحی",
+    "primary_muscle": "شکم",
+    "secondary_muscles": [],
+    "equipment": "بدون وسیله",
+    "laterality": "bilateral",
+    "movement_pattern": "isometric",
+    "aliases": [
+      "پلانک شکم"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "چرخش تنه با سیم‌کش (وودچاپر)",
+    "name_en": "Cable Woodchopper",
+    "category": "شکم و اصلاحی",
+    "primary_muscle": "شکم",
+    "secondary_muscles": [
+      "پهلو"
+    ],
+    "equipment": "سیم‌کش",
+    "laterality": "unilateral",
+    "movement_pattern": "rotation",
+    "aliases": [
+      "وودچاپر",
+      "چرخش پهلو با سیم کش"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "کرانچ با سیم‌کش نشسته",
+    "name_en": "Seated Cable Crunch",
+    "category": "شکم و اصلاحی",
+    "primary_muscle": "شکم",
+    "secondary_muscles": [],
+    "equipment": "سیم‌کش",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "کرانچ سیم کش"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "کرانچ معکوس روی زمین",
+    "name_en": "Reverse Crunch",
+    "category": "شکم و اصلاحی",
+    "primary_muscle": "شکم زیر",
+    "secondary_muscles": [],
+    "equipment": "بدون وسیله",
+    "laterality": "bilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "زیرشکم روی زمین"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "خم به کنار با دمبل (ساید بند)",
+    "name_en": "Dumbbell Side Bend",
+    "category": "شکم و اصلاحی",
+    "primary_muscle": "پهلو",
+    "secondary_muscles": [],
+    "equipment": "دمبل",
+    "laterality": "unilateral",
+    "movement_pattern": "isolation",
+    "aliases": [
+      "پهلو با دمبل",
+      "ساید بند"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "حرکات اصلاحی شانه با کش (تراباند)",
+    "name_en": "Band Shoulder Corrective Drill",
+    "category": "شکم و اصلاحی",
+    "primary_muscle": "سرشانه",
+    "secondary_muscles": [],
+    "equipment": "کش تمرینی",
+    "laterality": "bilateral",
+    "movement_pattern": "corrective",
+    "aliases": [
+      "تراباند شانه"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "حرکت اصلاحی زانو با کش",
+    "name_en": "Band Knee Corrective Drill",
+    "category": "شکم و اصلاحی",
+    "primary_muscle": "زانو",
+    "secondary_muscles": [],
+    "equipment": "کش تمرینی",
+    "laterality": "unilateral",
+    "movement_pattern": "corrective",
+    "aliases": [
+      "تراباند زانو"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  },
+  {
+    "canonical_name": "کشش اصلاحی کتف I-Y-T با دمبل",
+    "name_en": "I-Y-T Raise (Scapular Corrective)",
+    "category": "شکم و اصلاحی",
+    "primary_muscle": "سرشانه",
+    "secondary_muscles": [
+      "زیربغل"
+    ],
+    "equipment": "دمبل",
+    "laterality": "bilateral",
+    "movement_pattern": "corrective",
+    "aliases": [
+      "آی وای تی دمبل"
+    ],
+    "source_document": "arman-exercise-bank-1405.pdf"
+  }
+]

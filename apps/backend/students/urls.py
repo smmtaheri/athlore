@@ -1,0 +1,218 @@
+from django.urls import path
+
+from delivery.export_views import StudentProfilePdfExportView
+from students.body_check_views import (
+    BodyCheckPhotoDeleteView,
+    BodyCheckPhotoDownloadView,
+    CoachBodyCheckCycleCloseView,
+    CoachBodyCheckCycleDetailView,
+    CoachBodyCheckCycleListCreateView,
+    CoachBodyCheckCycleReportView,
+    CoachBodyCheckPhotoUploadView,
+    CoachBodyCheckSuggestTargetsView,
+    MyBodyCheckActiveView,
+    MyBodyCheckDashboardView,
+    MyBodyCheckEntryUpsertView,
+    MyBodyCheckPhotoUploadView,
+)
+from students.views import (
+    MyVisitDetailView,
+    MyVisitListView,
+    MyVisitSubmitView,
+    StudentActivateLoginView,
+    StudentArchiveView,
+    StudentCompleteSetupView,
+    StudentDetailView,
+    StudentListCreateView,
+    StudentPortalDeactivateView,
+    StudentPortalReactivateView,
+    StudentPortalResetPasswordView,
+    StudentPortalSetInitialPasswordView,
+    StudentPortalSetUsernameView,
+    StudentPublicLoginView,
+    VisitAnswerRevisionsView,
+    VisitDetailView,
+    VisitFinalizeView,
+    VisitLatestView,
+    VisitListCreateView,
+    VisitSendToStudentView,
+    VisitStartCoachReviewView,
+)
+from students.visit_form_views import (
+    VisitFormTemplateDefaultView,
+    VisitFormTemplateDetailView,
+    VisitFormTemplateDuplicateView,
+    VisitFormTemplateListCreateView,
+    VisitFormTemplateSetDefaultView,
+)
+
+urlpatterns = [
+    path("students/", StudentListCreateView.as_view(), name="student-list"),
+    path("students/<uuid:student_id>/", StudentDetailView.as_view(), name="student-detail"),
+    path(
+        "students/<uuid:student_id>/profile.pdf",
+        StudentProfilePdfExportView.as_view(),
+        name="student-profile-pdf",
+    ),
+    path(
+        "students/<uuid:student_id>/archive/", StudentArchiveView.as_view(), name="student-archive"
+    ),
+    path("students/<uuid:student_id>/visits/", VisitListCreateView.as_view(), name="visit-list"),
+    path(
+        "students/<uuid:student_id>/visits/latest/", VisitLatestView.as_view(), name="visit-latest"
+    ),
+    path(
+        "students/<uuid:student_id>/visits/<uuid:visit_id>/",
+        VisitDetailView.as_view(),
+        name="visit-detail",
+    ),
+    path(
+        "students/<uuid:student_id>/visits/<uuid:visit_id>/send-to-student/",
+        VisitSendToStudentView.as_view(),
+        name="visit-send-to-student",
+    ),
+    path(
+        "students/<uuid:student_id>/visits/<uuid:visit_id>/finalize/",
+        VisitFinalizeView.as_view(),
+        name="visit-finalize",
+    ),
+    path(
+        "students/<uuid:student_id>/visits/<uuid:visit_id>/start-coach-review/",
+        VisitStartCoachReviewView.as_view(),
+        name="visit-start-coach-review",
+    ),
+    path(
+        "students/<uuid:student_id>/visits/<uuid:visit_id>/answer-revisions/",
+        VisitAnswerRevisionsView.as_view(),
+        name="visit-answer-revisions",
+    ),
+    path(
+        "students/<uuid:student_id>/activate-login/",
+        StudentActivateLoginView.as_view(),
+        name="student-activate-login",
+    ),
+    path(
+        "students/<uuid:student_id>/portal/set-initial-password/",
+        StudentPortalSetInitialPasswordView.as_view(),
+        name="student-portal-set-initial-password",
+    ),
+    path(
+        "students/<uuid:student_id>/portal/set-username/",
+        StudentPortalSetUsernameView.as_view(),
+        name="student-portal-set-username",
+    ),
+    path(
+        "students/<uuid:student_id>/portal/reset-password/",
+        StudentPortalResetPasswordView.as_view(),
+        name="student-portal-reset-password",
+    ),
+    path(
+        "students/<uuid:student_id>/portal/deactivate/",
+        StudentPortalDeactivateView.as_view(),
+        name="student-portal-deactivate",
+    ),
+    path(
+        "students/<uuid:student_id>/portal/reactivate/",
+        StudentPortalReactivateView.as_view(),
+        name="student-portal-reactivate",
+    ),
+    path(
+        "student/complete-setup/",
+        StudentCompleteSetupView.as_view(),
+        name="student-complete-setup",
+    ),
+    path("student/login/", StudentPublicLoginView.as_view(), name="student-public-login"),
+    path("me/visits/", MyVisitListView.as_view(), name="my-visit-list"),
+    path(
+        "me/visits/<uuid:visit_id>/",
+        MyVisitDetailView.as_view(),
+        name="my-visit-detail",
+    ),
+    path(
+        "me/visits/<uuid:visit_id>/submit/",
+        MyVisitSubmitView.as_view(),
+        name="my-visit-submit",
+    ),
+    path(
+        "visit-form-templates/",
+        VisitFormTemplateListCreateView.as_view(),
+        name="visit-form-template-list",
+    ),
+    path(
+        "visit-form-templates/default/",
+        VisitFormTemplateDefaultView.as_view(),
+        name="visit-form-template-default",
+    ),
+    path(
+        "visit-form-templates/<uuid:template_id>/",
+        VisitFormTemplateDetailView.as_view(),
+        name="visit-form-template-detail",
+    ),
+    path(
+        "visit-form-templates/<uuid:template_id>/set-default/",
+        VisitFormTemplateSetDefaultView.as_view(),
+        name="visit-form-template-set-default",
+    ),
+    path(
+        "visit-form-templates/<uuid:template_id>/duplicate/",
+        VisitFormTemplateDuplicateView.as_view(),
+        name="visit-form-template-duplicate",
+    ),
+    # Body Check (independent from Visit)
+    path(
+        "students/<uuid:student_id>/body-check/cycles/",
+        CoachBodyCheckCycleListCreateView.as_view(),
+        name="body-check-cycle-list",
+    ),
+    path(
+        "students/<uuid:student_id>/body-check/suggest-targets/",
+        CoachBodyCheckSuggestTargetsView.as_view(),
+        name="body-check-suggest-targets",
+    ),
+    path(
+        "students/<uuid:student_id>/body-check/cycles/<uuid:cycle_id>/",
+        CoachBodyCheckCycleDetailView.as_view(),
+        name="body-check-cycle-detail",
+    ),
+    path(
+        "students/<uuid:student_id>/body-check/cycles/<uuid:cycle_id>/close/",
+        CoachBodyCheckCycleCloseView.as_view(),
+        name="body-check-cycle-close",
+    ),
+    path(
+        "students/<uuid:student_id>/body-check/cycles/<uuid:cycle_id>/report/",
+        CoachBodyCheckCycleReportView.as_view(),
+        name="body-check-cycle-report",
+    ),
+    path(
+        "students/<uuid:student_id>/body-check/cycles/<uuid:cycle_id>/photos/",
+        CoachBodyCheckPhotoUploadView.as_view(),
+        name="body-check-photo-upload",
+    ),
+    path(
+        "students/<uuid:student_id>/body-check/cycles/<uuid:cycle_id>/photos/<uuid:photo_id>/",
+        BodyCheckPhotoDeleteView.as_view(),
+        name="body-check-photo-delete",
+    ),
+    path("me/body-check/", MyBodyCheckActiveView.as_view(), name="my-body-check-active"),
+    path(
+        "me/body-check/dashboard/",
+        MyBodyCheckDashboardView.as_view(),
+        name="my-body-check-dashboard",
+    ),
+    path(
+        "me/body-check/entries/",
+        MyBodyCheckEntryUpsertView.as_view(),
+        name="my-body-check-entry-upsert",
+    ),
+    path(
+        "me/body-check/photos/",
+        MyBodyCheckPhotoUploadView.as_view(),
+        name="my-body-check-photo-upload",
+    ),
+    path(
+        "body-check/photos/<uuid:photo_id>/download/",
+        BodyCheckPhotoDownloadView.as_view(),
+        name="body-check-photo-download",
+    ),
+]

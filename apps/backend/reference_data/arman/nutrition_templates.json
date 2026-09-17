@@ -1,0 +1,601 @@
+[
+  {
+    "name": "برنامه غذایی مرجع آرمان - پلن ۱ (روز تمرین)",
+    "purpose": "افزایش حجم عضلانی در روزهای تمرین",
+    "day_type": "training",
+    "status": "draft",
+    "source_document": "arman-nutrition-plan-1-1405.pdf",
+    "source_version": "v1",
+    "meal_slots": {
+      "breakfast": [
+        {
+          "items": [
+            {
+              "food_name": "تخم‌مرغ آب‌پز",
+              "quantity_text": "۳ عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            },
+            {
+              "food_name": "نان سنگک",
+              "quantity_text": "۱/۵ عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": true,
+              "notes": "معادل تقریبی یک برش بزرگ نان؛ نیاز به تایید مقدار دقیق"
+            },
+            {
+              "food_name": "پنیر کم‌نمک",
+              "quantity_text": "۳۰ گرم",
+              "unit": "گرم",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            },
+            {
+              "food_name": "گردو",
+              "quantity_text": "۵ عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "snack_1": [
+        {
+          "items": [
+            {
+              "food_name": "موز",
+              "quantity_text": "۱ عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            },
+            {
+              "food_name": "شیر کم‌چرب",
+              "quantity_text": "۲۵۰ میلی‌لیتر",
+              "unit": "میلی‌لیتر",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "lunch": [
+        {
+          "items": [
+            {
+              "food_name": "سینه مرغ گریل‌شده",
+              "quantity_text": "۲۰۰ گرم",
+              "unit": "گرم",
+              "preparation": "گریل یا آب‌پز بدون روغن",
+              "substitution_group": "پروتئین اصلی وعده",
+              "needs_review": false,
+              "notes": ""
+            },
+            {
+              "food_name": "برنج",
+              "quantity_text": "۳/۵ پیمانه",
+              "unit": "پیمانه",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": true,
+              "notes": "مقدار دقیق پیمانه با کوچ نهایی شود"
+            },
+            {
+              "food_name": "سالاد کاهو و خیار",
+              "quantity_text": "۱ کاسه",
+              "unit": "کاسه",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        },
+        {
+          "items": [
+            {
+              "food_name": "گوشت چرخ‌کرده کم‌چرب",
+              "quantity_text": "۱۵۰ گرم",
+              "unit": "گرم",
+              "preparation": "",
+              "substitution_group": "پروتئین اصلی وعده",
+              "needs_review": false,
+              "notes": ""
+            },
+            {
+              "food_name": "برنج",
+              "quantity_text": "۳/۵ پیمانه",
+              "unit": "پیمانه",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": true,
+              "notes": ""
+            },
+            {
+              "food_name": "سالاد فصل",
+              "quantity_text": "۱ کاسه",
+              "unit": "کاسه",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": "جایگزین گزینه اول در صورت تمایل"
+        }
+      ],
+      "lunch_side": [
+        {
+          "items": [
+            {
+              "food_name": "ماست کم‌چرب",
+              "quantity_text": "۱۰۰ گرم",
+              "unit": "گرم",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "snack_2": [
+        {
+          "items": [
+            {
+              "food_name": "بادام",
+              "quantity_text": "۱۰ عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            },
+            {
+              "food_name": "سیب",
+              "quantity_text": "۱ عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "dinner": [
+        {
+          "items": [
+            {
+              "food_name": "ماهی سالمون یا قزل‌آلا",
+              "quantity_text": "۱۵۰ گرم",
+              "unit": "گرم",
+              "preparation": "گریل یا فر",
+              "substitution_group": "پروتئین اصلی وعده",
+              "needs_review": false,
+              "notes": ""
+            },
+            {
+              "food_name": "سیب‌زمینی پخته",
+              "quantity_text": "۲/۵ عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": true,
+              "notes": "مقدار به‌صورت کسری از عدد نوشته شده؛ نیاز به بازبینی مربی"
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "dinner_side": [
+        {
+          "items": [
+            {
+              "food_name": "سبزیجات بخارپز",
+              "quantity_text": "۱ کاسه",
+              "unit": "کاسه",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "snack_3": [
+        {
+          "items": [
+            {
+              "food_name": "پنیر کاتیج",
+              "quantity_text": "۵۰ گرم",
+              "unit": "گرم",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            },
+            {
+              "food_name": "خیار و گوجه",
+              "quantity_text": "۱ عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ]
+    }
+  },
+  {
+    "name": "برنامه غذایی مرجع آرمان - پلن ۲ (روز استراحت)",
+    "purpose": "حفظ حجم عضلانی و کنترل کالری در روزهای استراحت",
+    "day_type": "rest",
+    "status": "draft",
+    "source_document": "arman-nutrition-plan-2-1405.pdf",
+    "source_version": "v1",
+    "meal_slots": {
+      "breakfast": [
+        {
+          "items": [
+            {
+              "food_name": "املت با ۲ تخم‌مرغ",
+              "quantity_text": "۲ عدد",
+              "unit": "عدد",
+              "preparation": "با کمی روغن زیتون",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            },
+            {
+              "food_name": "نان سنگک",
+              "quantity_text": "۱/۵ عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": true,
+              "notes": ""
+            },
+            {
+              "food_name": "پنیر کم‌نمک",
+              "quantity_text": "۳۰ گرم",
+              "unit": "گرم",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "snack_1": [
+        {
+          "items": [
+            {
+              "food_name": "توت‌فرنگی",
+              "quantity_text": "۱ کاسه",
+              "unit": "کاسه",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "lunch": [
+        {
+          "items": [
+            {
+              "food_name": "سینه مرغ گریل‌شده",
+              "quantity_text": "۱۵۰ گرم",
+              "unit": "گرم",
+              "preparation": "",
+              "substitution_group": "پروتئین اصلی وعده",
+              "needs_review": false,
+              "notes": ""
+            },
+            {
+              "food_name": "برنج",
+              "quantity_text": "۲/۵ پیمانه",
+              "unit": "پیمانه",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": true,
+              "notes": ""
+            },
+            {
+              "food_name": "سالاد کاهو و خیار",
+              "quantity_text": "۱ کاسه",
+              "unit": "کاسه",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "lunch_side": [
+        {
+          "items": [
+            {
+              "food_name": "ماست کم‌چرب",
+              "quantity_text": "۱۰۰ گرم",
+              "unit": "گرم",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "snack_2": [
+        {
+          "items": [
+            {
+              "food_name": "گردو",
+              "quantity_text": "۴ عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "dinner": [
+        {
+          "items": [
+            {
+              "food_name": "تخم‌مرغ آب‌پز",
+              "quantity_text": "۴ عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "پروتئین اصلی وعده",
+              "needs_review": false,
+              "notes": ""
+            },
+            {
+              "food_name": "نان سنگک",
+              "quantity_text": "یک‌چهارم عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": true,
+              "notes": "مقدار به‌صورت کسری نوشتاری؛ نیاز به بازبینی مربی برای معادل گرم"
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "dinner_side": [
+        {
+          "items": [
+            {
+              "food_name": "سالاد فصل",
+              "quantity_text": "۱ کاسه",
+              "unit": "کاسه",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "snack_3": [
+        {
+          "items": [
+            {
+              "food_name": "ماست یونانی",
+              "quantity_text": "۱۰۰ گرم",
+              "unit": "گرم",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ]
+    }
+  },
+  {
+    "name": "برنامه غذایی مرجع آرمان - پلن ۳ (کات و کالری محدود)",
+    "purpose": "کاهش چربی با حفظ حداکثری توده عضلانی",
+    "day_type": "",
+    "status": "draft",
+    "source_document": "arman-nutrition-plan-3-1405.pdf",
+    "source_version": "v1",
+    "meal_slots": {
+      "breakfast": [
+        {
+          "items": [
+            {
+              "food_name": "سفیده تخم‌مرغ",
+              "quantity_text": "۴ عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            },
+            {
+              "food_name": "نان سنگک",
+              "quantity_text": "یک‌پنجم عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": true,
+              "notes": "معادل تقریبی؛ نیاز به بازبینی مربی"
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "snack_1": [
+        {
+          "items": [
+            {
+              "food_name": "خیار و گوجه",
+              "quantity_text": "۱ عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "lunch": [
+        {
+          "items": [
+            {
+              "food_name": "سینه مرغ آب‌پز",
+              "quantity_text": "۱۵۰ گرم",
+              "unit": "گرم",
+              "preparation": "",
+              "substitution_group": "پروتئین اصلی وعده",
+              "needs_review": false,
+              "notes": ""
+            },
+            {
+              "food_name": "برنج",
+              "quantity_text": "۱/۵ پیمانه",
+              "unit": "پیمانه",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": true,
+              "notes": "مقدار کم و به‌صورت کسری؛ نیاز به بازبینی مربی"
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "lunch_side": [
+        {
+          "items": [
+            {
+              "food_name": "سالاد کاهو و خیار بدون سس چرب",
+              "quantity_text": "۱ کاسه",
+              "unit": "کاسه",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "snack_2": [
+        {
+          "items": [
+            {
+              "food_name": "بادام",
+              "quantity_text": "۸ عدد",
+              "unit": "عدد",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "dinner": [
+        {
+          "items": [
+            {
+              "food_name": "ماهی سفید",
+              "quantity_text": "۱۵۰ گرم",
+              "unit": "گرم",
+              "preparation": "",
+              "substitution_group": "پروتئین اصلی وعده",
+              "needs_review": false,
+              "notes": ""
+            },
+            {
+              "food_name": "سبزیجات بخارپز",
+              "quantity_text": "۱ کاسه",
+              "unit": "کاسه",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "dinner_side": [
+        {
+          "items": [
+            {
+              "food_name": "سالاد فصل",
+              "quantity_text": "۱ کاسه",
+              "unit": "کاسه",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ],
+      "snack_3": [
+        {
+          "items": [
+            {
+              "food_name": "پنیر کاتیج کم‌چرب",
+              "quantity_text": "۴۰ گرم",
+              "unit": "گرم",
+              "preparation": "",
+              "substitution_group": "",
+              "needs_review": false,
+              "notes": ""
+            }
+          ],
+          "notes": ""
+        }
+      ]
+    }
+  }
+]

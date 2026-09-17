@@ -1,0 +1,13 @@
+.authPage {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background: var(--color-surface-page);
+  padding: var(--space-4);
+}
+
+.authCard {
+  display: grid;
+  width: min(100%, 440px);
+  gap: var(--space-5);
+}

@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build outputs
+build/
+dist/
+*.egg-info/
+staticfiles/
+
+# Local database
+db.sqlite3
+db.sqlite3-*
+
+# Generated PDF / media artifacts (never commit)
+media/
+/tmp-pdf-*/
+*.pdf
+!docs/**/*.pdf
+
+# Dedicated local manual-QA runtime (never commit)
+.local/
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.manual-qa.example
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

@@ -1,0 +1,4 @@
+This directory holds the generated nginx.conf produced by
+scripts/render-nginx.sh. Its contents (except this file) are gitignored —
+never edit files here by hand; edit nginx/templates/*.template instead and
+re-run scripts/render-nginx.sh.

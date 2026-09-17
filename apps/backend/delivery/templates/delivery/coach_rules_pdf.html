@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8"/>
+  <title>قوانین مربی</title>
+  <style>
+    @font-face { font-family: "CoachNaskh"; src: url("{{ font_path }}"); }
+    @page {
+      size: A4;
+      margin: 16mm 14mm 18mm 14mm;
+      @bottom-center {
+        content: "Coach Rules · صفحه " counter(page) " از " counter(pages);
+        font-family: "CoachNaskh", sans-serif; font-size: 9pt; color: #555;
+      }
+    }
+    body { font-family: "CoachNaskh", sans-serif; direction: rtl; text-align: right; font-size: 10.5pt; line-height: 1.5; color: #1a1a1a; }
+    h1 { font-size: 16pt; margin: 0 0 8pt; }
+    h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 3pt; margin-top: 14pt; }
+    .meta { font-size: 9.5pt; margin: 2pt 0; color: #333; }
+    .muted { color: #666; font-size: 9pt; }
+    ul { margin: 4pt 0 8pt; padding-right: 16pt; }
+    .section { page-break-inside: avoid; margin-bottom: 10pt; }
+    table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin: 6pt 0; }
+    th, td { border: 1px solid #bbb; padding: 4pt 6pt; text-align: right; vertical-align: top; }
+    th { background: #f3f3f3; }
+  </style>
+</head>
+<body>
+  <div class="muted">Athlore · خروجی قوانین مربی</div>
+  <h1>قوانین و سبک برنامه‌نویسی مربی</h1>
+  <div class="meta">مربی: {{ coach_name }}</div>
+  <div class="meta">ایمیل: {{ coach_email }} · موبایل: {{ coach_phone }}</div>
+  <div class="meta">شناسه مربی: {{ coach_id }}</div>
+  <div class="meta">شناسه RuleSet: {{ ruleset_id }} · نسخه طرح: {{ schema_version }}</div>
+  <div class="meta">آخرین به‌روزرسانی قوانین: {{ rules_updated_at }}</div>
+  <div class="meta">زمان خروجی: {{ export_at }}</div>
+  <div class="meta">سبک کنترل: {{ control_mode }} · مدت جلسه پیش‌فرض: {{ default_session_minutes }} دقیقه</div>
+  <div class="meta">یادداشت سبک: {{ style_notes }}</div>
+
+  <h2>قالب‌های برنامه</h2>
+  {% if templates %}
+    {% for t in templates %}
+    <div class="section">
+      <strong>{{ t.name }}</strong> {% if not t.is_active %}(غیرفعال){% endif %}
+      <div class="meta">هدف: {{ t.goal }} · هدف اصلی: {{ t.main_goal }} · سطح: {{ t.level }} · روز: {{ t.days_per_week }}</div>
+      <div class="meta">شدت: {{ t.intensity }} · حجم: {{ t.volume }} · استراحت: {{ t.rest_time }}</div>
+      <div class="meta">اسپلیت:</div>
+      <ul>{% for x in t.split %}<li>{{ x }}</li>{% endfor %}</ul>
+      <div class="meta">اولویت عضلات:</div>
+      <ul>{% for x in t.muscle_priority_order %}<li>{{ x }}</li>{% endfor %}</ul>
+      <div class="meta">قوانین ویژه:</div>
+      <ul>{% for x in t.special_rules %}<li>{{ x }}</li>{% endfor %}</ul>
+    </div>
+    {% endfor %}
+  {% else %}<p class="muted">— (بدون قالب)</p>{% endif %}
+
+  <h2>قوانین سطح</h2>
+  {% if levels %}
+    {% for l in levels %}
+    <div class="section">
+      <strong>{{ l.id }}</strong>
+      <div class="meta">شدت: {{ l.intensity }} · حجم: {{ l.volume }}</div>
+      <div class="meta">تکنیک‌های مجاز:</div><ul>{% for x in l.allowed_techniques %}<li>{{ x }}</li>{% endfor %}</ul>
+      <div class="meta">حرکات ممنوع:</div><ul>{% for x in l.forbidden_exercises %}<li>{{ x }}</li>{% endfor %}</ul>
+      <div class="meta">حرکات الزامی:</div><ul>{% for x in l.required_exercises %}<li>{{ x }}</li>{% endfor %}</ul>
+      <div class="meta">یادداشت: {{ l.coach_notes }}</div>
+    </div>
+    {% endfor %}
+  {% else %}<p class="muted">— (خالی)</p>{% endif %}
+
+  <h2>قوانین آسیب</h2>
+  {% if injuries %}
+    {% for i in injuries %}
+    <div class="section">
+      <strong>{{ i.name }}</strong>
+      <div class="meta">ممنوع:</div><ul>{% for x in i.forbidden_exercises %}<li>{{ x }}</li>{% endfor %}</ul>
+      <div class="meta">جایگزین:</div><ul>{% for x in i.alternatives %}<li>{{ x }}</li>{% endfor %}</ul>
+      <div class="meta">یادداشت: {{ i.notes }}</div>
+    </div>
+    {% endfor %}
+  {% else %}<p class="muted">— (خالی)</p>{% endif %}
+
+  <h2>اولویت عضلات</h2>
+  {% if muscle_priorities %}
+    <table>
+      <thead><tr><th>عضله</th><th>حرکات اضافه</th><th>ست اضافه</th><th>تغییر ترتیب</th><th>یادداشت</th></tr></thead>
+      <tbody>
+      {% for m in muscle_priorities %}
+        <tr>
+          <td>{{ m.muscle }}</td>
+          <td>{% for x in m.extra_exercises %}{{ x }}{% if not forloop.last %}، {% endif %}{% endfor %}</td>
+          <td>{{ m.extra_sets }}</td>
+          <td>{{ m.order_change }}</td>
+          <td>{{ m.notes }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}<p class="muted">— (خالی)</p>{% endif %}
+
+  <h2>بانک حرکات</h2>
+  {% if exercise_bank %}
+    {% for g in exercise_bank %}
+    <div class="section">
+      <strong>{{ g.group }}</strong>
+      <div class="meta">ترجیحی:</div><ul>{% for x in g.favorite_exercises %}<li>{{ x }}</li>{% endfor %}</ul>
+      <div class="meta">مبتدی:</div><ul>{% for x in g.beginner_friendly %}<li>{{ x }}</li>{% endfor %}</ul>
+      <div class="meta">حرفه‌ای:</div><ul>{% for x in g.professional_friendly %}<li>{{ x }}</li>{% endfor %}</ul>
+      <div class="meta">ممنوع:</div><ul>{% for x in g.forbidden_exercises %}<li>{{ x }}</li>{% endfor %}</ul>
+    </div>
+    {% endfor %}
+  {% else %}<p class="muted">— (خالی)</p>{% endif %}
+
+  <h2>ترجیحات حرکت مربی</h2>
+  <div class="meta">ترجیحی:</div><ul>{% for x in preferred_exercises %}<li>{{ x }}</li>{% endfor %}</ul>
+  <div class="meta">ممنوع:</div><ul>{% for x in forbidden_preference_exercises %}<li>{{ x }}</li>{% endfor %}</ul>
+
+  <h2>قالب‌های تغذیه</h2>
+  {% if nutrition_templates %}
+    {% for t in nutrition_templates %}
+    <div class="section">
+      <strong>{{ t.name }}</strong>
+      <div class="meta">وضعیت: {{ t.status }} · نیاز به بازبینی: {{ t.needs_coach_review }} · واجد انتخاب خودکار: {{ t.is_eligible_for_auto_select }}</div>
+      <div class="meta">هدف/کاربرد: {{ t.purpose }}</div>
+    </div>
+    {% endfor %}
+  {% else %}<p class="muted">— (خالی)</p>{% endif %}
+
+  <h2>قالب‌های مکمل</h2>
+  {% if supplement_templates %}
+    {% for t in supplement_templates %}
+    <div class="section">
+      <strong>{{ t.name }}</strong>
+      <div class="meta">وضعیت: {{ t.status }} · نیاز به بازبینی: {{ t.needs_coach_review }} · واجد انتخاب خودکار: {{ t.is_eligible_for_auto_select }}</div>
+      <div class="meta">منابع:</div><ul>{% for s in t.source_documents %}<li>{{ s }}</li>{% endfor %}</ul>
+    </div>
+    {% endfor %}
+  {% else %}<p class="muted">— (خالی)</p>{% endif %}
+
+  <h2>قوانین عمومی</h2>
+  <div class="meta">یادداشت کلی: {{ general_extra_notes }}</div>
+  {% if general_items %}
+    {% for g in general_items %}
+    <div class="section">
+      <strong>{{ g.title }}</strong> {% if not g.is_active %}(غیرفعال){% endif %}
+      <div class="meta">دسته: {{ g.category }} · اهمیت: {{ g.importance }}</div>
+      <div class="meta">{{ g.description }}</div>
+    </div>
+    {% endfor %}
+  {% else %}<p class="muted">— (خالی)</p>{% endif %}
+</body>
+</html>

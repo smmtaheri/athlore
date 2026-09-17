@@ -1,0 +1,77 @@
+[project]
+name = "coach-copilot"
+version = "0.1.0"
+description = "Coach-customizable program generator with templates, rules, variation, and history"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "django>=5.2.16,<6.0",
+  "djangorestframework>=3.15,<4.0",
+  "djangorestframework-simplejwt>=5.3,<6.0",
+  "django-cors-headers>=4.0,<5.0",
+  "weasyprint>=69,<70",
+  "psycopg[binary]>=3.3.4,<4.0.0",
+  "gunicorn>=26.0.0,<27.0.0",
+  "whitenoise>=6.12.0,<7.0.0",
+]
+
+[dependency-groups]
+dev = [
+  "ruff>=0.11.0,<1.0",
+  "coverage>=7.6.0,<8.0",
+  "pip-audit>=2.7.0",
+  "pytest>=9.0.3,<10.0",
+  "pytest-django>=4.9.0,<5.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+exclude = [
+  ".venv",
+  "migrations",
+  "staticfiles",
+  "media",
+  "reference_data",
+  # Legacy prototype app + ad-hoc smoke scripts (not on the production API path)
+  "programs",
+  "scripts",
+]
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "I",   # isort
+  "UP",  # pyupgrade
+  "B",   # bugbear
+  "S",   # bandit-ish security
+]
+ignore = [
+  "S101",  # assert in tests is fine
+  "S105",  # hardcoded password strings in tests/settings defaults
+  "S106",
+  "S107",
+  "S311",  # non-crypto random not used for security here
+  "E501",  # line length handled softly; formatter may wrap
+  "B017",  # assertRaises(Exception) in legacy tests
+  "B904",  # raise-from noise in existing views
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S"]
+"**/management/commands/**" = ["T201"]
+
+[tool.coverage.run]
+source = ["accounts", "students", "programming", "delivery", "common"]
+omit = ["*/migrations/*", "*/tests/*"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "coach_copilot.settings"
+python_files = ["test_*.py"]
+addopts = "-q"
+filterwarnings = [
+  "ignore::DeprecationWarning",
+]

@@ -1,0 +1,71 @@
+  # ParsPack terminates browser HTTPS and forwards requests to this HTTP
+  # origin. The origin never serves TLS and never redirects based on $scheme.
+  server {
+    listen 80;
+    server_name ${PUBLIC_DOMAIN} ${COACH_DOMAIN} ${STUDENT_DOMAIN};
+
+    include /etc/nginx/snippets/security-headers.conf;
+    include /etc/nginx/snippets/hsts.conf;
+
+    location ~ ^/api/v1/auth/login/?$ {
+      limit_req zone=auth_login_zone burst=10 nodelay;
+      include /etc/nginx/snippets/security-headers.conf;
+      include /etc/nginx/snippets/hsts.conf;
+      include /etc/nginx/snippets/proxy-headers.conf;
+      include /etc/nginx/snippets/secure-cookies.conf;
+      include /etc/nginx/snippets/api-no-cache.conf;
+      proxy_pass http://backend_upstream;
+    }
+
+    location ~ ^/api/v1/auth/refresh/?$ {
+      limit_req zone=auth_refresh_zone burst=20 nodelay;
+      include /etc/nginx/snippets/security-headers.conf;
+      include /etc/nginx/snippets/hsts.conf;
+      include /etc/nginx/snippets/proxy-headers.conf;
+      include /etc/nginx/snippets/secure-cookies.conf;
+      include /etc/nginx/snippets/api-no-cache.conf;
+      proxy_pass http://backend_upstream;
+    }
+
+    location ~ ^/api/v1/auth/register/?$ {
+      limit_req zone=auth_register_zone burst=5 nodelay;
+      include /etc/nginx/snippets/security-headers.conf;
+      include /etc/nginx/snippets/hsts.conf;
+      include /etc/nginx/snippets/proxy-headers.conf;
+      include /etc/nginx/snippets/secure-cookies.conf;
+      include /etc/nginx/snippets/api-no-cache.conf;
+      proxy_pass http://backend_upstream;
+    }
+
+    location ~ ^/api/v1/(pdf-files/[^/]+/share|shared/pdf)/ {
+      limit_req zone=pdf_share_zone burst=20 nodelay;
+      include /etc/nginx/snippets/security-headers.conf;
+      include /etc/nginx/snippets/hsts.conf;
+      include /etc/nginx/snippets/proxy-headers.conf;
+      include /etc/nginx/snippets/secure-cookies.conf;
+      include /etc/nginx/snippets/api-no-cache.conf;
+      proxy_pass http://backend_upstream;
+    }
+
+    location /api/ {
+      include /etc/nginx/snippets/security-headers.conf;
+      include /etc/nginx/snippets/hsts.conf;
+      include /etc/nginx/snippets/proxy-headers.conf;
+      include /etc/nginx/snippets/secure-cookies.conf;
+      include /etc/nginx/snippets/api-no-cache.conf;
+      proxy_pass http://backend_upstream;
+    }
+
+    location /admin/ {
+      include /etc/nginx/snippets/security-headers.conf;
+      include /etc/nginx/snippets/hsts.conf;
+      return 404;
+    }
+
+    location / {
+      include /etc/nginx/snippets/security-headers.conf;
+      include /etc/nginx/snippets/hsts.conf;
+      include /etc/nginx/snippets/proxy-headers.conf;
+      proxy_pass http://frontend_upstream;
+    }
+  }

@@ -1,0 +1,57 @@
+[
+  {
+    "name": "برنامه مکمل مرجع آرمان",
+    "status": "draft",
+    "source_documents": [
+      "arman-supplement-guide-1405-02.pdf",
+      "arman-supplement-guide-1405-03.pdf",
+      "arman-supplement-guide-1405-04.pdf"
+    ],
+    "items": [
+      {
+        "name": "کراتین مونوهیدرات",
+        "quantity_text": "۵ گرم",
+        "timing": "بعد از تمرین (روزهای استراحت: هر زمان از روز)",
+        "frequency": "روزانه",
+        "day_applicability": "all",
+        "instructions": "با آب یا آبمیوه میل شود؛ نیازی به فاز بارگیری نیست.",
+        "warnings": "در صورت سابقه مشکلات کلیوی، پیش از مصرف با پزشک مشورت شود.",
+        "needs_review": true,
+        "normalized_amount": "5g"
+      },
+      {
+        "name": "وی پروتئین (ایزوله/کنسانتره)",
+        "quantity_text": "۱ اسکوپ (حدود ۳۰ گرم)",
+        "timing": "بعد از تمرین یا به‌عنوان میان‌وعده پروتئینی",
+        "frequency": "روزانه، یک تا دو نوبت",
+        "day_applicability": "all",
+        "instructions": "با آب یا شیر کم‌چرب مخلوط شود.",
+        "warnings": "افراد حساس به لاکتوز باید نوع ایزوله را انتخاب کنند.",
+        "needs_review": true,
+        "normalized_amount": null
+      },
+      {
+        "name": "امگا۳ (روغن ماهی)",
+        "quantity_text": "۱۰۰۰ میلی‌گرم",
+        "timing": "همراه غذا",
+        "frequency": "روزانه، دو نوبت",
+        "day_applicability": "all",
+        "instructions": "همراه وعده‌ای حاوی چربی مصرف شود تا جذب بهتری داشته باشد.",
+        "warnings": "در صورت مصرف داروهای رقیق‌کننده خون، پیش از مصرف با پزشک مشورت شود.",
+        "needs_review": true,
+        "normalized_amount": "1000mg"
+      },
+      {
+        "name": "مولتی‌ویتامین/مینرال",
+        "quantity_text": "۱ قرص",
+        "timing": "صبح همراه صبحانه",
+        "frequency": "روزانه",
+        "day_applicability": "all",
+        "instructions": "همراه غذا مصرف شود تا جذب بهتری داشته باشد.",
+        "warnings": "از مصرف همزمان چند منبع مولتی‌ویتامین بدون هماهنگی خودداری شود.",
+        "needs_review": true,
+        "normalized_amount": null
+      }
+    ]
+  }
+]

@@ -1,0 +1,334 @@
+[
+  {
+    "source_program_key": "arman_1405_02_27",
+    "source_date": "1405/02/27",
+    "duration_weeks": 4,
+    "days": [
+      {
+        "day_label": "روز اول - سینه و پشت بازو",
+        "exercises": [
+          {
+            "name": "پرس سینه تخت با هالتر",
+            "raw_prescription": "8×4"
+          },
+          {
+            "name": "پرس سینه بالاسینه با دمبل",
+            "raw_prescription": "10×3"
+          },
+          {
+            "name": "فلای با سیم‌کش (کراس‌اور)",
+            "raw_prescription": "12-10×4"
+          },
+          {
+            "name": "پشت بازو سیم‌کش ایستاده با طناب",
+            "raw_prescription": "15-10-8-15"
+          },
+          {
+            "name": "دیپ پشت بازو روی نیمکت",
+            "raw_prescription": "ناتوانی × 4",
+            "superset_with_previous": true
+          }
+        ]
+      },
+      {
+        "day_label": "روز دوم - زیربغل و جلو بازو",
+        "exercises": [
+          {
+            "name": "زیربغل هالتر خم (رو با هالتر)",
+            "raw_prescription": "8×4"
+          },
+          {
+            "name": "زیربغل سیم‌کش از جلو (لت پول‌داون)",
+            "raw_prescription": "10×3"
+          },
+          {
+            "name": "زیربغل تک‌خم با دمبل",
+            "raw_prescription": "12-10×4"
+          },
+          {
+            "name": "جلوبازو ایستاده با هالتر",
+            "raw_prescription": "12+12×3"
+          },
+          {
+            "name": "جلوبازو چکشی با دمبل",
+            "raw_prescription": "12+12×3",
+            "superset_with_previous": true
+          },
+          {
+            "name": "جلوبازو لاری با هالتر",
+            "raw_prescription": "ناتوانی × 4"
+          }
+        ]
+      },
+      {
+        "day_label": "روز سوم - پا",
+        "exercises": [
+          {
+            "name": "اسکات با هالتر (پشت)",
+            "raw_prescription": "8×4"
+          },
+          {
+            "name": "پرس پا با دستگاه",
+            "raw_prescription": "12-10×4"
+          },
+          {
+            "name": "جلو پا با دستگاه (لگ اکستنشن)",
+            "raw_prescription": "15-10-8-15"
+          },
+          {
+            "name": "پشت پا با دستگاه خوابیده",
+            "raw_prescription": "10×3"
+          },
+          {
+            "name": "ساق پا ایستاده با دستگاه",
+            "raw_prescription": "15×4"
+          }
+        ]
+      },
+      {
+        "day_label": "روز چهارم - سرشانه و شکم",
+        "exercises": [
+          {
+            "name": "پرس سرشانه هالتر نشسته",
+            "raw_prescription": "8×4"
+          },
+          {
+            "name": "نشر از جانب با دمبل",
+            "raw_prescription": "12×3"
+          },
+          {
+            "name": "نشر خم به جلو (دلتوئید خلفی)",
+            "raw_prescription": "15×3"
+          },
+          {
+            "name": "کرانچ شکم روی زمین",
+            "raw_prescription": "20×3"
+          },
+          {
+            "name": "پلانک",
+            "raw_prescription": "30 seconds×3"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "source_program_key": "arman_1405_03_24",
+    "source_date": "1405/03/24",
+    "duration_weeks": 4,
+    "days": [
+      {
+        "day_label": "روز اول - سینه",
+        "exercises": [
+          {
+            "name": "پرس سینه تخت با هالتر",
+            "raw_prescription": "6×5"
+          },
+          {
+            "name": "پرس سینه بالاسینه با هالتر",
+            "raw_prescription": "8×4"
+          },
+          {
+            "name": "فلای سینه با دمبل",
+            "raw_prescription": "12×3"
+          },
+          {
+            "name": "دیپ سینه با میز موازی",
+            "raw_prescription": "ناتوانی × 3"
+          }
+        ]
+      },
+      {
+        "day_label": "روز دوم - پشت بازو",
+        "exercises": [
+          {
+            "name": "پشت بازو هالتر خوابیده (فرانسوی)",
+            "raw_prescription": "10×4"
+          },
+          {
+            "name": "پشت بازو سیم‌کش با میله صاف",
+            "raw_prescription": "12×3"
+          },
+          {
+            "name": "پشت بازو دمبل تک دست خم (کیک بک)",
+            "raw_prescription": "15×3"
+          },
+          {
+            "name": "دیپ پشت بازو روی نیمکت",
+            "raw_prescription": "ناتوانی × 3",
+            "superset_with_previous": true
+          }
+        ]
+      },
+      {
+        "day_label": "روز سوم - زیربغل",
+        "exercises": [
+          {
+            "name": "بارفیکس دست باز",
+            "raw_prescription": "8×4"
+          },
+          {
+            "name": "زیربغل تی‌بار",
+            "raw_prescription": "10×4"
+          },
+          {
+            "name": "زیربغل سیم‌کش نشسته دست جمع (سیتد رو)",
+            "raw_prescription": "12×3"
+          },
+          {
+            "name": "ددلیفت کلاسیک",
+            "raw_prescription": "5×5"
+          }
+        ]
+      },
+      {
+        "day_label": "روز چهارم - جلو بازو",
+        "exercises": [
+          {
+            "name": "جلوبازو لاری با هالتر",
+            "raw_prescription": "8×4"
+          },
+          {
+            "name": "جلوبازو روی میز شیب (اسکات بنچ)",
+            "raw_prescription": "10×3"
+          },
+          {
+            "name": "جلوبازو با سیم‌کش و طناب",
+            "raw_prescription": "12×3"
+          }
+        ]
+      },
+      {
+        "day_label": "روز پنجم - پا",
+        "exercises": [
+          {
+            "name": "اسکات با هالتر (پشت)",
+            "raw_prescription": "6×5"
+          },
+          {
+            "name": "اسکات جلو با هالتر (فرانت اسکات)",
+            "raw_prescription": "10×3"
+          },
+          {
+            "name": "لانج با دمبل",
+            "raw_prescription": "12×3 هر پا"
+          },
+          {
+            "name": "پشت پا با دستگاه نشسته",
+            "raw_prescription": "12×3"
+          },
+          {
+            "name": "ساق پا نشسته با دستگاه",
+            "raw_prescription": "15×4"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "source_program_key": "arman_1405_04_27",
+    "source_date": "1405/04/27",
+    "duration_weeks": 4,
+    "days": [
+      {
+        "day_label": "روز اول - سینه و جلو بازو",
+        "exercises": [
+          {
+            "name": "پرس سینه تخت با دمبل",
+            "raw_prescription": "10×4"
+          },
+          {
+            "name": "پرس سینه بالاسینه با هالتر",
+            "raw_prescription": "8×4"
+          },
+          {
+            "name": "فلای با سیم‌کش (کراس‌اور)",
+            "raw_prescription": "12×3"
+          },
+          {
+            "name": "جلوبازو با سیم‌کش و طناب",
+            "raw_prescription": "15×3",
+            "superset_with_previous": true
+          },
+          {
+            "name": "جلوبازو چکشی با دمبل",
+            "raw_prescription": "12×3"
+          }
+        ]
+      },
+      {
+        "day_label": "روز دوم - زیربغل و پشت بازو",
+        "exercises": [
+          {
+            "name": "زیربغل سیم‌کش از جلو (لت پول‌داون)",
+            "raw_prescription": "10×4"
+          },
+          {
+            "name": "زیربغل تک‌خم با دمبل",
+            "raw_prescription": "12×3"
+          },
+          {
+            "name": "پشت بازو هالتر بالای سر ایستاده",
+            "raw_prescription": "12×3"
+          },
+          {
+            "name": "پشت بازو سیم‌کش ایستاده با طناب",
+            "raw_prescription": "15×3",
+            "superset_with_previous": true
+          }
+        ]
+      },
+      {
+        "day_label": "روز سوم - پا",
+        "exercises": [
+          {
+            "name": "اسکات با هالتر (پشت)",
+            "raw_prescription": "5×5"
+          },
+          {
+            "name": "پرس پا با دستگاه",
+            "raw_prescription": "12-10×4"
+          },
+          {
+            "name": "ددلیفت رومانیایی",
+            "raw_prescription": "10×3"
+          },
+          {
+            "name": "جلو پا با دستگاه (لگ اکستنشن)",
+            "raw_prescription": "15×3"
+          },
+          {
+            "name": "پشت پا با دستگاه خوابیده",
+            "raw_prescription": "15×3",
+            "superset_with_previous": true
+          }
+        ]
+      },
+      {
+        "day_label": "روز چهارم - سرشانه و شکم",
+        "exercises": [
+          {
+            "name": "پرس سرشانه دمبل نشسته",
+            "raw_prescription": "10×4"
+          },
+          {
+            "name": "نشر از جانب با دمبل",
+            "raw_prescription": "15×3"
+          },
+          {
+            "name": "کول با سیم‌کش ایستاده",
+            "raw_prescription": "12×3"
+          },
+          {
+            "name": "کرانچ با سیم‌کش نشسته",
+            "raw_prescription": "15×3"
+          },
+          {
+            "name": "چرخش تنه با سیم‌کش (وودچاپر)",
+            "raw_prescription": "15×3 هر طرف"
+          }
+        ]
+      }
+    ]
+  }
+]

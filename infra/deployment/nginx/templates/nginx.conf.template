@@ -1,0 +1,56 @@
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid /var/run/nginx.pid;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+  include /etc/nginx/mime.types;
+  default_type application/octet-stream;
+
+  server_tokens off;
+  sendfile on;
+  keepalive_timeout 65;
+  client_max_body_size 25m;
+
+  gzip on;
+  gzip_vary on;
+  gzip_comp_level 5;
+  gzip_types text/plain text/css application/json application/javascript text/javascript application/xml image/svg+xml;
+
+  # ParsPack terminates browser HTTPS and forwards the original scheme. Keep
+  # that scheme for Django's SECURE_PROXY_SSL_HEADER. In external production
+  # mode, an absent or non-standard CDN value is treated as HTTPS because the
+  # only supported public entrypoint is the HTTPS CDN.
+  map $http_x_forwarded_proto $athlore_forwarded_proto {
+    default https;
+    ~*^https(?:,.*)?$ https;
+    ~*^http(?:,.*)?$ http;
+  }
+
+  log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                   '$status $body_bytes_sent "$http_referer" '
+                   '"$http_user_agent" "$http_x_forwarded_for" rt=$request_time';
+  access_log /dev/stdout main;
+
+  upstream backend_upstream {
+    server backend:8000;
+  }
+
+  upstream frontend_upstream {
+    server frontend:80;
+  }
+
+  # Rate limit zones (task-required endpoints: login, refresh, register,
+  # PDF share create/download). Keyed by client IP; tune rate/burst per your
+  # traffic if legitimate users get 429s.
+  limit_req_zone $binary_remote_addr zone=auth_login_zone:10m rate=5r/m;
+  limit_req_zone $binary_remote_addr zone=auth_refresh_zone:10m rate=30r/m;
+  limit_req_zone $binary_remote_addr zone=auth_register_zone:10m rate=5r/m;
+  limit_req_zone $binary_remote_addr zone=pdf_share_zone:10m rate=20r/m;
+  limit_req_status 429;
+
+  __SERVER_BLOCKS__
+}
