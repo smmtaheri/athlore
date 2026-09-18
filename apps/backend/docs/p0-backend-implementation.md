@@ -50,7 +50,7 @@ Trailing slashes match Django `APPEND_SLASH` defaults.
 ## 3. Authentication behavior
 
 - Package: `djangorestframework-simplejwt` + `token_blacklist`
-- Access ~30 minutes, refresh ~14 days (env-tunable)
+- Access ~30 minutes, refresh ~7 days (env-tunable)
 - Refresh rotation enabled; previous refresh blacklisted
 - Logout blacklists the provided refresh token
 - Passwords hashed via Django; never returned

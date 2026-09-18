@@ -36,7 +36,7 @@ Set `VITE_USE_MOCK_API=true` only for offline fixture mode. **Unit tests** (`vit
 | ---------------- | ------------------------------------------------------------------- |
 | Config           | `src/app/config/appConfig.ts`                                       |
 | API client       | `src/shared/api/client.ts`                                          |
-| Session (v2)     | `src/shared/api/session.ts` — key `coach-assistant.auth.session.v2` |
+| Session (v3)     | `src/shared/api/session.ts` — key `coach-assistant.auth.session.v3` |
 | Errors           | `src/shared/api/errors.ts`                                          |
 | Auth API repo    | `src/shared/api/authApi.ts`                                         |
 | Domain API repos | `src/shared/api/repositories.ts`                                    |
@@ -48,13 +48,16 @@ Feature repositories keep the same exported names (`studentsRepository`, …). W
 
 ## Token lifecycle
 
-1. Login/register stores `{ accessToken, refreshToken, token, user, coach }` in `coach-assistant.auth.session.v2`.
+1. Login/register stores the short-lived access session in the tab session and keeps the refresh token in the HttpOnly refresh cookie (with an in-memory fallback only for the current tab).
 2. Authenticated requests send `Authorization: Bearer <access>`.
-3. On `401`, **one** shared refresh (`POST /auth/refresh/`) runs; concurrent callers await it.
-4. Original request retries **once** with the new access token.
-5. Refresh failure clears session and AuthContext becomes anonymous (routes redirect to Login).
-6. Logout calls `POST /auth/logout/` with refresh when possible, then always clears local session.
-7. Tokens are never logged or placed in URLs.
+3. A new tab bootstraps through `POST /auth/refresh/` and `GET /me/` using the HttpOnly cookie, so the coach is not asked to log in again.
+4. On `401`, **one** shared refresh (`POST /auth/refresh/`) runs; concurrent callers await it.
+5. Original request retries **once** with the new access token.
+6. Refresh failure clears session and AuthContext becomes anonymous (routes redirect to Login).
+7. Logout calls `POST /auth/logout/` and clears the local session plus the HttpOnly cookie.
+8. Tokens are never logged or placed in URLs.
+
+The default access lifetime is 30 minutes and the default refresh-cookie lifetime is 7 days. Both remain environment-configurable through `JWT_ACCESS_MINUTES` and `JWT_REFRESH_DAYS`.
 
 Legacy key `coach-assistant.auth.v1` is **not** deleted automatically and is unused in API mode.
 

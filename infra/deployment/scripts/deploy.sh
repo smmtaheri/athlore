@@ -122,6 +122,7 @@ _apply_first_boot_domain_defaults() {
   _ensure_default CORS_ALLOWED_ORIGINS "https://athlore.ir,https://coach.athlore.ir,https://student.athlore.ir"
   _ensure_default PUBLIC_API_BASE_URL "https://athlore.ir/api/v1"
   _ensure_default LOAD_DEMO_FIXTURES "false"
+  _ensure_default JWT_REFRESH_DAYS "7"
   _ensure_default PUBLIC_REGISTRATION_ENABLED "false"
   _ensure_default DJANGO_SECURE_SSL_REDIRECT "true"
   _ensure_default DJANGO_SESSION_COOKIE_SECURE "true"
@@ -162,6 +163,7 @@ else
   echo "==> Preserving existing .env (domains/origins will not be overwritten)"
   _ensure_default TLS_MODE "external"
   _ensure_default LOAD_DEMO_FIXTURES "false"
+  _ensure_default JWT_REFRESH_DAYS "7"
 fi
 
 _ensure_secret POSTGRES_PASSWORD 24

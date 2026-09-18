@@ -5,6 +5,7 @@ import {
   readAuthSession,
   setInMemoryRefreshToken,
   writeAuthSession,
+  type ApiAuthSession,
   type CoachProfileView
 } from "./session";
 import type {
@@ -38,6 +39,8 @@ type AuthPayload = {
   username?: string | null;
 };
 
+type MePayload = Omit<AuthPayload, "tokens">;
+
 export interface ApiAuthRepository extends AuthRepository {
   bootstrapFromMe(): Promise<AuthSession | null>;
   completeStudentSetup(input: StudentCompleteSetupInput): Promise<StudentCompleteSetupResult>;
@@ -59,12 +62,46 @@ function persistPayload(payload: AuthPayload): AuthSession {
   return session;
 }
 
+function sessionFromMe(payload: MePayload, accessToken: string): ApiAuthSession {
+  return buildSessionFromAuthPayload({
+    ...payload,
+    tokens: { access: accessToken, refresh: "" }
+  }).session;
+}
+
+async function bootstrapSessionFromRefreshCookie(): Promise<AuthSession | null> {
+  const refreshed = await apiRequest<{ access?: string }>("/auth/refresh/", {
+    method: "POST",
+    auth: false,
+    skipRefresh: true,
+    body: {}
+  });
+  if (!refreshed.access) {
+    return null;
+  }
+
+  const me = await apiRequest<MePayload>("/me/", {
+    headers: { Authorization: `Bearer ${refreshed.access}` }
+  });
+  const session = sessionFromMe(me, refreshed.access);
+  writeAuthSession(session);
+  return session;
+}
+
 export function createApiAuthRepository(): ApiAuthRepository {
   return {
     async getSession() {
       const stored = readAuthSession();
       if (!stored) {
-        return null;
+        try {
+          // A new tab has no sessionStorage, but the HttpOnly refresh cookie is
+          // shared by tabs on the same host. Bootstrap the short-lived access
+          // session without exposing the refresh token to JavaScript storage.
+          return await bootstrapSessionFromRefreshCookie();
+        } catch {
+          clearAuthSession();
+          return null;
+        }
       }
       try {
         const me = await apiRequest<{

@@ -2,17 +2,16 @@ import type { AuthSession, AuthUser } from "../../features/auth/services/authRep
 
 /**
  * Session hardening (v3): the persisted session no longer contains the
- * refresh token. It lives in `sessionStorage` (tab-scoped, cleared when the
- * tab/browser closes) instead of `localStorage`, so it survives an
- * in-tab reload but not indefinitely like the old v2 shape did.
+ * refresh token. Access session metadata lives in `sessionStorage`
+ * (tab-scoped, cleared when the tab/browser closes) instead of `localStorage`.
+ * A new tab restores that session through the HttpOnly refresh cookie.
  *
  * The refresh token itself is kept ONLY in an in-memory module variable
  * (`inMemoryRefreshToken`) — never written to any Web Storage. Reloading the
  * tab loses it, which means a stale access token cannot be silently renewed
- * after reload; the user is asked to log in again. This is an accepted
- * trade-off until the production Backend sets an HttpOnly refresh cookie
- * (see `client.ts`), at which point the browser — not JS — holds the
- * refresh token and this in-memory fallback becomes unnecessary.
+ * after reload; the browser can instead use the HttpOnly refresh cookie
+ * (see `client.ts`) to bootstrap a new access session. The in-memory token
+ * remains only as a fallback for the current tab.
  */
 export const AUTH_SESSION_STORAGE_KEY = "coach-assistant.auth.session.v3";
 
