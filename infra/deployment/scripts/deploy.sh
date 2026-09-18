@@ -176,7 +176,7 @@ echo "==> Building and restarting Compose stack (up.sh)"
 echo "==> Waiting for backend to become healthy"
 ready=0
 for _ in $(seq 1 90); do
-  if docker compose exec -T backend python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/', timeout=3)" >/dev/null 2>&1; then
+  if docker compose exec -T backend python -c "import os, urllib.request; host = os.environ.get('PUBLIC_DOMAIN', 'athlore.ir'); request = urllib.request.Request('http://127.0.0.1:8000/api/v1/health/', headers={'Host': host, 'X-Forwarded-Proto': 'https'}); urllib.request.urlopen(request, timeout=3)" >/dev/null 2>&1; then
     ready=1
     break
   fi
