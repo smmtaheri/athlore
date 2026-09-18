@@ -12,6 +12,13 @@ from accounts.models import (
     CoachExercisePreference,
     CoachProfile,
     Exercise,
+    ExerciseBankGroup,
+    ExerciseEquipment,
+    ExerciseMuscleTarget,
+    ExerciseSuitableLevel,
+    EquipmentTaxonomy,
+    MuscleRegion,
+    MuscleTaxonomy,
     ProgramTemplate,
 )
 from accounts.rules_services import ensure_rule_set, replace_coach_rules
@@ -415,6 +422,53 @@ class GeneratorQualityTests(APITestCase):
         self.assertGreaterEqual(len(chest), 3)
         self.assertLessEqual(len(chest), 4)
         self.assertTrue(any("بالا" in e["name"] for e in chest))
+
+    def test_structured_inner_region_excludes_legacy_bank_and_fallback_names(self):
+        chest = MuscleTaxonomy.objects.get(key="chest")
+        inner_upper = MuscleRegion.objects.get(muscle=chest, key="inner_upper_chest")
+        dumbbell = EquipmentTaxonomy.objects.get(key="dumbbell")
+        structured_names = ["حرکت داخلی بالاسینه یک", "حرکت داخلی بالاسینه دو"]
+        for name in structured_names:
+            exercise = Exercise.objects.create(
+                coach=self.coach,
+                name=name,
+                primary_muscle=chest.name,
+                equipment="دمبل",
+                level=Exercise.Level.ALL,
+            )
+            ExerciseMuscleTarget.objects.create(
+                exercise=exercise,
+                muscle=chest,
+                region=inner_upper,
+                role=ExerciseMuscleTarget.Role.PRIMARY,
+            )
+            ExerciseSuitableLevel.objects.create(
+                exercise=exercise,
+                level="intermediate",
+            )
+            ExerciseEquipment.objects.create(exercise=exercise, equipment=dumbbell)
+        ExerciseBankGroup.objects.create(
+            coach=self.coach,
+            rule_set=self.rule_set,
+            group_name="سینه",
+            favorite_exercises=["پرس سینه هالتر"],
+        )
+
+        student = self._mohammad()
+        document, _warnings = self._generate(
+            student,
+            target_muscle="سینه",
+            target_region="inner_upper_chest",
+            exercise_count=2,
+        )
+        chest = [
+            e
+            for day in document["training"]["days"]
+            for e in day["exercises"]
+            if e["targetMuscle"] == "سینه"
+        ]
+        self.assertCountEqual([e["name"] for e in chest], structured_names)
+        self.assertTrue(all(e["selection_source"] == "coach_structured_catalog" for e in chest))
 
     def test_weak_muscle_increased_volume(self):
         student = self._mohammad()

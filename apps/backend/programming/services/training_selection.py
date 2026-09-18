@@ -325,6 +325,7 @@ def _candidate_names(
     region_keys: set[str] | None = None,
 ) -> tuple[list[str], set[str], set[str]]:
     """Return (ordered candidates, legacy-bank names, structured-catalog names)."""
+    strict_region = _has_structured_region_data(structured_catalog_by_name, muscle, region_keys)
     raw: list[str] = []
     from_bank: set[str] = set()
     from_structured: set[str] = set()
@@ -351,6 +352,17 @@ def _candidate_names(
     bank = _bank_for_muscle(bank_groups, muscle) if apply_bank else None
     if bank:
         favorites = list(bank.favorite_exercises or [])
+        if strict_region:
+            favorites = [
+                name
+                for name in favorites
+                if name in structured_catalog_by_name
+                and bool(
+                    set(structured_catalog_by_name[name].get("region_keys") or []).intersection(
+                        region_keys
+                    )
+                )
+            ]
         raw.extend(favorites)
         from_bank.update(favorites)
         if level == "beginner":
@@ -359,13 +371,48 @@ def _candidate_names(
             extra = list(bank.professional_friendly or [])
         else:
             extra = list(bank.beginner_friendly or []) + list(bank.professional_friendly or [])
+        if strict_region:
+            extra = [
+                name
+                for name in extra
+                if name in structured_catalog_by_name
+                and bool(
+                    set(structured_catalog_by_name[name].get("region_keys") or []).intersection(
+                        region_keys
+                    )
+                )
+            ]
         raw.extend(extra)
         from_bank.update(extra)
     for (pm, name), _ex in sorted(catalog.items(), key=lambda x: x[0][1]):
         if normalize_muscle(pm) == muscle and name in preferred_names and name not in from_structured:
+            if strict_region and not (
+                name in structured_catalog_by_name
+                and bool(
+                    set(structured_catalog_by_name[name].get("region_keys") or []).intersection(
+                        region_keys
+                    )
+                )
+            ):
+                continue
             raw.insert(0, name)
-    raw.extend(_FALLBACK.get(muscle, []))
+    if not strict_region:
+        raw.extend(_FALLBACK.get(muscle, []))
     return _unique(raw), from_bank, from_structured
+
+
+def _has_structured_region_data(
+    structured_catalog_by_name: dict[str, dict],
+    muscle: str,
+    region_keys: set[str] | None,
+) -> bool:
+    if not region_keys:
+        return False
+    return any(
+        normalize_muscle(str(metadata.get("primary_muscle") or "")) == muscle
+        and bool(metadata.get("region_keys"))
+        for metadata in structured_catalog_by_name.values()
+    )
 
 
 def _filter_candidates(
@@ -1015,6 +1062,11 @@ def build_training_days(
             )
             excluded_catalog_reasons: list[dict] = []
             region_filter = (structured_region_filters or {}).get(muscle) or set()
+            strict_region = _has_structured_region_data(
+                structured_catalog_by_name,
+                muscle,
+                region_filter,
+            )
             if region_filter:
                 for name, metadata in structured_catalog_by_name.items():
                     if normalize_muscle(str(metadata.get("primary_muscle") or "")) != muscle:
@@ -1043,7 +1095,10 @@ def build_training_days(
             evidence["structured_catalog_excluded"].extend(excluded_catalog_reasons)
             if not filtered:
                 warnings.append(f"missing_exercise_candidates:{muscle}")
-                for fallback in _FALLBACK.get(muscle, ["حرکت جایگزین کنترل‌شده"]):
+                fallback_names = [] if strict_region else _FALLBACK.get(
+                    muscle, ["حرکت جایگزین کنترل‌شده"]
+                )
+                for fallback in fallback_names:
                     if (
                         fallback not in used
                         and fallback not in forbidden
