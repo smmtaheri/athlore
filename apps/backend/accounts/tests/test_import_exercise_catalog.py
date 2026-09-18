@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+from django.conf import settings
 from django.test import TestCase
 
 from accounts.exercise_catalog_import import (
     CatalogImportError,
     apply_import,
+    load_catalog,
     prepare_import,
 )
 from accounts.models import (
@@ -133,4 +137,33 @@ class ExerciseCatalogImportTests(TestCase):
         self.assertTrue(Exercise.objects.filter(pk=old_back.pk).exists())
         self.assertTrue(
             Exercise.objects.filter(coach=self.coach, external_key="qa.chest.press").exists()
+        )
+
+    def test_confirmed_arman_chest_catalog_resolves_all_26_rows(self):
+        catalog = load_catalog(
+            Path(settings.BASE_DIR) / "data" / "catalogs" / "arman-chest-catalog-v1.json"
+        )
+
+        plan = prepare_import(
+            self.coach,
+            catalog,
+            replace_primary_muscle_key="chest",
+        )
+
+        self.assertEqual(plan.report["created"], 26)
+        self.assertEqual(plan.report["deleted"], 0)
+        self.assertEqual(plan.report["errors"], [])
+        self.assertEqual(
+            {
+                item["primary_target"]["region_key"]
+                for item in plan.report["exercises"]
+            },
+            {
+                "whole_chest",
+                "upper_chest",
+                "lower_chest",
+                "inner_chest",
+                "inner_upper_chest",
+                "inner_lower_chest",
+            },
         )
