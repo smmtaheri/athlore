@@ -40,6 +40,7 @@ COPY programming ./programming
 COPY delivery ./delivery
 COPY programs ./programs
 COPY reference_data ./reference_data
+COPY data ./data
 COPY docker/entrypoint.sh /docker-entrypoint.sh
 
 RUN --mount=type=cache,target=/root/.cache/uv \
