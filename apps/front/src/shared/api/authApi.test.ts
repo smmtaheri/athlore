@@ -60,23 +60,20 @@ describe("API auth bootstrap", () => {
       user: { email: "coach@example.com" }
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(window.sessionStorage.getItem("coach-assistant.auth.session.v3")).toContain(
-      "access-from-cookie"
-    );
+    const stored = window.sessionStorage.getItem("coach-assistant.auth.session.v4");
+    expect(stored).not.toContain("access-from-cookie");
+    expect(stored).not.toContain("refresh");
   });
 
   it("stays anonymous when the refresh cookie is expired", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
-        jsonResponse(
-          { error: { code: "token_expired", message: "expired", details: {} } },
-          401
-        )
+        jsonResponse({ error: { code: "token_expired", message: "expired", details: {} } }, 401)
       )
     );
 
     expect(await createApiAuthRepository().getSession()).toBeNull();
-    expect(window.sessionStorage.getItem("coach-assistant.auth.session.v3")).toBeNull();
+    expect(window.sessionStorage.getItem("coach-assistant.auth.session.v4")).toBeNull();
   });
 });

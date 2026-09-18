@@ -36,7 +36,7 @@ Set `VITE_USE_MOCK_API=true` only for offline fixture mode. **Unit tests** (`vit
 | ---------------- | ------------------------------------------------------------------- |
 | Config           | `src/app/config/appConfig.ts`                                       |
 | API client       | `src/shared/api/client.ts`                                          |
-| Session (v3)     | `src/shared/api/session.ts` — key `coach-assistant.auth.session.v3` |
+| Session (v4)     | `src/shared/api/session.ts` — metadata key `coach-assistant.auth.session.v4` |
 | Errors           | `src/shared/api/errors.ts`                                          |
 | Auth API repo    | `src/shared/api/authApi.ts`                                         |
 | Domain API repos | `src/shared/api/repositories.ts`                                    |
@@ -48,7 +48,7 @@ Feature repositories keep the same exported names (`studentsRepository`, …). W
 
 ## Token lifecycle
 
-1. Login/register stores the short-lived access session in the tab session and keeps the refresh token in the HttpOnly refresh cookie (with an in-memory fallback only for the current tab).
+1. Login/register keeps both JWTs out of Web Storage: the short-lived access token is in memory and the refresh token is in the HttpOnly refresh cookie (with an in-memory fallback only for the current tab).
 2. Authenticated requests send `Authorization: Bearer <access>`.
 3. A new tab bootstraps through `POST /auth/refresh/` and `GET /me/` using the HttpOnly cookie, so the coach is not asked to log in again.
 4. On `401`, **one** shared refresh (`POST /auth/refresh/`) runs; concurrent callers await it.

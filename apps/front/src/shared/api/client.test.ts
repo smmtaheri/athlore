@@ -58,7 +58,9 @@ describe("apiRequest", () => {
     expect(window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY)).toBeNull();
     const stored = window.sessionStorage.getItem(AUTH_SESSION_STORAGE_KEY);
     expect(stored).not.toBeNull();
+    expect(stored).not.toContain("access-1");
     expect(stored).not.toContain("refresh-1");
+    expect(stored).not.toContain("accessToken");
     expect(stored).not.toContain("refreshToken");
   });
 
@@ -147,7 +149,7 @@ describe("apiRequest", () => {
     expect(refreshCalls).toBe(1);
     expect(a.value).toContain("access-2");
     expect(b.value).toContain("access-2");
-    expect(window.sessionStorage.getItem(AUTH_SESSION_STORAGE_KEY)).toContain("access-2");
+    expect(window.sessionStorage.getItem(AUTH_SESSION_STORAGE_KEY)).not.toContain("access-2");
     expect(window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY)).toBeNull();
   });
 
