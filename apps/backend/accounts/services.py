@@ -5,7 +5,9 @@ from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.db import IntegrityError, transaction
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import CoachProfile, CoachRuleSet
@@ -13,6 +15,7 @@ from common.exceptions import ConflictError
 from common.phone import InvalidPhoneError, normalize_iran_mobile
 
 User = get_user_model()
+REFRESH_SESSION_STARTED_AT_CLAIM = "session_started_at"
 
 
 def normalize_email(email: str) -> str:
@@ -21,7 +24,27 @@ def normalize_email(email: str) -> str:
 
 def _tokens_for_user(user) -> dict[str, str]:
     refresh = RefreshToken.for_user(user)
+    refresh[REFRESH_SESSION_STARTED_AT_CLAIM] = int(timezone.now().timestamp())
     return {"access": str(refresh.access_token), "refresh": str(refresh)}
+
+
+def prepare_refresh_token_for_rotation(raw_refresh: str) -> str:
+    """Preserve a seven-day absolute login window across refresh rotation."""
+    refresh = RefreshToken(raw_refresh)
+    started_at = refresh.get(REFRESH_SESSION_STARTED_AT_CLAIM, refresh.get("iat"))
+    try:
+        started_at = int(started_at)
+    except (TypeError, ValueError) as exc:
+        raise TokenError("Refresh session start is invalid.") from exc
+
+    max_age = int(settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds())
+    if int(timezone.now().timestamp()) >= started_at + max_age:
+        raise TokenError("Refresh session has expired.")
+
+    # Legacy tokens get the claim added before Simple JWT rotates them. This
+    # keeps their original iat as the absolute session start.
+    refresh[REFRESH_SESSION_STARTED_AT_CLAIM] = started_at
+    return str(refresh)
 
 
 def serialize_user(user) -> dict:

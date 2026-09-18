@@ -101,8 +101,9 @@ class RefreshView(APIView):
                 },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-        refresh_serializer = TokenRefreshSerializer(data={"refresh": refresh})
         try:
+            refresh = services.prepare_refresh_token_for_rotation(refresh)
+            refresh_serializer = TokenRefreshSerializer(data={"refresh": refresh})
             refresh_serializer.is_valid(raise_exception=True)
         except TokenError as exc:
             return Response(

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import CoachProfile
+from accounts.services import REFRESH_SESSION_STARTED_AT_CLAIM
 from common.testing import auth_header, register
 from students.models import Student, Visit
 
@@ -87,6 +89,33 @@ class AuthTests(APITestCase):
 
         after = self.client.post("/api/v1/auth/refresh/", {"refresh": new_refresh}, format="json")
         self.assertEqual(after.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_refresh_rotation_preserves_absolute_session_start(self):
+        res = register(self.client, "absolute@example.com")
+        refresh = res.data["tokens"]["refresh"]
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        initial = RefreshToken(refresh)
+        refreshed = self.client.post("/api/v1/auth/refresh/", {"refresh": refresh}, format="json")
+        self.assertEqual(refreshed.status_code, status.HTTP_200_OK)
+        rotated = RefreshToken(refreshed.data["refresh"])
+        self.assertEqual(
+            rotated[REFRESH_SESSION_STARTED_AT_CLAIM],
+            initial[REFRESH_SESSION_STARTED_AT_CLAIM],
+        )
+
+    def test_refresh_requires_login_after_absolute_seven_day_window(self):
+        res = register(self.client, "expired-session@example.com")
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        refresh = RefreshToken(res.data["tokens"]["refresh"])
+        started_at = int(refresh["iat"] - settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds())
+        refresh[REFRESH_SESSION_STARTED_AT_CLAIM] = started_at
+        expired = self.client.post(
+            "/api/v1/auth/refresh/", {"refresh": str(refresh)}, format="json"
+        )
+        self.assertEqual(expired.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(expired.data["error"]["code"], "token_expired")
 
     def test_deactivated_user_cannot_login(self):
         register(self.client, "dead@example.com", password="SecurePass123!")
