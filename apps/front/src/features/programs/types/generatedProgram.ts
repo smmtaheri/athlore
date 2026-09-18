@@ -200,6 +200,9 @@ export interface ProgramGenerationInput {
   musclePriorities: string[];
   programType: StudentProgramType;
   studentId: string;
+  targetExerciseCount?: number;
+  targetMuscle?: string;
+  targetRegion?: string;
   templateId: string;
   title: string;
 }

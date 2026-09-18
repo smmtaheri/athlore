@@ -112,4 +112,23 @@ describe("ProgramGenerationPage", () => {
 
     expect(await screen.findAllByText("عنوان برنامه الزامی است.")).not.toHaveLength(0);
   });
+
+  it("exposes structured chest target region controls", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/programs/new?studentId=mohammad-taheri"]}>
+        <ProgramGenerationPage />
+      </MemoryRouter>
+    );
+
+    const targetMuscle = await screen.findByLabelText("عضله هدف");
+    await user.selectOptions(targetMuscle, "سینه");
+
+    const targetRegion = await screen.findByLabelText("ناحیه هدف");
+    await user.selectOptions(targetRegion, "inner_upper_chest");
+
+    expect(targetRegion).toHaveValue("inner_upper_chest");
+    expect(screen.getByLabelText("تعداد حرکت هدف")).toHaveValue(2);
+    expect(screen.getByRole("option", { name: "داخل زیرسینه" })).toBeInTheDocument();
+  });
 });

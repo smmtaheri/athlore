@@ -404,26 +404,36 @@ export function createApiProgramsRepository(): ProgramsRepository & {
       );
     },
     async generate(input) {
+      const body: Record<string, unknown> = {
+        student_id: input.studentId,
+        template_id: input.templateId,
+        program_type: input.programType,
+        title: input.title,
+        level: input.level,
+        days_per_week: input.daysPerWeek,
+        duration_weeks: input.durationWeeks,
+        goals: input.goal,
+        muscle_priorities: input.musclePriorities,
+        custom_instructions: input.customInstructions,
+        apply_injury_rules: input.applyInjuryRules,
+        apply_level_rules: input.applyLevelRules,
+        apply_muscle_priority_rules: input.applyMusclePriorityRules,
+        apply_exercise_bank: input.applyExerciseBank,
+        apply_general_rules: input.applyGeneralRules,
+        engine: "rules_v1"
+      };
+      if (input.targetMuscle) {
+        body.target_muscle = input.targetMuscle;
+      }
+      if (input.targetRegion) {
+        body.target_region = input.targetRegion;
+      }
+      if (input.targetMuscle && input.targetRegion && input.targetExerciseCount) {
+        body.exercise_count = input.targetExerciseCount;
+      }
       const dto = await apiRequest<Record<string, unknown>>("/programs/generate/", {
         method: "POST",
-        body: {
-          student_id: input.studentId,
-          template_id: input.templateId,
-          program_type: input.programType,
-          title: input.title,
-          level: input.level,
-          days_per_week: input.daysPerWeek,
-          duration_weeks: input.durationWeeks,
-          goals: input.goal,
-          muscle_priorities: input.musclePriorities,
-          custom_instructions: input.customInstructions,
-          apply_injury_rules: input.applyInjuryRules,
-          apply_level_rules: input.applyLevelRules,
-          apply_muscle_priority_rules: input.applyMusclePriorityRules,
-          apply_exercise_bank: input.applyExerciseBank,
-          apply_general_rules: input.applyGeneralRules,
-          engine: "rules_v1"
-        }
+        body
       });
       const programDto = dto.program as Record<string, unknown>;
       const program = rememberDraftMeta(

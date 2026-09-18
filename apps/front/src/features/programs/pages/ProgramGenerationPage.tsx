@@ -63,6 +63,22 @@ const levelOptions = [
   { label: "حرفه ای", value: "advanced" }
 ];
 
+const targetMuscleOptions = [
+  { label: "بدون تمرکز ناحیه‌ای", value: "" },
+  { label: "سینه", value: "سینه" }
+];
+
+const chestTargetRegionOptions = [
+  { label: "انتخاب ناحیه", value: "" },
+  { label: "کل سینه", value: "whole_chest" },
+  { label: "بالاسینه", value: "upper_chest" },
+  { label: "بخش میانی سینه", value: "mid_chest" },
+  { label: "پایین سینه", value: "lower_chest" },
+  { label: "داخل سینه", value: "inner_chest" },
+  { label: "داخل بالاسینه", value: "inner_upper_chest" },
+  { label: "داخل زیرسینه", value: "inner_lower_chest" }
+];
+
 export interface ProgramGenerationPageProps {
   coachRulesRepo?: CoachRulesRepository;
   programsRepo?: ProgramsRepository;
@@ -101,6 +117,9 @@ export function ProgramGenerationPage({
     musclePriorities: ["سینه", "سرشانه"],
     programType: "complete",
     studentId: initialStudentId,
+    targetExerciseCount: 2,
+    targetMuscle: "",
+    targetRegion: "",
     templateId: "",
     title: "برنامه کامل محمد طاهری"
   });
@@ -462,6 +481,56 @@ export function ProgramGenerationPage({
                   onChange={(event) => updateForm("level", event.target.value as TrainingLevel)}
                 />
               </FormField>
+              <FormField
+                hint="اختیاری؛ برای محدودکردن انتخاب حرکات به یک عضله و ناحیهٔ ساختاریافته."
+                htmlFor="program-target-muscle"
+                label="عضله هدف"
+              >
+                <Select
+                  id="program-target-muscle"
+                  options={targetMuscleOptions}
+                  value={form.targetMuscle ?? ""}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      targetMuscle: event.target.value,
+                      targetRegion: event.target.value ? current.targetRegion : ""
+                    }))
+                  }
+                />
+              </FormField>
+              {form.targetMuscle === "سینه" ? (
+                <>
+                  <FormField
+                    hint="فقط حرکاتی انتخاب می‌شوند که همین ناحیه را در catalog ساختاریافته داشته باشند."
+                    htmlFor="program-target-region"
+                    label="ناحیه هدف"
+                  >
+                    <Select
+                      id="program-target-region"
+                      options={chestTargetRegionOptions}
+                      value={form.targetRegion ?? ""}
+                      onChange={(event) => updateForm("targetRegion", event.target.value)}
+                    />
+                  </FormField>
+                  <FormField
+                    hint="تعداد حرکت سینه در هر جلسه؛ فقط وقتی ناحیه هدف انتخاب شده باشد اعمال می‌شود."
+                    htmlFor="program-target-exercise-count"
+                    label="تعداد حرکت هدف"
+                  >
+                    <Input
+                      id="program-target-exercise-count"
+                      min={1}
+                      max={8}
+                      type="number"
+                      value={form.targetExerciseCount ?? 2}
+                      onChange={(event) =>
+                        updateForm("targetExerciseCount", Number(event.target.value))
+                      }
+                    />
+                  </FormField>
+                </>
+              ) : null}
               <FormField className={styles.fullField} label="اولویت عضلات">
                 <Input
                   value={form.musclePriorities.join("، ")}
