@@ -15,6 +15,7 @@ from accounts.models import (
     CoachProfile,
     EquipmentTaxonomy,
     Exercise,
+    ExerciseBankGroup,
     ExerciseMuscleTarget,
     MuscleRegion,
     MuscleTaxonomy,
@@ -125,6 +126,14 @@ class ExerciseCatalogImportTests(TestCase):
             muscle=self.back,
             role=ExerciseMuscleTarget.Role.PRIMARY,
         )
+        bank = ExerciseBankGroup.objects.create(
+            coach=self.coach,
+            rule_set=self.coach.rule_set,
+            group_name=self.chest.name,
+            favorite_exercises=["حرکت تست کاتالوگ", "پرس بالا سینه دمبل", "کراس اور"],
+            beginner_friendly=["حرکت تست کاتالوگ", "پرس بالا سینه دمبل سبک"],
+            professional_friendly=["دیپ وزنه‌دار", "حرکت تست کاتالوگ"],
+        )
 
         plan = prepare_import(
             self.coach,
@@ -132,12 +141,20 @@ class ExerciseCatalogImportTests(TestCase):
             replace_primary_muscle_key="chest",
         )
         self.assertEqual(plan.report["deleted"], 1)
+        self.assertEqual(
+            plan.report["bank_group_cleanup"][0]["fields"]["favorite_exercises"]["removed"],
+            ["پرس بالا سینه دمبل", "کراس اور"],
+        )
         apply_import(plan)
         self.assertFalse(Exercise.objects.filter(pk=old_chest.pk).exists())
         self.assertTrue(Exercise.objects.filter(pk=old_back.pk).exists())
         self.assertTrue(
             Exercise.objects.filter(coach=self.coach, external_key="qa.chest.press").exists()
         )
+        bank.refresh_from_db()
+        self.assertEqual(bank.favorite_exercises, ["حرکت تست کاتالوگ"])
+        self.assertEqual(bank.beginner_friendly, ["حرکت تست کاتالوگ"])
+        self.assertEqual(bank.professional_friendly, ["حرکت تست کاتالوگ"])
 
     def test_confirmed_arman_chest_catalog_resolves_all_26_rows(self):
         catalog = load_catalog(

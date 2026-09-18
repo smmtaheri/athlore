@@ -87,7 +87,7 @@ CORE_MUSCLES = frozenset({"شکم"})
 
 _FALLBACK: dict[str, list[str]] = {
     "پا": ["پرس پا", "ددلیفت رومانیایی", "جلوپا دستگاه", "ساق ایستاده"],
-    "سینه": ["پرس سینه هالتر", "پرس بالا سینه دمبل", "کراس اور"],
+    "سینه": ["پرس سینه هالتر", "پرس بالاسینه دمبل", "کراس‌اور از پایین به بالا"],
     "سرشانه": ["نشر جانب دمبل", "پرس سرشانه دستگاه", "فیس پول"],
     "زیربغل": ["لت سیم کش", "روئینگ دستگاه", "بارفیکس کمکی"],
     "پشت بازو": ["پشت بازو سیم‌کش", "دیپ نیمکت"],
@@ -838,9 +838,25 @@ def build_training_days(
         "بالاسینه": "upper_chest",
         "بالا سینه": "upper_chest",
         "mid_chest": "mid_chest",
+        "mid chest": "mid_chest",
         "بخش میانی سینه": "mid_chest",
         "lower_chest": "lower_chest",
+        "lower chest": "lower_chest",
         "پایین سینه": "lower_chest",
+        "whole_chest": "whole_chest",
+        "whole chest": "whole_chest",
+        "کل سینه": "whole_chest",
+        "inner_chest": "inner_chest",
+        "inner chest": "inner_chest",
+        "داخل سینه": "inner_chest",
+        "inner_upper_chest": "inner_upper_chest",
+        "inner upper chest": "inner_upper_chest",
+        "داخل بالاسینه": "inner_upper_chest",
+        "داخل بالا سینه": "inner_upper_chest",
+        "inner_lower_chest": "inner_lower_chest",
+        "inner lower chest": "inner_lower_chest",
+        "داخل زیرسینه": "inner_lower_chest",
+        "داخل زیر سینه": "inner_lower_chest",
     }
     structured_region_filters: dict[str, set[str]] = {}
     for raw_value in raw_region_inputs:

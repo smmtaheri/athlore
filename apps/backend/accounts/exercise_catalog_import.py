@@ -58,6 +58,7 @@ class ImportPlan:
     items: list[dict[str, Any]]
     deletions: list[Exercise]
     report: dict[str, Any]
+    replace_primary_muscle_key: str | None = None
 
 
 def load_catalog(path: str | Path) -> dict[str, Any]:
@@ -359,12 +360,37 @@ def prepare_import(
             for row in candidate_deletions
         ],
     }
-    return ImportPlan(coach, document, items, candidate_deletions, report)
+    if replacement_muscle is not None:
+        report["bank_group_cleanup"] = _preview_bank_group_cleanup(
+            coach,
+            replacement_muscle,
+            {item["name_fa"] for item in items},
+        )
+    else:
+        report["bank_group_cleanup"] = []
+    return ImportPlan(
+        coach,
+        document,
+        items,
+        candidate_deletions,
+        report,
+        replace_primary_muscle_key,
+    )
 
 
 def apply_import(plan: ImportPlan) -> dict[str, Any]:
     with transaction.atomic():
         _remove_deleted_exercises_from_groups(plan.coach, plan.deletions)
+        if plan.replace_primary_muscle_key:
+            replacement_muscle = MuscleTaxonomy.objects.get(
+                key=plan.replace_primary_muscle_key,
+                is_active=True,
+            )
+            _apply_bank_group_cleanup(
+                plan.coach,
+                replacement_muscle,
+                {item["name_fa"] for item in plan.items},
+            )
         for exercise in plan.deletions:
             exercise.delete()
 
@@ -546,6 +572,63 @@ def _validate_group_cleanup(coach: CoachProfile, deletions: list[Exercise]) -> l
                         "the same name belongs to another exercise."
                     )
     return errors
+
+
+def _groups_for_muscle(
+    coach: CoachProfile,
+    muscle: MuscleTaxonomy,
+) -> list[ExerciseBankGroup]:
+    """Return only the coach-owned legacy bank groups for one exact muscle."""
+    return list(
+        ExerciseBankGroup.objects.filter(
+            coach=coach,
+            group_name=muscle.name,
+        )
+    )
+
+
+def _preview_bank_group_cleanup(
+    coach: CoachProfile,
+    muscle: MuscleTaxonomy,
+    allowed_names: set[str],
+) -> list[dict[str, Any]]:
+    cleanup: list[dict[str, Any]] = []
+    for group in _groups_for_muscle(coach, muscle):
+        fields: dict[str, dict[str, list[str]]] = {}
+        for field in GROUP_LIST_FIELDS:
+            values = list(getattr(group, field) or [])
+            removed = [value for value in values if value not in allowed_names]
+            if removed:
+                fields[field] = {
+                    "removed": removed,
+                    "retained": [value for value in values if value in allowed_names],
+                }
+        if fields:
+            cleanup.append(
+                {
+                    "id": str(group.id),
+                    "group": group.group_name,
+                    "fields": fields,
+                }
+            )
+    return cleanup
+
+
+def _apply_bank_group_cleanup(
+    coach: CoachProfile,
+    muscle: MuscleTaxonomy,
+    allowed_names: set[str],
+) -> None:
+    for group in _groups_for_muscle(coach, muscle):
+        changed = False
+        for field in GROUP_LIST_FIELDS:
+            values = list(getattr(group, field) or [])
+            filtered = [value for value in values if value in allowed_names]
+            if filtered != values:
+                setattr(group, field, filtered)
+                changed = True
+        if changed:
+            group.save(update_fields=[*GROUP_LIST_FIELDS, "updated_at"])
 
 
 def _exercise_matches(exercise: Exercise, item: dict[str, Any]) -> bool:
