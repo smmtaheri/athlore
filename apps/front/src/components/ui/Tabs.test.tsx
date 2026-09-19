@@ -30,4 +30,22 @@ describe("Tabs", () => {
     expect(screen.getByText("محتوای دوم")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "دوم" })).toHaveAttribute("aria-selected", "true");
   });
+
+  it("changes the active tab from the mobile section selector", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <Tabs
+        ariaLabel="بخش های نمونه"
+        items={[
+          { id: "first", label: "اول" },
+          { id: "second", label: "دوم" }
+        ]}
+      />
+    );
+
+    await user.selectOptions(screen.getByLabelText("بخش های نمونه در موبایل"), "second");
+
+    expect(screen.getByRole("tab", { name: "دوم" })).toHaveAttribute("aria-selected", "true");
+  });
 });

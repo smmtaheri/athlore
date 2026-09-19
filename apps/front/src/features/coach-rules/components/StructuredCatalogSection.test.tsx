@@ -91,8 +91,8 @@ describe("StructuredCatalogSection", () => {
     const user = userEvent.setup();
     render(<StructuredCatalogSection />);
 
-    expect(await screen.findByText("پرس بالاسینه دمبل")).toBeInTheDocument();
-    expect(screen.getByText("فقط ذخیره اطلاعات")).toBeInTheDocument();
+    expect((await screen.findAllByText("پرس بالاسینه دمبل")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("فقط ذخیره اطلاعات").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: "آرشیو" }));
     expect(apiRequestMock).toHaveBeenCalledWith("/exercises/exercise-1/", { method: "DELETE" });
@@ -102,9 +102,9 @@ describe("StructuredCatalogSection", () => {
     const user = userEvent.setup();
     render(<StructuredCatalogSection />);
 
-    expect(await screen.findByText(/جفت‌سازی:/)).toBeInTheDocument();
-    expect(screen.getByText("قابل اجرا")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "تنظیم برای من" }));
+    expect((await screen.findAllByText(/جفت‌سازی:/)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("قابل اجرا").length).toBeGreaterThan(0);
+    await user.click(screen.getAllByRole("button", { name: "تنظیم برای من" })[0]);
 
     expect(screen.getByText("روش جفت‌سازی")).toBeInTheDocument();
     expect(screen.getByText("استراحت بعد از جفت (ثانیه)")).toBeInTheDocument();

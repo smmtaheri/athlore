@@ -154,7 +154,7 @@ export function readAuthSession(storage?: Storage | null): ApiAuthSession | null
 export function writeAuthSession(session: ApiAuthSession, storage?: Storage | null): void {
   setInMemoryAccessToken(session.accessToken);
   const store = resolveStorage(storage);
-  const { accessToken: _accessToken, token: _token, ...metadata } = session;
+  const metadata = { ...session, accessToken: undefined, token: undefined };
   store?.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify(metadata));
 }
 

@@ -471,6 +471,29 @@
   }
 }
 
+@media (max-width: 640px) {
+  .actionBar {
+    position: sticky;
+    z-index: 20;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    margin-inline: calc(var(--space-2) * -1);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: rgb(255 255 255 / 96%);
+    box-shadow: var(--shadow-md);
+  }
+
+  .actionButtons {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .actionBar button {
+    width: 100%;
+  }
+}
+
 @media (min-width: 641px) and (max-width: 900px) {
   .summaryGrid {
     grid-template-columns: repeat(3, minmax(0, 1fr));

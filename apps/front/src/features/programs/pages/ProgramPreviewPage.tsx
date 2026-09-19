@@ -386,6 +386,24 @@ export function ProgramPreviewPage({
               updateProgram={updateProgram}
             />
           ) : null}
+
+          <div className={styles.mobilePreviewActions}>
+            <Button
+              iconStart={<Save size={18} />}
+              isLoading={status === "saving"}
+              onClick={() => saveProgram()}
+              variant="secondary"
+            >
+              ذخیره تغییرات
+            </Button>
+            <Button
+              isLoading={status === "saving"}
+              onClick={() => saveProgram("ready")}
+              variant="success"
+            >
+              نهایی سازی برنامه
+            </Button>
+          </div>
         </div>
       </ContentSection>
 
@@ -656,7 +674,8 @@ function ExerciseEditor({
         ) : null}
         {exercise.supersetGroupId && !exercise.supersetWithPrevious ? (
           <small>
-            استراحت بین حرکات: {exercise.supersetRestBetweenSeconds ?? 0} ثانیه؛ بعد از جفت: {exercise.supersetRestAfterSeconds ?? 90} ثانیه
+            استراحت بین حرکات: {exercise.supersetRestBetweenSeconds ?? 0} ثانیه؛ بعد از جفت:{" "}
+            {exercise.supersetRestAfterSeconds ?? 90} ثانیه
           </small>
         ) : null}
         {exercise.dropSet ? (

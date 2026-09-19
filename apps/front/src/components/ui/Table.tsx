@@ -63,6 +63,7 @@ export function Table<TData>({
           </tbody>
         </table>
       </div>
+      <p className={styles.tableScrollHint}>برای دیدن ستون‌های بیشتر، جدول را افقی بکشید.</p>
     </div>
   );
 }

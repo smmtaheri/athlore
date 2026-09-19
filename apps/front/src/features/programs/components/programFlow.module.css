@@ -56,6 +56,58 @@
   gap: var(--space-2);
 }
 
+.mobilePreviewActions {
+  display: none;
+}
+
+.catalogTable {
+  min-width: 0;
+}
+
+.mobileCatalogList {
+  display: none;
+}
+
+.mobileCatalogCard {
+  display: grid;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.mobileCatalogHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.mobileCatalogHeader > div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.mobileCatalogHeader small {
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.mobileCatalogMeta {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+.mobileCatalogActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
 .trainingToolbar {
   display: grid;
   grid-template-columns: 1fr;
@@ -387,5 +439,32 @@
 
   .stepper {
     grid-template-columns: 1fr;
+  }
+
+  .mobilePreviewActions {
+    position: sticky;
+    z-index: 20;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    display: grid;
+    gap: var(--space-2);
+    margin-inline: calc(var(--space-2) * -1);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: rgb(255 255 255 / 96%);
+    box-shadow: var(--shadow-md);
+  }
+
+  .catalogTable {
+    display: none;
+  }
+
+  .mobileCatalogList {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .mobilePreviewActions button {
+    width: 100%;
   }
 }

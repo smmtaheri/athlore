@@ -50,9 +50,7 @@ export function StudentBodyCheckTab({
     const items = await repository.listCycles(student.id);
     setCycles(items);
     const preferred =
-      items.find((c) => c.id === activeId) ||
-      items.find((c) => c.status === "active") ||
-      items[0];
+      items.find((c) => c.id === activeId) || items.find((c) => c.status === "active") || items[0];
     if (preferred) {
       const detail = await repository.getCycle(student.id, preferred.id);
       setCycles((prev) => prev.map((c) => (c.id === detail.id ? detail : c)));
@@ -88,10 +86,7 @@ export function StudentBodyCheckTab({
     };
   }, [repository, student.id]);
 
-  const active = useMemo(
-    () => cycles.find((c) => c.id === activeId) || null,
-    [activeId, cycles]
-  );
+  const active = useMemo(() => cycles.find((c) => c.id === activeId) || null, [activeId, cycles]);
 
   const suggest = async () => {
     setError("");
@@ -246,7 +241,8 @@ export function StudentBodyCheckTab({
                   size="sm"
                   variant={cycle.id === activeId ? "primary" : "secondary"}
                 >
-                  {formatBodyCheckDate(cycle.startDate)} · {cycle.status === "active" ? "فعال" : "بسته"}
+                  {formatBodyCheckDate(cycle.startDate)} ·{" "}
+                  {cycle.status === "active" ? "فعال" : "بسته"}
                 </Button>
               ))}
             </div>
@@ -320,8 +316,8 @@ export function BodyCheckReportView({
             <p className={styles.muted}>وزن</p>
             <p className={styles.readonlyValue}>{formatKg(report.lastActualWeightKg)}</p>
             <p className={styles.muted}>
-              شروع {formatKg(report.startingWeightKg)} · هدف {formatKg(report.goalWeightKg)} · اختلاف{" "}
-              {formatDeltaKg(report.deltaToGoalKg)}
+              شروع {formatKg(report.startingWeightKg)} · هدف {formatKg(report.goalWeightKg)} ·
+              اختلاف {formatDeltaKg(report.deltaToGoalKg)}
             </p>
           </Card>
           <Card>
@@ -334,7 +330,8 @@ export function BodyCheckReportView({
               {report.sleepDurationDays} روز)
             </p>
             <p className={styles.muted}>
-              ساعت خواب: {formatClockTime(report.avgSleepStartTime)} ({report.sleepStartTimeDays} روز)
+              ساعت خواب: {formatClockTime(report.avgSleepStartTime)} ({report.sleepStartTimeDays}{" "}
+              روز)
             </p>
             <p className={styles.muted}>
               ساعت بیداری: {formatClockTime(report.avgWakeTime)} ({report.wakeTimeDays} روز)
@@ -347,6 +344,29 @@ export function BodyCheckReportView({
       ) : null}
 
       <Card>
+        <div className={styles.mobileReportList}>
+          {(cycle.days || []).map((day) => (
+            <article className={styles.mobileReportCard} key={day.localDate}>
+              <div className={styles.mobileReportHeader}>
+                <strong>{formatBodyCheckDate(day.localDate, true)}</strong>
+                <StatusBadge variant={day.isLogged ? "success" : "neutral"}>
+                  {day.isLogged ? "ثبت‌شده" : "ثبت‌نشده"}
+                </StatusBadge>
+              </div>
+              <div className={styles.mobileReportGrid}>
+                <span>روز: {day.dayNumber}</span>
+                <span>هدف: {day.targetWeightKg ?? "—"}</span>
+                <span>واقعی: {day.actualWeightKg ?? "—"}</span>
+                <span>اختلاف: {day.weightDeltaKg ?? "—"}</span>
+                <span>ساعت خواب: {formatClockTime(day.sleepStartTime)}</span>
+                <span>ساعت بیداری: {formatClockTime(day.wakeTime)}</span>
+                <span>مدت خواب: {formatSleepDuration(day.sleepDurationMinutes)}</span>
+                <span>نمره خواب: {day.sleepQualityScore ?? "—"}</span>
+                <span>نمره رژیم: {day.nutritionAdherenceScore ?? "—"}</span>
+              </div>
+            </article>
+          ))}
+        </div>
         <div className={styles.tableWrap}>
           <table className={styles.reportTable}>
             <thead>

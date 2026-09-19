@@ -63,6 +63,24 @@ export function Tabs({
           );
         })}
       </div>
+      <div className={styles.tabMobileSelect}>
+        <label className={styles.tabMobileLabel} htmlFor={`${reactId}-mobile-select`}>
+          انتخاب بخش
+        </label>
+        <select
+          aria-label={`${ariaLabel} در موبایل`}
+          className={styles.select}
+          id={`${reactId}-mobile-select`}
+          onChange={(event) => handleSelect(event.target.value)}
+          value={activeValue}
+        >
+          {items.map((item) => (
+            <option disabled={item.disabled} key={item.id} value={item.id}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </div>
       {renderPanels && activeItem ? (
         <div
           aria-labelledby={`${reactId}-tab-${activeItem.id}`}

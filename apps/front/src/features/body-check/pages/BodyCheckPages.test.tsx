@@ -220,8 +220,8 @@ describe("Body Check student UI", () => {
     expect(screen.getAllByText("ثبت‌نشده").length).toBeGreaterThan(1);
     expect(screen.getByRole("columnheader", { name: "ساعت خواب" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "ساعت بیداری" })).toBeInTheDocument();
-    expect(screen.getByText(/ساعت خواب:/)).toBeInTheDocument();
-    expect(screen.getByText(/ساعت بیداری:/)).toBeInTheDocument();
+    expect(screen.getAllByText(/ساعت خواب:/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/ساعت بیداری:/).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "چاپ گزارش" })).not.toBeInTheDocument();
   });
 
