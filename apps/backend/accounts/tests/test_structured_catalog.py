@@ -77,6 +77,16 @@ class StructuredCatalogApiTests(APITestCase):
         )
         self.assertEqual(archived.status_code, 204)
 
+    def test_exercise_taxonomy_uses_coach_facing_level_labels(self):
+        response = self.client.get(
+            "/api/v1/exercise-taxonomy/", **auth_header(self.tokens_a)
+        )
+        self.assertEqual(response.status_code, 200)
+        labels = {item["key"]: item["name"] for item in response.data["levels"]}
+        self.assertEqual(labels["beginner"], "مبتدی")
+        self.assertEqual(labels["intermediate"], "نیمه‌حرفه‌ای")
+        self.assertEqual(labels["advanced"], "حرفه‌ای")
+
     def test_technique_override_private_isolation_and_handler_status(self):
         public = self.client.get("/api/v1/training-techniques/", **auth_header(self.tokens_a))
         self.assertEqual(public.status_code, 200)

@@ -15,7 +15,7 @@ describe("StructuredCatalogSection", () => {
       if (path === "/exercise-taxonomy/") {
         return {
           equipment: [{ key: "dumbbell", name: "دمبل" }],
-          levels: [{ key: "intermediate", name: "متوسط" }],
+          levels: [{ key: "intermediate", name: "نیمه‌حرفه‌ای" }],
           muscles: [
             {
               key: "chest",
@@ -96,6 +96,17 @@ describe("StructuredCatalogSection", () => {
 
     await user.click(screen.getByRole("button", { name: "آرشیو" }));
     expect(apiRequestMock).toHaveBeenCalledWith("/exercises/exercise-1/", { method: "DELETE" });
+  });
+
+  it("opens the exercise editor with structured levels and existing values", async () => {
+    const user = userEvent.setup();
+    render(<StructuredCatalogSection />);
+
+    expect((await screen.findAllByText("نیمه‌حرفه‌ای")).length).toBeGreaterThan(0);
+    await user.click(screen.getAllByRole("button", { name: "ویرایش" })[0]);
+
+    expect(screen.getByRole("heading", { name: "ویرایش حرکت" })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("پرس بالاسینه دمبل")).toBeInTheDocument();
   });
 
   it("shows executable technique logic and structured superset settings", async () => {

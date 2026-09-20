@@ -235,7 +235,14 @@ def serialize_taxonomy() -> dict:
             )
         ],
         "levels": [
-            {"key": key, "name": {"beginner": "مبتدی", "intermediate": "متوسط", "advanced": "حرفه‌ای"}.get(key, label)}
+            {
+                "key": key,
+                "name": {
+                    "beginner": "مبتدی",
+                    "intermediate": "نیمه‌حرفه‌ای",
+                    "advanced": "حرفه‌ای",
+                }.get(key, label),
+            }
             for key, label in Exercise.Level.choices
             if key != Exercise.Level.ALL
         ],

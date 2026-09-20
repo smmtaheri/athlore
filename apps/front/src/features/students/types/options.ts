@@ -19,9 +19,9 @@ export const goalLabels: Record<PrimaryGoal, string> = {
 };
 
 export const trainingLevelLabels: Record<TrainingLevel, string> = {
-  advanced: "حرفه ای",
+  advanced: "حرفه‌ای",
   beginner: "مبتدی",
-  intermediate: "متوسط"
+  intermediate: "نیمه‌حرفه‌ای"
 };
 
 export const genderOptions = [

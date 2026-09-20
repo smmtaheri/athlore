@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Plus, Save, Trash2 } from "lucide-react";
 import {
@@ -246,6 +246,8 @@ export function StructuredCatalogSection() {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({ equipment: "", level: "", muscle: "", region: "" });
   const [feedback, setFeedback] = useState("");
+  const exerciseEditorRef = useRef<HTMLDivElement>(null);
+  const exerciseNameInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     return Promise.all([
@@ -348,6 +350,28 @@ export function StructuredCatalogSection() {
     }));
   };
 
+  const revealExerciseEditor = () => {
+    requestAnimationFrame(() => {
+      const editor = exerciseEditorRef.current;
+      if (editor && typeof editor.scrollIntoView === "function") {
+        editor.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      requestAnimationFrame(() => exerciseNameInputRef.current?.focus({ preventScroll: true }));
+    });
+  };
+
+  const startNewExercise = () => {
+    setDraft(emptyDraft);
+    setEditingId(undefined);
+    revealExerciseEditor();
+  };
+
+  const startEditingExercise = (row: CatalogExercise) => {
+    setEditingId(row.id);
+    setDraft(exerciseFromRow(row, taxonomy));
+    revealExerciseEditor();
+  };
+
   const saveTechnique = async () => {
     if (!techniqueDraft) return;
     const payload = {
@@ -417,13 +441,7 @@ export function StructuredCatalogSection() {
             <h2 className={styles.ruleCardTitle}>کاتالوگ حرکات</h2>
             <p>حرکت‌ها با عضله، ناحیه، سطح و تجهیزات ساختاریافته در generator استفاده می‌شوند.</p>
           </div>
-          <Button
-            iconStart={<Plus size={18} />}
-            onClick={() => {
-              setDraft(emptyDraft);
-              setEditingId(undefined);
-            }}
-          >
+          <Button iconStart={<Plus size={18} />} onClick={startNewExercise}>
             حرکت جدید
           </Button>
         </div>
@@ -516,14 +534,7 @@ export function StructuredCatalogSection() {
                 header: "عملیات",
                 cell: (row) => (
                   <div className={styles.actionIconGroup}>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setEditingId(row.id);
-                        setDraft(exerciseFromRow(row, taxonomy));
-                      }}
-                    >
+                    <Button size="sm" variant="secondary" onClick={() => startEditingExercise(row)}>
                       ویرایش
                     </Button>
                     <Button
@@ -568,14 +579,7 @@ export function StructuredCatalogSection() {
                 <span>تجهیزات: {row.equipment_keys.join("، ") || "ثبت نشده"}</span>
               </div>
               <div className={styles.mobileCatalogActions}>
-                <Button
-                  fullWidth
-                  onClick={() => {
-                    setEditingId(row.id);
-                    setDraft(exerciseFromRow(row, taxonomy));
-                  }}
-                  variant="secondary"
-                >
+                <Button fullWidth onClick={() => startEditingExercise(row)} variant="secondary">
                   ویرایش
                 </Button>
                 <Button
@@ -592,164 +596,167 @@ export function StructuredCatalogSection() {
         </div>
       </Card>
 
-      <Card className={styles.pageStack}>
-        <h2 className={styles.ruleCardTitle}>{editingId ? "ویرایش حرکت" : "ورود حرکت جدید"}</h2>
-        <div className={styles.formGrid}>
-          <FormField label="نام فارسی" required>
-            <Input
-              value={draft.name}
-              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-            />
-          </FormField>
-          <FormField label="نام انگلیسی">
-            <Input
-              value={draft.name_en}
-              onChange={(event) => setDraft({ ...draft, name_en: event.target.value })}
-            />
-          </FormField>
-          <FormField hint="با کاما جدا کنید" label="نام‌های جایگزین">
-            <Input
-              value={draft.aliases}
-              onChange={(event) => setDraft({ ...draft, aliases: event.target.value })}
-            />
-          </FormField>
-          <FormField label="عضله اصلی" required>
-            <Select
-              options={muscleOptions}
-              value={draft.primary_muscle}
-              onChange={(event) =>
-                setDraft({ ...draft, primary_muscle: event.target.value, primary_region: "" })
-              }
-              placeholder="انتخاب کنید"
-            />
-          </FormField>
-          <FormField label="ناحیه عضله اصلی">
-            <Select
-              options={(
-                taxonomy.muscles.find((muscle) => muscle.key === draft.primary_muscle)?.regions ||
-                []
-              ).map((region) => ({ label: region.name, value: region.key }))}
-              value={draft.primary_region}
-              onChange={(event) => setDraft({ ...draft, primary_region: event.target.value })}
-              placeholder="بدون ناحیه"
-            />
-          </FormField>
-          <FormField label="عضله فرعی">
-            <Select
-              options={muscleOptions}
-              value={draft.secondary_muscle}
-              onChange={(event) =>
-                setDraft({ ...draft, secondary_muscle: event.target.value, secondary_region: "" })
-              }
-              placeholder="انتخاب عضله"
-            />
-          </FormField>
-          <FormField label="ناحیه فرعی">
-            <Select
-              options={(
-                taxonomy.muscles.find((muscle) => muscle.key === draft.secondary_muscle)?.regions ||
-                []
-              ).map((region) => ({ label: region.name, value: region.key }))}
-              value={draft.secondary_region}
-              onChange={(event) => setDraft({ ...draft, secondary_region: event.target.value })}
-              placeholder="بدون ناحیه"
-            />
-          </FormField>
-          <div>
-            <Button size="sm" variant="secondary" onClick={addSecondaryTarget}>
-              افزودن عضله فرعی
-            </Button>
+      <div className={styles.catalogEditorAnchor} ref={exerciseEditorRef}>
+        <Card className={styles.pageStack}>
+          <h2 className={styles.ruleCardTitle}>{editingId ? "ویرایش حرکت" : "ورود حرکت جدید"}</h2>
+          <div className={styles.formGrid}>
+            <FormField label="نام فارسی" required>
+              <Input
+                ref={exerciseNameInputRef}
+                value={draft.name}
+                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+              />
+            </FormField>
+            <FormField label="نام انگلیسی">
+              <Input
+                value={draft.name_en}
+                onChange={(event) => setDraft({ ...draft, name_en: event.target.value })}
+              />
+            </FormField>
+            <FormField hint="با کاما جدا کنید" label="نام‌های جایگزین">
+              <Input
+                value={draft.aliases}
+                onChange={(event) => setDraft({ ...draft, aliases: event.target.value })}
+              />
+            </FormField>
+            <FormField label="عضله اصلی" required>
+              <Select
+                options={muscleOptions}
+                value={draft.primary_muscle}
+                onChange={(event) =>
+                  setDraft({ ...draft, primary_muscle: event.target.value, primary_region: "" })
+                }
+                placeholder="انتخاب کنید"
+              />
+            </FormField>
+            <FormField label="ناحیه عضله اصلی">
+              <Select
+                options={(
+                  taxonomy.muscles.find((muscle) => muscle.key === draft.primary_muscle)?.regions ||
+                  []
+                ).map((region) => ({ label: region.name, value: region.key }))}
+                value={draft.primary_region}
+                onChange={(event) => setDraft({ ...draft, primary_region: event.target.value })}
+                placeholder="بدون ناحیه"
+              />
+            </FormField>
+            <FormField label="عضله فرعی">
+              <Select
+                options={muscleOptions}
+                value={draft.secondary_muscle}
+                onChange={(event) =>
+                  setDraft({ ...draft, secondary_muscle: event.target.value, secondary_region: "" })
+                }
+                placeholder="انتخاب عضله"
+              />
+            </FormField>
+            <FormField label="ناحیه فرعی">
+              <Select
+                options={(
+                  taxonomy.muscles.find((muscle) => muscle.key === draft.secondary_muscle)
+                    ?.regions || []
+                ).map((region) => ({ label: region.name, value: region.key }))}
+                value={draft.secondary_region}
+                onChange={(event) => setDraft({ ...draft, secondary_region: event.target.value })}
+                placeholder="بدون ناحیه"
+              />
+            </FormField>
             <div>
-              {draft.secondary_targets.map((target) => (
-                <StatusBadge key={`${target.muscle_key}-${target.region_key}`}>
-                  {target.muscle_key}
-                  {target.region_key ? ` / ${target.region_key}` : ""}
-                </StatusBadge>
+              <Button size="sm" variant="secondary" onClick={addSecondaryTarget}>
+                افزودن عضله فرعی
+              </Button>
+              <div>
+                {draft.secondary_targets.map((target) => (
+                  <StatusBadge key={`${target.muscle_key}-${target.region_key}`}>
+                    {target.muscle_key}
+                    {target.region_key ? ` / ${target.region_key}` : ""}
+                  </StatusBadge>
+                ))}
+              </div>
+            </div>
+            <FormField className={styles.fullField} label="الگو">
+              <Input
+                value={draft.movement_pattern}
+                onChange={(event) => setDraft({ ...draft, movement_pattern: event.target.value })}
+              />
+            </FormField>
+            <div className={styles.fullField}>
+              <strong>سطح‌های مناسب</strong>
+              {taxonomy.levels.map((level) => (
+                <Checkbox
+                  key={level.key}
+                  checked={draft.levels.includes(level.key)}
+                  label={level.name}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      levels: event.target.checked
+                        ? [...draft.levels, level.key]
+                        : draft.levels.filter((item) => item !== level.key)
+                    })
+                  }
+                />
               ))}
             </div>
-          </div>
-          <FormField className={styles.fullField} label="الگو">
-            <Input
-              value={draft.movement_pattern}
-              onChange={(event) => setDraft({ ...draft, movement_pattern: event.target.value })}
-            />
-          </FormField>
-          <div className={styles.fullField}>
-            <strong>سطح‌های مناسب</strong>
-            {taxonomy.levels.map((level) => (
-              <Checkbox
-                key={level.key}
-                checked={draft.levels.includes(level.key)}
-                label={level.name}
-                onChange={(event) =>
-                  setDraft({
-                    ...draft,
-                    levels: event.target.checked
-                      ? [...draft.levels, level.key]
-                      : draft.levels.filter((item) => item !== level.key)
-                  })
-                }
+            <div className={styles.fullField}>
+              <strong>تجهیزات</strong>
+              {taxonomy.equipment.map((equipment) => (
+                <Checkbox
+                  key={equipment.key}
+                  checked={draft.equipment_keys.includes(equipment.key)}
+                  label={equipment.name}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      equipment_keys: event.target.checked
+                        ? [...draft.equipment_keys, equipment.key]
+                        : draft.equipment_keys.filter((item) => item !== equipment.key)
+                    })
+                  }
+                />
+              ))}
+            </div>
+            <FormField label="منبع داده">
+              <Input
+                value={draft.source_document}
+                onChange={(event) => setDraft({ ...draft, source_document: event.target.value })}
               />
-            ))}
-          </div>
-          <div className={styles.fullField}>
-            <strong>تجهیزات</strong>
-            {taxonomy.equipment.map((equipment) => (
-              <Checkbox
-                key={equipment.key}
-                checked={draft.equipment_keys.includes(equipment.key)}
-                label={equipment.name}
-                onChange={(event) =>
-                  setDraft({
-                    ...draft,
-                    equipment_keys: event.target.checked
-                      ? [...draft.equipment_keys, equipment.key]
-                      : draft.equipment_keys.filter((item) => item !== equipment.key)
-                  })
-                }
+            </FormField>
+            <FormField label="اولویت">
+              <Input
+                min={0}
+                type="number"
+                value={draft.priority}
+                onChange={(event) => setDraft({ ...draft, priority: Number(event.target.value) })}
               />
-            ))}
+            </FormField>
+            <FormField className={styles.fullField} label="توضیح مربی">
+              <Textarea
+                value={draft.coach_notes}
+                onChange={(event) => setDraft({ ...draft, coach_notes: event.target.value })}
+              />
+            </FormField>
+            <Checkbox
+              checked={draft.is_preferred}
+              label="محبوب"
+              onChange={(event) => setDraft({ ...draft, is_preferred: event.target.checked })}
+            />
+            <Checkbox
+              checked={draft.is_prohibited}
+              label="ممنوع"
+              onChange={(event) => setDraft({ ...draft, is_prohibited: event.target.checked })}
+            />
+            <Switch
+              checked={draft.is_active}
+              label="فعال"
+              onCheckedChange={(checked) => setDraft({ ...draft, is_active: checked })}
+            />
           </div>
-          <FormField label="منبع داده">
-            <Input
-              value={draft.source_document}
-              onChange={(event) => setDraft({ ...draft, source_document: event.target.value })}
-            />
-          </FormField>
-          <FormField label="اولویت">
-            <Input
-              min={0}
-              type="number"
-              value={draft.priority}
-              onChange={(event) => setDraft({ ...draft, priority: Number(event.target.value) })}
-            />
-          </FormField>
-          <FormField className={styles.fullField} label="توضیح مربی">
-            <Textarea
-              value={draft.coach_notes}
-              onChange={(event) => setDraft({ ...draft, coach_notes: event.target.value })}
-            />
-          </FormField>
-          <Checkbox
-            checked={draft.is_preferred}
-            label="محبوب"
-            onChange={(event) => setDraft({ ...draft, is_preferred: event.target.checked })}
-          />
-          <Checkbox
-            checked={draft.is_prohibited}
-            label="ممنوع"
-            onChange={(event) => setDraft({ ...draft, is_prohibited: event.target.checked })}
-          />
-          <Switch
-            checked={draft.is_active}
-            label="فعال"
-            onCheckedChange={(checked) => setDraft({ ...draft, is_active: checked })}
-          />
-        </div>
-        <Button iconStart={<Save size={17} />} onClick={() => void saveExercise()}>
-          ذخیره حرکت
-        </Button>
-      </Card>
+          <Button iconStart={<Save size={17} />} onClick={() => void saveExercise()}>
+            ذخیره حرکت
+          </Button>
+        </Card>
+      </div>
 
       <TechniquesSection
         techniques={techniques}

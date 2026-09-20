@@ -69,8 +69,8 @@ const sectionOrder: CoachRuleSection[] = [
 
 const levelOptions = [
   { label: "مبتدی", value: "beginner" },
-  { label: "متوسط", value: "intermediate" },
-  { label: "حرفه ای", value: "advanced" }
+  { label: "نیمه‌حرفه‌ای", value: "intermediate" },
+  { label: "حرفه‌ای", value: "advanced" }
 ];
 
 export interface CoachRulesPageProps {
