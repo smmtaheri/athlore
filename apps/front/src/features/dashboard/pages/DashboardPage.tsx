@@ -19,7 +19,10 @@ import {
   type BodyCheckCycleSummary,
   type BodyCheckCycleSummaryItem,
   type BodyCheckTodayItem,
-  type DashboardMetrics
+  type DashboardMetrics,
+  type MonthlyVisitStatus,
+  type MonthlyVisitSummary,
+  type MonthlyVisitSummaryItem
 } from "../services/dashboardMetrics";
 import {
   formatBodyCheckDate,
@@ -122,6 +125,7 @@ function DashboardContent({
     <div className={mvpStyles.pageStack}>
       <BodyCheckCycleSummarySection summary={metrics.bodyCheckCycles} />
       <BodyCheckTodaySection asOf={metrics.asOf} items={metrics.bodyCheckToday} />
+      <MonthlyVisitSummarySection summary={metrics.monthlyVisits} />
       <div className={mvpStyles.metricGrid}>
         <Metric title="کل شاگردها" value={metrics.totalStudents} />
         <Metric title="شاگردهای فعال" value={metrics.activeStudents} />
@@ -352,6 +356,129 @@ export function BodyCheckTodaySection({ asOf, items }: { asOf: string; items: Bo
       )}
     </Card>
   );
+}
+
+export function MonthlyVisitSummarySection({ summary }: { summary: MonthlyVisitSummary }) {
+  const notSentItems = summary.items.filter((item) => item.status === "not_sent");
+  const sentItems = summary.items.filter((item) => item.status !== "not_sent");
+
+  return (
+    <Card className={mvpStyles.bodyCheckCard}>
+      <div className={mvpStyles.bodyCheckHeader}>
+        <div>
+          <h2 className={styles.sectionTitle}>پیگیری ویزیت ماهانه</h2>
+          <p className={styles.sectionDescription}>
+            {formatBodyCheckDate(summary.asOf)} · فقط شاگردهای فعال
+          </p>
+          <p className={styles.sectionDescription}>
+            از {summary.activeStudents} شاگرد فعال، وضعیت ارسال و پاسخ ویزیت این ماه را ببینید.
+          </p>
+        </div>
+        <StatusBadge variant={summary.notSent > 0 ? "warning" : "success"}>
+          {summary.notSent > 0 ? "نیازمند پیگیری" : "همه ارسال شده‌اند"}
+        </StatusBadge>
+      </div>
+
+      {summary.activeStudents === 0 ? (
+        <EmptyState
+          description="برای نمایش وضعیت ویزیت ماهانه، ابتدا شاگرد فعال داشته باشید."
+          title="شاگرد فعال وجود ندارد"
+        />
+      ) : (
+        <>
+          <div className={mvpStyles.bodyCheckCounts}>
+            <StatusBadge>{summary.activeStudents} فعال</StatusBadge>
+            <StatusBadge variant="warning">{summary.dueSoon} نزدیک موعد</StatusBadge>
+            {summary.overdue > 0 ? (
+              <StatusBadge variant="danger">{summary.overdue} عقب‌افتاده</StatusBadge>
+            ) : null}
+            <StatusBadge variant="info">{summary.sent} ارسال‌شده</StatusBadge>
+            <StatusBadge variant="success">{summary.studentSubmitted} پاسخ‌داده</StatusBadge>
+            <StatusBadge variant="warning">{summary.notSent} ارسال‌نشده</StatusBadge>
+          </div>
+          <div className={mvpStyles.monthlyVisitGrid}>
+            <MonthlyVisitGroup items={notSentItems} title="ارسال نشده‌ها" />
+            <MonthlyVisitGroup items={sentItems} title="ارسال شده‌ها و وضعیت پاسخ" />
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+function MonthlyVisitGroup({
+  items,
+  title
+}: {
+  items: MonthlyVisitSummaryItem[];
+  title: string;
+}) {
+  return (
+    <div className={mvpStyles.monthlyVisitGroup}>
+      <strong>{title}</strong>
+      {items.length === 0 ? (
+        <span className={mvpStyles.monthlyVisitEmpty}>موردی ثبت نشده</span>
+      ) : (
+        <div className={mvpStyles.bodyCheckList}>
+          {items.map((item) => {
+            const state = monthlyVisitState(item.status);
+            return (
+              <Link
+                className={mvpStyles.bodyCheckItem}
+                key={item.studentId}
+                to={`/students/${item.studentId}/visits`}
+              >
+                <div className={mvpStyles.bodyCheckIdentity}>
+                  <strong>{item.studentName}</strong>
+                  <StatusBadge variant={state.variant}>{state.label}</StatusBadge>
+                </div>
+                <div className={mvpStyles.bodyCheckDetails}>
+                  <span>{monthlyVisitMeta(item)}</span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function monthlyVisitState(status: MonthlyVisitStatus): {
+  label: string;
+  variant: "danger" | "info" | "neutral" | "success" | "warning";
+} {
+  switch (status) {
+    case "waiting_for_student":
+      return { label: "ارسال‌شده", variant: "info" };
+    case "student_submitted":
+      return { label: "پاسخ داده", variant: "success" };
+    case "coach_review":
+      return { label: "در حال بررسی", variant: "warning" };
+    case "finalized":
+      return { label: "نهایی‌شده", variant: "success" };
+    default:
+      return { label: "ارسال نشده", variant: "warning" };
+  }
+}
+
+function monthlyVisitMeta(item: MonthlyVisitSummaryItem): string {
+  if (item.status !== "not_sent") {
+    return item.visitDate
+      ? `تاریخ ویزیت: ${formatBodyCheckDate(item.visitDate)}`
+      : "ویزیت این ماه";
+  }
+  if (item.dueState === "overdue" && item.daysUntilDue != null) {
+    return `${Math.abs(item.daysUntilDue)} روز از موعد گذشته است`;
+  }
+  if (item.dueDate) {
+    if (item.daysUntilDue === 0) return "موعد ویزیت: امروز";
+    if (item.daysUntilDue != null) {
+      return `موعد ویزیت: ${formatBodyCheckDate(item.dueDate)} · ${item.daysUntilDue} روز دیگر`;
+    }
+    return `موعد ویزیت: ${formatBodyCheckDate(item.dueDate)}`;
+  }
+  return "موعد ویزیت مشخص نشده است";
 }
 
 function BodyCheckGroup({ items, title }: { items: BodyCheckTodayItem[]; title: string }) {

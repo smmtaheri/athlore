@@ -17,6 +17,8 @@ from students.models import Student, Visit
 from students.serializers import StudentListSerializer, VisitSerializer
 
 OVERDUE_VISIT_DAYS = 35
+MONTHLY_VISIT_INTERVAL_DAYS = 30
+MONTHLY_VISIT_DUE_SOON_DAYS = 7
 RECENT_LIMIT = 5
 
 
@@ -162,6 +164,133 @@ def _build_body_check_cycle_summary(coach: CoachProfile, today: date) -> dict:
     }
 
 
+def _build_monthly_visit_summary(coach: CoachProfile, today: date) -> dict:
+    """Return active-student monthly visit status without per-student queries."""
+    month_start = today.replace(day=1)
+    if month_start.month == 12:
+        next_month = month_start.replace(year=month_start.year + 1, month=1)
+    else:
+        next_month = month_start.replace(month=month_start.month + 1)
+
+    students = list(
+        Student.objects.filter(
+            coach=coach,
+            status=Student.Status.ACTIVE,
+            archived_at__isnull=True,
+        )
+        .only("id", "full_name")
+        .order_by("full_name", "id")
+    )
+    student_ids = [student.id for student in students]
+    current_visits = list(
+        Visit.objects.filter(
+            coach=coach,
+            student_id__in=student_ids,
+            visit_date__gte=month_start,
+            visit_date__lt=next_month,
+        )
+        .only("id", "student_id", "visit_date", "status", "updated_at")
+        .order_by("student_id", "-visit_date", "-updated_at")
+    )
+    latest_non_draft_visits = list(
+        Visit.objects.filter(
+            coach=coach,
+            student_id__in=student_ids,
+        )
+        .exclude(status=Visit.Status.DRAFT)
+        .only("id", "student_id", "visit_date", "status", "updated_at")
+        .order_by("student_id", "-visit_date", "-updated_at")
+    )
+
+    current_by_student: dict[str, Visit] = {}
+    for visit in current_visits:
+        current_by_student.setdefault(str(visit.student_id), visit)
+    latest_by_student: dict[str, Visit] = {}
+    for visit in latest_non_draft_visits:
+        latest_by_student.setdefault(str(visit.student_id), visit)
+
+    items: list[dict] = []
+    for student in students:
+        student_key = str(student.id)
+        current_visit = current_by_student.get(student_key)
+        latest_visit = latest_by_student.get(student_key)
+        status = "not_sent"
+        visit_id = None
+        visit_date = None
+        last_visit_date = latest_visit.visit_date if latest_visit else None
+        due_date = None
+        days_until_due = None
+        due_state = "not_due"
+
+        if current_visit and current_visit.status != Visit.Status.DRAFT:
+            status = current_visit.status
+            visit_id = str(current_visit.id)
+            visit_date = current_visit.visit_date
+            last_visit_date = current_visit.visit_date
+        else:
+            # A draft is an unsent visit and must remain visible as needing action.
+            if current_visit:
+                visit_id = str(current_visit.id)
+                visit_date = current_visit.visit_date
+                due_date = current_visit.visit_date
+            elif latest_visit:
+                due_date = latest_visit.visit_date + timedelta(days=MONTHLY_VISIT_INTERVAL_DAYS)
+            else:
+                due_date = today
+
+            days_until_due = (due_date - today).days
+            if days_until_due < 0:
+                due_state = "overdue"
+            elif days_until_due <= MONTHLY_VISIT_DUE_SOON_DAYS:
+                due_state = "due_soon"
+
+        items.append(
+            {
+                "student_id": student_key,
+                "student_name": student.full_name,
+                "status": status,
+                "visit_id": visit_id,
+                "visit_date": visit_date.isoformat() if visit_date else None,
+                "last_visit_date": last_visit_date.isoformat() if last_visit_date else None,
+                "due_date": due_date.isoformat() if due_date else None,
+                "days_until_due": days_until_due,
+                "due_state": due_state,
+            }
+        )
+
+    response_statuses = {
+        Visit.Status.STUDENT_SUBMITTED,
+        Visit.Status.COACH_REVIEW,
+        Visit.Status.FINALIZED,
+    }
+    sent_statuses = {
+        Visit.Status.WAITING_FOR_STUDENT,
+        Visit.Status.STUDENT_SUBMITTED,
+        Visit.Status.COACH_REVIEW,
+        Visit.Status.FINALIZED,
+    }
+    return {
+        "as_of": today.isoformat(),
+        "month": month_start.strftime("%Y-%m"),
+        "active_students": len(students),
+        "due_soon": sum(item["due_state"] == "due_soon" for item in items),
+        "overdue": sum(item["due_state"] == "overdue" for item in items),
+        "sent": sum(item["status"] in sent_statuses for item in items),
+        "student_submitted": sum(item["status"] in response_statuses for item in items),
+        "coach_review": sum(item["status"] == Visit.Status.COACH_REVIEW for item in items),
+        "finalized": sum(item["status"] == Visit.Status.FINALIZED for item in items),
+        "not_sent": sum(item["status"] == "not_sent" for item in items),
+        "items": sorted(
+            items,
+            key=lambda item: (
+                0 if item["status"] == "not_sent" else 1,
+                item["days_until_due"] if item["days_until_due"] is not None else 9999,
+                item["student_name"],
+            ),
+        ),
+    }
+
+
 def build_dashboard(coach: CoachProfile, *, today: date | None = None) -> dict:
     """Return deterministic coach-scoped dashboard payload."""
     today = today or timezone.localdate()
@@ -275,6 +404,7 @@ def build_dashboard(coach: CoachProfile, *, today: date | None = None) -> dict:
         "follow_up_students": StudentListSerializer(follow_up_students, many=True).data,
         "body_check_today": _build_body_check_today(coach, today),
         "body_check_cycles": _build_body_check_cycle_summary(coach, today),
+        "monthly_visits": _build_monthly_visit_summary(coach, today),
         "today_tasks": today_tasks,
         "as_of": today.isoformat(),
     }

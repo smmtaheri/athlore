@@ -50,6 +50,41 @@ export interface BodyCheckCycleSummary {
   withoutActiveCycle: number;
 }
 
+export type MonthlyVisitStatus =
+  | "not_sent"
+  | "waiting_for_student"
+  | "student_submitted"
+  | "coach_review"
+  | "finalized";
+
+export type MonthlyVisitDueState = "not_due" | "due_soon" | "overdue";
+
+export interface MonthlyVisitSummaryItem {
+  daysUntilDue: number | null;
+  dueDate: string | null;
+  dueState: MonthlyVisitDueState;
+  lastVisitDate: string | null;
+  status: MonthlyVisitStatus;
+  studentId: string;
+  studentName: string;
+  visitDate: string | null;
+  visitId: string | null;
+}
+
+export interface MonthlyVisitSummary {
+  activeStudents: number;
+  asOf: string;
+  coachReview: number;
+  dueSoon: number;
+  finalized: number;
+  items: MonthlyVisitSummaryItem[];
+  month: string;
+  notSent: number;
+  overdue: number;
+  sent: number;
+  studentSubmitted: number;
+}
+
 export interface DashboardMetrics {
   activeStudents: number;
   asOf: string;
@@ -60,6 +95,7 @@ export interface DashboardMetrics {
   followUpStudents: Student[];
   latestPrograms: StudentProgramSummary[];
   latestVisits: StudentVisit[];
+  monthlyVisits: MonthlyVisitSummary;
   overdueVisits: Student[];
   pdfFilesFailed?: number;
   pdfFilesPending?: number;
@@ -113,6 +149,7 @@ export function calculateDashboardMetrics({
     followUpStudents,
     latestPrograms,
     latestVisits,
+    monthlyVisits: emptyMonthlyVisitSummary(new Date().toISOString().slice(0, 10)),
     overdueVisits,
     readyPdfFiles: pdfFiles.filter((file) => file.status === "ready").length,
     thisMonthVisits: visits.length,
@@ -122,6 +159,22 @@ export function calculateDashboardMetrics({
       "بررسی PDFهای در حال ساخت"
     ],
     totalStudents: students.length
+  };
+}
+
+export function emptyMonthlyVisitSummary(asOf: string): MonthlyVisitSummary {
+  return {
+    activeStudents: 0,
+    asOf,
+    coachReview: 0,
+    dueSoon: 0,
+    finalized: 0,
+    items: [],
+    month: asOf.slice(0, 7),
+    notSent: 0,
+    overdue: 0,
+    sent: 0,
+    studentSubmitted: 0
   };
 }
 

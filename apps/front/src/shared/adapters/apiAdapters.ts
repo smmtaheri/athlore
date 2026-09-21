@@ -40,7 +40,9 @@ import type {
   BodyCheckCycleSummary,
   BodyCheckCycleSummaryItem,
   BodyCheckTodayItem,
-  DashboardMetrics
+  DashboardMetrics,
+  MonthlyVisitSummary,
+  MonthlyVisitSummaryItem
 } from "../../features/dashboard/services/dashboardMetrics";
 
 function asStringArray(value: unknown): string[] {
@@ -988,6 +990,9 @@ export function dashboardFromApi(dto: Record<string, unknown>): DashboardMetrics
       programSummaryFromApi
     ),
     latestVisits: ((dto.latest_visits as Record<string, unknown>[]) || []).map(visitFromApi),
+    monthlyVisits: monthlyVisitSummaryFromApi(
+      (dto.monthly_visits as Record<string, unknown>) || {}
+    ),
     overdueVisits: ((dto.overdue_visits as Record<string, unknown>[]) || []).map(studentFromApi),
     readyPdfFiles: num(dto.ready_pdf_files ?? dto.pdf_files_ready),
     thisMonthVisits: num(dto.this_month_visits),
@@ -996,6 +1001,46 @@ export function dashboardFromApi(dto: Record<string, unknown>): DashboardMetrics
     pdfGenerationAvailable: bool(dto.pdf_generation_available, true),
     pdfFilesFailed: num(dto.pdf_files_failed),
     pdfFilesPending: num(dto.pdf_files_pending)
+  };
+}
+
+function monthlyVisitSummaryFromApi(dto: Record<string, unknown>): MonthlyVisitSummary {
+  return {
+    activeStudents: num(dto.active_students),
+    asOf: str(dto.as_of),
+    coachReview: num(dto.coach_review),
+    dueSoon: num(dto.due_soon),
+    finalized: num(dto.finalized),
+    items: Array.isArray(dto.items)
+      ? (dto.items as Record<string, unknown>[]).map(monthlyVisitSummaryItemFromApi)
+      : [],
+    month: str(dto.month),
+    notSent: num(dto.not_sent),
+    overdue: num(dto.overdue),
+    sent: num(dto.sent),
+    studentSubmitted: num(dto.student_submitted)
+  };
+}
+
+function monthlyVisitSummaryItemFromApi(dto: Record<string, unknown>): MonthlyVisitSummaryItem {
+  const status = str(dto.status);
+  return {
+    daysUntilDue: dto.days_until_due == null ? null : num(dto.days_until_due),
+    dueDate: dto.due_date == null ? null : str(dto.due_date),
+    dueState:
+      dto.due_state === "due_soon" || dto.due_state === "overdue" ? dto.due_state : "not_due",
+    lastVisitDate: dto.last_visit_date == null ? null : str(dto.last_visit_date),
+    status:
+      status === "waiting_for_student" ||
+      status === "student_submitted" ||
+      status === "coach_review" ||
+      status === "finalized"
+        ? status
+        : "not_sent",
+    studentId: str(dto.student_id),
+    studentName: str(dto.student_name),
+    visitDate: dto.visit_date == null ? null : str(dto.visit_date),
+    visitId: dto.visit_id == null ? null : str(dto.visit_id)
   };
 }
 

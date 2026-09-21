@@ -75,6 +75,8 @@ class DashboardApiTests(APITestCase):
         self.assertEqual(res.data["total_students"], 0)
         self.assertEqual(res.data["active_students"], 0)
         self.assertEqual(res.data["this_month_visits"], 0)
+        self.assertEqual(res.data["monthly_visits"]["active_students"], 0)
+        self.assertEqual(res.data["monthly_visits"]["not_sent"], 0)
         self.assertEqual(res.data["draft_programs"], 0)
         self.assertEqual(res.data["final_programs"], 0)
         self.assertEqual(res.data["pdf_files_ready"], 0)
@@ -176,6 +178,7 @@ class DashboardApiTests(APITestCase):
         self.assertEqual(res.data["active_students"], 1)
         self.assertEqual(res.data["archived_students"], 1)
         self.assertEqual(res.data["this_month_visits"], 1)
+        self.assertEqual(res.data["monthly_visits"]["active_students"], 1)
         self.assertGreaterEqual(res.data["draft_programs"], 1)
         self.assertGreaterEqual(res.data["final_programs"], 1)
         self.assertEqual(len(res.data["latest_programs"]), 2)
@@ -189,6 +192,11 @@ class DashboardApiTests(APITestCase):
         # Coach B isolation
         self.assertEqual(res_b.data["total_students"], 1)
         self.assertEqual(res_b.data["this_month_visits"], 1)
+        self.assertEqual(res_b.data["monthly_visits"]["active_students"], 1)
+        self.assertNotIn(
+            "محمد طاهری",
+            [item["student_name"] for item in res_b.data["monthly_visits"]["items"]],
+        )
         self.assertEqual(res_b.data["draft_programs"], 0)
         names = [p["title"] for p in res_b.data["latest_programs"]]
         self.assertNotIn("Draft Prog", names)
@@ -218,6 +226,68 @@ class DashboardApiTests(APITestCase):
         self.assertGreaterEqual(res3.data["archived_programs"], 1)
         live_titles = [p["title"] for p in res3.data["latest_programs"]]
         self.assertNotIn("Draft Prog", live_titles)
+
+    def test_monthly_visit_summary_is_active_scoped_and_separates_send_status(self):
+        today = date(2026, 9, 21)
+
+        def make_student(name, status=Student.Status.ACTIVE):
+            return Student.objects.create(
+                coach=self.coach_a,
+                full_name=name,
+                age=27,
+                gender=Student.Gender.MALE,
+                height_cm=Decimal("182.0"),
+                weight_kg=Decimal("86.0"),
+                status=status,
+            )
+
+        def make_visit(student, visit_date, visit_status):
+            return Visit.objects.create(
+                coach=self.coach_a,
+                student=student,
+                visit_date=visit_date,
+                current_weight_kg=Decimal("86.0"),
+                previous_weight_kg=Decimal("86.2"),
+                daily_energy_level=Visit.Level.GOOD,
+                sleep_quality=Visit.Level.MEDIUM,
+                stress_level=Visit.Level.MEDIUM,
+                status=visit_status,
+            )
+
+        no_visit = make_student("بدون ویزیت")
+        near_due = make_student("نزدیک موعد")
+        overdue = make_student("عقب‌افتاده")
+        sent = make_student("ارسال‌شده")
+        answered = make_student("پاسخ‌داده")
+        inactive = make_student("غیرفعال", status=Student.Status.INACTIVE)
+
+        make_visit(near_due, date(2026, 8, 25), Visit.Status.FINALIZED)
+        make_visit(overdue, date(2026, 8, 10), Visit.Status.FINALIZED)
+        make_visit(sent, date(2026, 9, 20), Visit.Status.WAITING_FOR_STUDENT)
+        make_visit(answered, date(2026, 9, 19), Visit.Status.STUDENT_SUBMITTED)
+        make_visit(inactive, date(2026, 9, 20), Visit.Status.WAITING_FOR_STUDENT)
+
+        with patch("accounts.dashboard.timezone.localdate", return_value=today):
+            response = self.client.get("/api/v1/dashboard/", **self.ha)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        summary = response.data["monthly_visits"]
+        self.assertEqual(summary["active_students"], 5)
+        self.assertEqual(summary["not_sent"], 3)
+        self.assertEqual(summary["sent"], 2)
+        self.assertEqual(summary["student_submitted"], 1)
+        self.assertEqual(summary["due_soon"], 2)
+        self.assertEqual(summary["overdue"], 1)
+        names = {item["student_name"] for item in summary["items"]}
+        self.assertEqual(
+            names,
+            {"بدون ویزیت", "نزدیک موعد", "عقب‌افتاده", "ارسال‌شده", "پاسخ‌داده"},
+        )
+        self.assertNotIn("غیرفعال", names)
+        status_by_name = {item["student_name"]: item["status"] for item in summary["items"]}
+        self.assertEqual(status_by_name["بدون ویزیت"], "not_sent")
+        self.assertEqual(status_by_name["ارسال‌شده"], Visit.Status.WAITING_FOR_STUDENT)
+        self.assertEqual(status_by_name["پاسخ‌داده"], Visit.Status.STUDENT_SUBMITTED)
 
     def test_body_check_today_is_scoped_and_unlogged_students_are_first(self):
         today = date(2026, 8, 6)

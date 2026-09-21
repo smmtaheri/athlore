@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
-import type { BodyCheckTodayItem } from "../services/dashboardMetrics";
-import { BodyCheckTodaySection } from "./DashboardPage";
+import type { BodyCheckTodayItem, MonthlyVisitSummary } from "../services/dashboardMetrics";
+import { BodyCheckTodaySection, MonthlyVisitSummarySection } from "./DashboardPage";
 
 function item(overrides: Partial<BodyCheckTodayItem> = {}): BodyCheckTodayItem {
   return {
@@ -64,6 +64,75 @@ describe("Coach body-check dashboard", () => {
     expect(screen.getByRole("link", { name: /شاگرد نمونه/ })).toHaveAttribute(
       "href",
       "/students/student-1/body-check"
+    );
+  });
+});
+
+describe("Coach monthly visit dashboard", () => {
+  it("shows active-student send status and links each student to monthly visits", () => {
+    const summary: MonthlyVisitSummary = {
+      activeStudents: 3,
+      asOf: "2026-09-21",
+      coachReview: 0,
+      dueSoon: 1,
+      finalized: 0,
+      items: [
+        {
+          daysUntilDue: 0,
+          dueDate: "2026-09-21",
+          dueState: "due_soon",
+          lastVisitDate: null,
+          status: "not_sent",
+          studentId: "student-missing",
+          studentName: "شاگرد ارسال‌نشده",
+          visitDate: null,
+          visitId: null
+        },
+        {
+          daysUntilDue: null,
+          dueDate: null,
+          dueState: "not_due",
+          lastVisitDate: "2026-09-20",
+          status: "waiting_for_student",
+          studentId: "student-sent",
+          studentName: "شاگرد ارسال‌شده",
+          visitDate: "2026-09-20",
+          visitId: "visit-sent"
+        },
+        {
+          daysUntilDue: null,
+          dueDate: null,
+          dueState: "not_due",
+          lastVisitDate: "2026-09-19",
+          status: "student_submitted",
+          studentId: "student-answered",
+          studentName: "شاگرد پاسخ‌داده",
+          visitDate: "2026-09-19",
+          visitId: "visit-answered"
+        }
+      ],
+      month: "2026-09",
+      notSent: 1,
+      overdue: 0,
+      sent: 2,
+      studentSubmitted: 1
+    };
+
+    render(
+      <MemoryRouter>
+        <MonthlyVisitSummarySection summary={summary} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("پیگیری ویزیت ماهانه")).toBeInTheDocument();
+    expect(screen.getByText("1 نزدیک موعد")).toBeInTheDocument();
+    expect(screen.getByText("2 ارسال‌شده")).toBeInTheDocument();
+    expect(screen.getByText("1 پاسخ‌داده")).toBeInTheDocument();
+    expect(screen.getByText("شاگرد ارسال‌نشده")).toBeInTheDocument();
+    expect(screen.getByText("شاگرد ارسال‌شده")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /شاگرد ارسال‌نشده/ })).toHaveAttribute(
+      "href",
+      "/students/student-missing/visits"
     );
   });
 });
