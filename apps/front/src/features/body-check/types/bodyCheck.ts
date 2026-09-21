@@ -1,4 +1,4 @@
-export type BodyCheckCycleStatus = "active" | "closed";
+export type BodyCheckCycleStatus = "active" | "closed" | "expired";
 
 export interface BodyCheckDayCompletion {
   hasMeals: boolean;

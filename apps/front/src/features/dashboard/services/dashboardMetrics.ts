@@ -25,9 +25,35 @@ export interface BodyCheckTodayItem {
   wakeTime: string | null;
 }
 
+export type BodyCheckCycleSummaryStatus =
+  | "active"
+  | "closed"
+  | "expired"
+  | "expiring_soon"
+  | "no_active_cycle";
+
+export interface BodyCheckCycleSummaryItem {
+  cycleId: string | null;
+  daysRemaining: number | null;
+  endDate: string | null;
+  startDate: string | null;
+  status: BodyCheckCycleSummaryStatus;
+  studentId: string;
+  studentName: string;
+}
+
+export interface BodyCheckCycleSummary {
+  active: number;
+  expiringSoon: number;
+  expired: number;
+  items: BodyCheckCycleSummaryItem[];
+  withoutActiveCycle: number;
+}
+
 export interface DashboardMetrics {
   activeStudents: number;
   asOf: string;
+  bodyCheckCycles: BodyCheckCycleSummary;
   bodyCheckToday: BodyCheckTodayItem[];
   draftPrograms: number;
   finalPrograms: number;
@@ -73,6 +99,13 @@ export function calculateDashboardMetrics({
   return {
     activeStudents: students.filter((student) => student.status === "active").length,
     asOf: new Date().toISOString().slice(0, 10),
+    bodyCheckCycles: {
+      active: 0,
+      expiringSoon: 0,
+      expired: 0,
+      items: [],
+      withoutActiveCycle: students.length
+    },
     bodyCheckToday: [],
     draftPrograms: programs.filter((program) => program.status === "draft").length,
     finalPrograms: programs.filter((program) => ["active", "ready"].includes(program.status))

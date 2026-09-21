@@ -19,7 +19,11 @@ import type {
 } from "../types/bodyCheck";
 
 export interface StudentBodyCheckRepository {
-  getActive(): Promise<{ cycle: BodyCheckCycle | null; dashboard: BodyCheckDashboardSnapshot | null }>;
+  getActive(): Promise<{
+    cycle: BodyCheckCycle | null;
+    dashboard: BodyCheckDashboardSnapshot | null;
+    history?: BodyCheckCycle[];
+  }>;
   getDashboard(): Promise<BodyCheckDashboardSnapshot | null>;
   saveEntry(input: BodyCheckEntryInput): Promise<BodyCheckDay>;
   uploadPhoto(weekNumber: number, file: File): Promise<BodyCheckPhoto>;
@@ -52,7 +56,10 @@ export function createStudentBodyCheckRepository(): StudentBodyCheckRepository {
       const dto = await apiRequest<Record<string, unknown>>("/me/body-check/");
       return {
         cycle: dto.cycle ? bodyCheckCycleFromApi(dto.cycle as Record<string, unknown>) : null,
-        dashboard: bodyCheckDashboardFromApi(dto.dashboard as Record<string, unknown> | null)
+        dashboard: bodyCheckDashboardFromApi(dto.dashboard as Record<string, unknown> | null),
+        history: Array.isArray(dto.history)
+          ? (dto.history as Record<string, unknown>[]).map(bodyCheckCycleFromApi)
+          : []
       };
     },
     async getDashboard() {

@@ -257,34 +257,35 @@ class DashboardApiTests(APITestCase):
             weight_kg=Decimal("82.0"),
             status=Student.Status.ACTIVE,
         )
-        logged_cycle = create_cycle(
-            self.coach_a,
-            logged_student,
-            start_date=today - timedelta(days=1),
-            starting_weight_kg=Decimal("86"),
-            goal_weight_kg=Decimal("80"),
-        )
-        create_cycle(
-            self.coach_a,
-            unlogged_student,
-            start_date=today - timedelta(days=1),
-            starting_weight_kg=Decimal("65"),
-            goal_weight_kg=Decimal("60"),
-        )
-        create_cycle(
-            self.coach_b,
-            other_student,
-            start_date=today - timedelta(days=1),
-            starting_weight_kg=Decimal("80"),
-            goal_weight_kg=Decimal("75"),
-        )
-        create_cycle(
-            self.coach_a,
-            expired_student,
-            start_date=today - timedelta(days=30),
-            starting_weight_kg=Decimal("82"),
-            goal_weight_kg=Decimal("78"),
-        )
+        with patch("students.body_check_services.local_today", return_value=today):
+            logged_cycle = create_cycle(
+                self.coach_a,
+                logged_student,
+                start_date=today - timedelta(days=1),
+                starting_weight_kg=Decimal("86"),
+                goal_weight_kg=Decimal("80"),
+            )
+            create_cycle(
+                self.coach_a,
+                unlogged_student,
+                start_date=today - timedelta(days=25),
+                starting_weight_kg=Decimal("65"),
+                goal_weight_kg=Decimal("60"),
+            )
+            create_cycle(
+                self.coach_b,
+                other_student,
+                start_date=today - timedelta(days=1),
+                starting_weight_kg=Decimal("80"),
+                goal_weight_kg=Decimal("75"),
+            )
+            create_cycle(
+                self.coach_a,
+                expired_student,
+                start_date=today - timedelta(days=30),
+                starting_weight_kg=Decimal("82"),
+                goal_weight_kg=Decimal("78"),
+            )
         from students.body_check_models import BodyCheckDailyEntry
 
         BodyCheckDailyEntry.objects.create(
@@ -310,3 +311,11 @@ class DashboardApiTests(APITestCase):
         self.assertEqual(items[1]["sleep_quality_score"], 8)
         self.assertNotIn("شاگرد مربی دیگر", [item["student_name"] for item in items])
         self.assertNotIn("شاگرد دوره تمام‌شده", [item["student_name"] for item in items])
+        summary = res.data["body_check_cycles"]
+        self.assertEqual(summary["active"], 2)
+        self.assertEqual(summary["expiring_soon"], 1)
+        self.assertEqual(summary["expired"], 1)
+        self.assertEqual(summary["without_active_cycle"], 0)
+
+        expired_student.refresh_from_db()
+        self.assertEqual(expired_student.body_check_cycles.get().status, "expired")

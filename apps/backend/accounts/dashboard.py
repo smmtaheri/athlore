@@ -69,9 +69,103 @@ def _build_body_check_today(coach: CoachProfile, today: date) -> list[dict]:
     return sorted(items, key=lambda item: (item["is_logged"], item["student_name"]))
 
 
+def _build_body_check_cycle_summary(coach: CoachProfile, today: date) -> dict:
+    """Return coach-scoped cycle status in two bounded queries, without N+1 reads."""
+    body_check_services.expire_overdue_cycles(coach=coach, today=today)
+    students = list(
+        Student.objects.filter(coach=coach, archived_at__isnull=True)
+        .only("id", "full_name", "status")
+        .order_by("full_name", "id")
+    )
+    cycles = list(
+        BodyCheckCycle.objects.filter(coach=coach)
+        .select_related("student")
+        .order_by("student_id", "-start_date", "-created_at")
+    )
+    latest_by_student: dict[str, BodyCheckCycle] = {}
+    for cycle in cycles:
+        latest_by_student.setdefault(str(cycle.student_id), cycle)
+
+    items: list[dict] = []
+    active_count = 0
+    expiring_count = 0
+    expired_count = 0
+    no_active_count = 0
+    for student in students:
+        cycle = latest_by_student.get(str(student.id))
+        is_active = bool(
+            cycle
+            and cycle.status == BodyCheckCycle.Status.ACTIVE
+            and cycle.start_date <= today <= cycle.end_date
+            and student.status == Student.Status.ACTIVE
+        )
+        if is_active:
+            active_count += 1
+            days_remaining = (cycle.end_date - today).days
+            is_expiring = days_remaining <= 7
+            if is_expiring:
+                expiring_count += 1
+            items.append(
+                {
+                    "cycle_id": str(cycle.id),
+                    "student_id": str(student.id),
+                    "student_name": student.full_name,
+                    "status": "expiring_soon" if is_expiring else "active",
+                    "start_date": cycle.start_date.isoformat(),
+                    "end_date": cycle.end_date.isoformat(),
+                    "days_remaining": days_remaining,
+                }
+            )
+            continue
+
+        if cycle and cycle.status in {BodyCheckCycle.Status.EXPIRED, BodyCheckCycle.Status.CLOSED}:
+            expired_count += 1
+            items.append(
+                {
+                    "cycle_id": str(cycle.id),
+                    "student_id": str(student.id),
+                    "student_name": student.full_name,
+                    "status": "expired" if cycle.status == BodyCheckCycle.Status.EXPIRED else "closed",
+                    "start_date": cycle.start_date.isoformat(),
+                    "end_date": cycle.end_date.isoformat(),
+                    "days_remaining": (cycle.end_date - today).days,
+                }
+            )
+        else:
+            no_active_count += 1
+            items.append(
+                {
+                    "cycle_id": None,
+                    "student_id": str(student.id),
+                    "student_name": student.full_name,
+                    "status": "no_active_cycle",
+                    "start_date": None,
+                    "end_date": None,
+                    "days_remaining": None,
+                }
+            )
+
+    status_order = {
+        "expired": 0,
+        "closed": 1,
+        "expiring_soon": 2,
+        "active": 3,
+        "no_active_cycle": 4,
+    }
+    items.sort(key=lambda item: (status_order[item["status"]], item["student_name"]))
+    return {
+        "active": active_count,
+        "expiring_soon": expiring_count,
+        "expired": expired_count,
+        "without_active_cycle": no_active_count,
+        "items": items,
+    }
+
+
 def build_dashboard(coach: CoachProfile, *, today: date | None = None) -> dict:
     """Return deterministic coach-scoped dashboard payload."""
     today = today or timezone.localdate()
+    body_check_services.expire_overdue_cycles(coach=coach, today=today)
     month_start = today.replace(day=1)
     if month_start.month == 12:
         next_month = month_start.replace(year=month_start.year + 1, month=1)
@@ -180,6 +274,7 @@ def build_dashboard(coach: CoachProfile, *, today: date | None = None) -> dict:
         "overdue_visits": StudentListSerializer(overdue_students, many=True).data,
         "follow_up_students": StudentListSerializer(follow_up_students, many=True).data,
         "body_check_today": _build_body_check_today(coach, today),
+        "body_check_cycles": _build_body_check_cycle_summary(coach, today),
         "today_tasks": today_tasks,
         "as_of": today.isoformat(),
     }

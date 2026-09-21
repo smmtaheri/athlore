@@ -242,7 +242,11 @@ export function StudentBodyCheckTab({
                   variant={cycle.id === activeId ? "primary" : "secondary"}
                 >
                   {formatBodyCheckDate(cycle.startDate)} ·{" "}
-                  {cycle.status === "active" ? "فعال" : "بسته"}
+                  {cycle.status === "active"
+                    ? "فعال"
+                    : cycle.status === "expired"
+                      ? "منقضی شده"
+                      : "بسته"}
                 </Button>
               ))}
             </div>
@@ -297,8 +301,20 @@ export function BodyCheckReportView({
         <h2 className={styles.title}>{studentName}</h2>
         <p className={styles.muted}>
           {formatBodyCheckDate(cycle.startDate)} تا {formatBodyCheckDate(cycle.endDate)} ·{" "}
-          <StatusBadge variant={cycle.status === "active" ? "info" : "neutral"}>
-            {cycle.status === "active" ? "فعال" : "بسته"}
+          <StatusBadge
+            variant={
+              cycle.status === "active"
+                ? "info"
+                : cycle.status === "expired"
+                  ? "warning"
+                  : "neutral"
+            }
+          >
+            {cycle.status === "active"
+              ? "فعال"
+              : cycle.status === "expired"
+                ? "منقضی شده"
+                : "بسته"}
           </StatusBadge>
         </p>
       </header>

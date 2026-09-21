@@ -16,6 +16,8 @@ import type { StudentProgramSummary } from "../../students/types/studentProgram"
 import type { StudentVisit } from "../../students/types/monthlyVisit";
 import {
   calculateDashboardMetrics,
+  type BodyCheckCycleSummary,
+  type BodyCheckCycleSummaryItem,
   type BodyCheckTodayItem,
   type DashboardMetrics
 } from "../services/dashboardMetrics";
@@ -118,6 +120,7 @@ function DashboardContent({
 
   return (
     <div className={mvpStyles.pageStack}>
+      <BodyCheckCycleSummarySection summary={metrics.bodyCheckCycles} />
       <BodyCheckTodaySection asOf={metrics.asOf} items={metrics.bodyCheckToday} />
       <div className={mvpStyles.metricGrid}>
         <Metric title="کل شاگردها" value={metrics.totalStudents} />
@@ -199,6 +202,93 @@ function DashboardContent({
         />
       </div>
     </div>
+  );
+}
+
+function cycleSummaryStatus(item: BodyCheckCycleSummaryItem): {
+  label: string;
+  variant: "danger" | "info" | "neutral" | "success" | "warning";
+} {
+  switch (item.status) {
+    case "expired":
+      return { label: "منقضی شده", variant: "danger" };
+    case "closed":
+      return { label: "بسته شده", variant: "neutral" };
+    case "expiring_soon":
+      return { label: "نزدیک به انقضا", variant: "warning" };
+    case "active":
+      return { label: "فعال", variant: "success" };
+    default:
+      return { label: "بدون دوره فعال", variant: "info" };
+  }
+}
+
+export function BodyCheckCycleSummarySection({
+  summary
+}: {
+  summary: BodyCheckCycleSummary;
+}) {
+  const attentionItems = summary.items.filter(
+    (item) => item.status === "expired" || item.status === "expiring_soon"
+  );
+  const visibleItems = attentionItems.length > 0 ? attentionItems : summary.items.slice(0, 6);
+
+  return (
+    <Card className={mvpStyles.bodyCheckCard}>
+      <div className={mvpStyles.bodyCheckHeader}>
+        <div>
+          <h2 className={styles.sectionTitle}>وضعیت دوره‌های بادی‌چک</h2>
+          <p className={styles.sectionDescription}>
+            خلاصه‌ای برای تصمیم‌گیری درباره تمدید یا فعال‌سازی دوره شاگردها
+          </p>
+        </div>
+        <StatusBadge variant={summary.expired > 0 ? "danger" : "info"}>
+          {summary.active} دوره فعال
+        </StatusBadge>
+      </div>
+      <div className={mvpStyles.bodyCheckCounts}>
+        <StatusBadge variant="success">{summary.active} فعال</StatusBadge>
+        <StatusBadge variant="warning">{summary.expiringSoon} نزدیک انقضا</StatusBadge>
+        <StatusBadge variant="danger">{summary.expired} منقضی</StatusBadge>
+        <StatusBadge variant="info">{summary.withoutActiveCycle} بدون دوره فعال</StatusBadge>
+      </div>
+      {visibleItems.length === 0 ? (
+        <p className={styles.sectionDescription}>هنوز شاگردی برای نمایش وجود ندارد.</p>
+      ) : (
+        <div className={mvpStyles.bodyCheckList}>
+          {visibleItems.map((item) => {
+            const state = cycleSummaryStatus(item);
+            const dateText = item.endDate
+              ? `تا ${formatBodyCheckDate(item.endDate)}`
+              : "نیازمند فعال‌سازی دوره";
+            const daysText =
+              item.daysRemaining == null
+                ? ""
+                : item.daysRemaining < 0
+                  ? ` · ${Math.abs(item.daysRemaining)} روز گذشته`
+                  : ` · ${item.daysRemaining} روز باقی‌مانده`;
+            return (
+              <Link
+                className={mvpStyles.bodyCheckItem}
+                key={`${item.studentId}-${item.cycleId || "none"}`}
+                to={`/students/${item.studentId}/body-check`}
+              >
+                <div className={mvpStyles.bodyCheckIdentity}>
+                  <strong>{item.studentName}</strong>
+                  <StatusBadge variant={state.variant}>{state.label}</StatusBadge>
+                </div>
+                <div className={mvpStyles.bodyCheckDetails}>
+                  <span>{dateText}{daysText}</span>
+                  {item.status === "expired" || item.status === "no_active_cycle" ? (
+                    <span>برای فعال‌سازی دوره جدید وارد پروفایل شوید</span>
+                  ) : null}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </Card>
   );
 }
 

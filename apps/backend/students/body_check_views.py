@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 from common.permissions import (
     IsAuthenticatedCoach,
     IsAuthenticatedStudent,
+    assert_student_writable_access,
     get_request_coach,
     get_request_student,
 )
@@ -176,8 +177,9 @@ class MyBodyCheckActiveView(APIView):
     def get(self, request):
         student = get_request_student(request)
         cycle = bcs.active_cycle_for_student(student)
+        history = bcs.student_body_check_history(student)
         if cycle is None:
-            return Response({"cycle": None, "dashboard": None})
+            return Response({"cycle": None, "dashboard": None, "history": history})
         return Response(
             {
                 "cycle": bcs.serialize_cycle(
@@ -188,6 +190,7 @@ class MyBodyCheckActiveView(APIView):
                     include_photos=True,
                 ),
                 "dashboard": bcs.student_dashboard_body_check(student),
+                "history": history,
             }
         )
 
@@ -207,6 +210,7 @@ class MyBodyCheckEntryUpsertView(APIView):
 
     def put(self, request):
         student = get_request_student(request)
+        assert_student_writable_access(student)
         cycle = bcs.active_cycle_for_student(student)
         if cycle is None:
             raise ValidationError({"cycle": ["No active Body Check cycle."]})
@@ -231,6 +235,7 @@ class MyBodyCheckPhotoUploadView(APIView):
 
     def post(self, request):
         student = get_request_student(request)
+        assert_student_writable_access(student)
         cycle = bcs.active_cycle_for_student(student)
         if cycle is None:
             raise ValidationError({"cycle": ["No active Body Check cycle."]})

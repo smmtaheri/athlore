@@ -55,6 +55,7 @@ export function StudentBodyCheckPage({
   repository?: StudentBodyCheckRepository;
 }) {
   const [cycle, setCycle] = useState<BodyCheckCycle | null>(null);
+  const [history, setHistory] = useState<BodyCheckCycle[]>([]);
   const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [form, setForm] = useState<DayFormState>(emptyForm(null));
@@ -66,6 +67,7 @@ export function StudentBodyCheckPage({
   const reload = async () => {
     const data = await repository.getActive();
     setCycle(data.cycle);
+    setHistory(data.history || []);
     const today = data.cycle?.localToday || "";
     const initialDate =
       selectedDate && data.cycle?.days?.some((d) => d.localDate === selectedDate)
@@ -83,6 +85,7 @@ export function StudentBodyCheckPage({
       .then((data) => {
         if (!mounted) return;
         setCycle(data.cycle);
+        setHistory(data.history || []);
         const today = data.cycle?.localToday || "";
         setSelectedDate(today);
         const day = data.cycle?.days?.find((d) => d.localDate === today) || null;
@@ -180,9 +183,21 @@ export function StudentBodyCheckPage({
     return (
       <div className={styles.page}>
         <EmptyState
-          description="مربی هنوز دوره بادی چک فعالی برای شما نساخته است."
-          title="دوره فعالی نیست"
+          description="دوره فعالی ندارید؛ سوابق قبلی شما در پایین صفحه فقط برای مشاهده باقی می‌ماند."
+          title="دوره فعالی نیست؛ پنل در حالت مشاهده است"
         />
+        {history.length > 0 ? (
+          <Card>
+            <div className={styles.stackTight}>
+              <strong>سوابق بادی‌چک</strong>
+              {history.map((item) => (
+                <div className={styles.lockedBox} key={item.id}>
+                  {formatBodyCheckDate(item.startDate)} تا {formatBodyCheckDate(item.endDate)} · {item.report?.loggedDays ?? 0} روز ثبت‌شده · {item.status === "expired" ? "منقضی‌شده" : "بسته‌شده"}
+                </div>
+              ))}
+            </div>
+          </Card>
+        ) : null}
       </div>
     );
   }

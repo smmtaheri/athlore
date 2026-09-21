@@ -83,6 +83,19 @@ def get_request_student(request):
     return student_profile.student
 
 
+def assert_student_writable_access(student):
+    """Student may keep reading history, but writes require a live coach and cycle."""
+    if student.status != student.Status.ACTIVE or student.archived_at is not None:
+        raise PermissionDenied(detail="دسترسی شما فقط خواندنی است؛ شاگرد فعال نیست.")
+    coach_user = getattr(getattr(student, "coach", None), "user", None)
+    if coach_user is None or not coach_user.is_active:
+        raise PermissionDenied(detail="دسترسی شما فقط خواندنی است؛ مربی فعال ندارید.")
+    from students.body_check_services import active_cycle_for_student
+
+    if active_cycle_for_student(student) is None:
+        raise PermissionDenied(detail="دسترسی شما فقط خواندنی است؛ دوره فعالی ندارید.")
+
+
 def get_owned_object(queryset, *, coach, pk, not_found_message: str = "Not found."):
     """Fetch an object owned by coach or raise NotFound (no cross-tenant leakage)."""
     try:

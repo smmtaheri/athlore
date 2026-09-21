@@ -11,7 +11,7 @@ from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from accounts.models import CoachProfile
-from students.body_check_models import BodyCheckDailyEntry
+from students.body_check_models import BodyCheckCycle, BodyCheckDailyEntry
 from students.body_check_services import (
     average_clock_time,
     create_cycle,
@@ -115,6 +115,45 @@ class BodyCheckApiTests(TestCase):
             f"/api/v1/students/{self.student.id}/body-check/cycles/{resp.data['id']}/"
         )
         self.assertIn(forbidden.status_code, {403, 404})
+
+    def test_expired_cycle_is_closed_before_new_cycle_is_created(self):
+        old = create_cycle(
+            self.coach,
+            self.student,
+            start_date=self.today - timedelta(days=30),
+            starting_weight_kg=Decimal("80"),
+            goal_weight_kg=Decimal("75"),
+        )
+        fresh = create_cycle(
+            self.coach,
+            self.student,
+            start_date=self.today,
+            starting_weight_kg=Decimal("79"),
+            goal_weight_kg=Decimal("74"),
+        )
+        old.refresh_from_db()
+        self.assertEqual(old.status, BodyCheckCycle.Status.EXPIRED)
+        self.assertEqual(fresh.status, BodyCheckCycle.Status.ACTIVE)
+
+    def test_student_without_active_cycle_can_read_history_but_cannot_write(self):
+        old = create_cycle(
+            self.coach,
+            self.student,
+            start_date=self.today - timedelta(days=30),
+            starting_weight_kg=Decimal("80"),
+            goal_weight_kg=Decimal("75"),
+        )
+        client = self._activate_student(self.student, "ali_bc_readonly")
+        response = client.get("/api/v1/me/body-check/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["cycle"])
+        self.assertEqual(response.data["history"][0]["id"], str(old.id))
+        write = client.put(
+            "/api/v1/me/body-check/entries/",
+            {"local_date": self.today.isoformat(), "actual_weight_kg": "79.0"},
+            format="json",
+        )
+        self.assertEqual(write.status_code, 403)
 
     def test_missing_days_are_not_fabricated_and_averages_use_logged_only(self):
         cycle = create_cycle(

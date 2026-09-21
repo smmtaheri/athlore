@@ -129,7 +129,10 @@ export function bodyCheckCycleFromApi(dto: Record<string, unknown>): BodyCheckCy
     report: dto.report ? bodyCheckReportFromApi(dto.report as Record<string, unknown>) : undefined,
     startDate: str(dto.start_date),
     startingWeightKg: num(dto.starting_weight_kg),
-    status: dto.status === "closed" ? "closed" : "active",
+    status:
+      dto.status === "closed" || dto.status === "expired"
+        ? dto.status
+        : "active",
     studentId: str(dto.student_id),
     updatedAt: str(dto.updated_at)
   };

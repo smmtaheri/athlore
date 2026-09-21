@@ -37,6 +37,8 @@ import type {
   StudentPortalStatus
 } from "../../features/students/types/student";
 import type {
+  BodyCheckCycleSummary,
+  BodyCheckCycleSummaryItem,
   BodyCheckTodayItem,
   DashboardMetrics
 } from "../../features/dashboard/services/dashboardMetrics";
@@ -971,6 +973,9 @@ export function dashboardFromApi(dto: Record<string, unknown>): DashboardMetrics
   return {
     activeStudents: num(dto.active_students),
     asOf: str(dto.as_of),
+    bodyCheckCycles: bodyCheckCycleSummaryFromApi(
+      (dto.body_check_cycles as Record<string, unknown>) || {}
+    ),
     bodyCheckToday: ((dto.body_check_today as Record<string, unknown>[]) || []).map(
       bodyCheckTodayFromApi
     ),
@@ -991,6 +996,39 @@ export function dashboardFromApi(dto: Record<string, unknown>): DashboardMetrics
     pdfGenerationAvailable: bool(dto.pdf_generation_available, true),
     pdfFilesFailed: num(dto.pdf_files_failed),
     pdfFilesPending: num(dto.pdf_files_pending)
+  };
+}
+
+function bodyCheckCycleSummaryFromApi(dto: Record<string, unknown>): BodyCheckCycleSummary {
+  return {
+    active: num(dto.active),
+    expiringSoon: num(dto.expiring_soon),
+    expired: num(dto.expired),
+    items: Array.isArray(dto.items)
+      ? (dto.items as Record<string, unknown>[]).map(bodyCheckCycleSummaryItemFromApi)
+      : [],
+    withoutActiveCycle: num(dto.without_active_cycle)
+  };
+}
+
+function bodyCheckCycleSummaryItemFromApi(
+  dto: Record<string, unknown>
+): BodyCheckCycleSummaryItem {
+  const status = String(dto.status);
+  return {
+    cycleId: dto.cycle_id == null ? null : str(dto.cycle_id),
+    daysRemaining: dto.days_remaining == null ? null : num(dto.days_remaining),
+    endDate: dto.end_date == null ? null : str(dto.end_date),
+    startDate: dto.start_date == null ? null : str(dto.start_date),
+    status:
+      status === "closed" ||
+      status === "expired" ||
+      status === "expiring_soon" ||
+      status === "no_active_cycle"
+        ? status
+        : "active",
+    studentId: str(dto.student_id),
+    studentName: str(dto.student_name)
   };
 }
 

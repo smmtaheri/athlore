@@ -12,6 +12,7 @@ from rest_framework.test import APIClient
 
 from accounts.models import CoachProfile
 from accounts.visit_form_fixtures import MINIMAL_VISIT_FORM_TEMPLATE
+from students.body_check_services import create_cycle, local_today
 from students.models import Student, VisitAnswerRevision
 from students.services import (
     complete_student_setup,
@@ -70,6 +71,20 @@ class StudentVisitApiTests(TestCase):
         self.other_coach = _coach("other@example.com")
         self.student = _student(self.coach, "Ali", phone="+989121111111")
         self.other_student = _student(self.other_coach, "Other", phone="+989122222222")
+        create_cycle(
+            self.coach,
+            self.student,
+            start_date=local_today(),
+            starting_weight_kg=Decimal("75"),
+            goal_weight_kg=Decimal("72"),
+        )
+        create_cycle(
+            self.other_coach,
+            self.other_student,
+            start_date=local_today(),
+            starting_weight_kg=Decimal("75"),
+            goal_weight_kg=Decimal("72"),
+        )
         self.tpl, _ = ensure_visit_form_from_fixture(self.coach, MINIMAL_VISIT_FORM_TEMPLATE)
         # Make goal student-visible/editable; leave training_level coach-only for isolation tests.
         sections = self.tpl.sections

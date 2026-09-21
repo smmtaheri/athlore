@@ -23,6 +23,7 @@ class BodyCheckCycle(models.Model):
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
         CLOSED = "closed", "Closed"
+        EXPIRED = "expired", "Expired"
 
     CYCLE_LENGTH_DAYS = 30
 

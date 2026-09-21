@@ -102,10 +102,12 @@ def target_for_day(cycle: BodyCheckCycle, day_number: int) -> Decimal | None:
 
 
 def cycles_for_coach_student(coach, student: Student):
+    expire_overdue_cycles(coach=coach, student=student)
     return BodyCheckCycle.objects.filter(coach=coach, student=student)
 
 
 def get_cycle_for_coach(coach, student: Student, cycle_id) -> BodyCheckCycle:
+    expire_overdue_cycles(coach=coach, student=student)
     try:
         return BodyCheckCycle.objects.get(coach=coach, student=student, pk=cycle_id)
     except BodyCheckCycle.DoesNotExist as exc:
@@ -120,21 +122,51 @@ def get_cycle_for_student(student: Student, cycle_id) -> BodyCheckCycle:
 
 
 def active_cycle_for_student(student: Student) -> BodyCheckCycle | None:
+    today = local_today()
+    expire_overdue_cycles(student=student, today=today)
     return (
-        BodyCheckCycle.objects.filter(student=student, status=BodyCheckCycle.Status.ACTIVE)
+        BodyCheckCycle.objects.filter(
+            student=student,
+            status=BodyCheckCycle.Status.ACTIVE,
+            start_date__lte=today,
+            end_date__gte=today,
+            student__status=Student.Status.ACTIVE,
+            student__archived_at__isnull=True,
+            coach__user__is_active=True,
+        )
         .order_by("-start_date", "-created_at")
         .first()
     )
 
 
 def active_cycle_for_coach_student(coach, student: Student) -> BodyCheckCycle | None:
+    today = local_today()
+    expire_overdue_cycles(coach=coach, student=student, today=today)
     return (
         BodyCheckCycle.objects.filter(
-            coach=coach, student=student, status=BodyCheckCycle.Status.ACTIVE
+            coach=coach,
+            student=student,
+            status=BodyCheckCycle.Status.ACTIVE,
+            start_date__lte=today,
+            end_date__gte=today,
         )
         .order_by("-start_date", "-created_at")
         .first()
     )
+
+
+def expire_overdue_cycles(*, today: date | None = None, coach=None, student=None) -> int:
+    """Persist expiration for active cycles whose local end date has passed."""
+    today = today or local_today()
+    queryset = BodyCheckCycle.objects.filter(
+        status=BodyCheckCycle.Status.ACTIVE,
+        end_date__lt=today,
+    )
+    if coach is not None:
+        queryset = queryset.filter(coach=coach)
+    if student is not None:
+        queryset = queryset.filter(student=student)
+    return queryset.update(status=BodyCheckCycle.Status.EXPIRED, updated_at=timezone.now())
 
 
 @transaction.atomic
@@ -149,6 +181,7 @@ def create_cycle(
     daily_targets_kg: list | None = None,
 ) -> BodyCheckCycle:
     get_owned_object(Student.objects.all(), coach=coach, pk=student.id)
+    expire_overdue_cycles(student=student)
     if BodyCheckCycle.objects.filter(
         student=student, status=BodyCheckCycle.Status.ACTIVE
     ).exists():
@@ -654,3 +687,13 @@ def student_dashboard_body_check(student: Student) -> dict | None:
         "last_target_weight_kg": float(last_target) if last_target is not None else None,
         "last_weight_delta_kg": weight_delta,
     }
+
+
+def student_body_check_history(student: Student) -> list[dict]:
+    """Historical cycles remain readable even when there is no current cycle."""
+    expire_overdue_cycles(student=student)
+    cycles = BodyCheckCycle.objects.filter(student=student).order_by("-start_date", "-created_at")
+    return [
+        serialize_cycle(cycle, for_student=True, include_report=True, include_photos=True)
+        for cycle in cycles
+    ]
