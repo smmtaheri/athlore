@@ -33,6 +33,8 @@ import {
 import styles from "../../programs/components/programFlow.module.css";
 import mvpStyles from "../../programs/components/mvp.module.css";
 
+const DASHBOARD_PREVIEW_LIMIT = 6;
+
 export function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics>();
   const [status, setStatus] = useState<"error" | "loaded" | "loading">("loading");
@@ -227,15 +229,12 @@ function cycleSummaryStatus(item: BodyCheckCycleSummaryItem): {
   }
 }
 
-export function BodyCheckCycleSummarySection({
-  summary
-}: {
-  summary: BodyCheckCycleSummary;
-}) {
+export function BodyCheckCycleSummarySection({ summary }: { summary: BodyCheckCycleSummary }) {
   const attentionItems = summary.items.filter(
     (item) => item.status === "expired" || item.status === "expiring_soon"
   );
-  const visibleItems = attentionItems.length > 0 ? attentionItems : summary.items.slice(0, 6);
+  const candidateItems = attentionItems.length > 0 ? attentionItems : summary.items;
+  const visibleItems = candidateItems.slice(0, DASHBOARD_PREVIEW_LIMIT);
 
   return (
     <Card className={mvpStyles.bodyCheckCard}>
@@ -282,7 +281,10 @@ export function BodyCheckCycleSummarySection({
                   <StatusBadge variant={state.variant}>{state.label}</StatusBadge>
                 </div>
                 <div className={mvpStyles.bodyCheckDetails}>
-                  <span>{dateText}{daysText}</span>
+                  <span>
+                    {dateText}
+                    {daysText}
+                  </span>
                   {item.status === "expired" || item.status === "no_active_cycle" ? (
                     <span>برای فعال‌سازی دوره جدید وارد پروفایل شوید</span>
                   ) : null}
@@ -292,6 +294,7 @@ export function BodyCheckCycleSummarySection({
           })}
         </div>
       )}
+      <DashboardPreviewNotice shown={visibleItems.length} total={candidateItems.length} />
     </Card>
   );
 }
@@ -309,12 +312,19 @@ function sleepSummary(item: BodyCheckTodayItem): string {
   if (item.sleepStartTime && item.wakeTime) {
     return `خواب: ${formatClockTime(item.sleepStartTime)} تا ${formatClockTime(item.wakeTime)}`;
   }
-  if (item.sleepStartTime) return `خواب: از ${formatClockTime(item.sleepStartTime)} · بیداری ثبت نشده`;
+  if (item.sleepStartTime)
+    return `خواب: از ${formatClockTime(item.sleepStartTime)} · بیداری ثبت نشده`;
   if (item.wakeTime) return `خواب: ساعت خواب ثبت نشده · بیداری ${formatClockTime(item.wakeTime)}`;
   return "خواب: ثبت نشده";
 }
 
-export function BodyCheckTodaySection({ asOf, items }: { asOf: string; items: BodyCheckTodayItem[] }) {
+export function BodyCheckTodaySection({
+  asOf,
+  items
+}: {
+  asOf: string;
+  items: BodyCheckTodayItem[];
+}) {
   const missing = items.filter((item) => bodyCheckState(item) === "missing");
   const partial = items.filter((item) => bodyCheckState(item) === "partial");
   const complete = items.filter((item) => bodyCheckState(item) === "complete");
@@ -329,7 +339,8 @@ export function BodyCheckTodaySection({ asOf, items }: { asOf: string; items: Bo
           </p>
           {items.length > 0 ? (
             <p className={styles.sectionDescription}>
-              از {items.length} شاگرد دارای دوره فعال، {logged.length} نفر امروز بادی‌چک را ثبت کرده‌اند و {missing.length} نفر هنوز ثبت نکرده‌اند.
+              از {items.length} شاگرد دارای دوره فعال، {logged.length} نفر امروز بادی‌چک را ثبت
+              کرده‌اند و {missing.length} نفر هنوز ثبت نکرده‌اند.
             </p>
           ) : null}
         </div>
@@ -406,13 +417,9 @@ export function MonthlyVisitSummarySection({ summary }: { summary: MonthlyVisitS
   );
 }
 
-function MonthlyVisitGroup({
-  items,
-  title
-}: {
-  items: MonthlyVisitSummaryItem[];
-  title: string;
-}) {
+function MonthlyVisitGroup({ items, title }: { items: MonthlyVisitSummaryItem[]; title: string }) {
+  const visibleItems = items.slice(0, DASHBOARD_PREVIEW_LIMIT);
+
   return (
     <div className={mvpStyles.monthlyVisitGroup}>
       <strong>{title}</strong>
@@ -420,7 +427,7 @@ function MonthlyVisitGroup({
         <span className={mvpStyles.monthlyVisitEmpty}>موردی ثبت نشده</span>
       ) : (
         <div className={mvpStyles.bodyCheckList}>
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const state = monthlyVisitState(item.status);
             return (
               <Link
@@ -440,6 +447,7 @@ function MonthlyVisitGroup({
           })}
         </div>
       )}
+      <DashboardPreviewNotice shown={visibleItems.length} total={items.length} />
     </div>
   );
 }
@@ -464,9 +472,7 @@ function monthlyVisitState(status: MonthlyVisitStatus): {
 
 function monthlyVisitMeta(item: MonthlyVisitSummaryItem): string {
   if (item.status !== "not_sent") {
-    return item.visitDate
-      ? `تاریخ ویزیت: ${formatBodyCheckDate(item.visitDate)}`
-      : "ویزیت این ماه";
+    return item.visitDate ? `تاریخ ویزیت: ${formatBodyCheckDate(item.visitDate)}` : "ویزیت این ماه";
   }
   if (item.dueState === "overdue" && item.daysUntilDue != null) {
     return `${Math.abs(item.daysUntilDue)} روز از موعد گذشته است`;
@@ -483,14 +489,18 @@ function monthlyVisitMeta(item: MonthlyVisitSummaryItem): string {
 
 function BodyCheckGroup({ items, title }: { items: BodyCheckTodayItem[]; title: string }) {
   if (items.length === 0) return null;
+  const visibleItems = items.slice(0, DASHBOARD_PREVIEW_LIMIT);
+
   return (
     <div className={mvpStyles.bodyCheckGroup}>
       <strong>{title}</strong>
       <div className={mvpStyles.bodyCheckList}>
-        {items.map((item) => {
+        {visibleItems.map((item) => {
           const state = bodyCheckState(item);
-          const label = state === "missing" ? "ثبت نشده" : state === "partial" ? "ثبت ناقص" : "کامل";
-          const variant = state === "missing" ? "warning" : state === "partial" ? "info" : "success";
+          const label =
+            state === "missing" ? "ثبت نشده" : state === "partial" ? "ثبت ناقص" : "کامل";
+          const variant =
+            state === "missing" ? "warning" : state === "partial" ? "info" : "success";
           return (
             <Link
               className={mvpStyles.bodyCheckItem}
@@ -502,17 +512,48 @@ function BodyCheckGroup({ items, title }: { items: BodyCheckTodayItem[]; title: 
                 <StatusBadge variant={variant}>{label}</StatusBadge>
               </div>
               <div className={mvpStyles.bodyCheckDetails}>
-                <span>وزن: {item.actualWeightKg == null ? "ثبت نشده" : formatKg(item.actualWeightKg)}</span>
-                <span>هدف: {item.targetWeightKg == null ? "ثبت نشده" : formatKg(item.targetWeightKg)}</span>
-                <span>اختلاف: {item.weightDeltaKg == null ? "ثبت نشده" : formatDeltaKg(item.weightDeltaKg)}</span>
+                <span>
+                  وزن: {item.actualWeightKg == null ? "ثبت نشده" : formatKg(item.actualWeightKg)}
+                </span>
+                <span>
+                  هدف: {item.targetWeightKg == null ? "ثبت نشده" : formatKg(item.targetWeightKg)}
+                </span>
+                <span>
+                  اختلاف:{" "}
+                  {item.weightDeltaKg == null ? "ثبت نشده" : formatDeltaKg(item.weightDeltaKg)}
+                </span>
                 <span>{sleepSummary(item)}</span>
-                <span>نمره خواب: {item.sleepQualityScore == null ? "ثبت نشده" : `${item.sleepQualityScore} از ۱۰`}</span>
-                <span>رژیم: {item.nutritionAdherenceScore == null ? "ثبت نشده" : `${item.nutritionAdherenceScore} از ۱۰`}</span>
+                <span>
+                  نمره خواب:{" "}
+                  {item.sleepQualityScore == null ? "ثبت نشده" : `${item.sleepQualityScore} از ۱۰`}
+                </span>
+                <span>
+                  رژیم:{" "}
+                  {item.nutritionAdherenceScore == null
+                    ? "ثبت نشده"
+                    : `${item.nutritionAdherenceScore} از ۱۰`}
+                </span>
               </div>
             </Link>
           );
         })}
       </div>
+      <DashboardPreviewNotice shown={visibleItems.length} total={items.length} />
+    </div>
+  );
+}
+
+function DashboardPreviewNotice({ shown, total }: { shown: number; total: number }) {
+  if (total <= shown) return null;
+
+  return (
+    <div className={mvpStyles.previewNotice}>
+      <span>
+        نمایش {shown} مورد از {total} مورد
+      </span>
+      <Link className={mvpStyles.previewLink} to="/students">
+        مشاهده لیست کامل شاگردها
+      </Link>
     </div>
   );
 }

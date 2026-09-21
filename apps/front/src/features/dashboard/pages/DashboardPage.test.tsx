@@ -55,7 +55,11 @@ describe("Coach body-check dashboard", () => {
 
     expect(screen.getByText("نیاز به پیگیری")).toBeInTheDocument();
     expect(screen.getByText("ثبت کامل امروز")).toBeInTheDocument();
-    expect(screen.getByText("از 3 شاگرد دارای دوره فعال، 2 نفر امروز بادی‌چک را ثبت کرده‌اند و 1 نفر هنوز ثبت نکرده‌اند.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "از 3 شاگرد دارای دوره فعال، 2 نفر امروز بادی‌چک را ثبت کرده‌اند و 1 نفر هنوز ثبت نکرده‌اند."
+      )
+    ).toBeInTheDocument();
     expect(screen.getByText("3 کل")).toBeInTheDocument();
     expect(screen.getByText("2 ثبت‌شده")).toBeInTheDocument();
     expect(screen.getByText("1 ثبت نشده")).toBeInTheDocument();
@@ -133,6 +137,46 @@ describe("Coach monthly visit dashboard", () => {
     expect(screen.getByRole("link", { name: /شاگرد ارسال‌نشده/ })).toHaveAttribute(
       "href",
       "/students/student-missing/visits"
+    );
+  });
+
+  it("shows a bounded preview when many students need a monthly visit", () => {
+    const summary: MonthlyVisitSummary = {
+      activeStudents: 10,
+      asOf: "2026-09-21",
+      coachReview: 0,
+      dueSoon: 10,
+      finalized: 0,
+      items: Array.from({ length: 10 }, (_, index) => ({
+        daysUntilDue: 0,
+        dueDate: "2026-09-21",
+        dueState: "due_soon" as const,
+        lastVisitDate: null,
+        status: "not_sent" as const,
+        studentId: `student-${index + 1}`,
+        studentName: `شاگرد ${index + 1}`,
+        visitDate: null,
+        visitId: null
+      })),
+      month: "2026-09",
+      notSent: 10,
+      overdue: 0,
+      sent: 0,
+      studentSubmitted: 0
+    };
+
+    render(
+      <MemoryRouter>
+        <MonthlyVisitSummarySection summary={summary} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("نمایش 6 مورد از 10 مورد")).toBeInTheDocument();
+    expect(screen.getByText("شاگرد 6")).toBeInTheDocument();
+    expect(screen.queryByText("شاگرد 7")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "مشاهده لیست کامل شاگردها" })).toHaveAttribute(
+      "href",
+      "/students"
     );
   });
 });

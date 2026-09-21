@@ -591,18 +591,32 @@
 }
 
 .pagination {
-  display: inline-flex;
+  display: flex;
+  max-width: 100%;
   align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 
 .paginationButton {
+  flex: 0 0 auto;
   min-width: 38px;
   height: 38px;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-text-secondary);
+}
+
+.paginationEllipsis {
+  display: inline-flex;
+  min-width: 24px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-weight: 700;
 }
 
 .paginationButtonActive {
@@ -669,5 +683,18 @@
 
   .tableScrollHint {
     display: block;
+  }
+
+  .pagination {
+    gap: var(--space-1);
+  }
+
+  .paginationButton {
+    min-width: 36px;
+    height: 36px;
+  }
+
+  .paginationEllipsis {
+    height: 36px;
   }
 }
