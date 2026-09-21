@@ -14,7 +14,7 @@ from rest_framework.views import APIView
 from common.permissions import (
     IsAuthenticatedCoach,
     IsAuthenticatedStudent,
-    assert_student_writable_access,
+    StudentWritableAccessMixin,
     get_request_coach,
     get_request_student,
 )
@@ -204,13 +204,12 @@ class MyBodyCheckDashboardView(APIView):
         return Response(payload)
 
 
-class MyBodyCheckEntryUpsertView(APIView):
+class MyBodyCheckEntryUpsertView(StudentWritableAccessMixin, APIView):
     permission_classes = [IsAuthenticatedStudent]
     parser_classes = [JSONParser]
 
     def put(self, request):
         student = get_request_student(request)
-        assert_student_writable_access(student)
         cycle = bcs.active_cycle_for_student(student)
         if cycle is None:
             raise ValidationError({"cycle": ["No active Body Check cycle."]})
@@ -229,13 +228,12 @@ class MyBodyCheckEntryUpsertView(APIView):
         )
 
 
-class MyBodyCheckPhotoUploadView(APIView):
+class MyBodyCheckPhotoUploadView(StudentWritableAccessMixin, APIView):
     permission_classes = [IsAuthenticatedStudent]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
         student = get_request_student(request)
-        assert_student_writable_access(student)
         cycle = bcs.active_cycle_for_student(student)
         if cycle is None:
             raise ValidationError({"cycle": ["No active Body Check cycle."]})

@@ -9,6 +9,7 @@ from common.permissions import (
     IsAuthenticatedCoach,
     IsAuthenticatedStudent,
     IsAuthenticatedStudentSetup,
+    StudentWritableAccessMixin,
     get_request_coach,
     get_request_student,
 )
@@ -392,7 +393,7 @@ class MyVisitListView(APIView):
         return paginator.get_paginated_response(items)
 
 
-class MyVisitDetailView(APIView):
+class MyVisitDetailView(StudentWritableAccessMixin, APIView):
     permission_classes = [IsAuthenticatedStudent]
 
     def get(self, request, visit_id):
@@ -402,9 +403,6 @@ class MyVisitDetailView(APIView):
 
     def patch(self, request, visit_id):
         student = get_request_student(request)
-        from common.permissions import assert_student_writable_access
-
-        assert_student_writable_access(student)
         visit = services.get_visit_for_student_profile(student, visit_id)
         serializer = StudentAnswersUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -414,14 +412,11 @@ class MyVisitDetailView(APIView):
         return Response(vfs.serialize_visit_for_student(visit))
 
 
-class MyVisitSubmitView(APIView):
+class MyVisitSubmitView(StudentWritableAccessMixin, APIView):
     permission_classes = [IsAuthenticatedStudent]
 
     def post(self, request, visit_id):
         student = get_request_student(request)
-        from common.permissions import assert_student_writable_access
-
-        assert_student_writable_access(student)
         visit = services.get_visit_for_student_profile(student, visit_id)
         visit = vfs.student_submit_visit(visit, actor=request.user)
         return Response(vfs.serialize_visit_for_student(visit))

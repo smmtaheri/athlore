@@ -96,6 +96,22 @@ def assert_student_writable_access(student):
         raise PermissionDenied(detail="دسترسی شما فقط خواندنی است؛ دوره فعالی ندارید.")
 
 
+class StudentWritableAccessMixin:
+    """Apply the student read-only policy to every mutating portal request.
+
+    Student portal views intentionally keep GET requests available for history.
+    Any POST/PUT/PATCH/DELETE request must pass the same central policy before
+    the view handler can perform a write.
+    """
+
+    writable_methods = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if request.method in self.writable_methods:
+            assert_student_writable_access(get_request_student(request))
+
+
 def get_owned_object(queryset, *, coach, pk, not_found_message: str = "Not found."):
     """Fetch an object owned by coach or raise NotFound (no cross-tenant leakage)."""
     try:

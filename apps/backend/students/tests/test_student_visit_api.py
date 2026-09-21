@@ -71,7 +71,7 @@ class StudentVisitApiTests(TestCase):
         self.other_coach = _coach("other@example.com")
         self.student = _student(self.coach, "Ali", phone="+989121111111")
         self.other_student = _student(self.other_coach, "Other", phone="+989122222222")
-        create_cycle(
+        self.cycle = create_cycle(
             self.coach,
             self.student,
             start_date=local_today(),
@@ -115,6 +115,28 @@ class StudentVisitApiTests(TestCase):
         )
         self.coach_client = APIClient()
         self.coach_client.force_authenticate(user=self.coach.user)
+
+    def test_expired_course_is_read_only_for_all_student_visit_writes(self):
+        send_visit_to_student(self.visit)
+        client, _ = self._activate_and_login_student()
+
+        self.cycle.end_date = local_today() - timedelta(days=1)
+        self.cycle.save(update_fields=["end_date"])
+
+        # History remains available after the course expires.
+        listed = client.get("/api/v1/me/visits/")
+        self.assertEqual(listed.status_code, 200)
+        self.assertIn(str(self.visit.id), {row["id"] for row in listed.data["results"]})
+
+        # The central gate rejects both mutation paths before visit services run.
+        update = client.patch(
+            f"/api/v1/me/visits/{self.visit.id}/",
+            {"answers": {"goal": "fat_loss"}},
+            format="json",
+        )
+        self.assertEqual(update.status_code, 403)
+        submit = client.post(f"/api/v1/me/visits/{self.visit.id}/submit/")
+        self.assertEqual(submit.status_code, 403)
 
     def _activate_and_login_student(self, student=None):
         from django.contrib.auth import get_user_model
