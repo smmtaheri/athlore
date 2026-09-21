@@ -16,6 +16,7 @@ export const studentPaths = {
   bodyCheck: "/body-check",
   dashboard: "/dashboard",
   login: "/login",
+  programs: "/programs",
   visits: "/visits"
 } as const;
 

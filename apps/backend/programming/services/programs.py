@@ -33,6 +33,28 @@ def get_program_for_coach(coach: CoachProfile, program_id) -> Program:
         raise NotFound(detail="Not found.") from exc
 
 
+def programs_for_student(student: Student):
+    """Return only finalized, non-archived programs owned by the student's coach."""
+    return (
+        Program.objects.filter(
+            student=student,
+            coach_id=student.coach_id,
+            archived_at__isnull=True,
+            versions__status=ProgramVersion.Status.FINALIZED,
+        )
+        .select_related("student", "active_version")
+        .prefetch_related("versions")
+        .distinct()
+    )
+
+
+def get_program_for_student(student: Student, program_id) -> Program:
+    try:
+        return programs_for_student(student).get(pk=program_id)
+    except Program.DoesNotExist as exc:
+        raise NotFound(detail="Not found.") from exc
+
+
 def get_version_for_coach(coach: CoachProfile, program: Program, version_id) -> ProgramVersion:
     try:
         return ProgramVersion.objects.get(pk=version_id, program=program, coach=coach)
@@ -121,6 +143,52 @@ def serialize_program_summary(program: Program) -> dict:
         else None,
         "created_at": program.created_at.isoformat().replace("+00:00", "Z"),
         "updated_at": program.updated_at.isoformat().replace("+00:00", "Z"),
+    }
+
+
+def _latest_student_version(program: Program) -> ProgramVersion | None:
+    versions = list(program.versions.all())
+    finalized = [v for v in versions if v.status == ProgramVersion.Status.FINALIZED]
+    if not finalized:
+        return None
+    if program.active_version_id:
+        active = next((v for v in finalized if v.id == program.active_version_id), None)
+        if active:
+            return active
+    return finalized[0]
+
+
+def serialize_student_program_summary(program: Program) -> dict:
+    version = _latest_student_version(program)
+    return {
+        "id": str(program.id),
+        "student_id": str(program.student_id),
+        "title": program.title,
+        "program_type": program.program_type,
+        "status": "active" if version and program.active_version_id == version.id else "ready",
+        "version": version.version_number if version else 0,
+        "is_current": bool(version and program.active_version_id == version.id),
+        "date_range": program.date_range_label,
+        "created_at": program.created_at.isoformat().replace("+00:00", "Z"),
+        "updated_at": program.updated_at.isoformat().replace("+00:00", "Z"),
+    }
+
+
+def serialize_student_program_detail(program: Program) -> dict:
+    """Expose finalized program content without coach-only evidence or draft data."""
+    version = _latest_student_version(program)
+    if version is None:
+        raise NotFound(detail="Not found.")
+    return {
+        **serialize_student_program_summary(program),
+        "date_range_start": program.date_range_start.isoformat()
+        if program.date_range_start
+        else None,
+        "date_range_end": program.date_range_end.isoformat() if program.date_range_end else None,
+        "program_version_id": str(version.id),
+        "training": _deep_copy(version.training),
+        "nutrition": _deep_copy(version.nutrition),
+        "supplements": _deep_copy(version.supplements),
     }
 
 

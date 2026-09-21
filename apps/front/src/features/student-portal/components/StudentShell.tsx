@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
-import { ClipboardList, Dumbbell, Home, LogOut, Menu, X, Activity } from "lucide-react";
+import { Activity, ClipboardList, Dumbbell, Home, LogOut, Menu, X } from "lucide-react";
 import { Button, IconButton } from "../../../components/ui";
 import { appConfig } from "../../../app/config/appConfig";
 import { studentPaths } from "../../../app/config/appOrigin";
@@ -10,11 +10,18 @@ import styles from "./studentPortal.module.css";
 
 const studentNavItems = [
   { end: true, icon: Home, label: "داشبورد", path: studentPaths.dashboard },
+  { end: true, icon: Dumbbell, label: "برنامه‌های من", path: studentPaths.programs },
   { end: true, icon: Activity, label: "بادی چک", path: studentPaths.bodyCheck },
   { end: false, icon: ClipboardList, label: "ویزیت‌های من", path: studentPaths.visits }
 ] as const;
 
 function titleForPath(pathname: string): string {
+  if (pathname.startsWith(`${studentPaths.programs}/`) && pathname !== studentPaths.programs) {
+    return "جزئیات برنامه";
+  }
+  if (pathname.startsWith(studentPaths.programs)) {
+    return "برنامه‌های من";
+  }
   if (pathname.startsWith(`${studentPaths.visits}/`) && pathname !== studentPaths.visits) {
     return "جزئیات ویزیت";
   }

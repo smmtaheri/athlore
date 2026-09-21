@@ -9,7 +9,15 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from common.pagination import StandardLimitOffsetPagination
-from common.permissions import IsAuthenticatedCoach, get_owned_object, get_request_coach
+from common.permissions import (
+    IsAuthenticatedCoach,
+    IsAuthenticatedStudent,
+    assert_student_writable_access,
+    get_owned_object,
+    get_request_coach,
+    get_request_student,
+)
+from delivery.models import PdfArtifact
 from delivery.serializers import (
     PdfCreateSerializer,
     PdfRenameSerializer,
@@ -17,7 +25,7 @@ from delivery.serializers import (
 )
 from delivery.services import artifacts as artifact_services
 from delivery.services import share as share_services
-from programming.models import Program
+from programming.models import Program, ProgramVersion
 from students import services as student_services
 
 
@@ -40,6 +48,112 @@ class StudentPdfListView(APIView):
         page = paginator.paginate_queryset(qs.select_related("program"), request, view=self)
         data = [artifact_services.serialize_artifact(a) for a in page]
         return paginator.get_paginated_response(data)
+
+
+def _get_student_program(student, program_id) -> Program:
+    try:
+        return Program.objects.select_related("student", "coach").get(
+            pk=program_id,
+            student=student,
+            coach_id=student.coach_id,
+            archived_at__isnull=True,
+            versions__status=ProgramVersion.Status.FINALIZED,
+        )
+    except Program.DoesNotExist as exc:
+        from rest_framework.exceptions import NotFound
+
+        raise NotFound(detail="Not found.") from exc
+
+
+def _get_student_artifact(student, pdf_id):
+    try:
+        return artifact_services.artifacts_for_coach(student.coach).select_related(
+            "program", "program_version"
+        ).get(
+            pk=pdf_id,
+            student=student,
+            program__student=student,
+            program__coach_id=student.coach_id,
+        )
+    except PdfArtifact.DoesNotExist as exc:
+        from rest_framework.exceptions import NotFound
+
+        raise NotFound(detail="Not found.") from exc
+
+
+class MyProgramPdfListCreateView(APIView):
+    """Student-owned PDF list and safe on-demand rendering for finalized programs."""
+
+    permission_classes = [IsAuthenticatedStudent]
+    pagination_class = StandardLimitOffsetPagination
+
+    def get(self, request, program_id):
+        student = get_request_student(request)
+        program = _get_student_program(student, program_id)
+        qs = artifact_services.artifacts_for_coach(student.coach).filter(
+            student=student, program=program
+        )
+        qs = artifact_services.filter_artifacts_queryset(qs, request=request)
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(qs.select_related("program"), request, view=self)
+        return paginator.get_paginated_response(
+            [artifact_services.serialize_artifact(artifact) for artifact in page]
+        )
+
+    def post(self, request, program_id):
+        student = get_request_student(request)
+        program = _get_student_program(student, program_id)
+        finalized = program.versions.filter(status=ProgramVersion.Status.FINALIZED).order_by(
+            "-version_number"
+        )
+        version = (
+            finalized.filter(pk=program.active_version_id).first()
+            if program.active_version_id
+            else None
+        ) or finalized.first()
+        existing = list(
+            artifact_services.artifacts_for_coach(student.coach)
+            .filter(
+                student=student,
+                program=program,
+                program_version=version,
+                status=PdfArtifact.Status.READY,
+            )
+            .select_related("program")
+            .order_by("program_type", "-created_at")
+        )
+        if existing:
+            artifacts = existing
+        else:
+            # Rendering a new artifact is a write. Students with an expired
+            # course can still download an already-rendered file, but cannot
+            # create new delivery artifacts.
+            assert_student_writable_access(student)
+            artifacts = artifact_services.create_and_render_delivery_pair(
+                student.coach,
+                program,
+                version_id=version.id,
+                user=request.user,
+            )
+        return Response(
+            {
+                "count": len(artifacts),
+                "artifacts": [artifact_services.serialize_artifact(a) for a in artifacts],
+            },
+            status=status.HTTP_200_OK if existing else status.HTTP_201_CREATED,
+        )
+
+
+class MyPdfDownloadView(APIView):
+    permission_classes = [IsAuthenticatedStudent]
+
+    def get(self, request, pdf_id):
+        student = get_request_student(request)
+        artifact = _get_student_artifact(student, pdf_id)
+        buf, filename, _size = artifact_services.open_artifact_file(artifact)
+        response = FileResponse(buf, content_type=artifact.mime_type or "application/pdf")
+        response["Content-Disposition"] = _content_disposition(filename)
+        return response
 
 
 class ProgramPdfListCreateView(APIView):

@@ -3,7 +3,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from common.pagination import StandardLimitOffsetPagination
-from common.permissions import IsAuthenticatedCoach, get_request_coach
+from common.permissions import (
+    IsAuthenticatedCoach,
+    IsAuthenticatedStudent,
+    get_request_coach,
+    get_request_student,
+)
 from programming.models import GenerationRun
 from programming.services import programs as program_services
 
@@ -193,6 +198,31 @@ class StudentProgramListView(APIView):
         return paginator.get_paginated_response(
             [program_services.serialize_program_summary(p) for p in page]
         )
+
+
+class MyProgramListView(APIView):
+    """Read-only program list for the currently authenticated student."""
+
+    permission_classes = [IsAuthenticatedStudent]
+    pagination_class = StandardLimitOffsetPagination
+
+    def get(self, request):
+        student = get_request_student(request)
+        qs = program_services.programs_for_student(student).order_by("-updated_at")
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        return paginator.get_paginated_response(
+            [program_services.serialize_student_program_summary(p) for p in page]
+        )
+
+
+class MyProgramDetailView(APIView):
+    permission_classes = [IsAuthenticatedStudent]
+
+    def get(self, request, program_id):
+        student = get_request_student(request)
+        program = program_services.get_program_for_student(student, program_id)
+        return Response(program_services.serialize_student_program_detail(program))
 
 
 class GenerationRunListView(APIView):

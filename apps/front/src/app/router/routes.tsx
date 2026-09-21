@@ -10,6 +10,8 @@ import { StudentDashboardPage } from "../../features/student-portal/pages/Studen
 import { StudentLoginPage } from "../../features/student-portal/pages/StudentLoginPage";
 import { StudentVisitDetailPage } from "../../features/student-portal/pages/StudentVisitDetailPage";
 import { StudentVisitsPage } from "../../features/student-portal/pages/StudentVisitsPage";
+import { StudentProgramDetailPage } from "../../features/student-portal/pages/StudentProgramDetailPage";
+import { StudentProgramsPage } from "../../features/student-portal/pages/StudentProgramsPage";
 import {
   ProgramGenerationPage,
   ProgramPreviewPage,
@@ -154,6 +156,8 @@ function StudentRoutes() {
         }
       >
         <Route element={<StudentDashboardPage />} path="dashboard" />
+        <Route element={<StudentProgramsPage />} path="programs" />
+        <Route element={<StudentProgramDetailPage />} path="programs/:programId" />
         <Route element={<StudentBodyCheckPage />} path="body-check" />
         <Route element={<StudentVisitsPage />} path="visits" />
         <Route element={<StudentVisitDetailPage />} path="visits/:visitId" />

@@ -12,11 +12,15 @@ from programming.views import (
     ProgramVersionDuplicateView,
     ProgramVersionFinalizeView,
     ProgramVersionListView,
+    MyProgramDetailView,
+    MyProgramListView,
     ProgramVersionNewVersionView,
     StudentProgramListView,
 )
 
 urlpatterns = [
+    path("me/programs/", MyProgramListView.as_view(), name="my-program-list"),
+    path("me/programs/<uuid:program_id>/", MyProgramDetailView.as_view(), name="my-program-detail"),
     path("programs/", ProgramListCreateView.as_view(), name="program-list"),
     path("programs/generate/", ProgramGenerateView.as_view(), name="program-generate"),
     path("programs/<uuid:program_id>/", ProgramDetailView.as_view(), name="program-detail"),

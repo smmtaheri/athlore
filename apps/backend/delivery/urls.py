@@ -9,9 +9,21 @@ from delivery.views import (
     ProgramVersionPdfCreateView,
     PublicSharedPdfDownloadView,
     StudentPdfListView,
+    MyPdfDownloadView,
+    MyProgramPdfListCreateView,
 )
 
 urlpatterns = [
+    path(
+        "me/programs/<uuid:program_id>/pdf-files/",
+        MyProgramPdfListCreateView.as_view(),
+        name="my-program-pdf-list-create",
+    ),
+    path(
+        "me/pdf-files/<uuid:pdf_id>/download/",
+        MyPdfDownloadView.as_view(),
+        name="my-pdf-download",
+    ),
     path(
         "students/<uuid:student_id>/pdf-files/",
         StudentPdfListView.as_view(),
