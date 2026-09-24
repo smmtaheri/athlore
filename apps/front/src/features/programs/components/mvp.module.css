@@ -118,16 +118,6 @@
   font-size: 0.8125rem;
 }
 
-.previewLink {
-  color: var(--color-primary-700);
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.previewLink:hover {
-  text-decoration: underline;
-}
-
 .monthlyVisitGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

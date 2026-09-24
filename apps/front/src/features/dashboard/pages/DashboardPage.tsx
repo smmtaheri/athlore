@@ -111,7 +111,7 @@ export function DashboardPage() {
   );
 }
 
-function DashboardContent({
+export function DashboardContent({
   metrics,
   primaryStudentId
 }: {
@@ -125,9 +125,6 @@ function DashboardContent({
 
   return (
     <div className={mvpStyles.pageStack}>
-      <BodyCheckCycleSummarySection summary={metrics.bodyCheckCycles} />
-      <BodyCheckTodaySection asOf={metrics.asOf} items={metrics.bodyCheckToday} />
-      <MonthlyVisitSummarySection summary={metrics.monthlyVisits} />
       <div className={mvpStyles.metricGrid}>
         <Metric title="کل شاگردها" value={metrics.totalStudents} />
         <Metric title="شاگردهای فعال" value={metrics.activeStudents} />
@@ -207,6 +204,9 @@ function DashboardContent({
           }))}
         />
       </div>
+      <MonthlyVisitSummarySection summary={metrics.monthlyVisits} />
+      <BodyCheckTodaySection asOf={metrics.asOf} items={metrics.bodyCheckToday} />
+      <BodyCheckCycleSummarySection summary={metrics.bodyCheckCycles} />
     </div>
   );
 }
@@ -230,11 +230,12 @@ function cycleSummaryStatus(item: BodyCheckCycleSummaryItem): {
 }
 
 export function BodyCheckCycleSummarySection({ summary }: { summary: BodyCheckCycleSummary }) {
+  const [visibleCount, setVisibleCount] = useState(DASHBOARD_PREVIEW_LIMIT);
   const attentionItems = summary.items.filter(
     (item) => item.status === "expired" || item.status === "expiring_soon"
   );
   const candidateItems = attentionItems.length > 0 ? attentionItems : summary.items;
-  const visibleItems = candidateItems.slice(0, DASHBOARD_PREVIEW_LIMIT);
+  const visibleItems = candidateItems.slice(0, visibleCount);
 
   return (
     <Card className={mvpStyles.bodyCheckCard}>
@@ -294,7 +295,14 @@ export function BodyCheckCycleSummarySection({ summary }: { summary: BodyCheckCy
           })}
         </div>
       )}
-      <DashboardPreviewNotice shown={visibleItems.length} total={candidateItems.length} />
+      <DashboardPreviewNotice
+        listName="وضعیت دوره‌های بادی‌چک"
+        onShowMore={() =>
+          setVisibleCount((current) => nextVisibleCount(current, candidateItems.length))
+        }
+        shown={visibleItems.length}
+        total={candidateItems.length}
+      />
     </Card>
   );
 }
@@ -418,7 +426,8 @@ export function MonthlyVisitSummarySection({ summary }: { summary: MonthlyVisitS
 }
 
 function MonthlyVisitGroup({ items, title }: { items: MonthlyVisitSummaryItem[]; title: string }) {
-  const visibleItems = items.slice(0, DASHBOARD_PREVIEW_LIMIT);
+  const [visibleCount, setVisibleCount] = useState(DASHBOARD_PREVIEW_LIMIT);
+  const visibleItems = items.slice(0, visibleCount);
 
   return (
     <div className={mvpStyles.monthlyVisitGroup}>
@@ -447,7 +456,12 @@ function MonthlyVisitGroup({ items, title }: { items: MonthlyVisitSummaryItem[];
           })}
         </div>
       )}
-      <DashboardPreviewNotice shown={visibleItems.length} total={items.length} />
+      <DashboardPreviewNotice
+        listName={title}
+        onShowMore={() => setVisibleCount((current) => nextVisibleCount(current, items.length))}
+        shown={visibleItems.length}
+        total={items.length}
+      />
     </div>
   );
 }
@@ -488,8 +502,9 @@ function monthlyVisitMeta(item: MonthlyVisitSummaryItem): string {
 }
 
 function BodyCheckGroup({ items, title }: { items: BodyCheckTodayItem[]; title: string }) {
+  const [visibleCount, setVisibleCount] = useState(DASHBOARD_PREVIEW_LIMIT);
   if (items.length === 0) return null;
-  const visibleItems = items.slice(0, DASHBOARD_PREVIEW_LIMIT);
+  const visibleItems = items.slice(0, visibleCount);
 
   return (
     <div className={mvpStyles.bodyCheckGroup}>
@@ -538,12 +553,27 @@ function BodyCheckGroup({ items, title }: { items: BodyCheckTodayItem[]; title: 
           );
         })}
       </div>
-      <DashboardPreviewNotice shown={visibleItems.length} total={items.length} />
+      <DashboardPreviewNotice
+        listName={title}
+        onShowMore={() => setVisibleCount((current) => nextVisibleCount(current, items.length))}
+        shown={visibleItems.length}
+        total={items.length}
+      />
     </div>
   );
 }
 
-function DashboardPreviewNotice({ shown, total }: { shown: number; total: number }) {
+function DashboardPreviewNotice({
+  listName,
+  onShowMore,
+  shown,
+  total
+}: {
+  listName: string;
+  onShowMore: () => void;
+  shown: number;
+  total: number;
+}) {
   if (total <= shown) return null;
 
   return (
@@ -551,11 +581,15 @@ function DashboardPreviewNotice({ shown, total }: { shown: number; total: number
       <span>
         نمایش {shown} مورد از {total} مورد
       </span>
-      <Link className={mvpStyles.previewLink} to="/students">
-        مشاهده لیست کامل شاگردها
-      </Link>
+      <Button aria-label={`نمایش ادامه ${listName}`} onClick={onShowMore} size="sm" variant="ghost">
+        نمایش {Math.min(DASHBOARD_PREVIEW_LIMIT, total - shown)} مورد دیگر
+      </Button>
     </div>
   );
+}
+
+function nextVisibleCount(current: number, total: number): number {
+  return Math.min(current + DASHBOARD_PREVIEW_LIMIT, total);
 }
 
 function Metric({ hint, title, value }: { hint?: string; title: string; value: number }) {

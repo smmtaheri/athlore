@@ -1,8 +1,20 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
-import type { BodyCheckTodayItem, MonthlyVisitSummary } from "../services/dashboardMetrics";
-import { BodyCheckTodaySection, MonthlyVisitSummarySection } from "./DashboardPage";
+import {
+  emptyMonthlyVisitSummary,
+  type BodyCheckCycleSummary,
+  type BodyCheckTodayItem,
+  type DashboardMetrics,
+  type MonthlyVisitSummary
+} from "../services/dashboardMetrics";
+import {
+  BodyCheckCycleSummarySection,
+  BodyCheckTodaySection,
+  DashboardContent,
+  MonthlyVisitSummarySection
+} from "./DashboardPage";
 
 function item(overrides: Partial<BodyCheckTodayItem> = {}): BodyCheckTodayItem {
   return {
@@ -69,6 +81,64 @@ describe("Coach body-check dashboard", () => {
       "href",
       "/students/student-1/body-check"
     );
+  });
+
+  it("continues the same body-check list instead of linking to all students", async () => {
+    const user = userEvent.setup();
+    const items = Array.from({ length: 8 }, (_, index) =>
+      item({
+        cycleId: `cycle-${index + 1}`,
+        studentId: `student-${index + 1}`,
+        studentName: `شاگرد ${index + 1}`
+      })
+    );
+
+    render(
+      <MemoryRouter>
+        <BodyCheckTodaySection asOf="2026-09-17" items={items} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("شاگرد 6")).toBeInTheDocument();
+    expect(screen.queryByText("شاگرد 7")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "مشاهده لیست کامل شاگردها" })
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "نمایش ادامه نیاز به پیگیری" }));
+
+    expect(screen.getByText("شاگرد 7")).toBeInTheDocument();
+    expect(screen.getByText("شاگرد 8")).toBeInTheDocument();
+  });
+
+  it("continues the same cycle-status list", async () => {
+    const user = userEvent.setup();
+    const summary: BodyCheckCycleSummary = {
+      active: 8,
+      expiringSoon: 0,
+      expired: 0,
+      items: Array.from({ length: 8 }, (_, index) => ({
+        cycleId: `cycle-${index + 1}`,
+        daysRemaining: 10,
+        endDate: "2026-09-27",
+        startDate: "2026-08-28",
+        status: "active" as const,
+        studentId: `student-${index + 1}`,
+        studentName: `دوره شاگرد ${index + 1}`
+      })),
+      withoutActiveCycle: 0
+    };
+
+    render(
+      <MemoryRouter>
+        <BodyCheckCycleSummarySection summary={summary} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("دوره شاگرد 6")).toBeInTheDocument();
+    expect(screen.queryByText("دوره شاگرد 7")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "نمایش ادامه وضعیت دوره‌های بادی‌چک" }));
+    expect(screen.getByText("دوره شاگرد 8")).toBeInTheDocument();
   });
 });
 
@@ -140,7 +210,8 @@ describe("Coach monthly visit dashboard", () => {
     );
   });
 
-  it("shows a bounded preview when many students need a monthly visit", () => {
+  it("continues the same monthly-visit list when more students need follow-up", async () => {
+    const user = userEvent.setup();
     const summary: MonthlyVisitSummary = {
       activeStudents: 10,
       asOf: "2026-09-21",
@@ -174,9 +245,69 @@ describe("Coach monthly visit dashboard", () => {
     expect(screen.getByText("نمایش 6 مورد از 10 مورد")).toBeInTheDocument();
     expect(screen.getByText("شاگرد 6")).toBeInTheDocument();
     expect(screen.queryByText("شاگرد 7")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "مشاهده لیست کامل شاگردها" })).toHaveAttribute(
-      "href",
-      "/students"
+    expect(
+      screen.queryByRole("link", { name: "مشاهده لیست کامل شاگردها" })
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "نمایش ادامه ارسال نشده‌ها" }));
+    expect(screen.getByText("شاگرد 10")).toBeInTheDocument();
+    expect(screen.queryByText("نمایش 6 مورد از 10 مورد")).not.toBeInTheDocument();
+  });
+});
+
+describe("Coach dashboard layout", () => {
+  it("places metrics and quick actions before the follow-up panels", () => {
+    const metrics: DashboardMetrics = {
+      activeStudents: 7,
+      asOf: "2026-09-17",
+      bodyCheckCycles: {
+        active: 0,
+        expiringSoon: 0,
+        expired: 0,
+        items: [],
+        withoutActiveCycle: 7
+      },
+      bodyCheckToday: [],
+      draftPrograms: 0,
+      finalPrograms: 4,
+      followUpStudents: [],
+      latestPrograms: [],
+      latestVisits: [],
+      monthlyVisits: emptyMonthlyVisitSummary("2026-09-17"),
+      overdueVisits: [],
+      readyPdfFiles: 7,
+      thisMonthVisits: 3,
+      todayTasks: [],
+      totalStudents: 7
+    };
+
+    render(
+      <MemoryRouter>
+        <DashboardContent metrics={metrics} primaryStudentId="student-1" />
+      </MemoryRouter>
     );
+
+    const metricsCard = screen.getByText("کل شاگردها");
+    const quickAction = screen.getByRole("button", { name: "افزودن شاگرد" });
+    const followUps = screen.getByText("کارهای امروز");
+    const monthlyVisits = screen.getByText("پیگیری ویزیت ماهانه");
+    const bodyCheckToday = screen.getByText("پیگیری بادی‌چک امروز");
+    const cycleStatus = screen.getByText("وضعیت دوره‌های بادی‌چک");
+
+    expect(
+      metricsCard.compareDocumentPosition(quickAction) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      quickAction.compareDocumentPosition(followUps) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      followUps.compareDocumentPosition(monthlyVisits) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      monthlyVisits.compareDocumentPosition(bodyCheckToday) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      bodyCheckToday.compareDocumentPosition(cycleStatus) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 });
