@@ -57,23 +57,20 @@ export function StudentVisitDetailPage({
     };
   }, [repository, visitId]);
 
-  const sections = useMemo(() => enabledSectionsFromTemplate(visit?.formTemplateSnapshot), [visit]);
-  const displayAnswers = useMemo(() => {
-    if (!visit?.visitDate) return answers;
-    const assessmentDateKeys = sections
-      .flatMap((section) => section.fields)
-      .filter(
-        (field) =>
-          field.type === "date" &&
-          (field.semanticKey === "assessment_date" || field.key === "assessment_date")
-      )
-      .map((field) => field.key);
-    if (assessmentDateKeys.length === 0) return answers;
-    return {
-      ...answers,
-      ...Object.fromEntries(assessmentDateKeys.map((key) => [key, visit.visitDate]))
-    };
-  }, [answers, sections, visit]);
+  const sections = useMemo(
+    () =>
+      enabledSectionsFromTemplate(visit?.formTemplateSnapshot)
+        .map((section) => ({
+          ...section,
+          fields: section.fields.filter(
+            (field) =>
+              field.type !== "date" ||
+              (field.semanticKey !== "assessment_date" && field.key !== "assessment_date")
+          )
+        }))
+        .filter((section) => section.fields.length > 0),
+    [visit]
+  );
   const open = visit ? isVisitOpenForStudent(visit) : false;
   const expired = Boolean(visit?.isExpired) && visit?.status === "waiting_for_student";
   const deadline = visit ? formatVisitDeadline(visit) : null;
@@ -193,12 +190,12 @@ export function StudentVisitDetailPage({
             ویزیت‌های من
           </Link>
           <span aria-hidden>/</span>
-          <span>{visitDisplayTitle(visit)}</span>
+          <span>{visitDisplayTitle()}</span>
         </nav>
 
         <header className={styles.detailHeader}>
           <div className={styles.detailTitleRow}>
-            <h1 className={styles.welcomeTitle}>{visitDisplayTitle(visit)}</h1>
+            <h1 className={styles.welcomeTitle}>{visitDisplayTitle()}</h1>
             <StatusBadge variant={studentVisitStatusVariant(visit)}>
               {studentVisitStatusLabel(visit)}
             </StatusBadge>
@@ -222,7 +219,7 @@ export function StudentVisitDetailPage({
         {sections.length > 0 ? (
           <Card>
             <VisitDynamicForm
-              answers={displayAnswers}
+              answers={answers}
               disabled={!open}
               onAnswersChange={setAnswers}
               respectStudentEditable={open}

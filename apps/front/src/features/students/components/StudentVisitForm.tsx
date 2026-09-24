@@ -620,6 +620,7 @@ export function StudentVisitForm({
           disabled={answersReadOnly || isFinalized}
           onAnswersChange={setAnswers}
           sections={dynamicSections}
+          showCoachHelpText
         />
       ) : null}
 

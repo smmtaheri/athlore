@@ -1,11 +1,5 @@
 export type VisitFormFieldType =
-  | "text"
-  | "number"
-  | "boolean"
-  | "single_select"
-  | "multi_select"
-  | "textarea"
-  | "date";
+  "text" | "number" | "boolean" | "single_select" | "multi_select" | "textarea" | "date";
 
 export interface VisitFormFieldOption {
   label: string;
@@ -13,6 +7,7 @@ export interface VisitFormFieldOption {
 }
 
 export interface VisitFormFieldDefinition {
+  coachHelpText?: string;
   coachEditable?: boolean;
   enabled: boolean;
   helpText: string;
@@ -64,11 +59,7 @@ export interface VisitFormTemplateSnapshot {
 }
 
 export type VisitStatus =
-  | "draft"
-  | "waiting_for_student"
-  | "student_submitted"
-  | "coach_review"
-  | "finalized";
+  "draft" | "waiting_for_student" | "student_submitted" | "coach_review" | "finalized";
 
 export const visitStatusLabels: Record<VisitStatus, string> = {
   coach_review: "در حال بررسی مربی",

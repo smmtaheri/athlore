@@ -41,6 +41,7 @@ const fieldTypeOptions: Array<{ label: string; value: VisitFormFieldType }> = [
 function createEmptyField(order: number): VisitFormFieldDefinition {
   return {
     coachEditable: true,
+    coachHelpText: "",
     enabled: true,
     helpText: "",
     key: `custom_field_${Date.now()}`,
@@ -292,10 +293,7 @@ export function VisitFormTemplatesSection({
         ) : null}
 
         {templates.length === 0 ? (
-          <EmptyState
-            description="هنوز قالب فرم ویزیتی تعریف نشده است."
-            title="قالبی نیست"
-          />
+          <EmptyState description="هنوز قالب فرم ویزیتی تعریف نشده است." title="قالبی نیست" />
         ) : (
           <ul className={styles.reviewList}>
             {templates.map((template) => (
@@ -517,9 +515,7 @@ function SectionEditor({
         </FormField>
         <FormField label="ترتیب بخش">
           <Input
-            onChange={(event) =>
-              onChange({ ...section, order: Number(event.target.value) || 0 })
-            }
+            onChange={(event) => onChange({ ...section, order: Number(event.target.value) || 0 })}
             type="number"
             value={String(section.order)}
           />
@@ -660,13 +656,9 @@ function SectionEditor({
                 label="قابل مشاهده پس از نهایی‌سازی"
               >
                 <Switch
-                  checked={Boolean(
-                    field.studentVisibleWhenFinalized ?? field.studentVisible
-                  )}
+                  checked={Boolean(field.studentVisibleWhenFinalized ?? field.studentVisible)}
                   label={
-                    (field.studentVisibleWhenFinalized ?? field.studentVisible)
-                      ? "بله"
-                      : "خیر"
+                    (field.studentVisibleWhenFinalized ?? field.studentVisible) ? "بله" : "خیر"
                   }
                   onCheckedChange={(checked) =>
                     updateField(field.key, {
@@ -705,12 +697,23 @@ function SectionEditor({
               </FormField>
             )}
 
-            <FormField label="راهنما">
+            <FormField hint="این متن در فرم شاگرد نمایش داده می‌شود." label="راهنمای شاگرد">
               <Input
                 onChange={(event) =>
                   updateField(field.key, { ...field, helpText: event.target.value })
                 }
                 value={field.helpText}
+              />
+            </FormField>
+            <FormField
+              hint="این یادداشت فقط در پنل مربی نمایش داده می‌شود."
+              label="یادداشت داخلی مربی"
+            >
+              <Input
+                onChange={(event) =>
+                  updateField(field.key, { ...field, coachHelpText: event.target.value })
+                }
+                value={field.coachHelpText ?? ""}
               />
             </FormField>
           </li>

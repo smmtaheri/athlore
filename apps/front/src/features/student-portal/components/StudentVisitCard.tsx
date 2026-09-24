@@ -25,7 +25,10 @@ export function StudentVisitCard({
   const deadline = formatVisitDeadline(visit);
   const visitDate = formatVisitDate(visit);
   const canPrimaryNavigate =
-    open || visit.status === "finalized" || expired || visit.status === "student_submitted" ||
+    open ||
+    visit.status === "finalized" ||
+    expired ||
+    visit.status === "student_submitted" ||
     visit.status === "coach_review";
 
   return (
@@ -33,7 +36,7 @@ export function StudentVisitCard({
       className={`${styles.visitCard} ${open ? styles.visitCardOpen : ""} ${expired ? styles.visitCardMuted : ""}`}
     >
       <div className={styles.visitCardTop}>
-        <h3 className={styles.visitCardTitle}>{visitDisplayTitle(visit)}</h3>
+        <h3 className={styles.visitCardTitle}>{visitDisplayTitle()}</h3>
         <StatusBadge variant={studentVisitStatusVariant(visit)}>
           {studentVisitStatusLabel(visit)}
         </StatusBadge>

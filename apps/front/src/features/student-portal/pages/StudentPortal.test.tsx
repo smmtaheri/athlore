@@ -247,7 +247,8 @@ describe("Student portal routes", () => {
     expect(await screen.findByText("فضای شخصی شما")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "بادی چک امروز" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "آخرین ویزیت ارسال‌شده" })).toBeInTheDocument();
-    expect(screen.getByText("ویزیت ارسال‌شده")).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: "ارزیابی ماهانه" })).toHaveLength(2);
+    expect(screen.queryByText("ویزیت ارسال‌شده")).not.toBeInTheDocument();
     expect(screen.getByText("۱۴۰۵/۰۶/۳۰")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "تکمیل ویزیت" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "تکمیل ویزیت" }));
@@ -280,11 +281,14 @@ describe("Student portal routes", () => {
 
     const visitTitles = await screen.findAllByRole("heading", { level: 3 });
     expect(visitTitles.map((heading) => heading.textContent)).toEqual([
-      "ویزیت جدیدتر",
-      "ویزیت قدیمی‌تر"
+      "ارزیابی ماهانه",
+      "ارزیابی ماهانه"
     ]);
-    expect(screen.getByText("۱۴۰۵/۰۶/۳۰")).toBeInTheDocument();
-    expect(screen.getByText("۱۴۰۵/۰۵/۱۰")).toBeInTheDocument();
+    const newerDate = screen.getByText("۱۴۰۵/۰۶/۳۰");
+    const olderDate = screen.getByText("۱۴۰۵/۰۵/۱۰");
+    expect(
+      newerDate.compareDocumentPosition(olderDate) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 
   it("filters my visits list and shows status-appropriate actions", async () => {
@@ -329,7 +333,8 @@ describe("Student portal routes", () => {
     expect(screen.getByText(/مهلت ارسال این ویزیت تمام شده/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "نهایی‌شده" }));
-    expect(screen.getByText("نهایی")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "ارزیابی ماهانه" })).toBeInTheDocument();
+    expect(screen.queryByText("نهایی")).not.toBeInTheDocument();
     expect(screen.queryByText("ارسال شده")).not.toBeInTheDocument();
   });
 
@@ -425,9 +430,10 @@ describe("Student portal routes", () => {
     expect(screen.queryByRole("button", { name: "ارسال برای مربی" })).not.toBeInTheDocument();
   });
 
-  it("shows the visit date as Jalali in the read-only assessment date field", async () => {
+  it("shows one Jalali visit date and hides the duplicate assessment-date field", async () => {
     const finalized = baseVisit({
       answers: {},
+      formTemplateName: "فرم ویزیت کامل آرمان",
       formTemplateSnapshot: {
         sections: [
           {
@@ -475,10 +481,10 @@ describe("Student portal routes", () => {
       </MemoryRouter>
     );
 
-    const assessmentDate = await screen.findByLabelText("تاریخ ارزیابی");
-    expect(assessmentDate).toHaveValue("۱۴۰۵/۰۷/۰۲");
-    expect(assessmentDate).toHaveAttribute("type", "text");
+    expect(await screen.findByRole("heading", { name: "ارزیابی ماهانه" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("تاریخ ارزیابی")).not.toBeInTheDocument();
     expect(screen.getByText("تاریخ ویزیت: ۱۴۰۵/۰۷/۰۲")).toBeInTheDocument();
+    expect(screen.queryByText("فرم ویزیت کامل آرمان")).not.toBeInTheDocument();
   });
 
   it("blocks edit and submit for expired open visits", async () => {

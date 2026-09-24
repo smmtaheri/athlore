@@ -28,6 +28,7 @@ from students.visit_form_services import (
     ensure_visit_form_from_fixture,
     send_visit_to_student,
     serialize_visit_for_student,
+    serialize_visit_form_payload,
     set_default_template,
 )
 
@@ -286,6 +287,83 @@ class StudentVisibilityTests(TestCase):
         open_data = serialize_visit_for_student(visit)
         self.assertTrue(open_data.get("student_editable_fields"))
         self.assertIn("weight_kg", open_data["student_editable_fields"])
+
+    def test_student_serializer_removes_legacy_coach_hints_from_historical_snapshot(self):
+        coach = _make_coach("legacy-hints@example.com", "Legacy hints")
+        student = _make_student(coach)
+        template, _ = ensure_visit_form_from_fixture(coach, ARMAN_VISIT_FORM_TEMPLATE)
+        visit = create_visit(
+            coach,
+            student,
+            _core_visit_payload(form_template_id=str(template.id)),
+        )
+        legacy_notes = [
+            "مرجع مربی — اجرا توسط ژنراتور نمی‌شود.",
+            "پیکربندی مربی؛ به‌صورت پیش‌فرض در همه برنامه‌ها hardcode نمی‌شود.",
+            (
+                "محدودیت زمان، محدودیت حرکت، آزمایش خون، مشاهدات آزاد — "
+                "متن آزاد به‌صورت خودکار اجرا نمی‌شود."
+            ),
+        ]
+        visit.form_template_snapshot = {
+            "name": "فرم ویزیت کامل آرمان",
+            "sections": [
+                {
+                    "key": "visible",
+                    "label": "قابل نمایش",
+                    "fields": [
+                        {
+                            "key": f"legacy_{index}",
+                            "label": "فیلد",
+                            "type": "text",
+                            "enabled": True,
+                            "student_visible": True,
+                            "student_visible_when_finalized": True,
+                            "help_text": note,
+                        }
+                        for index, note in enumerate(legacy_notes)
+                    ]
+                    + [
+                        {
+                            "key": "student_guidance",
+                            "label": "راهنمای شاگرد",
+                            "type": "text",
+                            "enabled": True,
+                            "student_visible": True,
+                            "student_visible_when_finalized": True,
+                            "help_text": "این راهنما برای شاگرد است.",
+                        },
+                        {
+                            "key": "new_internal_guidance",
+                            "label": "یادداشت مربی",
+                            "type": "text",
+                            "enabled": True,
+                            "student_visible": True,
+                            "student_visible_when_finalized": True,
+                            "help_text": "",
+                            "coach_help_text": "این یادداشت فقط برای مربی است.",
+                        },
+                    ],
+                }
+            ],
+        }
+        visit.save(update_fields=["form_template_snapshot", "updated_at"])
+
+        student_data = serialize_visit_for_student(visit)
+        student_snapshot = student_data["form_template_snapshot"]
+        student_fields = student_snapshot["sections"][0]["fields"]
+        serialized_student_fields = str(student_fields)
+        for note in legacy_notes:
+            self.assertNotIn(note, serialized_student_fields)
+        self.assertNotIn("coach_help_text", serialized_student_fields)
+        self.assertEqual(student_snapshot["name"], "ارزیابی ماهانه")
+        self.assertIn("این راهنما برای شاگرد است.", serialized_student_fields)
+        self.assertEqual(student_data["form_template_name"], "ارزیابی ماهانه")
+
+        coach_snapshot = serialize_visit_form_payload(visit)["form_template_snapshot"]
+        coach_fields = coach_snapshot["sections"][0]["fields"]
+        self.assertEqual(coach_fields[0]["coach_help_text"], legacy_notes[0])
+        self.assertEqual(coach_fields[-1]["coach_help_text"], "این یادداشت فقط برای مربی است.")
 
 
 class VisitFormGeneratorTests(TestCase):

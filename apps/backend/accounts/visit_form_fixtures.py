@@ -25,6 +25,7 @@ def _field(
     enabled: bool = True,
     order: int = 0,
     help_text: str = "",
+    coach_help_text: str = "",
     prefill_from: str = "",
     student_visible: bool = False,
     student_editable: bool = False,
@@ -45,6 +46,7 @@ def _field(
         "enabled": enabled,
         "order": order,
         "help_text": help_text,
+        "coach_help_text": coach_help_text,
         "prefill_from": prefill_from,
         "student_visible": student_visible,
         "student_visible_when_finalized": student_visible_when_finalized,
@@ -126,7 +128,9 @@ LEVEL_OPTIONS = [
 ]
 
 
-def _muscle_detail_fields(prefix: str, labels: list[tuple[str, str]], start_order: int) -> list[dict]:
+def _muscle_detail_fields(
+    prefix: str, labels: list[tuple[str, str]], start_order: int
+) -> list[dict]:
     fields = []
     for i, (sub_key, label) in enumerate(labels):
         fields.append(
@@ -148,8 +152,7 @@ ARMAN_VISIT_FORM_TEMPLATE: dict[str, Any] = {
     "name": "فرم ویزیت کامل آرمان",
     "version": 1,
     "description": (
-        "فرم ویزیت دوره‌ای آرمان — داده/پیکربندی مربی. "
-        "مشاهدات اسکلتی تشخیص پزشکی نیستند."
+        "فرم ویزیت دوره‌ای آرمان — داده/پیکربندی مربی. مشاهدات اسکلتی تشخیص پزشکی نیستند."
     ),
     "is_active": True,
     "is_default": True,
@@ -240,7 +243,7 @@ ARMAN_VISIT_FORM_TEMPLATE: dict[str, Any] = {
                     field_type="textarea",
                     semantic_key="medications",
                     order=10,
-                    help_text="مرجع مربی — اجرا توسط ژنراتور نمی‌شود.",
+                    coach_help_text="مرجع مربی — اجرا توسط ژنراتور نمی‌شود.",
                 ),
                 _field(
                     "free_text_plan",
@@ -526,7 +529,7 @@ ARMAN_VISIT_FORM_TEMPLATE: dict[str, Any] = {
                     semantic_key="training_methods",
                     options=TRAINING_METHOD_OPTIONS,
                     order=0,
-                    help_text="پیکربندی مربی؛ به‌صورت پیش‌فرض در همه برنامه‌ها hardcode نمی‌شود.",
+                    coach_help_text="پیکربندی مربی؛ به‌صورت پیش‌فرض در همه برنامه‌ها hardcode نمی‌شود.",
                 ),
             ],
         ),
@@ -590,7 +593,7 @@ ARMAN_VISIT_FORM_TEMPLATE: dict[str, Any] = {
                     field_type="textarea",
                     semantic_key="",
                     order=0,
-                    help_text=(
+                    coach_help_text=(
                         "محدودیت زمان، محدودیت حرکت، آزمایش خون، مشاهدات آزاد — "
                         "متن آزاد به‌صورت خودکار اجرا نمی‌شود."
                     ),

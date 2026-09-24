@@ -223,7 +223,9 @@ export function visitFromApi(dto: Record<string, unknown>): StudentVisit {
       trainingPercent: num(adherence.training_percent)
     },
     answerSources:
-      dto.answer_sources && typeof dto.answer_sources === "object" && !Array.isArray(dto.answer_sources)
+      dto.answer_sources &&
+      typeof dto.answer_sources === "object" &&
+      !Array.isArray(dto.answer_sources)
         ? Object.fromEntries(
             Object.entries(dto.answer_sources as Record<string, unknown>).map(([key, value]) => [
               key,
@@ -266,7 +268,8 @@ export function visitFromApi(dto: Record<string, unknown>): StudentVisit {
     stressLevel: (dto.stress_level as StudentVisit["stressLevel"]) || "medium",
     studentFeedback: String(dto.student_feedback ?? ""),
     studentId: String(dto.student_id ?? ""),
-    submittedByStudentAt: dto.submitted_by_student_at == null ? null : str(dto.submitted_by_student_at),
+    submittedByStudentAt:
+      dto.submitted_by_student_at == null ? null : str(dto.submitted_by_student_at),
     trainingConditionChanges: String(dto.training_condition_changes ?? ""),
     updatedAt: String(dto.updated_at ?? ""),
     visitDate: String(dto.visit_date ?? "")
@@ -310,7 +313,9 @@ function portalAccessFromApi(value: unknown): StudentPortalAccess | undefined {
   };
 }
 
-export function studentActivateLoginFromApi(dto: Record<string, unknown>): StudentActivateLoginResult {
+export function studentActivateLoginFromApi(
+  dto: Record<string, unknown>
+): StudentActivateLoginResult {
   const initial =
     dto.initial_password == null
       ? dto.temporary_password == null
@@ -399,6 +404,7 @@ function visitFormFieldFromApi(dto: Record<string, unknown>): VisitFormFieldDefi
     : [];
 
   return {
+    coachHelpText: str(dto.coach_help_text ?? dto.coachHelpText),
     coachEditable: dto.coach_editable == null ? undefined : bool(dto.coach_editable, true),
     enabled: bool(dto.enabled, true),
     helpText: str(dto.help_text ?? dto.helpText),
@@ -441,6 +447,7 @@ function visitFormSectionsFromApi(value: unknown): VisitFormSectionDefinition[] 
 
 function visitFormFieldToApi(field: VisitFormFieldDefinition): Record<string, unknown> {
   return {
+    coach_help_text: field.coachHelpText ?? "",
     coach_editable: field.coachEditable ?? true,
     enabled: field.enabled,
     help_text: field.helpText,
@@ -1056,9 +1063,7 @@ function bodyCheckCycleSummaryFromApi(dto: Record<string, unknown>): BodyCheckCy
   };
 }
 
-function bodyCheckCycleSummaryItemFromApi(
-  dto: Record<string, unknown>
-): BodyCheckCycleSummaryItem {
+function bodyCheckCycleSummaryItemFromApi(dto: Record<string, unknown>): BodyCheckCycleSummaryItem {
   const status = String(dto.status);
   return {
     cycleId: dto.cycle_id == null ? null : str(dto.cycle_id),

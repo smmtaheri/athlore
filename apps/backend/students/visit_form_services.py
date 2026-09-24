@@ -26,6 +26,16 @@ VALID_FIELD_TYPES = {
 }
 
 VALID_VISIT_STATUSES = {c.value for c in Visit.Status}
+STUDENT_VISIT_TITLE = "ارزیابی ماهانه"
+
+# Older saved templates put these coach-only notes in the shared help_text key.
+# Keep historical visit snapshots readable for coaches while removing those
+# notes from student responses.
+LEGACY_COACH_ONLY_HELP_TEXTS = {
+    "مرجع مربی — اجرا توسط ژنراتور نمی‌شود.",
+    "پیکربندی مربی؛ به‌صورت پیش‌فرض در همه برنامه‌ها hardcode نمی‌شود.",
+    ("محدودیت زمان، محدودیت حرکت، آزمایش خون، مشاهدات آزاد — متن آزاد به‌صورت خودکار اجرا نمی‌شود."),
+}
 
 
 def _resolve_prefill(student: Student, path: str) -> Any:
@@ -61,12 +71,39 @@ def serialize_template(template: CoachVisitFormTemplate) -> dict:
         "name": template.name,
         "version": template.version,
         "description": template.description,
-        "sections": list(template.sections or []),
+        "sections": _normalize_sections(template.sections or []),
         "is_active": template.is_active,
         "is_default": template.is_default,
         "created_at": template.created_at.isoformat().replace("+00:00", "Z"),
         "updated_at": template.updated_at.isoformat().replace("+00:00", "Z"),
     }
+
+
+def _normalize_legacy_field(field: dict) -> dict:
+    normalized = dict(field)
+    help_text = str(normalized.get("help_text") or "")
+    if help_text in LEGACY_COACH_ONLY_HELP_TEXTS:
+        normalized["coach_help_text"] = str(normalized.get("coach_help_text") or help_text)
+        normalized["help_text"] = ""
+    return normalized
+
+
+def _normalize_sections(sections: list) -> list:
+    normalized_sections = []
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        normalized_sections.append(
+            {
+                **section,
+                "fields": [
+                    _normalize_legacy_field(field)
+                    for field in (section.get("fields") or [])
+                    if isinstance(field, dict)
+                ],
+            }
+        )
+    return normalized_sections
 
 
 def list_templates(coach: CoachProfile):
@@ -124,6 +161,7 @@ def _validate_sections(sections: Any) -> list:
             else:
                 # Old snapshots / payloads without the key inherit open-visit visibility.
                 student_visible_when_finalized = student_visible
+            field = _normalize_legacy_field(field)
             clean_fields.append(
                 {
                     "key": str(field.get("key") or "").strip(),
@@ -135,6 +173,7 @@ def _validate_sections(sections: Any) -> list:
                     "enabled": bool(field.get("enabled", True)),
                     "order": int(field.get("order") or fidx),
                     "help_text": str(field.get("help_text") or ""),
+                    "coach_help_text": str(field.get("coach_help_text") or ""),
                     "prefill_from": str(field.get("prefill_from") or ""),
                     "student_visible": student_visible,
                     "student_visible_when_finalized": student_visible_when_finalized,
@@ -303,7 +342,7 @@ def snapshot_template(template: CoachVisitFormTemplate) -> dict:
         "key": template.key,
         "name": template.name,
         "version": template.version,
-        "sections": copy.deepcopy(template.sections or []),
+        "sections": _normalize_sections(copy.deepcopy(template.sections or [])),
     }
 
 
@@ -370,6 +409,7 @@ def serialize_visit_form_payload(
 ) -> dict:
     """Extra form fields for visit API (coach full vs student filtered)."""
     snapshot = visit.form_template_snapshot or {}
+    snapshot = {**snapshot, "sections": _normalize_sections(snapshot.get("sections") or [])}
     answers = dict(visit.answers or {})
     if for_student:
         if mode is None:
@@ -378,16 +418,23 @@ def serialize_visit_form_payload(
         # Filter snapshot sections to fields visible for this mode only.
         filtered_sections = []
         for section in snapshot.get("sections") or []:
-            fields = [f for f in (section.get("fields") or []) if _field_visible_for_mode(f, mode)]
+            fields = []
+            for field in section.get("fields") or []:
+                if not _field_visible_for_mode(field, mode):
+                    continue
+                student_field = dict(field)
+                student_field.pop("coach_help_text", None)
+                fields.append(student_field)
             if fields:
                 filtered_sections.append({**section, "fields": fields})
         snapshot = {**snapshot, "sections": filtered_sections}
+        snapshot["name"] = STUDENT_VISIT_TITLE
         return {
             "form_template_id": str(visit.form_template_id) if visit.form_template_id else None,
             "form_template_key": visit.form_template_key,
             "form_template_version": visit.form_template_version,
             "form_template_snapshot": snapshot,
-            "form_template_name": (snapshot.get("name") or visit.form_template_key or ""),
+            "form_template_name": STUDENT_VISIT_TITLE,
             "answers": answers,
             "answer_sources": {
                 k: v for k, v in (visit.answer_sources or {}).items() if k in answers
@@ -613,9 +660,7 @@ def update_visit_answers_as_coach(visit: Visit, answers_partial: dict, *, actor=
         # keys). Ignore non-editable keys instead of failing the whole save —
         # otherwise "send to student" (save-then-send) breaks after a successful create.
         answers_partial = {
-            k: v
-            for k, v in answers_partial.items()
-            if editable_map.get(str(k), True) is not False
+            k: v for k, v in answers_partial.items() if editable_map.get(str(k), True) is not False
         }
     if not answers_partial:
         return visit.answers or {}

@@ -5,8 +5,8 @@ import type { VisitStatus } from "../../students/types/visitForm";
 
 export type StudentVisitFilter = "all" | "action" | "submitted" | "finalized" | "expired";
 
-export function visitDisplayTitle(visit: StudentVisit): string {
-  return visit.formTemplateName?.trim() || visit.visitDate?.trim() || "ویزیت";
+export function visitDisplayTitle(): string {
+  return "ارزیابی ماهانه";
 }
 
 export function isVisitExpired(visit: StudentVisit): boolean {

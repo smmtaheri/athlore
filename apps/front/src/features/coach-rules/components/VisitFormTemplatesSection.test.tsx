@@ -71,4 +71,13 @@ describe("VisitFormTemplatesSection permissions", () => {
     expect(screen.getByText("قابل ویرایش توسط مربی")).toBeInTheDocument();
     expect(screen.getByText("قابل مشاهده پس از نهایی‌سازی")).toBeInTheDocument();
   });
+
+  it("separates student guidance from coach-only internal notes", async () => {
+    render(<VisitFormTemplatesSection repository={createRepo()} />);
+
+    expect(await screen.findByText("راهنمای شاگرد")).toBeInTheDocument();
+    expect(screen.getByText("یادداشت داخلی مربی")).toBeInTheDocument();
+    expect(screen.getByText("این متن در فرم شاگرد نمایش داده می‌شود.")).toBeInTheDocument();
+    expect(screen.getByText("این یادداشت فقط در پنل مربی نمایش داده می‌شود.")).toBeInTheDocument();
+  });
 });
