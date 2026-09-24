@@ -13,6 +13,7 @@ import type { StudentVisit } from "../../students/types/monthlyVisit";
 import { StudentVisitCard } from "../components/StudentVisitCard";
 import { myVisitsRepository, type MyVisitsRepository } from "../services/myVisitsRepository";
 import { summarizeStudentVisits } from "../utils/studentVisitUi";
+import { sortVisitsNewestFirst } from "../../students/utils/visitDates";
 import styles from "../components/studentPortal.module.css";
 
 export function StudentDashboardPage({
@@ -34,7 +35,7 @@ export function StudentDashboardPage({
     Promise.all([repository.list(), bodyCheckRepository.getDashboard()])
       .then(([items, bc]) => {
         if (!mounted) return;
-        setVisits(items);
+        setVisits(sortVisitsNewestFirst(items));
         setBodyCheck(bc);
         setStatus("loaded");
       })
@@ -48,6 +49,7 @@ export function StudentDashboardPage({
 
   const groups = useMemo(() => summarizeStudentVisits(visits), [visits]);
   const openVisit = groups.openActive[0] ?? null;
+  const latestSubmittedVisit = groups.submitted[0] ?? null;
   const today = bodyCheck?.today;
   const todayParts = today
     ? [
@@ -70,9 +72,7 @@ export function StudentDashboardPage({
         <header className={styles.stackTight}>
           <p className={styles.eyebrow}>فضای شخصی شما</p>
           <h1 className={styles.welcomeTitle}>سلام{name ? ` ${name}` : ""}</h1>
-          <p className={styles.lead}>
-            بادی چک روزانه و ویزیت‌های باز را از اینجا پیگیری کنید.
-          </p>
+          <p className={styles.lead}>بادی چک روزانه و ویزیت‌های باز را از اینجا پیگیری کنید.</p>
         </header>
 
         {status === "loading" ? <Skeleton height={180} /> : null}
@@ -95,7 +95,11 @@ export function StudentDashboardPage({
               ) : !bodyCheck.todayInCycle || !today ? (
                 <Card padding="md">
                   <p className={styles.muted}>امروز خارج از بازه دوره فعال بادی چک است.</p>
-                  <Button onClick={() => navigate(studentPaths.bodyCheck)} size="sm" variant="secondary">
+                  <Button
+                    onClick={() => navigate(studentPaths.bodyCheck)}
+                    size="sm"
+                    variant="secondary"
+                  >
                     مشاهده بادی چک
                   </Button>
                 </Card>
@@ -104,9 +108,7 @@ export function StudentDashboardPage({
                   <div className={styles.stackTight}>
                     <p className={styles.muted}>
                       وضعیت امروز:{" "}
-                      {today.isLogged
-                        ? `ثبت‌شده (${todayParts.join("، ") || "جزئی"})`
-                        : "ثبت‌نشده"}
+                      {today.isLogged ? `ثبت‌شده (${todayParts.join("، ") || "جزئی"})` : "ثبت‌نشده"}
                     </p>
                     {pendingParts.length > 0 ? (
                       <p className={styles.muted}>مانده: {pendingParts.join("، ")}</p>
@@ -137,6 +139,21 @@ export function StudentDashboardPage({
                 <StudentVisitCard
                   onOpen={(id) => navigate(`${studentPaths.visits}/${id}`)}
                   visit={openVisit}
+                />
+              </section>
+            ) : null}
+
+            {latestSubmittedVisit ? (
+              <section
+                className={styles.stackTight}
+                aria-labelledby="latest-submitted-visit-heading"
+              >
+                <h2 className={styles.sectionTitle} id="latest-submitted-visit-heading">
+                  آخرین ویزیت ارسال‌شده
+                </h2>
+                <StudentVisitCard
+                  onOpen={(id) => navigate(`${studentPaths.visits}/${id}`)}
+                  visit={latestSubmittedVisit}
                 />
               </section>
             ) : null}

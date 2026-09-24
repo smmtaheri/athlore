@@ -5,10 +5,8 @@ import { studentPaths } from "../../../app/config/appOrigin";
 import type { StudentVisit } from "../../students/types/monthlyVisit";
 import { StudentVisitCard } from "../components/StudentVisitCard";
 import { myVisitsRepository, type MyVisitsRepository } from "../services/myVisitsRepository";
-import {
-  matchesStudentVisitFilter,
-  type StudentVisitFilter
-} from "../utils/studentVisitUi";
+import { matchesStudentVisitFilter, type StudentVisitFilter } from "../utils/studentVisitUi";
+import { sortVisitsNewestFirst } from "../../students/utils/visitDates";
 import styles from "../components/studentPortal.module.css";
 import { cx } from "../../../utils/classNames";
 
@@ -36,7 +34,7 @@ export function StudentVisitsPage({
       .list()
       .then((items) => {
         if (!mounted) return;
-        setVisits(items);
+        setVisits(sortVisitsNewestFirst(items));
         setStatus("loaded");
       })
       .catch(() => {

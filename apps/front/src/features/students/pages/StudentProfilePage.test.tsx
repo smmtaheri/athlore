@@ -10,6 +10,7 @@ import { STUDENT_VISITS_STORAGE_KEY } from "../services/studentVisitsRepository"
 import type { StudentVisitsRepository } from "../services/studentVisitsRepository";
 import { STUDENTS_STORAGE_KEY } from "../services/studentsRepository";
 import { studentFixtures } from "../fixtures/students";
+import { studentVisitFixtures } from "../fixtures/studentVisits";
 import type { StudentsRepository } from "../services/studentsRepository";
 import type { Student } from "../types/student";
 import { StudentProfilePage } from "./StudentProfilePage";
@@ -187,11 +188,43 @@ describe("StudentProfilePage", () => {
 
     expect(await screen.findAllByText("ویزیت های ماهانه")).not.toHaveLength(0);
     expect(screen.getAllByText("۱۴۰۴/۰۲/۰۸")).not.toHaveLength(0);
-    expect(screen.getAllByText("کاهش چربی و حفظ عضلات")).not.toHaveLength(0);
 
     await user.click(screen.getAllByRole("button", { name: "ویزیت جدید" })[0]);
 
     expect(screen.getByText("فرم ویزیت ماهانه")).toBeInTheDocument();
+  });
+
+  it("opens visit details on demand instead of expanding them under the history list", async () => {
+    const user = userEvent.setup();
+    renderProfile("/students/mohammad-taheri/visits");
+
+    await screen.findByRole("heading", { name: "تاریخچه ویزیت ها" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "جزئیات ویزیت" })).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: "عملیات" })[0]);
+    await user.click(screen.getByRole("menuitem", { name: "مشاهده جزئیات" }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("پاسخ‌ها و یادداشت‌های ویزیت")).toBeInTheDocument();
+    expect(screen.queryByText("ارزیابی عمومی")).not.toBeInTheDocument();
+  });
+
+  it("shows ISO visit dates in Jalali format in coach history", async () => {
+    window.localStorage.setItem(
+      STUDENT_VISITS_STORAGE_KEY,
+      JSON.stringify([
+        {
+          ...studentVisitFixtures[0],
+          id: "iso-date-visit",
+          visitDate: "2026-09-21"
+        }
+      ])
+    );
+    renderProfile("/students/mohammad-taheri/visits");
+
+    expect(await screen.findAllByText("۱۴۰۵/۰۶/۳۰")).not.toHaveLength(0);
+    expect(screen.queryByText("2026-09-21")).not.toBeInTheDocument();
   });
 
   it("shows visits empty, loading and error states", async () => {

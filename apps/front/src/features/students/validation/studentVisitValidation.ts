@@ -6,6 +6,11 @@ import type {
   StudentVisitInput
 } from "../types/monthlyVisit";
 import type { Student } from "../types/student";
+import {
+  formatVisitDatePersian,
+  persianVisitDateToIso,
+  todayPersianVisitDate
+} from "../utils/visitDates";
 
 const defaultLevel = "medium" as const;
 const fieldOrder: StudentVisitFormField[] = [
@@ -24,35 +29,10 @@ const fieldOrder: StudentVisitFormField[] = [
   "newInjuryNotes"
 ];
 
-const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-
 function toEnglishDigits(value: string): string {
   return value
     .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
     .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
-}
-
-function parseIsoDate(value: string): string | undefined {
-  const normalized = toEnglishDigits(value).trim();
-  const match = ISO_DATE_PATTERN.exec(normalized);
-  if (!match) {
-    return undefined;
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-
-  if (
-    parsed.getUTCFullYear() !== year ||
-    parsed.getUTCMonth() !== month - 1 ||
-    parsed.getUTCDate() !== day
-  ) {
-    return undefined;
-  }
-
-  return normalized;
 }
 
 function parseNumber(value: string): number | undefined {
@@ -138,7 +118,7 @@ export function createEmptyVisitFormValues(
     thighCm: "",
     trainingConditionChanges: "",
     trainingPercent: "80",
-    visitDate: "",
+    visitDate: todayPersianVisitDate(),
     waistCm: ""
   };
 }
@@ -168,7 +148,7 @@ export function studentVisitToFormValues(visit: StudentVisit): StudentVisitFormV
     thighCm: numberToString(visit.measurements.thighCm),
     trainingConditionChanges: visit.trainingConditionChanges,
     trainingPercent: String(visit.adherence.trainingPercent),
-    visitDate: visit.visitDate,
+    visitDate: formatVisitDatePersian(visit.visitDate),
     waistCm: numberToString(visit.measurements.waistCm)
   };
 }
@@ -179,8 +159,8 @@ export function validateStudentVisitForm(values: StudentVisitFormValues): Studen
 
   if (!values.visitDate.trim()) {
     errors.visitDate = "تاریخ ویزیت الزامی است.";
-  } else if (!parseIsoDate(values.visitDate)) {
-    errors.visitDate = "تاریخ ویزیت باید میلادی و به شکل YYYY-MM-DD باشد (مثلاً 2026-08-09).";
+  } else if (!persianVisitDateToIso(values.visitDate)) {
+    errors.visitDate = "تاریخ ویزیت را به شکل شمسی سال/ماه/روز وارد کنید (مثلاً ۱۴۰۵/۰۷/۰۲).";
   }
 
   if (!currentWeight || currentWeight < 30 || currentWeight > 250) {
@@ -264,6 +244,6 @@ export function visitFormValuesToInput(values: StudentVisitFormValues): StudentV
     stressLevel: values.stressLevel,
     studentFeedback: values.studentFeedback.trim(),
     trainingConditionChanges: values.trainingConditionChanges.trim(),
-    visitDate: parseIsoDate(values.visitDate) ?? toEnglishDigits(values.visitDate).trim()
+    visitDate: persianVisitDateToIso(values.visitDate) ?? toEnglishDigits(values.visitDate).trim()
   };
 }

@@ -604,7 +604,7 @@
 
 .visitsLayout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   direction: ltr;
   gap: var(--space-4);
@@ -745,6 +745,63 @@
 .visitStudentSummary {
   display: grid;
   gap: var(--space-4);
+}
+
+.visitAnswersDisclosure,
+.readonlyAnswerSection {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  padding: var(--space-3) var(--space-4);
+}
+
+.visitAnswersDisclosure > summary,
+.readonlyAnswerSection > summary {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-weight: 800;
+  list-style: none;
+}
+
+.visitAnswersDisclosure > summary::-webkit-details-marker,
+.readonlyAnswerSection > summary::-webkit-details-marker {
+  display: none;
+}
+
+.visitAnswersDisclosure > summary::after,
+.readonlyAnswerSection > summary::after {
+  color: var(--color-text-secondary);
+  content: "⌄";
+  font-size: 1.125rem;
+  line-height: 1;
+  transition: transform 160ms ease;
+}
+
+.visitAnswersDisclosure[open] > summary::after,
+.readonlyAnswerSection[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.visitAnswersDisclosure[open] > summary,
+.readonlyAnswerSection[open] > summary {
+  margin-block-end: var(--space-3);
+}
+
+.readonlyAnswerSection > summary span {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.readonlyAnswerSection .detailMetricGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 @media (max-width: 1024px) {

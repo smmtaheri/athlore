@@ -1,5 +1,6 @@
 import type { StatusBadgeVariant } from "../../../components/ui";
 import type { StudentVisit } from "../../students/types/monthlyVisit";
+import { formatVisitDatePersian } from "../../students/utils/visitDates";
 import type { VisitStatus } from "../../students/types/visitForm";
 
 export type StudentVisitFilter = "all" | "action" | "submitted" | "finalized" | "expired";
@@ -53,7 +54,10 @@ export function studentVisitStatusVariant(visit: StudentVisit): StatusBadgeVaria
   }
 }
 
-export function matchesStudentVisitFilter(visit: StudentVisit, filter: StudentVisitFilter): boolean {
+export function matchesStudentVisitFilter(
+  visit: StudentVisit,
+  filter: StudentVisitFilter
+): boolean {
   switch (filter) {
     case "all":
       return true;
@@ -97,7 +101,7 @@ export function formatVisitDeadline(visit: StudentVisit): string | null {
 }
 
 export function formatVisitDate(visit: StudentVisit): string | null {
-  return visit.visitDate?.trim() || null;
+  return visit.visitDate?.trim() ? formatVisitDatePersian(visit.visitDate) : null;
 }
 
 export function visitActionLabel(visit: StudentVisit): string | null {

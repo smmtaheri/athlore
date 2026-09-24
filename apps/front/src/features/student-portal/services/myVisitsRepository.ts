@@ -3,6 +3,7 @@ import { visitFromApi } from "../../../shared/adapters/apiAdapters";
 import { paginatedFromApi } from "../../../shared/adapters/apiAdapters";
 import type { VisitFormAnswers } from "../../students/types/visitForm";
 import type { StudentVisit } from "../../students/types/monthlyVisit";
+import { sortVisitsNewestFirst } from "../../students/utils/visitDates";
 
 export interface MyVisitsRepository {
   getById(visitId: string): Promise<StudentVisit | null>;
@@ -17,7 +18,7 @@ export function createMyVisitsRepository(): MyVisitsRepository {
       const dto = await apiRequest<Record<string, unknown>>("/me/visits/", {
         query: { limit: 100, offset: 0 }
       });
-      return paginatedFromApi(dto, visitFromApi).results;
+      return sortVisitsNewestFirst(paginatedFromApi(dto, visitFromApi).results);
     },
     async getById(visitId) {
       try {

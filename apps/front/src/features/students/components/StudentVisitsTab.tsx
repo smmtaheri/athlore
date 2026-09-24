@@ -24,6 +24,7 @@ import type { TableColumn } from "../../../components/ui";
 import type { StudentVisit, VisitLevel } from "../types/monthlyVisit";
 import { visitStatusLabels, type VisitStatus } from "../types/visitForm";
 import type { Student } from "../types/student";
+import { formatVisitDatePersian, sortVisitsNewestFirst } from "../utils/visitDates";
 import {
   studentVisitsRepository,
   type StudentVisitsRepository
@@ -69,13 +70,13 @@ export function StudentVisitsTab({
           return;
         }
 
-        setVisits(items);
+        const sortedItems = sortVisitsNewestFirst(items);
+        setVisits(sortedItems);
         setSelectedVisit((current) => {
-          if (current && items.some((item) => item.id === current.id)) {
-            return current;
+          if (current) {
+            return sortedItems.find((item) => item.id === current.id) ?? null;
           }
-
-          return items[0] ?? null;
+          return null;
         });
         setStatus("loaded");
       })
@@ -161,7 +162,7 @@ export function StudentVisitsTab({
           hint={latestVisit ? "آخرین رکورد ثبت شده" : "بدون رکورد"}
           icon={CalendarDays}
           label="تاریخ آخرین ویزیت"
-          value={latestVisit?.visitDate ?? "ثبت نشده"}
+          value={latestVisit ? formatVisitDatePersian(latestVisit.visitDate) : "ثبت نشده"}
         />
         <SummaryMetricCard
           hint="بر اساس آخرین ویزیت"
@@ -236,10 +237,20 @@ export function StudentVisitsTab({
               </div>
             </div>
           </Card>
-
-          {selectedVisit ? <VisitDetailsPanel visit={selectedVisit} /> : null}
         </div>
       )}
+
+      <Modal
+        onClose={() => setSelectedVisit(null)}
+        open={Boolean(selectedVisit)}
+        title={
+          selectedVisit
+            ? `جزئیات ویزیت · ${formatVisitDatePersian(selectedVisit.visitDate)}`
+            : "جزئیات ویزیت"
+        }
+      >
+        {selectedVisit ? <VisitDetailsPanel visit={selectedVisit} /> : null}
+      </Modal>
 
       <Modal
         footer={
@@ -256,7 +267,9 @@ export function StudentVisitsTab({
         open={Boolean(visitToDelete)}
         title="حذف ویزیت"
       >
-        <p className={styles.modalText}>آیا از حذف ویزیت {visitToDelete?.visitDate} مطمئن هستید؟</p>
+        <p className={styles.modalText}>
+          آیا از حذف ویزیت {formatVisitDatePersian(visitToDelete?.visitDate)} مطمئن هستید؟
+        </p>
         <p className={styles.dangerText}>این عملیات قابل بازگشت نیست.</p>
       </Modal>
     </div>
@@ -273,7 +286,7 @@ interface VisitsTableProps {
 function VisitsTable({ onDelete, onSelect, studentId, visits }: VisitsTableProps) {
   const columns: Array<TableColumn<StudentVisit>> = [
     {
-      cell: (visit) => visit.visitDate,
+      cell: (visit) => formatVisitDatePersian(visit.visitDate),
       header: "تاریخ ویزیت",
       id: "visitDate"
     },
@@ -349,7 +362,7 @@ function VisitCard({ onDelete, onSelect, studentId, visit }: VisitCardProps) {
     <Card className={styles.studentCard} padding="md">
       <div className={styles.studentCardHeader}>
         <div className={styles.studentCardTitleText}>
-          <span className={styles.studentName}>{visit.visitDate}</span>
+          <span className={styles.studentName}>{formatVisitDatePersian(visit.visitDate)}</span>
           <span className={getChangeClass(visit)}>
             تغییر وزن {formatSignedNumber(visit.currentWeightKg - visit.previousWeightKg)} کیلوگرم
           </span>
@@ -416,6 +429,7 @@ function VisitActions({ onDelete, onSelect, studentId, visit }: VisitActionsProp
 function VisitDetailsPanel({ visit }: { visit: StudentVisit }) {
   const weightChange = visit.currentWeightKg - visit.previousWeightKg;
   const dynamicSections = enabledSectionsFromTemplate(visit.formTemplateSnapshot);
+  const hasMeasurements = Object.values(visit.measurements).some((value) => value !== undefined);
 
   return (
     <Card className={styles.visitDetailsPanel}>
@@ -425,7 +439,7 @@ function VisitDetailsPanel({ visit }: { visit: StudentVisit }) {
         </span>
         <div>
           <h2>جزئیات ویزیت</h2>
-          <p className={styles.subtleText}>{visit.visitDate}</p>
+          <p className={styles.subtleText}>{formatVisitDatePersian(visit.visitDate)}</p>
         </div>
       </div>
 
@@ -443,16 +457,28 @@ function VisitDetailsPanel({ visit }: { visit: StudentVisit }) {
         />
       </div>
 
-      <div className={styles.detailBlock}>
-        <h3>اندازه های بدن</h3>
-        <div className={styles.detailMetricGrid}>
-          <StudentVisitMetric label="دور سینه" value={formatCm(visit.measurements.chestCm)} />
-          <StudentVisitMetric label="دور کمر" value={formatCm(visit.measurements.waistCm)} />
-          <StudentVisitMetric label="دور بازو" value={formatCm(visit.measurements.armCm)} />
-          <StudentVisitMetric label="دور ران" value={formatCm(visit.measurements.thighCm)} />
-          <StudentVisitMetric label="دور باسن" value={formatCm(visit.measurements.hipCm)} />
+      {hasMeasurements ? (
+        <div className={styles.detailBlock}>
+          <h3>اندازه های بدن</h3>
+          <div className={styles.detailMetricGrid}>
+            {visit.measurements.chestCm !== undefined ? (
+              <StudentVisitMetric label="دور سینه" value={formatCm(visit.measurements.chestCm)} />
+            ) : null}
+            {visit.measurements.waistCm !== undefined ? (
+              <StudentVisitMetric label="دور کمر" value={formatCm(visit.measurements.waistCm)} />
+            ) : null}
+            {visit.measurements.armCm !== undefined ? (
+              <StudentVisitMetric label="دور بازو" value={formatCm(visit.measurements.armCm)} />
+            ) : null}
+            {visit.measurements.thighCm !== undefined ? (
+              <StudentVisitMetric label="دور ران" value={formatCm(visit.measurements.thighCm)} />
+            ) : null}
+            {visit.measurements.hipCm !== undefined ? (
+              <StudentVisitMetric label="دور باسن" value={formatCm(visit.measurements.hipCm)} />
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div className={styles.detailMetricGrid}>
         <StudentVisitMetric label="کیفیت خواب" value={levelLabels[visit.sleepQuality]} />
@@ -465,20 +491,24 @@ function VisitDetailsPanel({ visit }: { visit: StudentVisit }) {
         <PercentBar value={visit.adherence.overallPercent} />
       </div>
 
-      <ReadonlyDetail label="بازخورد شاگرد" value={visit.studentFeedback} />
-      <ReadonlyDetail label="آسیب یا درد جدید" value={visit.newInjuryNotes} />
-      <ReadonlyDetail label="ارزیابی مربی" value={visit.coachAssessment} />
-      <ReadonlyDetail label="هدف ماه بعد" value={visit.nextCycleGoal} />
-      <ReadonlyDetail label="یادداشت مربی" value={visit.coachNotes} />
-      <ReadonlyDetail label="یادداشت خصوصی مربی" value={visit.coachPrivateNotes} />
-
-      {dynamicSections.length > 0 ? (
-        <VisitAnswersReadonly
-          answers={visit.answers}
-          coachNotes={undefined}
-          sections={dynamicSections}
-        />
-      ) : null}
+      <details className={styles.visitAnswersDisclosure}>
+        <summary>پاسخ‌ها و یادداشت‌های ویزیت</summary>
+        <div className={styles.tabContentStack}>
+          <ReadonlyDetail label="بازخورد شاگرد" value={visit.studentFeedback} />
+          <ReadonlyDetail label="آسیب یا درد جدید" value={visit.newInjuryNotes} />
+          <ReadonlyDetail label="ارزیابی مربی" value={visit.coachAssessment} />
+          <ReadonlyDetail label="هدف ماه بعد" value={visit.nextCycleGoal} />
+          <ReadonlyDetail label="یادداشت مربی" value={visit.coachNotes} />
+          <ReadonlyDetail label="یادداشت خصوصی مربی" value={visit.coachPrivateNotes} />
+          {dynamicSections.length > 0 ? (
+            <VisitAnswersReadonly
+              answers={visit.answers}
+              coachNotes={undefined}
+              sections={dynamicSections}
+            />
+          ) : null}
+        </div>
+      </details>
     </Card>
   );
 }
@@ -493,6 +523,8 @@ function StudentVisitMetric({ label, value }: { label: string; value: string }) 
 }
 
 function ReadonlyDetail({ label, value }: { label: string; value: string }) {
+  if (!value.trim()) return null;
+
   return (
     <div className={styles.readonlyDetail}>
       <span>{label}</span>

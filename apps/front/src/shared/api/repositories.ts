@@ -40,6 +40,7 @@ import type {
 import type { StudentsRepository } from "../../features/students/services/studentsRepository";
 import type { StudentVisitsRepository } from "../../features/students/services/studentVisitsRepository";
 import type { StudentProgramsRepository } from "../../features/students/services/studentProgramsRepository";
+import { sortVisitsNewestFirst } from "../../features/students/utils/visitDates";
 
 type DraftMeta = { draftVersionId?: string; latestFinalizedVersionId?: string };
 
@@ -172,17 +173,17 @@ export function createApiStudentsRepository(): StudentsRepository & {
       return studentActivateLoginFromApi(dto);
     },
     async deactivatePortal(id: string) {
-      const dto = await apiRequest<Record<string, unknown>>(
-        `/students/${id}/portal/deactivate/`,
-        { method: "POST", body: {} }
-      );
+      const dto = await apiRequest<Record<string, unknown>>(`/students/${id}/portal/deactivate/`, {
+        method: "POST",
+        body: {}
+      });
       return { studentId: strId(dto.student_id) || id };
     },
     async reactivatePortal(id: string) {
-      const dto = await apiRequest<Record<string, unknown>>(
-        `/students/${id}/portal/reactivate/`,
-        { method: "POST", body: {} }
-      );
+      const dto = await apiRequest<Record<string, unknown>>(`/students/${id}/portal/reactivate/`, {
+        method: "POST",
+        body: {}
+      });
       return { studentId: strId(dto.student_id) || id };
     }
   };
@@ -242,7 +243,7 @@ export function createApiVisitsRepository(): StudentVisitsRepository {
       const dto = await apiRequest<Record<string, unknown>>(`/students/${studentId}/visits/`, {
         query: { limit: 100, offset: 0 }
       });
-      return paginatedFromApi(dto, visitFromApi).results;
+      return sortVisitsNewestFirst(paginatedFromApi(dto, visitFromApi).results);
     },
     async remove(studentId, visitId) {
       await apiRequest(`/students/${studentId}/visits/${visitId}/`, { method: "DELETE" });

@@ -6,6 +6,7 @@ import { ApiError, persianMessageForApiError } from "../../../shared/api/errors"
 import { VisitDynamicForm } from "../../students/components/VisitDynamicForm";
 import { enabledSectionsFromTemplate } from "../../students/components/visitFormUtils";
 import type { StudentVisit } from "../../students/types/monthlyVisit";
+import { formatVisitDate } from "../utils/studentVisitUi";
 import type { VisitFormAnswers } from "../../students/types/visitForm";
 import { myVisitsRepository, type MyVisitsRepository } from "../services/myVisitsRepository";
 import {
@@ -56,10 +57,7 @@ export function StudentVisitDetailPage({
     };
   }, [repository, visitId]);
 
-  const sections = useMemo(
-    () => enabledSectionsFromTemplate(visit?.formTemplateSnapshot),
-    [visit]
-  );
+  const sections = useMemo(() => enabledSectionsFromTemplate(visit?.formTemplateSnapshot), [visit]);
   const open = visit ? isVisitOpenForStudent(visit) : false;
   const expired = Boolean(visit?.isExpired) && visit?.status === "waiting_for_student";
   const deadline = visit ? formatVisitDeadline(visit) : null;
@@ -87,9 +85,7 @@ export function StudentVisitDetailPage({
         section.fields.filter((field) => field.studentEditable).map((field) => field.key)
       )
     );
-    return Object.fromEntries(
-      Object.entries(answers).filter(([key]) => editableKeys.has(key))
-    );
+    return Object.fromEntries(Object.entries(answers).filter(([key]) => editableKeys.has(key)));
   };
 
   const save = async () => {
@@ -192,9 +188,8 @@ export function StudentVisitDetailPage({
             </StatusBadge>
           </div>
           {deadline ? <p className={styles.muted}>مهلت تکمیل: {deadline}</p> : null}
-          <p className={styles.lead}>
-            فقط فیلدهایی که مربی برای شما مجاز کرده نمایش داده می‌شود.
-          </p>
+          <p className={styles.muted}>تاریخ ویزیت: {formatVisitDate(visit)}</p>
+          <p className={styles.lead}>فقط فیلدهایی که مربی برای شما مجاز کرده نمایش داده می‌شود.</p>
         </header>
 
         {error ? <div className={styles.errorAlert}>{error}</div> : null}

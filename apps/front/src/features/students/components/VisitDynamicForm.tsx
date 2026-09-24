@@ -5,14 +5,7 @@ import type {
   VisitFormFieldDefinition,
   VisitFormSectionDefinition
 } from "../types/visitForm";
-import {
-  Checkbox,
-  FormField,
-  Input,
-  Select,
-  Switch,
-  Textarea
-} from "../../../components/ui";
+import { Checkbox, FormField, Input, Select, Switch, Textarea } from "../../../components/ui";
 import { formatAnswerDisplay } from "./visitFormUtils";
 import { StudentFormSection } from "./StudentFormSection";
 import styles from "./students.module.css";
@@ -100,25 +93,40 @@ export function VisitAnswersReadonly({
 }) {
   return (
     <div className={styles.tabContentStack}>
-      {sections.map((section) => (
-        <StudentFormSection icon={ClipboardList} key={section.key} title={section.label}>
-          <div className={styles.detailMetricGrid}>
-            {section.fields.map((field) => (
-              <div className={styles.readonlyDetail} key={field.key}>
-                <span>{field.label}</span>
-                <p>{formatAnswerDisplay(field, answers[field.key])}</p>
-              </div>
-            ))}
-          </div>
-        </StudentFormSection>
-      ))}
-      {coachNotes !== undefined ? (
-        <StudentFormSection icon={ClipboardList} title="یادداشت خصوصی مربی">
-          <div className={styles.readonlyDetail}>
-            <span>یادداشت خصوصی مربی</span>
-            <p>{coachNotes || "ثبت نشده"}</p>
-          </div>
-        </StudentFormSection>
+      {sections.map((section) => {
+        const answeredFields = section.fields.filter((field) => {
+          const value = answers[field.key];
+          return (
+            value !== undefined &&
+            value !== null &&
+            value !== "" &&
+            (!Array.isArray(value) || value.length > 0)
+          );
+        });
+        if (answeredFields.length === 0) return null;
+
+        return (
+          <details className={styles.readonlyAnswerSection} key={section.key}>
+            <summary>
+              {section.label}
+              <span>{answeredFields.length.toLocaleString("fa-IR")} پاسخ</span>
+            </summary>
+            <div className={styles.detailMetricGrid}>
+              {answeredFields.map((field) => (
+                <div className={styles.readonlyDetail} key={field.key}>
+                  <span>{field.label}</span>
+                  <p>{formatAnswerDisplay(field, answers[field.key])}</p>
+                </div>
+              ))}
+            </div>
+          </details>
+        );
+      })}
+      {coachNotes?.trim() ? (
+        <div className={styles.readonlyDetail}>
+          <span>یادداشت خصوصی مربی</span>
+          <p>{coachNotes}</p>
+        </div>
       ) : null}
     </div>
   );

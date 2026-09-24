@@ -1,11 +1,8 @@
 import { appConfig } from "../../../app/config/appConfig";
 import { createApiVisitsRepository } from "../../../shared/api/repositories";
 import { studentVisitFixtures } from "../fixtures/studentVisits";
-import type {
-  StudentVisit,
-  StudentVisitInput,
-  VisitAnswerRevision
-} from "../types/monthlyVisit";
+import type { StudentVisit, StudentVisitInput, VisitAnswerRevision } from "../types/monthlyVisit";
+import { sortVisitsNewestFirst } from "../utils/visitDates";
 
 export const STUDENT_VISITS_STORAGE_KEY = "coach-assistant.student-visits.v1";
 
@@ -22,11 +19,7 @@ export interface StudentVisitsRepository {
   listByStudent(studentId: string): Promise<StudentVisit[]>;
   remove(studentId: string, visitId: string): Promise<void>;
   reset(): Promise<StudentVisit[]>;
-  sendToStudent(
-    studentId: string,
-    visitId: string,
-    expiresInDays?: number
-  ): Promise<StudentVisit>;
+  sendToStudent(studentId: string, visitId: string, expiresInDays?: number): Promise<StudentVisit>;
   startCoachReview(studentId: string, visitId: string): Promise<StudentVisit>;
   update(studentId: string, visitId: string, input: StudentVisitInput): Promise<StudentVisit>;
 }
@@ -202,7 +195,7 @@ export function createStudentVisitsRepository(storage = getStorage()): StudentVi
       return [];
     },
     async listByStudent(studentId) {
-      return read().filter((visit) => visit.studentId === studentId);
+      return sortVisitsNewestFirst(read().filter((visit) => visit.studentId === studentId));
     },
     async remove(studentId, visitId) {
       const visits = read();

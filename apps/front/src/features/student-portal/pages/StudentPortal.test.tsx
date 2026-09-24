@@ -181,9 +181,7 @@ describe("Student portal routes", () => {
     await user.type(screen.getByLabelText(/^رمز عبور/), "must-change");
     await user.click(screen.getByRole("button", { name: "ورود" }));
 
-    expect(
-      await screen.findByText("برای ادامه، رمز عبور خود را تغییر دهید.")
-    ).toBeInTheDocument();
+    expect(await screen.findByText("برای ادامه، رمز عبور خود را تغییر دهید.")).toBeInTheDocument();
     expect(document.getElementById("setup-password")).toBeTruthy();
     expect(screen.queryByLabelText(/نام کاربری شاگرد/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ثبت رمز جدید" })).toBeInTheDocument();
@@ -197,6 +195,12 @@ describe("Student portal routes", () => {
         formTemplateName: "ویزیت باز",
         id: "open-1",
         status: "waiting_for_student"
+      }),
+      baseVisit({
+        formTemplateName: "ویزیت ارسال‌شده",
+        id: "submitted-1",
+        status: "student_submitted",
+        visitDate: "2026-09-21"
       }),
       baseVisit({
         formTemplateName: "ویزیت نهایی",
@@ -242,9 +246,45 @@ describe("Student portal routes", () => {
 
     expect(await screen.findByText("فضای شخصی شما")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "بادی چک امروز" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "آخرین ویزیت ارسال‌شده" })).toBeInTheDocument();
+    expect(screen.getByText("ویزیت ارسال‌شده")).toBeInTheDocument();
+    expect(screen.getByText("۱۴۰۵/۰۶/۳۰")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "تکمیل ویزیت" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "تکمیل ویزیت" }));
     expect(await screen.findByText("visit detail open-1")).toBeInTheDocument();
+  });
+
+  it("shows student visits newest first with Jalali dates", async () => {
+    const repository: MyVisitsRepository = {
+      getById: async () => null,
+      list: async () => [
+        baseVisit({
+          formTemplateName: "ویزیت قدیمی‌تر",
+          id: "older",
+          visitDate: "2026-08-01"
+        }),
+        baseVisit({
+          formTemplateName: "ویزیت جدیدتر",
+          id: "newer",
+          visitDate: "2026-09-21"
+        })
+      ],
+      submit: async () => baseVisit(),
+      updateAnswers: async () => baseVisit()
+    };
+    render(
+      <MemoryRouter>
+        <StudentVisitsPage repository={repository} />
+      </MemoryRouter>
+    );
+
+    const visitTitles = await screen.findAllByRole("heading", { level: 3 });
+    expect(visitTitles.map((heading) => heading.textContent)).toEqual([
+      "ویزیت جدیدتر",
+      "ویزیت قدیمی‌تر"
+    ]);
+    expect(screen.getByText("۱۴۰۵/۰۶/۳۰")).toBeInTheDocument();
+    expect(screen.getByText("۱۴۰۵/۰۵/۱۰")).toBeInTheDocument();
   });
 
   it("filters my visits list and shows status-appropriate actions", async () => {

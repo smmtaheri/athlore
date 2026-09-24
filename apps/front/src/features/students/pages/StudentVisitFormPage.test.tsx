@@ -63,6 +63,7 @@ describe("StudentVisitFormPage", () => {
     renderVisitRoute("/students/mohammad-taheri/visits/new");
 
     await screen.findByRole("heading", { name: "ویزیت جدید" });
+    await user.clear(screen.getByLabelText(/^تاریخ ویزیت/));
     await user.clear(screen.getByLabelText(/^وزن جدید/));
     await user.click(screen.getByRole("button", { name: "ثبت پیش‌نویس" }));
 
@@ -81,7 +82,7 @@ describe("StudentVisitFormPage", () => {
     renderVisitRoute("/students/mohammad-taheri/visits/new");
 
     fireEvent.change(await screen.findByLabelText(/^تاریخ ویزیت/), {
-      target: { value: "2026-05-26" }
+      target: { value: "۱۴۰۵/۰۳/۰۵" }
     });
     fireEvent.change(screen.getByLabelText(/^وزن جدید/), {
       target: { value: "88.2" }
@@ -92,22 +93,32 @@ describe("StudentVisitFormPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "ثبت پیش‌نویس" }));
 
     expect(await screen.findByText("ویزیت جدید ثبت شد.")).toBeInTheDocument();
-    expect(screen.getAllByText("2026-05-26")).not.toHaveLength(0);
+    expect(screen.getAllByText("۱۴۰۵/۰۳/۰۵")).not.toHaveLength(0);
+    const savedVisits = JSON.parse(
+      window.localStorage.getItem(STUDENT_VISITS_STORAGE_KEY) || "[]"
+    ) as Array<{ visitDate: string }>;
+    expect(savedVisits[0]?.visitDate).toBe("2026-05-26");
   });
 
-  it("rejects Jalali visit dates before calling the API", async () => {
+  it("rejects invalid Jalali visit dates before calling the API", async () => {
     const user = userEvent.setup();
     renderVisitRoute("/students/mohammad-taheri/visits/new");
 
     await screen.findByRole("heading", { name: "ویزیت جدید" });
     fireEvent.change(screen.getByLabelText(/^تاریخ ویزیت/), {
-      target: { value: "۱۴۰۴/۰۳/۰۵" }
+      target: { value: "۱۴۰۵/۱۳/۰۵" }
     });
     await user.click(screen.getByRole("button", { name: "ثبت پیش‌نویس" }));
 
-    expect(
-      await screen.findByText(/تاریخ ویزیت باید میلادی و به شکل YYYY-MM-DD/)
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/تاریخ ویزیت را به شکل شمسی سال\/ماه\/روز/)).toBeInTheDocument();
+  });
+
+  it("defaults new visits to today's editable Jalali date", async () => {
+    renderVisitRoute("/students/mohammad-taheri/visits/new");
+
+    const dateInput = await screen.findByLabelText(/^تاریخ ویزیت/);
+    expect((dateInput as HTMLInputElement).value).toMatch(/^[۰-۹]{4}\/[۰-۹]{2}\/[۰-۹]{2}$/);
+    expect(dateInput).toBeEnabled();
   });
 
   it("sends a draft visit to the student after save", async () => {
@@ -260,6 +271,8 @@ describe("StudentVisitFormPage", () => {
     await user.click(screen.getByRole("button", { name: "ذخیره ویزیت" }));
 
     expect(await screen.findByText("تغییرات ویزیت ذخیره شد.")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "عملیات" })[0]);
+    await user.click(screen.getByRole("menuitem", { name: "مشاهده جزئیات" }));
     expect(screen.getByText("فرم حرکات بهتر شده است.")).toBeInTheDocument();
   });
 

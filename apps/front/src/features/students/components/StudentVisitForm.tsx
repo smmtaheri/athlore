@@ -14,18 +14,18 @@ import {
   ShieldAlert,
   Target
 } from "lucide-react";
-import { Button, FormField, Input, Radio, Select, StatusBadge, Textarea } from "../../../components/ui";
-import type {
-  StudentVisit,
-  StudentVisitInput,
-  VisitAnswerRevision
-} from "../types/monthlyVisit";
+import {
+  Button,
+  FormField,
+  Input,
+  Radio,
+  Select,
+  StatusBadge,
+  Textarea
+} from "../../../components/ui";
+import type { StudentVisit, StudentVisitInput, VisitAnswerRevision } from "../types/monthlyVisit";
 import type { Student } from "../types/student";
-import type {
-  VisitFormAnswers,
-  VisitFormTemplate,
-  VisitStatus
-} from "../types/visitForm";
+import type { VisitFormAnswers, VisitFormTemplate, VisitStatus } from "../types/visitForm";
 import { visitStatusLabels } from "../types/visitForm";
 import {
   createEmptyVisitFormValues,
@@ -40,11 +40,7 @@ import { StudentFormSection } from "./StudentFormSection";
 import styles from "./students.module.css";
 
 export type VisitSubmitIntent =
-  | "generate-program"
-  | "save"
-  | "finalize"
-  | "send-to-student"
-  | "start-coach-review";
+  "generate-program" | "save" | "finalize" | "send-to-student" | "start-coach-review";
 
 export interface StudentVisitFormProps {
   answerRevisions?: VisitAnswerRevision[];
@@ -306,8 +302,8 @@ export function StudentVisitForm({
         ) : null}
         {status === "student_submitted" ? (
           <p className={styles.actionHint}>
-            شاگرد فرم را ارسال کرده است. برای قفل کامل فرم شاگرد و شروع ویرایش، «شروع بررسی مربی»
-            را بزنید.
+            شاگرد فرم را ارسال کرده است. برای قفل کامل فرم شاگرد و شروع ویرایش، «شروع بررسی مربی» را
+            بزنید.
           </p>
         ) : null}
         {status === "coach_review" ? (
@@ -321,17 +317,19 @@ export function StudentVisitForm({
         <div className={styles.formGrid}>
           <FormField
             error={errors.visitDate}
-            hint="فرمت میلادی: YYYY-MM-DD"
+            hint="تاریخ امروز به‌صورت پیش‌فرض ثبت شده؛ در صورت نیاز آن را به شکل شمسی سال/ماه/روز ویرایش کنید."
             htmlFor="visit-date"
             label="تاریخ ویزیت"
             required
           >
             <Input
               data-visit-field="visitDate"
+              dir="ltr"
               id="visit-date"
+              inputMode="numeric"
               invalid={Boolean(errors.visitDate)}
               onChange={(event) => updateField("visitDate", event.target.value)}
-              placeholder="مثلاً 2026-08-09"
+              placeholder="۱۴۰۵/۰۷/۰۲"
               value={values.visitDate}
             />
           </FormField>
