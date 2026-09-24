@@ -58,6 +58,22 @@ export function StudentVisitDetailPage({
   }, [repository, visitId]);
 
   const sections = useMemo(() => enabledSectionsFromTemplate(visit?.formTemplateSnapshot), [visit]);
+  const displayAnswers = useMemo(() => {
+    if (!visit?.visitDate) return answers;
+    const assessmentDateKeys = sections
+      .flatMap((section) => section.fields)
+      .filter(
+        (field) =>
+          field.type === "date" &&
+          (field.semanticKey === "assessment_date" || field.key === "assessment_date")
+      )
+      .map((field) => field.key);
+    if (assessmentDateKeys.length === 0) return answers;
+    return {
+      ...answers,
+      ...Object.fromEntries(assessmentDateKeys.map((key) => [key, visit.visitDate]))
+    };
+  }, [answers, sections, visit]);
   const open = visit ? isVisitOpenForStudent(visit) : false;
   const expired = Boolean(visit?.isExpired) && visit?.status === "waiting_for_student";
   const deadline = visit ? formatVisitDeadline(visit) : null;
@@ -206,7 +222,7 @@ export function StudentVisitDetailPage({
         {sections.length > 0 ? (
           <Card>
             <VisitDynamicForm
-              answers={answers}
+              answers={displayAnswers}
               disabled={!open}
               onAnswersChange={setAnswers}
               respectStudentEditable={open}

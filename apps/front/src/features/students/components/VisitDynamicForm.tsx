@@ -8,6 +8,7 @@ import type {
 import { Checkbox, FormField, Input, Select, Switch, Textarea } from "../../../components/ui";
 import { formatAnswerDisplay } from "./visitFormUtils";
 import { StudentFormSection } from "./StudentFormSection";
+import { formatVisitDatePersian } from "../utils/visitDates";
 import styles from "./students.module.css";
 
 export interface VisitDynamicFormProps {
@@ -273,8 +274,14 @@ function VisitFormFieldControl({
         disabled={disabled}
         id={fieldId}
         onChange={(event) => onChange(event.target.value)}
-        type={field.type === "date" ? "date" : "text"}
-        value={value == null ? "" : String(value)}
+        type={field.type === "date" && !disabled ? "date" : "text"}
+        value={
+          value == null
+            ? ""
+            : field.type === "date" && disabled
+              ? formatVisitDatePersian(String(value))
+              : String(value)
+        }
       />
     </FormField>
   );

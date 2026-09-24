@@ -425,6 +425,62 @@ describe("Student portal routes", () => {
     expect(screen.queryByRole("button", { name: "ارسال برای مربی" })).not.toBeInTheDocument();
   });
 
+  it("shows the visit date as Jalali in the read-only assessment date field", async () => {
+    const finalized = baseVisit({
+      answers: {},
+      formTemplateSnapshot: {
+        sections: [
+          {
+            fields: [
+              {
+                enabled: true,
+                helpText: "",
+                key: "assessment_date",
+                label: "تاریخ ارزیابی",
+                options: [],
+                order: 0,
+                prefillFrom: "",
+                required: false,
+                semanticKey: "assessment_date",
+                studentEditable: false,
+                studentVisible: true,
+                type: "date"
+              }
+            ],
+            key: "general",
+            label: "ارزیابی عمومی",
+            order: 0
+          }
+        ]
+      },
+      id: "fin-date-1",
+      status: "finalized",
+      visitDate: "2026-09-24"
+    });
+    const repository: MyVisitsRepository = {
+      getById: async () => finalized,
+      list: async () => [finalized],
+      submit: async () => finalized,
+      updateAnswers: async () => finalized
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/visits/fin-date-1"]}>
+        <Routes>
+          <Route
+            element={<StudentVisitDetailPage repository={repository} />}
+            path="/visits/:visitId"
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const assessmentDate = await screen.findByLabelText("تاریخ ارزیابی");
+    expect(assessmentDate).toHaveValue("۱۴۰۵/۰۷/۰۲");
+    expect(assessmentDate).toHaveAttribute("type", "text");
+    expect(screen.getByText("تاریخ ویزیت: ۱۴۰۵/۰۷/۰۲")).toBeInTheDocument();
+  });
+
   it("blocks edit and submit for expired open visits", async () => {
     const expired = baseVisit({
       answers: { goal: "x" },
