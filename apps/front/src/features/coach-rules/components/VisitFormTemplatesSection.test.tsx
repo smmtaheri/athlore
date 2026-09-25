@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VisitFormTemplatesSection } from "./VisitFormTemplatesSection";
 import type { VisitFormTemplatesRepository } from "../../students/services/visitFormTemplatesRepository";
@@ -63,9 +64,13 @@ describe("VisitFormTemplatesSection permissions", () => {
     vi.clearAllMocks();
   });
 
-  it("renders the four field permission switches", async () => {
+  it("keeps the list compact until the coach explicitly opens a template", async () => {
     render(<VisitFormTemplatesSection repository={createRepo()} />);
 
+    expect(await screen.findByText("فرم پایه")).toBeInTheDocument();
+    expect(screen.queryByText("قابل مشاهده برای شاگرد (باز)")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "ویرایش" }));
     expect(await screen.findByText("قابل مشاهده برای شاگرد (باز)")).toBeInTheDocument();
     expect(screen.getByText("قابل ویرایش توسط شاگرد")).toBeInTheDocument();
     expect(screen.getByText("قابل ویرایش توسط مربی")).toBeInTheDocument();
@@ -75,9 +80,22 @@ describe("VisitFormTemplatesSection permissions", () => {
   it("separates student guidance from coach-only internal notes", async () => {
     render(<VisitFormTemplatesSection repository={createRepo()} />);
 
+    await screen.findByText("فرم پایه");
+    await userEvent.click(screen.getByRole("button", { name: "ویرایش" }));
     expect(await screen.findByText("راهنمای شاگرد")).toBeInTheDocument();
     expect(screen.getByText("یادداشت داخلی مربی")).toBeInTheDocument();
     expect(screen.getByText("این متن در فرم شاگرد نمایش داده می‌شود.")).toBeInTheDocument();
     expect(screen.getByText("این یادداشت فقط در پنل مربی نمایش داده می‌شود.")).toBeInTheDocument();
+  });
+
+  it("opens a focused editor for a new template without saving before submit", async () => {
+    const repository = createRepo();
+    render(<VisitFormTemplatesSection repository={repository} />);
+
+    await screen.findByText("فرم پایه");
+    await userEvent.click(screen.getByRole("button", { name: "قالب جدید" }));
+
+    expect(screen.getByRole("heading", { name: "ساخت قالب ویزیت" })).toBeInTheDocument();
+    expect(repository.create).not.toHaveBeenCalled();
   });
 });

@@ -85,6 +85,7 @@ export function CoachRulesPage({
   const [rules, setRules] = useState<CoachRules>();
   const [feedback, setFeedback] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [rulesDirty, setRulesDirty] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [requestKey, setRequestKey] = useState(0);
   const [status, setStatus] = useState<"error" | "loaded" | "loading" | "saving">("loading");
@@ -100,6 +101,7 @@ export function CoachRulesPage({
           return;
         }
         setRules(data);
+        setRulesDirty(false);
         setStatus("loaded");
       })
       .catch(() => {
@@ -123,6 +125,7 @@ export function CoachRulesPage({
   );
 
   const updateRules = (updater: (rules: CoachRules) => CoachRules) => {
+    setRulesDirty(true);
     setRules((current) => (current ? updater(cloneCoachRules(current)) : current));
   };
 
@@ -137,6 +140,7 @@ export function CoachRulesPage({
     try {
       const savedRules = await repository.save(rules);
       setRules(savedRules);
+      setRulesDirty(false);
       setStatus("loaded");
       setFeedback("قوانین مربی ذخیره شد.");
     } catch {
@@ -152,6 +156,7 @@ export function CoachRulesPage({
     try {
       const nextRules = await repository.reset();
       setRules(nextRules);
+      setRulesDirty(false);
       setStatus("loaded");
       setFeedback("قوانین به داده اولیه برگشت.");
       setConfirmReset(false);
@@ -197,13 +202,15 @@ export function CoachRulesPage({
             >
               بازنشانی
             </Button>
-            <Button
-              iconStart={<Save size={18} />}
-              isLoading={status === "saving"}
-              onClick={saveRules}
-            >
-              ذخیره قوانین
-            </Button>
+            {!rulesDirty ? (
+              <Button
+                iconStart={<Save size={18} />}
+                isLoading={status === "saving"}
+                onClick={saveRules}
+              >
+                ذخیره قوانین
+              </Button>
+            ) : null}
           </div>
         }
         breadcrumb={["داشبورد", "قوانین مربی"]}
@@ -266,6 +273,15 @@ export function CoachRulesPage({
           </Stack>
         ) : null}
       </ContentSection>
+
+      {rules && rulesDirty && status !== "saving" ? (
+        <div className={styles.rulesStickySave} role="status">
+          <span>تغییرات قوانین ذخیره نشده‌اند.</span>
+          <Button iconStart={<Save size={17} />} onClick={() => void saveRules()}>
+            ذخیره قوانین
+          </Button>
+        </div>
+      ) : null}
 
       <Modal
         footer={

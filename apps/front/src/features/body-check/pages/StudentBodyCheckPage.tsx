@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Card, EmptyState, FormField, Input, Select, Skeleton, Textarea } from "../../../components/ui";
+import {
+  Button,
+  Card,
+  EmptyState,
+  FormField,
+  Input,
+  Select,
+  Skeleton,
+  Textarea
+} from "../../../components/ui";
 import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
 import type { BodyCheckCycle, BodyCheckDay, BodyCheckEntryInput } from "../types/bodyCheck";
 import {
@@ -102,9 +111,7 @@ export function StudentBodyCheckPage({
     () => cycle?.days?.find((d) => d.localDate === selectedDate) || null,
     [cycle, selectedDate]
   );
-  const isFuture = Boolean(
-    cycle && selectedDate && selectedDate > cycle.localToday
-  );
+  const isFuture = Boolean(cycle && selectedDate && selectedDate > cycle.localToday);
   const editable = Boolean(cycle && cycle.status === "active" && !isFuture);
 
   const selectDay = (localDate: string) => {
@@ -126,8 +133,7 @@ export function StudentBodyCheckPage({
         actualWeightKg: form.actualWeightKg === "" ? null : Number(form.actualWeightKg),
         sleepStartTime: form.sleepStartTime ? `${form.sleepStartTime}:00` : null,
         wakeTime: form.wakeTime ? `${form.wakeTime}:00` : null,
-        sleepQualityScore:
-          form.sleepQualityScore === "" ? null : Number(form.sleepQualityScore),
+        sleepQualityScore: form.sleepQualityScore === "" ? null : Number(form.sleepQualityScore),
         nutritionAdherenceScore:
           form.nutritionAdherenceScore === "" ? null : Number(form.nutritionAdherenceScore)
       };
@@ -192,7 +198,9 @@ export function StudentBodyCheckPage({
               <strong>سوابق بادی‌چک</strong>
               {history.map((item) => (
                 <div className={styles.lockedBox} key={item.id}>
-                  {formatBodyCheckDate(item.startDate)} تا {formatBodyCheckDate(item.endDate)} · {item.report?.loggedDays ?? 0} روز ثبت‌شده · {item.status === "expired" ? "منقضی‌شده" : "بسته‌شده"}
+                  {formatBodyCheckDate(item.startDate)} تا {formatBodyCheckDate(item.endDate)} ·{" "}
+                  {item.report?.loggedDays ?? 0} روز ثبت‌شده ·{" "}
+                  {item.status === "expired" ? "منقضی‌شده" : "بسته‌شده"}
                 </div>
               ))}
             </div>
@@ -211,7 +219,7 @@ export function StudentBodyCheckPage({
           if (mins <= 0) mins += 24 * 60;
           return mins;
         })()
-      : selectedDay?.sleepDurationMinutes ?? null;
+      : (selectedDay?.sleepDurationMinutes ?? null);
 
   const weekPhotos = (cycle.photos || []).filter((p) => p.weekNumber === selectedDay?.weekNumber);
 
@@ -449,7 +457,7 @@ export function StudentBodyCheckPage({
         </Card>
 
         {editable ? (
-          <div className={styles.actions}>
+          <div className={styles.saveDayAction}>
             <Button isLoading={saving} onClick={() => void save()}>
               ذخیره این روز
             </Button>

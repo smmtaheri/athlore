@@ -21,6 +21,8 @@ export { IconButton } from "./IconButton";
 export type { IconButtonProps } from "./IconButton";
 export { Modal } from "./Modal";
 export type { ModalProps } from "./Modal";
+export { EditorDrawer } from "./EditorDrawer";
+export type { EditorDrawerProps } from "./EditorDrawer";
 export { Pagination } from "./Pagination";
 export type { PaginationProps } from "./Pagination";
 export { Skeleton } from "./Skeleton";

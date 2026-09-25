@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { Copy, Plus, RefreshCcw, Save, Star, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowRight, Copy, Plus, RefreshCcw, Save, Star, Trash2 } from "lucide-react";
 import {
   Button,
   Card,
   EmptyState,
   FormField,
   Input,
+  Modal,
   Select,
   Skeleton,
   StatusBadge,
@@ -62,16 +63,15 @@ export function VisitFormTemplatesSection({
   repository = visitFormTemplatesRepository
 }: VisitFormTemplatesSectionProps) {
   const [templates, setTemplates] = useState<VisitFormTemplate[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<VisitFormTemplate | null>(null);
-  const [draftSourceId, setDraftSourceId] = useState<string | null>(null);
+  const [baseline, setBaseline] = useState<VisitFormTemplate | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [feedbackTone, setFeedbackTone] = useState<"error" | "success">("success");
   const [status, setStatus] = useState<"error" | "loaded" | "loading" | "saving">("loading");
   const [requestKey, setRequestKey] = useState(0);
-  const [creating, setCreating] = useState(false);
-  const [newKey, setNewKey] = useState("");
-  const [newName, setNewName] = useState("");
+  const listScrollPosition = useRef(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -82,12 +82,6 @@ export function VisitFormTemplatesSection({
           return;
         }
         setTemplates(items);
-        setSelectedId((current) => {
-          if (current && items.some((item) => item.id === current)) {
-            return current;
-          }
-          return items.find((item) => item.isDefault)?.id ?? items[0]?.id ?? null;
-        });
         setStatus("loaded");
       })
       .catch(() => {
@@ -101,23 +95,61 @@ export function VisitFormTemplatesSection({
     };
   }, [repository, requestKey]);
 
-  const selected = useMemo(
-    () => templates.find((item) => item.id === selectedId) ?? null,
-    [selectedId, templates]
-  );
-
-  if ((selected?.id ?? null) !== draftSourceId) {
-    setDraftSourceId(selected?.id ?? null);
-    setDraft(selected ? structuredClone(selected) : null);
-  }
-
   const showFeedback = (message: string, tone: "error" | "success" = "success") => {
     setFeedback(message);
     setFeedbackTone(tone);
   };
 
+  const beginCreate = () => {
+    listScrollPosition.current = window.scrollY;
+    if (window.scrollY > 0) window.scrollTo(0, 0);
+    const next: VisitFormTemplate = {
+      description: "",
+      id: "new-template",
+      isActive: true,
+      isDefault: templates.length === 0,
+      key: "",
+      name: "",
+      sections: [],
+      version: 1
+    };
+    setCreating(true);
+    setBaseline(structuredClone(next));
+    setDraft(next);
+    setFeedback("");
+  };
+
+  const beginEdit = (template: VisitFormTemplate) => {
+    listScrollPosition.current = window.scrollY;
+    if (window.scrollY > 0) window.scrollTo(0, 0);
+    const next = structuredClone(template);
+    setCreating(false);
+    setBaseline(structuredClone(next));
+    setDraft(next);
+    setFeedback("");
+  };
+
   const updateDraft = (updater: (current: VisitFormTemplate) => VisitFormTemplate) => {
     setDraft((current) => (current ? updater(structuredClone(current)) : current));
+  };
+
+  const leaveEditor = () => {
+    const restoreScrollPosition = listScrollPosition.current;
+    setDraft(null);
+    setBaseline(null);
+    setCreating(false);
+    setConfirmDiscard(false);
+    if (restoreScrollPosition > 0) {
+      window.requestAnimationFrame(() => window.scrollTo(0, restoreScrollPosition));
+    }
+  };
+
+  const requestLeaveEditor = () => {
+    if (draft && baseline && JSON.stringify(draft) !== JSON.stringify(baseline)) {
+      setConfirmDiscard(true);
+      return;
+    }
+    leaveEditor();
   };
 
   const reload = () => {
@@ -132,44 +164,36 @@ export function VisitFormTemplatesSection({
     setStatus("saving");
     setFeedback("");
     try {
-      const saved = await repository.update(draft.id, {
-        description: draft.description,
-        isActive: draft.isActive,
-        name: draft.name,
-        sections: draft.sections
-      });
-      setTemplates((current) => current.map((item) => (item.id === saved.id ? saved : item)));
-      setDraft(saved);
+      if (!draft.name.trim() || !draft.key.trim()) {
+        showFeedback("نام و کلید قالب الزامی است.", "error");
+        setStatus("loaded");
+        return;
+      }
+      const saved = creating
+        ? await repository.create({
+            key: draft.key.trim(),
+            name: draft.name.trim(),
+            description: draft.description,
+            isActive: draft.isActive,
+            sections: draft.sections
+          })
+        : await repository.update(draft.id, {
+            description: draft.description,
+            isActive: draft.isActive,
+            name: draft.name,
+            sections: draft.sections
+          });
+      setTemplates((current) =>
+        creating
+          ? [saved, ...current]
+          : current.map((item) => (item.id === saved.id ? saved : item))
+      );
       setStatus("loaded");
-      showFeedback("قالب فرم ویزیت ذخیره شد.");
+      leaveEditor();
+      showFeedback(creating ? "قالب فرم ویزیت ایجاد شد." : "قالب فرم ویزیت ذخیره شد.");
     } catch {
       setStatus("loaded");
       showFeedback("ذخیره قالب فرم ویزیت انجام نشد.", "error");
-    }
-  };
-
-  const handleCreate = async () => {
-    if (!newKey.trim() || !newName.trim()) {
-      showFeedback("کلید و نام قالب الزامی است.", "error");
-      return;
-    }
-    setStatus("saving");
-    try {
-      const created = await repository.create({
-        key: newKey.trim(),
-        name: newName.trim(),
-        sections: []
-      });
-      setTemplates((current) => [created, ...current]);
-      setSelectedId(created.id);
-      setCreating(false);
-      setNewKey("");
-      setNewName("");
-      setStatus("loaded");
-      showFeedback("قالب جدید ایجاد شد.");
-    } catch {
-      setStatus("loaded");
-      showFeedback("ایجاد قالب انجام نشد.", "error");
     }
   };
 
@@ -177,8 +201,8 @@ export function VisitFormTemplatesSection({
     try {
       const dup = await repository.duplicate(id);
       setTemplates((current) => [dup, ...current]);
-      setSelectedId(dup.id);
-      showFeedback("قالب کپی شد.");
+      beginEdit(dup);
+      showFeedback("کپی ساخته شد؛ تغییرات را بررسی و ذخیره کنید.");
     } catch {
       showFeedback("کپی قالب انجام نشد.", "error");
     }
@@ -235,6 +259,177 @@ export function VisitFormTemplatesSection({
     );
   }
 
+  if (draft) {
+    const dirty = Boolean(baseline && JSON.stringify(draft) !== JSON.stringify(baseline));
+    return (
+      <>
+        <Card className={styles.templateEditorPage}>
+          <div className={styles.templateEditorHeader}>
+            <div>
+              <p className={styles.sectionDescription}>قوانین مربی / فرم‌های ویزیت</p>
+              <h2 className={styles.sectionTitle}>
+                {creating ? "ساخت قالب ویزیت" : `ویرایش قالب: ${draft.name}`}
+              </h2>
+              <p className={styles.sectionDescription}>
+                تغییرات را در همین صفحه انجام دهید؛ بعد از ذخیره به فهرست قالب‌ها برمی‌گردید.
+              </p>
+            </div>
+            <Button
+              iconStart={<ArrowRight size={18} />}
+              onClick={requestLeaveEditor}
+              variant="secondary"
+            >
+              بازگشت به قالب‌ها
+            </Button>
+          </div>
+
+          {feedback ? (
+            <div
+              className={`${styles.alert} ${feedbackTone === "error" ? styles.alertError : styles.alertSuccess}`}
+              role="status"
+            >
+              {feedback}
+            </div>
+          ) : null}
+
+          <div className={styles.cardGrid}>
+            <FormField htmlFor="visit-form-template-name" label="نام قالب" required>
+              <Input
+                autoFocus={creating}
+                id="visit-form-template-name"
+                onChange={(event) =>
+                  updateDraft((current) => ({ ...current, name: event.target.value }))
+                }
+                value={draft.name}
+              />
+            </FormField>
+            <FormField htmlFor="visit-form-template-key" label="کلید قالب" required>
+              <Input
+                disabled={!creating}
+                id="visit-form-template-key"
+                onChange={(event) =>
+                  updateDraft((current) => ({ ...current, key: event.target.value }))
+                }
+                value={draft.key}
+              />
+            </FormField>
+            <FormField label="فعال">
+              <Switch
+                checked={draft.isActive}
+                label={draft.isActive ? "فعال" : "غیرفعال"}
+                onCheckedChange={(checked) =>
+                  updateDraft((current) => ({
+                    ...current,
+                    isActive: checked,
+                    isDefault: checked ? current.isDefault : false
+                  }))
+                }
+              />
+            </FormField>
+          </div>
+
+          <FormField htmlFor="visit-form-template-description" label="توضیحات">
+            <Textarea
+              id="visit-form-template-description"
+              onChange={(event) =>
+                updateDraft((current) => ({ ...current, description: event.target.value }))
+              }
+              rows={3}
+              value={draft.description}
+            />
+          </FormField>
+
+          <div className={styles.sectionHeader}>
+            <div>
+              <h3 className={styles.ruleCardTitle}>بخش‌ها و فیلدهای قالب</h3>
+              <p className={styles.sectionDescription}>
+                فیلد تازه در ابتدای بخش مربوط قرار می‌گیرد.
+              </p>
+            </div>
+            <Button
+              iconStart={<Plus size={16} />}
+              onClick={() =>
+                updateDraft((current) => ({
+                  ...current,
+                  sections: [
+                    { fields: [], key: `section_${Date.now()}`, label: "بخش جدید", order: 0 },
+                    ...current.sections.map((section) => ({
+                      ...section,
+                      order: section.order + 1
+                    }))
+                  ]
+                }))
+              }
+              size="sm"
+              variant="secondary"
+            >
+              افزودن بخش
+            </Button>
+          </div>
+
+          {[...draft.sections]
+            .sort((a, b) => a.order - b.order)
+            .map((section) => (
+              <SectionEditor
+                key={section.key}
+                onChange={(nextSection) =>
+                  updateDraft((current) => ({
+                    ...current,
+                    sections: current.sections.map((item) =>
+                      item.key === nextSection.key ? nextSection : item
+                    )
+                  }))
+                }
+                onRemove={() =>
+                  updateDraft((current) => ({
+                    ...current,
+                    sections: current.sections
+                      .filter((item) => item.key !== section.key)
+                      .map((item, index) => ({ ...item, order: index }))
+                  }))
+                }
+                section={section}
+              />
+            ))}
+
+          <div className={styles.templateEditorActions}>
+            <span>{dirty ? "تغییرات ذخیره‌نشده" : "همه‌چیز ذخیره است"}</span>
+            <div>
+              <Button
+                iconStart={<Save size={18} />}
+                isLoading={status === "saving"}
+                onClick={() => void saveTemplate()}
+              >
+                {creating ? "ایجاد قالب" : "ذخیره قالب"}
+              </Button>
+              <Button onClick={requestLeaveEditor} variant="secondary">
+                انصراف
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        <Modal
+          footer={
+            <>
+              <Button onClick={() => setConfirmDiscard(false)} variant="secondary">
+                ادامه ویرایش
+              </Button>
+              <Button onClick={leaveEditor} variant="danger">
+                خروج بدون ذخیره
+              </Button>
+            </>
+          }
+          onClose={() => setConfirmDiscard(false)}
+          open={confirmDiscard}
+          title="تغییرات ذخیره نشده‌اند"
+        >
+          <p>اگر خارج شوید، تغییرات این قالب کنار گذاشته می‌شود.</p>
+        </Modal>
+      </>
+    );
+  }
+
   return (
     <div className={styles.pageStack}>
       <Card>
@@ -245,11 +440,7 @@ export function VisitFormTemplatesSection({
               مدیریت قالب‌های فرم ویزیت: ایجاد، ویرایش، کپی، بایگانی و تعیین پیش‌فرض.
             </p>
           </div>
-          <Button
-            iconStart={<Plus size={18} />}
-            onClick={() => setCreating((current) => !current)}
-            variant="secondary"
-          >
+          <Button iconStart={<Plus size={18} />} onClick={beginCreate} variant="secondary">
             قالب جدید
           </Button>
         </div>
@@ -262,33 +453,6 @@ export function VisitFormTemplatesSection({
             role="status"
           >
             {feedback}
-          </div>
-        ) : null}
-
-        {creating ? (
-          <div className={styles.cardGrid}>
-            <FormField htmlFor="visit-form-new-key" label="کلید قالب" required>
-              <Input
-                id="visit-form-new-key"
-                onChange={(event) => setNewKey(event.target.value)}
-                value={newKey}
-              />
-            </FormField>
-            <FormField htmlFor="visit-form-new-name" label="نام قالب" required>
-              <Input
-                id="visit-form-new-name"
-                onChange={(event) => setNewName(event.target.value)}
-                value={newName}
-              />
-            </FormField>
-            <div className={styles.actionIconGroup}>
-              <Button isLoading={status === "saving"} onClick={handleCreate}>
-                ایجاد
-              </Button>
-              <Button onClick={() => setCreating(false)} variant="secondary">
-                انصراف
-              </Button>
-            </div>
           </div>
         ) : null}
 
@@ -312,11 +476,7 @@ export function VisitFormTemplatesSection({
                     <StatusBadge variant={template.isActive ? "success" : "neutral"}>
                       {template.isActive ? "فعال" : "بایگانی"}
                     </StatusBadge>
-                    <Button
-                      onClick={() => setSelectedId(template.id)}
-                      size="sm"
-                      variant={selectedId === template.id ? "primary" : "secondary"}
-                    >
+                    <Button onClick={() => beginEdit(template)} size="sm" variant="secondary">
                       ویرایش
                     </Button>
                     <Button
@@ -354,120 +514,17 @@ export function VisitFormTemplatesSection({
           </ul>
         )}
       </Card>
-
-      {draft ? (
-        <Card className={styles.pageStack}>
-          <div className={styles.sectionHeader}>
-            <div>
-              <h2 className={styles.sectionTitle}>ویرایش قالب</h2>
-              <p className={styles.sectionDescription}>
-                فعال/غیرفعال کردن فیلدها، ویرایش برچسب‌ها و افزودن فیلد.
-              </p>
-            </div>
-            <Button
-              iconStart={<Save size={18} />}
-              isLoading={status === "saving"}
-              onClick={saveTemplate}
-            >
-              ذخیره قالب
-            </Button>
-          </div>
-
-          <div className={styles.cardGrid}>
-            <FormField htmlFor="visit-form-template-name" label="نام قالب">
-              <Input
-                id="visit-form-template-name"
-                onChange={(event) =>
-                  updateDraft((current) => ({ ...current, name: event.target.value }))
-                }
-                value={draft.name}
-              />
-            </FormField>
-            <FormField htmlFor="visit-form-template-key" label="کلید قالب">
-              <Input disabled id="visit-form-template-key" value={draft.key} />
-            </FormField>
-            <FormField label="فعال">
-              <Switch
-                checked={draft.isActive}
-                label={draft.isActive ? "فعال" : "غیرفعال"}
-                onCheckedChange={(checked) =>
-                  updateDraft((current) => ({
-                    ...current,
-                    isActive: checked,
-                    isDefault: checked ? current.isDefault : false
-                  }))
-                }
-              />
-            </FormField>
-          </div>
-
-          <FormField htmlFor="visit-form-template-description" label="توضیحات">
-            <Textarea
-              id="visit-form-template-description"
-              onChange={(event) =>
-                updateDraft((current) => ({ ...current, description: event.target.value }))
-              }
-              rows={3}
-              value={draft.description}
-            />
-          </FormField>
-
-          <div className={styles.sectionHeader}>
-            <p className={styles.sectionDescription}>بخش‌ها و فیلدهای قالب</p>
-            <Button
-              iconStart={<Plus size={16} />}
-              onClick={() =>
-                updateDraft((current) => {
-                  const nextOrder =
-                    current.sections.reduce((max, section) => Math.max(max, section.order), -1) + 1;
-                  return {
-                    ...current,
-                    sections: [
-                      ...current.sections,
-                      {
-                        fields: [],
-                        key: `section_${Date.now()}`,
-                        label: "بخش جدید",
-                        order: nextOrder
-                      }
-                    ]
-                  };
-                })
-              }
-              size="sm"
-              variant="secondary"
-            >
-              افزودن بخش
-            </Button>
-          </div>
-
-          {[...draft.sections]
-            .sort((a, b) => a.order - b.order)
-            .map((section) => (
-              <SectionEditor
-                key={section.key}
-                onChange={(nextSection) =>
-                  updateDraft((current) => ({
-                    ...current,
-                    sections: current.sections.map((item) =>
-                      item.key === nextSection.key ? nextSection : item
-                    )
-                  }))
-                }
-                section={section}
-              />
-            ))}
-        </Card>
-      ) : null}
     </div>
   );
 }
 
 function SectionEditor({
   onChange,
+  onRemove,
   section
 }: {
   onChange: (section: VisitFormSectionDefinition) => void;
+  onRemove: () => void;
   section: VisitFormSectionDefinition;
 }) {
   const fields = [...section.fields].sort((a, b) => a.order - b.order);
@@ -480,10 +537,12 @@ function SectionEditor({
   };
 
   const addField = () => {
-    const nextOrder = section.fields.reduce((max, field) => Math.max(max, field.order), -1) + 1;
     onChange({
       ...section,
-      fields: [...section.fields, createEmptyField(nextOrder)]
+      fields: [
+        createEmptyField(0),
+        ...section.fields.map((field) => ({ ...field, order: field.order + 1 }))
+      ]
     });
   };
 
@@ -503,6 +562,9 @@ function SectionEditor({
         </div>
         <Button iconStart={<Plus size={16} />} onClick={addField} size="sm" variant="secondary">
           افزودن فیلد
+        </Button>
+        <Button iconStart={<Trash2 size={16} />} onClick={onRemove} size="sm" variant="danger">
+          حذف بخش
         </Button>
       </div>
 

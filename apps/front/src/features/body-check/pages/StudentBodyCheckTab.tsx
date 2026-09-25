@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { Plus, Save } from "lucide-react";
 import {
   Button,
   Card,
+  EditorDrawer,
   EmptyState,
   FormField,
   Input,
@@ -38,6 +40,8 @@ export function StudentBodyCheckTab({
   const [activeId, setActiveId] = useState<string>("");
   const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
   const [creating, setCreating] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -45,6 +49,15 @@ export function StudentBodyCheckTab({
   const [goalWeight, setGoalWeight] = useState("");
   const [targetsText, setTargetsText] = useState("");
   const [mealEnabled, setMealEnabled] = useState(false);
+  const [cycleFormBaseline, setCycleFormBaseline] = useState("");
+
+  const currentCycleForm = JSON.stringify({
+    startDate,
+    startingWeight,
+    goalWeight,
+    targetsText,
+    mealEnabled
+  });
 
   const load = async () => {
     const items = await repository.listCycles(student.id);
@@ -57,6 +70,8 @@ export function StudentBodyCheckTab({
       setActiveId(detail.id);
       setMealEnabled(detail.mealDetailEnabled);
       setTargetsText(detail.dailyTargetsKg.join(", "));
+      setStartingWeight(String(detail.startingWeightKg));
+      setGoalWeight(String(detail.goalWeightKg));
     } else {
       setActiveId("");
     }
@@ -77,6 +92,8 @@ export function StudentBodyCheckTab({
           setActiveId(detail.id);
           setMealEnabled(detail.mealDetailEnabled);
           setTargetsText(detail.dailyTargetsKg.join(", "));
+          setStartingWeight(String(detail.startingWeightKg));
+          setGoalWeight(String(detail.goalWeightKg));
         }
         setStatus("loaded");
       })
@@ -103,6 +120,45 @@ export function StudentBodyCheckTab({
     }
   };
 
+  const openCreateEditor = () => {
+    const initial = {
+      startDate: new Date().toISOString().slice(0, 10),
+      startingWeight: String(student.weightKg || ""),
+      goalWeight: "",
+      targetsText: "",
+      mealEnabled: false
+    };
+    setCycleFormBaseline(JSON.stringify(initial));
+    setStartDate(initial.startDate);
+    setStartingWeight(initial.startingWeight);
+    setGoalWeight(initial.goalWeight);
+    setTargetsText(initial.targetsText);
+    setMealEnabled(initial.mealEnabled);
+    setError("");
+    setFeedback("");
+    setEditorMode("create");
+  };
+
+  const openEditEditor = () => {
+    if (!active) return;
+    const initial = {
+      startDate: active.startDate,
+      startingWeight: String(active.startingWeightKg),
+      goalWeight: String(active.goalWeightKg),
+      targetsText: active.dailyTargetsKg.join(", "),
+      mealEnabled: active.mealDetailEnabled
+    };
+    setCycleFormBaseline(JSON.stringify(initial));
+    setStartDate(initial.startDate);
+    setStartingWeight(initial.startingWeight);
+    setGoalWeight(initial.goalWeight);
+    setTargetsText(initial.targetsText);
+    setMealEnabled(initial.mealEnabled);
+    setError("");
+    setFeedback("");
+    setEditorMode("edit");
+  };
+
   const create = async () => {
     setCreating(true);
     setError("");
@@ -121,6 +177,7 @@ export function StudentBodyCheckTab({
       });
       setFeedback("دوره ۳۰ روزه بادی چک ساخته شد.");
       setActiveId(cycle.id);
+      setEditorMode(null);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? persianMessageForApiError(err) : "ایجاد دوره انجام نشد.");
@@ -131,6 +188,7 @@ export function StudentBodyCheckTab({
 
   const saveTargets = async () => {
     if (!active) return;
+    setSavingSettings(true);
     setError("");
     try {
       const targets = targetsText.split(",").map((v) => Number(v.trim()));
@@ -145,9 +203,12 @@ export function StudentBodyCheckTab({
         startingWeightKg: Number(startingWeight) || active.startingWeightKg
       });
       setFeedback("تنظیمات دوره ذخیره شد.");
+      setEditorMode(null);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? persianMessageForApiError(err) : "ذخیره انجام نشد.");
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -166,59 +227,11 @@ export function StudentBodyCheckTab({
       {error ? <div className={styles.alertErr}>{error}</div> : null}
       {feedback ? <div className={styles.alertOk}>{feedback}</div> : null}
 
-      <Card>
-        <div className={styles.stackTight}>
-          <strong>دوره جدید ۳۰ روزه</strong>
-          <div className={styles.formGrid}>
-            <FormField htmlFor="bc-start" label="تاریخ شروع">
-              <Input
-                id="bc-start"
-                onChange={(e) => setStartDate(e.target.value)}
-                type="date"
-                value={startDate}
-              />
-            </FormField>
-            <FormField htmlFor="bc-start-w" label="وزن شروع">
-              <Input
-                id="bc-start-w"
-                onChange={(e) => setStartingWeight(e.target.value)}
-                type="number"
-                value={startingWeight}
-              />
-            </FormField>
-            <FormField htmlFor="bc-goal-w" label="وزن هدف">
-              <Input
-                id="bc-goal-w"
-                onChange={(e) => setGoalWeight(e.target.value)}
-                type="number"
-                value={goalWeight}
-              />
-            </FormField>
-            <div>
-              <Switch
-                checked={mealEnabled}
-                label={mealEnabled ? "ریز وعده‌ها باز است" : "ریز وعده‌ها قفل است"}
-                onCheckedChange={setMealEnabled}
-              />
-            </div>
-          </div>
-          <FormField htmlFor="bc-targets" label="وزن‌های هدف روزانه (۳۰ عدد، با ویرگول)">
-            <Input
-              id="bc-targets"
-              onChange={(e) => setTargetsText(e.target.value)}
-              value={targetsText}
-            />
-          </FormField>
-          <div className={styles.actions}>
-            <Button onClick={() => void suggest()} type="button" variant="secondary">
-              پیشنهاد سیستم
-            </Button>
-            <Button isLoading={creating} onClick={() => void create()} type="button">
-              ایجاد دوره
-            </Button>
-          </div>
-        </div>
-      </Card>
+      <div className={styles.actions}>
+        <Button iconStart={<Plus size={18} />} onClick={openCreateEditor}>
+          دوره جدید ۳۰ روزه
+        </Button>
+      </div>
 
       {cycles.length > 0 ? (
         <Card>
@@ -236,6 +249,8 @@ export function StudentBodyCheckTab({
                     setGoalWeight(String(cycle.goalWeightKg));
                     void repository.getCycle(student.id, cycle.id).then((detail) => {
                       setCycles((prev) => prev.map((c) => (c.id === detail.id ? detail : c)));
+                      setStartingWeight(String(detail.startingWeightKg));
+                      setGoalWeight(String(detail.goalWeightKg));
                     });
                   }}
                   size="sm"
@@ -258,8 +273,8 @@ export function StudentBodyCheckTab({
         <>
           <Card className={styles.printHide}>
             <div className={styles.actions}>
-              <Button onClick={() => void saveTargets()} variant="secondary">
-                ذخیره تنظیمات دوره
+              <Button onClick={openEditEditor} variant="secondary">
+                تنظیمات دوره
               </Button>
               {active.status === "active" ? (
                 <Button onClick={() => void close()} variant="secondary">
@@ -280,6 +295,89 @@ export function StudentBodyCheckTab({
       ) : (
         <EmptyState description="هنوز دوره‌ای برای این شاگرد نیست." title="بدون دوره" />
       )}
+
+      <EditorDrawer
+        footer={(requestClose) => (
+          <>
+            <Button
+              iconStart={<Save size={17} />}
+              isLoading={editorMode === "create" ? creating : savingSettings}
+              onClick={() => void (editorMode === "create" ? create() : saveTargets())}
+            >
+              {editorMode === "create" ? "ایجاد دوره" : "ذخیره تنظیمات"}
+            </Button>
+            <Button onClick={requestClose} variant="secondary">
+              انصراف
+            </Button>
+          </>
+        )}
+        hasUnsavedChanges={Boolean(editorMode && currentCycleForm !== cycleFormBaseline)}
+        onClose={() => setEditorMode(null)}
+        open={editorMode !== null}
+        title={editorMode === "create" ? "دورهٔ جدید بادی‌چک" : "تنظیمات دورهٔ بادی‌چک"}
+      >
+        <div className={styles.stackTight}>
+          {error ? (
+            <div className={styles.alertErr} role="alert">
+              {error}
+            </div>
+          ) : null}
+          {feedback ? (
+            <div className={styles.alertOk} role="status">
+              {feedback}
+            </div>
+          ) : null}
+          {editorMode === "create" ? (
+            <FormField htmlFor="bc-start" label="تاریخ شروع">
+              <Input
+                id="bc-start"
+                onChange={(event) => setStartDate(event.target.value)}
+                type="date"
+                value={startDate}
+              />
+            </FormField>
+          ) : active ? (
+            <div className={styles.readonlyValue}>
+              تاریخ شروع: {formatBodyCheckDate(active.startDate)}
+            </div>
+          ) : null}
+          <div className={styles.formGrid}>
+            <FormField htmlFor="bc-start-w" label="وزن شروع">
+              <Input
+                id="bc-start-w"
+                onChange={(event) => setStartingWeight(event.target.value)}
+                type="number"
+                value={startingWeight}
+              />
+            </FormField>
+            <FormField htmlFor="bc-goal-w" label="وزن هدف">
+              <Input
+                id="bc-goal-w"
+                onChange={(event) => setGoalWeight(event.target.value)}
+                type="number"
+                value={goalWeight}
+              />
+            </FormField>
+            <Switch
+              checked={mealEnabled}
+              label={mealEnabled ? "ریز وعده‌ها باز است" : "ریز وعده‌ها قفل است"}
+              onCheckedChange={setMealEnabled}
+            />
+          </div>
+          <FormField htmlFor="bc-targets" label="وزن‌های هدف روزانه (۳۰ عدد، با ویرگول)">
+            <Input
+              id="bc-targets"
+              onChange={(event) => setTargetsText(event.target.value)}
+              value={targetsText}
+            />
+          </FormField>
+          {editorMode === "create" ? (
+            <Button onClick={() => void suggest()} type="button" variant="secondary">
+              پیشنهاد سیستم برای وزن‌های هدف
+            </Button>
+          ) : null}
+        </div>
+      </EditorDrawer>
     </div>
   );
 }
@@ -310,11 +408,7 @@ export function BodyCheckReportView({
                   : "neutral"
             }
           >
-            {cycle.status === "active"
-              ? "فعال"
-              : cycle.status === "expired"
-                ? "منقضی شده"
-                : "بسته"}
+            {cycle.status === "active" ? "فعال" : cycle.status === "expired" ? "منقضی شده" : "بسته"}
           </StatusBadge>
         </p>
       </header>

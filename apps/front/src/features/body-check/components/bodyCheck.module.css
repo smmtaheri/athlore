@@ -133,6 +133,24 @@
   gap: var(--space-2);
 }
 
+.saveDayAction {
+  position: sticky;
+  z-index: 20;
+  inset-block-end: max(12px, env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: flex-end;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: rgb(255 255 255 / 96%);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-3);
+  backdrop-filter: blur(12px);
+}
+
+.saveDayAction button {
+  min-width: 12rem;
+}
+
 .photoGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -239,6 +257,10 @@
   .formGrid,
   .summaryRow {
     grid-template-columns: 1fr;
+  }
+
+  .saveDayAction button {
+    width: 100%;
   }
 
   .tableWrap {

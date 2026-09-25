@@ -47,8 +47,10 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
   const [passwordModal, setPasswordModal] = useState<PasswordModalMode>(null);
+  const [usernameModalOpen, setUsernameModalOpen] = useState(false);
   const [initialPassword, setInitialPassword] = useState("");
   const [portalUsername, setPortalUsername] = useState("");
+  const [usernameDraft, setUsernameDraft] = useState("");
   const [credentials, setCredentials] = useState<StudentActivateLoginResult | null>(null);
   const portal = student.portalAccess;
   const portalStatus = portal?.status ?? "not_started";
@@ -118,6 +120,34 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
     }
   };
 
+  const submitPortalUsername = async () => {
+    const next = usernameDraft.trim();
+    if (next.length < 3) {
+      setActionError("نام کاربری باید حداقل ۳ کاراکتر باشد.");
+      return;
+    }
+    setBusy(true);
+    setActionError("");
+    try {
+      if (!studentsRepository.setPortalUsername) {
+        throw new Error("ویرایش نام کاربری در دسترس نیست.");
+      }
+      await studentsRepository.setPortalUsername(student.id, next);
+      setUsernameModalOpen(false);
+      await refreshStudent();
+    } catch (error) {
+      setActionError(
+        error instanceof ApiError
+          ? persianMessageForApiError(error)
+          : error instanceof Error
+            ? error.message
+            : "ویرایش نام کاربری انجام نشد."
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const deactivatePortal = async () => {
     setActionError("");
     setBusy(true);
@@ -129,9 +159,7 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
       await refreshStudent();
     } catch (error) {
       setActionError(
-        error instanceof ApiError
-          ? persianMessageForApiError(error)
-          : "غیرفعال‌سازی انجام نشد."
+        error instanceof ApiError ? persianMessageForApiError(error) : "غیرفعال‌سازی انجام نشد."
       );
     } finally {
       setBusy(false);
@@ -149,9 +177,7 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
       await refreshStudent();
     } catch (error) {
       setActionError(
-        error instanceof ApiError
-          ? persianMessageForApiError(error)
-          : "فعال‌سازی مجدد انجام نشد."
+        error instanceof ApiError ? persianMessageForApiError(error) : "فعال‌سازی مجدد انجام نشد."
       );
     } finally {
       setBusy(false);
@@ -262,30 +288,10 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
         {portal?.username && portalStatus !== "not_started" ? (
           <Button
             disabled={busy}
-            onClick={async () => {
-              const next = window.prompt("نام کاربری جدید شاگرد", portal.username || "");
-              if (!next || next.trim().length < 3) {
-                return;
-              }
-              setBusy(true);
+            onClick={() => {
               setActionError("");
-              try {
-                if (!studentsRepository.setPortalUsername) {
-                  throw new Error("ویرایش نام کاربری در دسترس نیست.");
-                }
-                await studentsRepository.setPortalUsername(student.id, next.trim());
-                await refreshStudent();
-              } catch (error) {
-                setActionError(
-                  error instanceof ApiError
-                    ? persianMessageForApiError(error)
-                    : error instanceof Error
-                      ? error.message
-                      : "ویرایش نام کاربری انجام نشد."
-                );
-              } finally {
-                setBusy(false);
-              }
+              setUsernameDraft(portal.username || "");
+              setUsernameModalOpen(true);
             }}
             variant="secondary"
           >
@@ -314,6 +320,39 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
       <Modal
         footer={
           <div className={styles.profileActions}>
+            <Button onClick={() => setUsernameModalOpen(false)} variant="secondary">
+              انصراف
+            </Button>
+            <Button disabled={busy} isLoading={busy} onClick={() => void submitPortalUsername()}>
+              ذخیره نام کاربری
+            </Button>
+          </div>
+        }
+        onClose={() => setUsernameModalOpen(false)}
+        open={usernameModalOpen}
+        title="ویرایش نام کاربری شاگرد"
+      >
+        <div className={styles.formGrid}>
+          {actionError ? (
+            <p className={styles.dangerText} role="alert">
+              {actionError}
+            </p>
+          ) : null}
+          <FormField htmlFor="portal-username-edit" label="نام کاربری" required>
+            <Input
+              autoComplete="off"
+              autoFocus
+              id="portal-username-edit"
+              onChange={(event) => setUsernameDraft(event.target.value)}
+              value={usernameDraft}
+            />
+          </FormField>
+        </div>
+      </Modal>
+
+      <Modal
+        footer={
+          <div className={styles.profileActions}>
             <Button
               onClick={() => {
                 setPasswordModal(null);
@@ -335,9 +374,7 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
           setPortalUsername("");
         }}
         open={passwordModal !== null}
-        title={
-          passwordModal === "reset" ? "ریست رمز پنل شاگرد" : "فعال‌سازی پنل شاگرد"
-        }
+        title={passwordModal === "reset" ? "ریست رمز پنل شاگرد" : "فعال‌سازی پنل شاگرد"}
       >
         <div className={styles.formGrid}>
           <p className={styles.actionHint}>
@@ -391,8 +428,8 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
               </p>
             ) : null}
             <p className={styles.actionHint}>
-              این رمز فقط همین لحظه نمایش داده می‌شود و بعداً قابل بازیابی نیست. شاگرد با نام کاربری و
-              همین رمز اولیه وارد می‌شود و بلافاصله رمز دائمی خود را تعیین می‌کند.
+              این رمز فقط همین لحظه نمایش داده می‌شود و بعداً قابل بازیابی نیست. شاگرد با نام کاربری
+              و همین رمز اولیه وارد می‌شود و بلافاصله رمز دائمی خود را تعیین می‌کند.
             </p>
             <p className={styles.actionHint}>
               برای ورود شاگرد، این آدرس را برای او ارسال کنید: {loginUrl}

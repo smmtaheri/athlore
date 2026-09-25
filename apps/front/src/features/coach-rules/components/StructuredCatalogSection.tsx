@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Plus, Save, Trash2 } from "lucide-react";
 import {
   Button,
   Card,
   Checkbox,
+  EditorDrawer,
   EmptyState,
   FormField,
   Input,
@@ -243,11 +244,12 @@ export function StructuredCatalogSection() {
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string>();
   const [techniqueDraft, setTechniqueDraft] = useState<Technique>();
+  const [techniqueBaseline, setTechniqueBaseline] = useState<Technique>();
+  const [exerciseEditorOpen, setExerciseEditorOpen] = useState(false);
+  const [exerciseBaseline, setExerciseBaseline] = useState<ExerciseDraft>(emptyDraft);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({ equipment: "", level: "", muscle: "", region: "" });
   const [feedback, setFeedback] = useState("");
-  const exerciseEditorRef = useRef<HTMLDivElement>(null);
-  const exerciseNameInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     return Promise.all([
@@ -321,6 +323,7 @@ export function StructuredCatalogSection() {
       );
       setDraft(emptyDraft);
       setEditingId(undefined);
+      setExerciseEditorOpen(false);
       setFeedback("حرکت ذخیره شد.");
     } catch {
       setFeedback("ذخیره حرکت انجام نشد؛ اطلاعات ساختاریافته را بررسی کنید.");
@@ -350,26 +353,36 @@ export function StructuredCatalogSection() {
     }));
   };
 
-  const revealExerciseEditor = () => {
-    requestAnimationFrame(() => {
-      const editor = exerciseEditorRef.current;
-      if (editor && typeof editor.scrollIntoView === "function") {
-        editor.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-      requestAnimationFrame(() => exerciseNameInputRef.current?.focus({ preventScroll: true }));
-    });
-  };
-
   const startNewExercise = () => {
     setDraft(emptyDraft);
     setEditingId(undefined);
-    revealExerciseEditor();
+    setExerciseBaseline(emptyDraft);
+    setExerciseEditorOpen(true);
   };
 
   const startEditingExercise = (row: CatalogExercise) => {
+    const nextDraft = exerciseFromRow(row, taxonomy);
     setEditingId(row.id);
-    setDraft(exerciseFromRow(row, taxonomy));
-    revealExerciseEditor();
+    setDraft(nextDraft);
+    setExerciseBaseline(nextDraft);
+    setExerciseEditorOpen(true);
+  };
+
+  const closeExerciseEditor = () => {
+    setExerciseEditorOpen(false);
+    setEditingId(undefined);
+    setDraft(emptyDraft);
+  };
+
+  const startEditingTechnique = (row: Technique) => {
+    const nextDraft = { ...row, parameters: techniqueParameters(row) };
+    setTechniqueBaseline(nextDraft);
+    setTechniqueDraft(nextDraft);
+  };
+
+  const closeTechniqueEditor = () => {
+    setTechniqueDraft(undefined);
+    setTechniqueBaseline(undefined);
   };
 
   const saveTechnique = async () => {
@@ -399,7 +412,7 @@ export function StructuredCatalogSection() {
           ? current.map((item) => (item.id === dto.id ? dto : item))
           : [...current, dto];
       });
-      setTechniqueDraft(undefined);
+      closeTechniqueEditor();
       setFeedback("تنظیم تکنیک ذخیره شد.");
     } catch {
       setFeedback("ذخیره تکنیک انجام نشد.");
@@ -410,15 +423,15 @@ export function StructuredCatalogSection() {
     try {
       await apiRequest(`/training-techniques/${id}/`, { method: "DELETE" });
       setTechniques((current) => current.filter((item) => item.id !== id));
-      setTechniqueDraft(undefined);
+      closeTechniqueEditor();
       setFeedback("تکنیک اختصاصی حذف شد.");
     } catch {
       setFeedback("حذف تکنیک انجام نشد.");
     }
   };
 
-  const startNewTechnique = () =>
-    setTechniqueDraft({
+  const startNewTechnique = () => {
+    const nextDraft: Technique = {
       id: null,
       key: "custom-technique",
       name: "",
@@ -431,7 +444,10 @@ export function StructuredCatalogSection() {
       source: "coach_private",
       base_technique_key: null,
       handler_status: "manual_only"
-    });
+    };
+    setTechniqueBaseline(nextDraft);
+    setTechniqueDraft(nextDraft);
+  };
 
   return (
     <StackLike>
@@ -596,13 +612,28 @@ export function StructuredCatalogSection() {
         </div>
       </Card>
 
-      <div className={styles.catalogEditorAnchor} ref={exerciseEditorRef}>
-        <Card className={styles.pageStack}>
-          <h2 className={styles.ruleCardTitle}>{editingId ? "ویرایش حرکت" : "ورود حرکت جدید"}</h2>
+      <EditorDrawer
+        footer={(requestClose) => (
+          <>
+            <Button iconStart={<Save size={17} />} onClick={() => void saveExercise()}>
+              ذخیره حرکت
+            </Button>
+            <Button onClick={requestClose} variant="secondary">
+              انصراف
+            </Button>
+          </>
+        )}
+        hasUnsavedChanges={JSON.stringify(draft) !== JSON.stringify(exerciseBaseline)}
+        onClose={closeExerciseEditor}
+        open={exerciseEditorOpen}
+        title={editingId ? "ویرایش حرکت" : "حرکت جدید"}
+      >
+        <div className={styles.pageStack}>
+          {feedback && exerciseEditorOpen ? <div role="status">{feedback}</div> : null}
           <div className={styles.formGrid}>
             <FormField label="نام فارسی" required>
               <Input
-                ref={exerciseNameInputRef}
+                autoFocus
                 value={draft.name}
                 onChange={(event) => setDraft({ ...draft, name: event.target.value })}
               />
@@ -752,27 +783,50 @@ export function StructuredCatalogSection() {
               onCheckedChange={(checked) => setDraft({ ...draft, is_active: checked })}
             />
           </div>
-          <Button iconStart={<Save size={17} />} onClick={() => void saveExercise()}>
-            ذخیره حرکت
-          </Button>
-        </Card>
-      </div>
+        </div>
+      </EditorDrawer>
 
       <TechniquesSection
         techniques={techniques}
-        onEdit={(row) => setTechniqueDraft({ ...row, parameters: techniqueParameters(row) })}
+        onEdit={startEditingTechnique}
         onDelete={(id) => void deleteTechnique(id)}
         onCreate={startNewTechnique}
       />
       {techniqueDraft ? (
-        <TechniqueEditor
-          draft={techniqueDraft}
-          levels={taxonomy.levels}
-          publicTechniques={techniques.filter((item) => item.source === "platform")}
-          onChange={setTechniqueDraft}
-          onCancel={() => setTechniqueDraft(undefined)}
-          onSave={() => void saveTechnique()}
-        />
+        <EditorDrawer
+          footer={(requestClose) => (
+            <>
+              <Button iconStart={<Save size={17} />} onClick={() => void saveTechnique()}>
+                ذخیره تکنیک
+              </Button>
+              <Button onClick={requestClose} variant="secondary">
+                انصراف
+              </Button>
+            </>
+          )}
+          hasUnsavedChanges={JSON.stringify(techniqueDraft) !== JSON.stringify(techniqueBaseline)}
+          onClose={closeTechniqueEditor}
+          open
+          title={
+            techniqueDraft.base_technique_key
+              ? "تنظیم تکنیک عمومی"
+              : techniqueDraft.id
+                ? "ویرایش تکنیک"
+                : "تکنیک خصوصی جدید"
+          }
+        >
+          {feedback ? (
+            <div className={styles.alertError} role="status">
+              {feedback}
+            </div>
+          ) : null}
+          <TechniqueEditor
+            draft={techniqueDraft}
+            levels={taxonomy.levels}
+            publicTechniques={techniques.filter((item) => item.source === "platform")}
+            onChange={setTechniqueDraft}
+          />
+        </EditorDrawer>
       ) : null}
       {feedback ? <div role="status">{feedback}</div> : null}
     </StackLike>
@@ -941,16 +995,12 @@ function TechniqueEditor({
   draft,
   levels,
   publicTechniques,
-  onChange,
-  onCancel,
-  onSave
+  onChange
 }: {
   draft: Technique;
   levels: Array<{ key: string; name: string }>;
   publicTechniques: Technique[];
   onChange: (draft: Technique) => void;
-  onCancel: () => void;
-  onSave: () => void;
 }) {
   const handler = techniqueHandler(draft);
   const setParameter = (key: string, value: unknown) =>
@@ -1130,14 +1180,6 @@ function TechniqueEditor({
           label="فعال"
           onCheckedChange={(enabled) => onChange({ ...draft, enabled })}
         />
-      </div>
-      <div className={styles.actionIconGroup}>
-        <Button iconStart={<Save size={17} />} onClick={onSave}>
-          ذخیره تکنیک
-        </Button>
-        <Button variant="secondary" onClick={onCancel}>
-          انصراف
-        </Button>
       </div>
     </Card>
   );
