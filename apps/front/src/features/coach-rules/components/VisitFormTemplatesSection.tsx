@@ -263,7 +263,7 @@ export function VisitFormTemplatesSection({
     const dirty = Boolean(baseline && JSON.stringify(draft) !== JSON.stringify(baseline));
     return (
       <>
-        <Card className={styles.templateEditorPage}>
+        <Card className={`${styles.templateEditorPage} ${styles.visitTemplates}`}>
           <div className={styles.templateEditorHeader}>
             <div>
               <p className={styles.sectionDescription}>قوانین مربی / فرم‌های ویزیت</p>
@@ -431,7 +431,7 @@ export function VisitFormTemplatesSection({
   }
 
   return (
-    <div className={styles.pageStack}>
+    <div className={`${styles.pageStack} ${styles.visitTemplates}`}>
       <Card>
         <div className={styles.sectionHeader}>
           <div>

@@ -451,6 +451,10 @@
   gap: var(--space-2);
 }
 
+.visitTemplates {
+  min-width: 0;
+}
+
 .pdfPreview {
   display: grid;
   min-height: 360px;
@@ -511,6 +515,23 @@
   .rulesStickySave {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .visitTemplates .ruleCardHeader {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .visitTemplates .ruleCardHeader > div:first-child {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .visitTemplates .actionIconGroup {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
   }
 
   .editableRow,
