@@ -10,6 +10,8 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
+from django.db.models import Q
+
 from accounts.models import (
     CoachExercisePreference,
     CoachTechnique,
@@ -19,7 +21,14 @@ from accounts.models import (
     ExerciseHistoricalUsage,
     LevelRule,
     MusclePriority,
+    MuscleRegion,
+    MuscleTaxonomy,
     ProgramTemplate,
+)
+from programming.services.split_parser import (
+    TAXONOMY_MUSCLE_GROUPS,
+    normalize_muscle,
+    parse_template_split,
 )
 from programming.services.style_calibration import (
     day_style_target,
@@ -27,7 +36,6 @@ from programming.services.style_calibration import (
     rest_bucket,
     session_set_target,
 )
-from programming.services.split_parser import normalize_muscle, parse_template_split
 
 BODYWEIGHT_TOKENS = ("وزن بدن", "بدون وزنه", "bodyweight", "body weight")
 
@@ -385,7 +393,11 @@ def _candidate_names(
         raw.extend(extra)
         from_bank.update(extra)
     for (pm, name), _ex in sorted(catalog.items(), key=lambda x: x[0][1]):
-        if normalize_muscle(pm) == muscle and name in preferred_names and name not in from_structured:
+        if (
+            normalize_muscle(pm) == muscle
+            and name in preferred_names
+            and name not in from_structured
+        ):
             if strict_region and not (
                 name in structured_catalog_by_name
                 and bool(
@@ -449,13 +461,17 @@ def _filter_candidates(
         is_forbidden = name in forbidden or _fuzzy_forbidden(name, forbidden)
         if is_forbidden:
             if excluded_reasons is not None:
-                pref = pref_by_exercise_id.get(
-                    str(catalog_by_name[name].id)
-                ) if name in catalog_by_name else None
+                pref = (
+                    pref_by_exercise_id.get(str(catalog_by_name[name].id))
+                    if name in catalog_by_name
+                    else None
+                )
                 excluded_reasons.append(
                     {
                         "name": name,
-                        "reason": "coach_prohibited" if pref and pref.is_prohibited else "forbidden_rule",
+                        "reason": "coach_prohibited"
+                        if pref and pref.is_prohibited
+                        else "forbidden_rule",
                     }
                 )
             rule_info = injury_alternative_map.get(name)
@@ -500,9 +516,7 @@ def _filter_candidates(
     hard: list[str] = []
     dropped: list[str] = []
     for n in after:
-        if _passes_equipment_hard(
-            n, equipment_tokens, catalog_by_name, structured_catalog_by_name
-        ):
+        if _passes_equipment_hard(n, equipment_tokens, catalog_by_name, structured_catalog_by_name):
             hard.append(n)
         else:
             dropped.append(n)
@@ -913,6 +927,26 @@ def build_training_days(
     if target_region and target_muscle:
         canonical_target = normalize_muscle(target_muscle)
         normalized_region = region_aliases.get(str(target_region).strip().lower())
+        target_muscle_row = (
+            MuscleTaxonomy.objects.filter(is_active=True)
+            .filter(Q(key__iexact=target_muscle.strip()) | Q(name__iexact=target_muscle.strip()))
+            .first()
+        )
+        if target_muscle_row:
+            canonical_target = TAXONOMY_MUSCLE_GROUPS.get(
+                target_muscle_row.key, normalize_muscle(target_muscle_row.name)
+            )
+            target_region_row = (
+                MuscleRegion.objects.filter(muscle=target_muscle_row, is_active=True)
+                .filter(
+                    Q(key__iexact=target_region.strip())
+                    | Q(name__iexact=target_region.strip())
+                    | Q(name_en__iexact=target_region.strip())
+                )
+                .first()
+            )
+            if target_region_row:
+                normalized_region = target_region_row.key
         if normalized_region:
             structured_region_filters.setdefault(canonical_target, set()).add(normalized_region)
     weak = {normalize_muscle(m) for m in (goals.get("weak_muscles") or [])}
@@ -1001,9 +1035,7 @@ def build_training_days(
     from programming.services.techniques import enabled_techniques_for_level
 
     allowed_technique_names = set(level_rule.allowed_techniques or []) if level_rule else set()
-    for config in enabled_techniques_for_level(
-        coach, level, allowed_names=allowed_technique_names
-    ):
+    for config in enabled_techniques_for_level(coach, level, allowed_names=allowed_technique_names):
         if config.base_technique and config.base_technique.handler_key:
             structured_technique_keys.add(config.key)
             if config.base_technique.handler_key == "superset":
@@ -1095,8 +1127,8 @@ def build_training_days(
             evidence["structured_catalog_excluded"].extend(excluded_catalog_reasons)
             if not filtered:
                 warnings.append(f"missing_exercise_candidates:{muscle}")
-                fallback_names = [] if strict_region else _FALLBACK.get(
-                    muscle, ["حرکت جایگزین کنترل‌شده"]
+                fallback_names = (
+                    [] if strict_region else _FALLBACK.get(muscle, ["حرکت جایگزین کنترل‌شده"])
                 )
                 for fallback in fallback_names:
                     if (
@@ -1218,9 +1250,7 @@ def build_training_days(
                                     }
                                     for target in ex_ref.muscle_targets.all()
                                 ],
-                                "levels": [
-                                    row.level for row in ex_ref.suitable_level_rows.all()
-                                ],
+                                "levels": [row.level for row in ex_ref.suitable_level_rows.all()],
                                 "equipment_keys": [
                                     row.equipment.key for row in ex_ref.equipment_rows.all()
                                 ],

@@ -11,12 +11,12 @@ from rest_framework.test import APITestCase
 from accounts.models import (
     CoachExercisePreference,
     CoachProfile,
+    EquipmentTaxonomy,
     Exercise,
     ExerciseBankGroup,
     ExerciseEquipment,
     ExerciseMuscleTarget,
     ExerciseSuitableLevel,
-    EquipmentTaxonomy,
     MuscleRegion,
     MuscleTaxonomy,
     ProgramTemplate,
@@ -469,6 +469,70 @@ class GeneratorQualityTests(APITestCase):
         ]
         self.assertCountEqual([e["name"] for e in chest], structured_names)
         self.assertTrue(all(e["selection_source"] == "coach_structured_catalog" for e in chest))
+
+    def test_new_shared_region_key_is_used_for_generator_filtering(self):
+        chest = MuscleTaxonomy.objects.get(key="chest")
+        region = MuscleRegion.objects.create(
+            muscle=chest,
+            key="custom_upper_chest_zone",
+            name="ناحیه سفارشی بالاسینه",
+            name_en="Custom upper-chest zone",
+        )
+        names = ["حرکت ناحیه سفارشی یک", "حرکت ناحیه سفارشی دو"]
+        for name in names:
+            exercise = Exercise.objects.create(
+                coach=self.coach,
+                name=name,
+                primary_muscle=chest.name,
+                equipment="دمبل",
+                level=Exercise.Level.ALL,
+            )
+            ExerciseMuscleTarget.objects.create(
+                exercise=exercise,
+                muscle=chest,
+                region=region,
+                role=ExerciseMuscleTarget.Role.PRIMARY,
+            )
+
+        document, _warnings = self._generate(
+            self._mohammad(),
+            target_muscle="chest",
+            target_region="custom_upper_chest_zone",
+            exercise_count=2,
+        )
+        selected = [
+            exercise
+            for day in document["training"]["days"]
+            for exercise in day["exercises"]
+            if exercise["targetMuscle"] == "سینه"
+        ]
+        self.assertCountEqual([exercise["name"] for exercise in selected], names)
+        self.assertTrue(
+            all(exercise["selection_source"] == "coach_structured_catalog" for exercise in selected)
+        )
+
+    def test_deactivated_primary_region_removes_movement_from_generator_candidates(self):
+        chest = MuscleTaxonomy.objects.get(key="chest")
+        region = MuscleRegion.objects.get(muscle=chest, key="upper_chest")
+        exercise = Exercise.objects.create(
+            coach=self.coach,
+            name="حرکت ناحیه غیرفعال",
+            primary_muscle=chest.name,
+            equipment="دمبل",
+            level=Exercise.Level.ALL,
+        )
+        ExerciseMuscleTarget.objects.create(
+            exercise=exercise,
+            muscle=chest,
+            region=region,
+            role=ExerciseMuscleTarget.Role.PRIMARY,
+        )
+        region.is_active = False
+        region.save(update_fields=["is_active"])
+
+        _by_pair, by_name, _metadata, excluded = gen._load_catalog(self.coach)
+        self.assertNotIn(exercise.name, by_name)
+        self.assertEqual(excluded[exercise.name], "inactive_primary_region")
 
     def test_weak_muscle_increased_volume(self):
         student = self._mohammad()

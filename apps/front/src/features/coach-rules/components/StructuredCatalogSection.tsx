@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Plus, Save, Trash2 } from "lucide-react";
+import { Pencil, Plus, Save, Trash2 } from "lucide-react";
 import {
   Button,
   Card,
@@ -16,19 +16,9 @@ import {
   Textarea
 } from "../../../components/ui";
 import { apiRequest } from "../../../shared/api/client";
+import { ExerciseTaxonomyManager } from "./ExerciseTaxonomyManager";
+import type { ExerciseTaxonomy } from "./exerciseTaxonomyTypes";
 import styles from "../../programs/components/programFlow.module.css";
-
-type TaxonomyMuscle = {
-  key: string;
-  name: string;
-  regions: Array<{ key: string; name: string }>;
-};
-
-type Taxonomy = {
-  equipment: Array<{ key: string; name: string }>;
-  levels: Array<{ key: string; name: string }>;
-  muscles: TaxonomyMuscle[];
-};
 
 type ExerciseTarget = {
   muscle_key: string;
@@ -180,7 +170,7 @@ function splitComma(value: string) {
     .filter(Boolean);
 }
 
-function exerciseFromRow(row: CatalogExercise, taxonomy: Taxonomy): ExerciseDraft {
+function exerciseFromRow(row: CatalogExercise, taxonomy: ExerciseTaxonomy): ExerciseDraft {
   const primary = row.targets.find((target) => target.role === "primary");
   const secondary = row.targets.filter((target) => target.role === "secondary");
   return {
@@ -238,11 +228,12 @@ function exercisePayload(draft: ExerciseDraft) {
 }
 
 export function StructuredCatalogSection() {
-  const [taxonomy, setTaxonomy] = useState<Taxonomy>();
+  const [taxonomy, setTaxonomy] = useState<ExerciseTaxonomy>();
   const [exercises, setExercises] = useState<CatalogExercise[]>([]);
   const [techniques, setTechniques] = useState<Technique[]>([]);
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string>();
+  const [editingSecondaryIndex, setEditingSecondaryIndex] = useState<number>();
   const [techniqueDraft, setTechniqueDraft] = useState<Technique>();
   const [techniqueBaseline, setTechniqueBaseline] = useState<Technique>();
   const [exerciseEditorOpen, setExerciseEditorOpen] = useState(false);
@@ -253,7 +244,9 @@ export function StructuredCatalogSection() {
 
   const load = async () => {
     return Promise.all([
-      apiRequest<Taxonomy>("/exercise-taxonomy/"),
+      apiRequest<ExerciseTaxonomy>("/exercise-taxonomy/", {
+        query: { include_inactive: true }
+      }),
       apiRequest<{ results?: CatalogExercise[] }>("/exercises/", { query: { limit: 100 } }),
       apiRequest<Technique[]>("/training-techniques/")
     ]);
@@ -281,7 +274,9 @@ export function StructuredCatalogSection() {
           exercise.targets.some((target) => target.muscle_key === filters.muscle);
         const matchesRegion =
           !filters.region ||
-          exercise.targets.some((target) => target.region_key === filters.region);
+          exercise.targets.some(
+            (target) => `${target.muscle_key}:${target.region_key || ""}` === filters.region
+          );
         const matchesLevel = !filters.level || exercise.levels.includes(filters.level);
         const matchesEquipment =
           !filters.equipment || exercise.equipment_keys.includes(filters.equipment);
@@ -298,16 +293,44 @@ export function StructuredCatalogSection() {
     );
   }
 
-  const muscleOptions = taxonomy.muscles.map((muscle) => ({
+  const activeMuscles = taxonomy.muscles.filter((muscle) => muscle.is_active !== false);
+  const muscleOptions = activeMuscles.map((muscle) => ({
     label: muscle.name,
     value: muscle.key
   }));
-  const regionOptions = taxonomy.muscles.flatMap((muscle) =>
-    muscle.regions.map((region) => ({
-      label: `${muscle.name} / ${region.name}`,
-      value: region.key
-    }))
+  const regionOptions = activeMuscles.flatMap((muscle) =>
+    muscle.regions
+      .filter((region) => region.is_active !== false)
+      .map((region) => ({
+        label: `${muscle.name} — ${region.name}`,
+        value: `${muscle.key}:${region.key}`
+      }))
   );
+  const describeTarget = (target: ExerciseTarget) => {
+    const muscle = taxonomy.muscles.find((item) => item.key === target.muscle_key);
+    const region = muscle?.regions.find((item) => item.key === target.region_key);
+    return `${muscle?.name || target.muscle_key}${region ? ` — ${region.name}` : ""}`;
+  };
+  const editorMuscleOptions = (selectedKeys: string[]) => {
+    const selected = new Set(selectedKeys.filter(Boolean));
+    return taxonomy.muscles
+      .filter((muscle) => muscle.is_active !== false || selected.has(muscle.key))
+      .map((muscle) => ({
+        label: `${muscle.name}${muscle.is_active === false ? " (غیرفعال؛ فقط برای حفظ اتصال فعلی)" : ""}`,
+        value: muscle.key,
+        disabled: muscle.is_active === false
+      }));
+  };
+  const editorRegionOptions = (muscleKey: string, selectedKey: string) => {
+    const muscle = taxonomy.muscles.find((item) => item.key === muscleKey);
+    return (muscle?.regions || [])
+      .filter((region) => region.is_active !== false || region.key === selectedKey)
+      .map((region) => ({
+        label: `${region.name}${region.is_active === false ? " (غیرفعال؛ فقط برای حفظ اتصال فعلی)" : ""}`,
+        value: region.key,
+        disabled: region.is_active === false
+      }));
+  };
 
   const saveExercise = async () => {
     try {
@@ -323,6 +346,7 @@ export function StructuredCatalogSection() {
       );
       setDraft(emptyDraft);
       setEditingId(undefined);
+      setEditingSecondaryIndex(undefined);
       setExerciseEditorOpen(false);
       setFeedback("حرکت ذخیره شد.");
     } catch {
@@ -341,21 +365,44 @@ export function StructuredCatalogSection() {
   };
 
   const addSecondaryTarget = () => {
-    if (!draft.secondary_muscle) return;
+    if (!draft.secondary_muscle) {
+      setFeedback("برای ثبت عضله‌ی فرعی، ابتدا عضله را انتخاب کنید.");
+      return;
+    }
+    const nextTarget = {
+      muscle_key: draft.secondary_muscle,
+      region_key: draft.secondary_region
+    };
+    if (
+      draft.secondary_targets.some(
+        (target, index) =>
+          index !== editingSecondaryIndex &&
+          target.muscle_key === nextTarget.muscle_key &&
+          (target.region_key || "") === nextTarget.region_key
+      )
+    ) {
+      setFeedback("این عضله‌ی فرعی قبلاً به حرکت اضافه شده است.");
+      return;
+    }
     setDraft((current) => ({
       ...current,
       secondary_muscle: "",
       secondary_region: "",
-      secondary_targets: [
-        ...current.secondary_targets,
-        { muscle_key: current.secondary_muscle, region_key: current.secondary_region }
-      ]
+      secondary_targets:
+        editingSecondaryIndex === undefined
+          ? [...current.secondary_targets, nextTarget]
+          : current.secondary_targets.map((target, index) =>
+              index === editingSecondaryIndex ? nextTarget : target
+            )
     }));
+    setEditingSecondaryIndex(undefined);
+    setFeedback("");
   };
 
   const startNewExercise = () => {
     setDraft(emptyDraft);
     setEditingId(undefined);
+    setEditingSecondaryIndex(undefined);
     setExerciseBaseline(emptyDraft);
     setExerciseEditorOpen(true);
   };
@@ -364,6 +411,7 @@ export function StructuredCatalogSection() {
     const nextDraft = exerciseFromRow(row, taxonomy);
     setEditingId(row.id);
     setDraft(nextDraft);
+    setEditingSecondaryIndex(undefined);
     setExerciseBaseline(nextDraft);
     setExerciseEditorOpen(true);
   };
@@ -371,6 +419,7 @@ export function StructuredCatalogSection() {
   const closeExerciseEditor = () => {
     setExerciseEditorOpen(false);
     setEditingId(undefined);
+    setEditingSecondaryIndex(undefined);
     setDraft(emptyDraft);
   };
 
@@ -461,40 +510,46 @@ export function StructuredCatalogSection() {
             حرکت جدید
           </Button>
         </div>
+        <ExerciseTaxonomyManager taxonomy={taxonomy} onTaxonomyChanged={setTaxonomy} />
         <div className={styles.formGrid}>
-          <FormField label="جست‌وجو">
+          <FormField htmlFor="exercise-catalog-search" label="جست‌وجو">
             <Input
+              id="exercise-catalog-search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="نام یا نام جایگزین"
             />
           </FormField>
-          <FormField label="فیلتر عضله">
+          <FormField htmlFor="exercise-catalog-filter-muscle" label="فیلتر عضله">
             <Select
+              id="exercise-catalog-filter-muscle"
               options={muscleOptions}
               value={filters.muscle}
               onChange={(event) => setFilters({ ...filters, muscle: event.target.value })}
               placeholder="همه"
             />
           </FormField>
-          <FormField label="فیلتر ناحیه">
+          <FormField htmlFor="exercise-catalog-filter-region" label="فیلتر ناحیه">
             <Select
+              id="exercise-catalog-filter-region"
               options={regionOptions}
               value={filters.region}
               onChange={(event) => setFilters({ ...filters, region: event.target.value })}
               placeholder="همه"
             />
           </FormField>
-          <FormField label="فیلتر سطح">
+          <FormField htmlFor="exercise-catalog-filter-level" label="فیلتر سطح">
             <Select
+              id="exercise-catalog-filter-level"
               options={taxonomy.levels.map((level) => ({ label: level.name, value: level.key }))}
               value={filters.level}
               onChange={(event) => setFilters({ ...filters, level: event.target.value })}
               placeholder="همه"
             />
           </FormField>
-          <FormField label="فیلتر تجهیزات">
+          <FormField htmlFor="exercise-catalog-filter-equipment" label="فیلتر تجهیزات">
             <Select
+              id="exercise-catalog-filter-equipment"
               options={taxonomy.equipment.map((equipment) => ({
                 label: equipment.name,
                 value: equipment.key
@@ -529,7 +584,7 @@ export function StructuredCatalogSection() {
                   row.targets
                     .map(
                       (target) =>
-                        `${target.role === "primary" ? "اصلی" : "فرعی"}: ${target.muscle_key}${target.region_key ? ` / ${target.region_key}` : ""}`
+                        `${target.role === "primary" ? "اصلی" : "فرعی"}: ${describeTarget(target)}`
                     )
                     .join(" | ")
               },
@@ -587,7 +642,7 @@ export function StructuredCatalogSection() {
                   {row.targets
                     .map(
                       (target) =>
-                        `${target.role === "primary" ? "اصلی" : "فرعی"} ${target.muscle_key}${target.region_key ? ` / ${target.region_key}` : ""}`
+                        `${target.role === "primary" ? "اصلی" : "فرعی"} ${describeTarget(target)}`
                     )
                     .join(" · ")}
                 </span>
@@ -650,9 +705,13 @@ export function StructuredCatalogSection() {
                 onChange={(event) => setDraft({ ...draft, aliases: event.target.value })}
               />
             </FormField>
-            <FormField label="عضله اصلی" required>
+            <FormField htmlFor="exercise-primary-muscle" label="عضله اصلی" required>
               <Select
-                options={muscleOptions}
+                id="exercise-primary-muscle"
+                options={editorMuscleOptions([
+                  draft.primary_muscle,
+                  ...draft.secondary_targets.map((target) => target.muscle_key)
+                ])}
                 value={draft.primary_muscle}
                 onChange={(event) =>
                   setDraft({ ...draft, primary_muscle: event.target.value, primary_region: "" })
@@ -660,20 +719,22 @@ export function StructuredCatalogSection() {
                 placeholder="انتخاب کنید"
               />
             </FormField>
-            <FormField label="ناحیه عضله اصلی">
+            <FormField htmlFor="exercise-primary-region" label="ناحیه عضله اصلی">
               <Select
-                options={(
-                  taxonomy.muscles.find((muscle) => muscle.key === draft.primary_muscle)?.regions ||
-                  []
-                ).map((region) => ({ label: region.name, value: region.key }))}
+                id="exercise-primary-region"
+                options={editorRegionOptions(draft.primary_muscle, draft.primary_region)}
                 value={draft.primary_region}
                 onChange={(event) => setDraft({ ...draft, primary_region: event.target.value })}
                 placeholder="بدون ناحیه"
               />
             </FormField>
-            <FormField label="عضله فرعی">
+            <FormField htmlFor="exercise-secondary-muscle" label="عضله فرعی">
               <Select
-                options={muscleOptions}
+                id="exercise-secondary-muscle"
+                options={editorMuscleOptions([
+                  draft.secondary_muscle,
+                  ...draft.secondary_targets.map((target) => target.muscle_key)
+                ])}
                 value={draft.secondary_muscle}
                 onChange={(event) =>
                   setDraft({ ...draft, secondary_muscle: event.target.value, secondary_region: "" })
@@ -681,12 +742,10 @@ export function StructuredCatalogSection() {
                 placeholder="انتخاب عضله"
               />
             </FormField>
-            <FormField label="ناحیه فرعی">
+            <FormField htmlFor="exercise-secondary-region" label="ناحیه فرعی">
               <Select
-                options={(
-                  taxonomy.muscles.find((muscle) => muscle.key === draft.secondary_muscle)
-                    ?.regions || []
-                ).map((region) => ({ label: region.name, value: region.key }))}
+                id="exercise-secondary-region"
+                options={editorRegionOptions(draft.secondary_muscle, draft.secondary_region)}
                 value={draft.secondary_region}
                 onChange={(event) => setDraft({ ...draft, secondary_region: event.target.value })}
                 placeholder="بدون ناحیه"
@@ -694,14 +753,61 @@ export function StructuredCatalogSection() {
             </FormField>
             <div>
               <Button size="sm" variant="secondary" onClick={addSecondaryTarget}>
-                افزودن عضله فرعی
+                {editingSecondaryIndex === undefined
+                  ? "افزودن عضله فرعی"
+                  : "ذخیره ویرایش عضله فرعی"}
               </Button>
-              <div>
-                {draft.secondary_targets.map((target) => (
-                  <StatusBadge key={`${target.muscle_key}-${target.region_key}`}>
-                    {target.muscle_key}
-                    {target.region_key ? ` / ${target.region_key}` : ""}
-                  </StatusBadge>
+              <div className={styles.secondaryTargetList}>
+                {draft.secondary_targets.map((target, index) => (
+                  <div
+                    className={styles.secondaryTargetRow}
+                    key={`${target.muscle_key}-${target.region_key}-${index}`}
+                  >
+                    <StatusBadge>{describeTarget({ ...target, role: "secondary" })}</StatusBadge>
+                    <div className={styles.actionIconGroup}>
+                      <Button
+                        iconStart={<Pencil size={14} />}
+                        onClick={() => {
+                          setDraft({
+                            ...draft,
+                            secondary_muscle: target.muscle_key,
+                            secondary_region: target.region_key || ""
+                          });
+                          setEditingSecondaryIndex(index);
+                        }}
+                        size="sm"
+                        variant="secondary"
+                      >
+                        ویرایش
+                      </Button>
+                      <Button
+                        iconStart={<Trash2 size={14} />}
+                        onClick={() => {
+                          setDraft((current) => ({
+                            ...current,
+                            secondary_targets: current.secondary_targets.filter((_, i) => i !== index)
+                          }));
+                          if (editingSecondaryIndex === index) {
+                            setEditingSecondaryIndex(undefined);
+                            setDraft((current) => ({
+                              ...current,
+                              secondary_muscle: "",
+                              secondary_region: ""
+                            }));
+                          } else if (
+                            editingSecondaryIndex !== undefined &&
+                            editingSecondaryIndex > index
+                          ) {
+                            setEditingSecondaryIndex(editingSecondaryIndex - 1);
+                          }
+                        }}
+                        size="sm"
+                        variant="danger"
+                      >
+                        حذف
+                      </Button>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>

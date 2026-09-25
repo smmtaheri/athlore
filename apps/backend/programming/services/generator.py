@@ -30,7 +30,12 @@ from programming.services.assessment_context import (
     latest_visit_for_generation,
     merge_student_with_assessment,
 )
-from programming.services.split_parser import normalize_muscle as _normalize_muscle_canonical
+from programming.services.split_parser import (
+    TAXONOMY_MUSCLE_GROUPS,
+)
+from programming.services.split_parser import (
+    normalize_muscle as _normalize_muscle_canonical,
+)
 from programming.services.training_selection import build_training_days
 from students.models import Student, Visit
 
@@ -686,7 +691,8 @@ def _generate_document_body(
             "note": (
                 "Missing visit form fields mean not assessed; they do not imply normal/strong."
             ),
-        },        "ruleset": {
+        },
+        "ruleset": {
             "id": str(rule_set.id),
             "updated_at": rule_set.updated_at.isoformat().replace("+00:00", "Z"),
             "style_profile_source": (rule_set.style_profile or {}).get("source")
@@ -776,27 +782,37 @@ def _load_catalog(
     metadata: dict[str, dict] = {}
     excluded: dict[str, str] = {
         exercise.name: "archived" if exercise.is_archived else "inactive"
-        for exercise in Exercise.objects.filter(coach=coach).only("name", "is_active", "is_archived")
+        for exercise in Exercise.objects.filter(coach=coach).only(
+            "name", "is_active", "is_archived"
+        )
         if exercise.is_archived or not exercise.is_active
     }
-    rows = (
-        Exercise.objects.filter(coach=coach, is_archived=False, is_active=True)
-        .prefetch_related(
-            "muscle_targets__muscle",
-            "muscle_targets__region",
-            "suitable_level_rows",
-            "equipment_rows__equipment",
-        )
+    rows = Exercise.objects.filter(coach=coach, is_archived=False, is_active=True).prefetch_related(
+        "muscle_targets__muscle",
+        "muscle_targets__region",
+        "suitable_level_rows",
+        "equipment_rows__equipment",
     )
     for ex in rows:
-        by_pair[(ex.primary_muscle, ex.name)] = ex
-        by_name.setdefault(ex.name, ex)
         targets = list(ex.muscle_targets.all())
         primary_target = next((target for target in targets if target.role == "primary"), None)
+        if primary_target and not primary_target.muscle.is_active:
+            excluded[ex.name] = "inactive_primary_muscle"
+            continue
+        if primary_target and primary_target.region and not primary_target.region.is_active:
+            excluded[ex.name] = "inactive_primary_region"
+            continue
+        primary_group = (
+            TAXONOMY_MUSCLE_GROUPS.get(primary_target.muscle.key, primary_target.muscle.name)
+            if primary_target
+            else ex.primary_muscle
+        )
+        by_pair[(primary_group, ex.name)] = ex
+        by_name.setdefault(ex.name, ex)
         metadata.setdefault(
             ex.name,
             {
-                "primary_muscle": primary_target.muscle.name if primary_target else ex.primary_muscle,
+                "primary_muscle": primary_group,
                 "region_keys": [
                     target.region.key
                     for target in targets
@@ -832,7 +848,9 @@ def _build_training(
     rule_set = ensure_rule_set(coach)
 
     # Priority #1 — ownership + active-state catalog.
-    catalog, catalog_by_name, structured_catalog_by_name, excluded_catalog_by_name = _load_catalog(coach)
+    catalog, catalog_by_name, structured_catalog_by_name, excluded_catalog_by_name = _load_catalog(
+        coach
+    )
     pref_by_exercise_id = {
         str(p.exercise_id): p
         for p in CoachExercisePreference.objects.filter(coach=coach).select_related("exercise")

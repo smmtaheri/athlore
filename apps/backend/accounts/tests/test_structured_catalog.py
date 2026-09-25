@@ -58,6 +58,14 @@ class StructuredCatalogApiTests(APITestCase):
         self.assertEqual(filtered.status_code, 200)
         self.assertEqual([row["id"] for row in filtered.data["results"]], [exercise_id])
 
+        qualified_region_filter = self.client.get(
+            "/api/v1/exercises/?region=triceps:long_head",
+            **auth_header(self.tokens_a),
+        )
+        self.assertEqual(
+            [row["id"] for row in qualified_region_filter.data["results"]], [exercise_id]
+        )
+
         other_coach = self.client.get(
             f"/api/v1/exercises/{exercise_id}/", **auth_header(self.tokens_b)
         )
@@ -78,14 +86,140 @@ class StructuredCatalogApiTests(APITestCase):
         self.assertEqual(archived.status_code, 204)
 
     def test_exercise_taxonomy_uses_coach_facing_level_labels(self):
-        response = self.client.get(
-            "/api/v1/exercise-taxonomy/", **auth_header(self.tokens_a)
-        )
+        response = self.client.get("/api/v1/exercise-taxonomy/", **auth_header(self.tokens_a))
         self.assertEqual(response.status_code, 200)
         labels = {item["key"]: item["name"] for item in response.data["levels"]}
         self.assertEqual(labels["beginner"], "مبتدی")
         self.assertEqual(labels["intermediate"], "نیمه‌حرفه‌ای")
         self.assertEqual(labels["advanced"], "حرفه‌ای")
+
+    def test_shared_muscle_and_region_taxonomy_can_be_managed_and_is_visible_to_all_coaches(self):
+        created_muscle = self.client.post(
+            "/api/v1/exercise-taxonomy/muscles/",
+            {"name": "عضله آزمون سراسری", "name_en": "Shared QA Muscle", "sort_order": 91},
+            format="json",
+            **auth_header(self.tokens_a),
+        )
+        self.assertEqual(created_muscle.status_code, 201)
+        muscle_id = created_muscle.data["id"]
+        muscle_key = created_muscle.data["key"]
+
+        visible_to_other_coach = self.client.get(
+            "/api/v1/exercise-taxonomy/", **auth_header(self.tokens_b)
+        )
+        self.assertIn(muscle_key, {row["key"] for row in visible_to_other_coach.data["muscles"]})
+
+        updated_muscle = self.client.patch(
+            f"/api/v1/exercise-taxonomy/muscles/{muscle_id}/",
+            {"name": "عضله‌ی مشترک ویرایش‌شده"},
+            format="json",
+            **auth_header(self.tokens_b),
+        )
+        self.assertEqual(updated_muscle.status_code, 200)
+        self.assertEqual(updated_muscle.data["name"], "عضله‌ی مشترک ویرایش‌شده")
+
+        created_region = self.client.post(
+            f"/api/v1/exercise-taxonomy/muscles/{muscle_id}/regions/",
+            {"name": "ناحیه آزمون", "name_en": "QA Region", "sort_order": 2},
+            format="json",
+            **auth_header(self.tokens_a),
+        )
+        self.assertEqual(created_region.status_code, 201)
+        region_id = created_region.data["id"]
+        region_key = created_region.data["key"]
+        self.assertEqual(created_region.data["muscle_key"], muscle_key)
+
+        region_for_other_coach = self.client.get(
+            "/api/v1/exercise-taxonomy/", **auth_header(self.tokens_b)
+        )
+        shared_muscle = next(
+            row for row in region_for_other_coach.data["muscles"] if row["key"] == muscle_key
+        )
+        self.assertEqual(shared_muscle["regions"][0]["key"], region_key)
+
+        duplicate_region = self.client.post(
+            f"/api/v1/exercise-taxonomy/muscles/{muscle_id}/regions/",
+            {"name": "ناحیه آزمون"},
+            format="json",
+            **auth_header(self.tokens_b),
+        )
+        self.assertEqual(duplicate_region.status_code, 400)
+
+        updated = self.client.patch(
+            f"/api/v1/exercise-taxonomy/regions/{region_id}/",
+            {"name": "ناحیه ویرایش‌شده"},
+            format="json",
+            **auth_header(self.tokens_b),
+        )
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.data["name"], "ناحیه ویرایش‌شده")
+
+        archived_region = self.client.delete(
+            f"/api/v1/exercise-taxonomy/regions/{region_id}/", **auth_header(self.tokens_a)
+        )
+        self.assertEqual(archived_region.status_code, 200)
+        self.assertFalse(archived_region.data["is_active"])
+        active_taxonomy = self.client.get(
+            "/api/v1/exercise-taxonomy/", **auth_header(self.tokens_b)
+        )
+        active_muscle = next(
+            row for row in active_taxonomy.data["muscles"] if row["key"] == muscle_key
+        )
+        self.assertEqual(active_muscle["regions"], [])
+        complete_taxonomy = self.client.get(
+            "/api/v1/exercise-taxonomy/?include_inactive=true",
+            **auth_header(self.tokens_b),
+        )
+        archived_muscle = next(
+            row for row in complete_taxonomy.data["muscles"] if row["key"] == muscle_key
+        )
+        self.assertFalse(archived_muscle["regions"][0]["is_active"])
+
+        archived_muscle_response = self.client.delete(
+            f"/api/v1/exercise-taxonomy/muscles/{muscle_id}/", **auth_header(self.tokens_a)
+        )
+        self.assertEqual(archived_muscle_response.status_code, 200)
+        self.assertFalse(archived_muscle_response.data["is_active"])
+
+        cannot_reactivate_child = self.client.patch(
+            f"/api/v1/exercise-taxonomy/regions/{region_id}/",
+            {"is_active": True},
+            format="json",
+            **auth_header(self.tokens_b),
+        )
+        self.assertEqual(cannot_reactivate_child.status_code, 400)
+
+    def test_deactivated_taxonomy_target_is_preserved_on_edit_but_cannot_be_reused(self):
+        created = self.client.post(
+            "/api/v1/exercises/",
+            self._exercise_payload("پرس بالاسینه با ناحیه غیرفعال"),
+            format="json",
+            **auth_header(self.tokens_a),
+        )
+        self.assertEqual(created.status_code, 201)
+
+        from accounts.models import MuscleRegion
+
+        region = MuscleRegion.objects.get(muscle__key="chest", key="upper_chest")
+        region.is_active = False
+        region.save(update_fields=["is_active"])
+
+        retained = self.client.patch(
+            f"/api/v1/exercises/{created.data['id']}/",
+            {"targets": created.data["targets"], "coach_notes": "ویرایش بدون تغییر اتصال"},
+            format="json",
+            **auth_header(self.tokens_a),
+        )
+        self.assertEqual(retained.status_code, 200)
+        self.assertEqual(retained.data["targets"][0]["region_key"], "upper_chest")
+
+        cannot_assign_archived = self.client.post(
+            "/api/v1/exercises/",
+            self._exercise_payload("حرکت جدید با ناحیه غیرفعال"),
+            format="json",
+            **auth_header(self.tokens_a),
+        )
+        self.assertEqual(cannot_assign_archived.status_code, 400)
 
     def test_technique_override_private_isolation_and_handler_status(self):
         public = self.client.get("/api/v1/training-techniques/", **auth_header(self.tokens_a))
@@ -126,9 +260,7 @@ class StructuredCatalogApiTests(APITestCase):
         self.assertEqual(private.status_code, 201)
         self.assertEqual(private.data["handler_status"], "manual_only")
 
-        coach_b_rows = self.client.get(
-            "/api/v1/training-techniques/", **auth_header(self.tokens_b)
-        )
+        coach_b_rows = self.client.get("/api/v1/training-techniques/", **auth_header(self.tokens_b))
         self.assertNotIn("coach_a_custom", {row["key"] for row in coach_b_rows.data})
         forbidden_patch = self.client.patch(
             f"/api/v1/training-techniques/{private.data['id']}/",
@@ -144,9 +276,7 @@ class StructuredCatalogGeneratorTests(APITestCase):
     def _create_exercise(self, name: str, **flags):
         payload = {
             "name": name,
-            "targets": [
-                {"muscle_key": "chest", "region_key": "upper_chest", "role": "primary"}
-            ],
+            "targets": [{"muscle_key": "chest", "region_key": "upper_chest", "role": "primary"}],
             "levels": ["intermediate"],
             "equipment_keys": ["dumbbell"],
             **flags,
@@ -203,13 +333,22 @@ class StructuredCatalogGeneratorTests(APITestCase):
             },
         )
         chest = next(day for day in document["training"]["days"] if "سینه" in day["targetMuscles"])
-        names = {exercise["name"] for exercise in chest["exercises"] if exercise["targetMuscle"] == "سینه"}
+        names = {
+            exercise["name"]
+            for exercise in chest["exercises"]
+            if exercise["targetMuscle"] == "سینه"
+        }
         self.assertEqual(len(names), 2)
         self.assertTrue(names.intersection({"پرس بالاسینه دمبل A", "پرس بالاسینه دمبل B"}))
         self.assertNotIn(prohibited["name"], names)
         evidence = document["generator"]["evidence"]
         self.assertTrue(evidence["structured_catalog_selected"])
-        self.assertTrue(any(item["reason"] == "coach_prohibited" for item in evidence["structured_catalog_excluded"]))
+        self.assertTrue(
+            any(
+                item["reason"] == "coach_prohibited"
+                for item in evidence["structured_catalog_excluded"]
+            )
+        )
 
     def test_structured_drop_set_handler_uses_coach_parameters(self):
         response = self.client.post(

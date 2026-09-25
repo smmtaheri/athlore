@@ -15,6 +15,19 @@ CANONICAL_MUSCLES: tuple[str, ...] = (
     "ساق",
 )
 
+TAXONOMY_MUSCLE_GROUPS: dict[str, str] = {
+    "chest": "سینه",
+    "back": "زیربغل",
+    "shoulders": "سرشانه",
+    "quadriceps": "پا",
+    "hamstrings": "پا",
+    "glutes": "پا",
+    "biceps": "جلو بازو",
+    "triceps": "پشت بازو",
+    "calves": "ساق",
+    "core": "شکم",
+}
+
 MUSCLE_ALIASES: dict[str, str] = {
     "chest": "سینه",
     "upper_chest": "سینه",

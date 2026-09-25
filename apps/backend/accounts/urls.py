@@ -6,6 +6,10 @@ from accounts.rules_views import (
     ExerciseDetailView,
     ExerciseListCreateView,
     ExerciseTaxonomyView,
+    MuscleRegionDetailView,
+    MuscleRegionListCreateView,
+    MuscleTaxonomyDetailView,
+    MuscleTaxonomyListCreateView,
     ProgramTemplateDetailView,
     ProgramTemplateListCreateView,
     TrainingTechniqueDetailView,
@@ -62,6 +66,26 @@ urlpatterns = [
         name="exercise-detail",
     ),
     path("exercise-taxonomy/", ExerciseTaxonomyView.as_view(), name="exercise-taxonomy"),
+    path(
+        "exercise-taxonomy/muscles/",
+        MuscleTaxonomyListCreateView.as_view(),
+        name="exercise-taxonomy-muscles",
+    ),
+    path(
+        "exercise-taxonomy/muscles/<uuid:muscle_id>/",
+        MuscleTaxonomyDetailView.as_view(),
+        name="exercise-taxonomy-muscle-detail",
+    ),
+    path(
+        "exercise-taxonomy/muscles/<uuid:muscle_id>/regions/",
+        MuscleRegionListCreateView.as_view(),
+        name="exercise-taxonomy-regions",
+    ),
+    path(
+        "exercise-taxonomy/regions/<uuid:region_id>/",
+        MuscleRegionDetailView.as_view(),
+        name="exercise-taxonomy-region-detail",
+    ),
     path(
         "training-techniques/",
         TrainingTechniqueListCreateView.as_view(),

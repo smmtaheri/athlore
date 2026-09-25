@@ -1,10 +1,11 @@
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts import rules_services
-from accounts.models import CoachTechnique, Exercise, ProgramTemplate
+from accounts.models import CoachTechnique, Exercise, MuscleRegion, MuscleTaxonomy, ProgramTemplate
 from common.pagination import StandardLimitOffsetPagination
 from common.permissions import IsAuthenticatedCoach, get_owned_object, get_request_coach
 
@@ -111,14 +112,23 @@ class ExerciseListCreateView(APIView):
             )
         region = request.query_params.get("region") or request.query_params.get("region_key")
         if region:
-            qs = qs.filter(
-                Q(muscle_targets__region__key=region)
-                | Q(muscle_targets__region__name__icontains=region)
-            )
+            if ":" in region:
+                muscle_key, region_key = region.split(":", 1)
+                qs = qs.filter(
+                    muscle_targets__muscle__key=muscle_key,
+                    muscle_targets__region__key=region_key,
+                )
+            else:
+                qs = qs.filter(
+                    Q(muscle_targets__region__key=region)
+                    | Q(muscle_targets__region__name__icontains=region)
+                )
         level = request.query_params.get("level")
         if level:
             qs = qs.filter(Q(level=level) | Q(suitable_level_rows__level=level))
-        equipment = request.query_params.get("equipment") or request.query_params.get("equipment_key")
+        equipment = request.query_params.get("equipment") or request.query_params.get(
+            "equipment_key"
+        )
         if equipment:
             qs = qs.filter(
                 Q(equipment__icontains=equipment)
@@ -180,7 +190,65 @@ class ExerciseTaxonomyView(APIView):
 
     def get(self, request):
         get_request_coach(request)
-        return Response(rules_services.serialize_taxonomy())
+        include_inactive = (request.query_params.get("include_inactive") or "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        return Response(rules_services.serialize_taxonomy(include_inactive=include_inactive))
+
+
+class MuscleTaxonomyListCreateView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def post(self, request):
+        get_request_coach(request)
+        muscle = rules_services.create_muscle_taxonomy(request.data)
+        return Response(rules_services.serialize_muscle(muscle), status=status.HTTP_201_CREATED)
+
+
+class MuscleTaxonomyDetailView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def patch(self, request, muscle_id):
+        get_request_coach(request)
+        muscle = get_object_or_404(MuscleTaxonomy, pk=muscle_id)
+        muscle = rules_services.update_muscle_taxonomy(muscle, request.data)
+        return Response(rules_services.serialize_muscle(muscle))
+
+    def delete(self, request, muscle_id):
+        get_request_coach(request)
+        muscle = get_object_or_404(MuscleTaxonomy, pk=muscle_id)
+        muscle = rules_services.update_muscle_taxonomy(muscle, {"is_active": False})
+        return Response(rules_services.serialize_muscle(muscle))
+
+
+class MuscleRegionListCreateView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def post(self, request, muscle_id):
+        get_request_coach(request)
+        muscle = get_object_or_404(MuscleTaxonomy, pk=muscle_id)
+        region = rules_services.create_muscle_region(muscle, request.data)
+        return Response(
+            rules_services.serialize_muscle_region(region), status=status.HTTP_201_CREATED
+        )
+
+
+class MuscleRegionDetailView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def patch(self, request, region_id):
+        get_request_coach(request)
+        region = get_object_or_404(MuscleRegion.objects.select_related("muscle"), pk=region_id)
+        region = rules_services.update_muscle_region(region, request.data)
+        return Response(rules_services.serialize_muscle_region(region))
+
+    def delete(self, request, region_id):
+        get_request_coach(request)
+        region = get_object_or_404(MuscleRegion.objects.select_related("muscle"), pk=region_id)
+        region = rules_services.update_muscle_region(region, {"is_active": False})
+        return Response(rules_services.serialize_muscle_region(region))
 
 
 class TrainingTechniqueListCreateView(APIView):
@@ -211,7 +279,9 @@ class TrainingTechniqueDetailView(APIView):
 
     def patch(self, request, technique_id):
         coach = get_request_coach(request)
-        config = get_owned_object(CoachTechnique.objects.select_related("base_technique"), coach=coach, pk=technique_id)
+        config = get_owned_object(
+            CoachTechnique.objects.select_related("base_technique"), coach=coach, pk=technique_id
+        )
         config = rules_services.update_coach_technique(config, request.data)
         return Response(rules_services.serialize_coach_technique(config))
 

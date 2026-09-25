@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import re
+import uuid
 from typing import Any
 
 from django.db import transaction
@@ -16,9 +17,9 @@ from accounts.models import (
     CoachNutritionTemplate,
     CoachProfile,
     CoachRuleSet,
+    CoachSupplementTemplate,
     CoachTechnique,
     EquipmentTaxonomy,
-    CoachSupplementTemplate,
     Exercise,
     ExerciseBankGroup,
     ExerciseEquipment,
@@ -27,9 +28,9 @@ from accounts.models import (
     GeneralRule,
     InjuryRule,
     LevelRule,
+    MusclePriority,
     MuscleRegion,
     MuscleTaxonomy,
-    MusclePriority,
     ProgramTemplate,
     TrainingTechnique,
 )
@@ -192,12 +193,11 @@ def serialize_exercise(ex: Exercise, preference: CoachExercisePreference | None 
             }
             for target in ex.muscle_targets.select_related("muscle", "region").all()
         ],
-        "levels": list(
-            ex.suitable_level_rows.order_by("level").values_list("level", flat=True)
-        ),
+        "levels": list(ex.suitable_level_rows.order_by("level").values_list("level", flat=True)),
         "equipment_keys": list(
-            ex.equipment_rows.order_by("equipment__sort_order", "equipment__name")
-            .values_list("equipment__key", flat=True)
+            ex.equipment_rows.order_by("equipment__sort_order", "equipment__name").values_list(
+                "equipment__key", flat=True
+            )
         ),
         "is_active": ex.is_active,
         "is_archived": ex.is_archived,
@@ -211,28 +211,46 @@ def serialize_exercise(ex: Exercise, preference: CoachExercisePreference | None 
     }
 
 
-def serialize_taxonomy() -> dict:
+def serialize_taxonomy(*, include_inactive: bool = False) -> dict:
+    muscles = MuscleTaxonomy.objects.all().prefetch_related("regions")
+    equipment = EquipmentTaxonomy.objects.all()
+    if not include_inactive:
+        muscles = muscles.filter(is_active=True)
+        equipment = equipment.filter(is_active=True)
+    muscles = muscles.order_by("sort_order", "name")
+    equipment = equipment.order_by("sort_order", "name")
     return {
         "muscles": [
             {
+                "id": str(muscle.id),
                 "key": muscle.key,
                 "name": muscle.name,
                 "name_en": muscle.name_en,
+                "is_active": muscle.is_active,
+                "sort_order": muscle.sort_order,
                 "regions": [
-                    {"key": region.key, "name": region.name, "name_en": region.name_en}
+                    {
+                        "id": str(region.id),
+                        "key": region.key,
+                        "name": region.name,
+                        "name_en": region.name_en,
+                        "is_active": region.is_active,
+                        "sort_order": region.sort_order,
+                    }
                     for region in muscle.regions.all()
-                    if region.is_active
+                    if include_inactive or region.is_active
                 ],
             }
-            for muscle in MuscleTaxonomy.objects.filter(is_active=True)
-            .prefetch_related("regions")
-            .order_by("sort_order", "name")
+            for muscle in muscles
         ],
         "equipment": [
-            {"key": equipment.key, "name": equipment.name, "name_en": equipment.name_en}
-            for equipment in EquipmentTaxonomy.objects.filter(is_active=True).order_by(
-                "sort_order", "name"
-            )
+            {
+                "key": item.key,
+                "name": item.name,
+                "name_en": item.name_en,
+                "is_active": item.is_active,
+            }
+            for item in equipment
         ],
         "levels": [
             {
@@ -247,6 +265,176 @@ def serialize_taxonomy() -> dict:
             if key != Exercise.Level.ALL
         ],
     }
+
+
+def _taxonomy_text(value: Any, field: str, *, required: bool) -> str:
+    if value is None:
+        value = ""
+    if not isinstance(value, str):
+        raise ValidationError({field: ["مقدار باید متن باشد."]})
+    value = value.strip()
+    if required and not value:
+        raise ValidationError({field: ["این فیلد الزامی است."]})
+    if len(value) > 120:
+        raise ValidationError({field: ["حداکثر طول مجاز ۱۲۰ نویسه است."]})
+    return value
+
+
+def _taxonomy_order(value: Any, *, default: int = 0) -> int:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        raise ValidationError({"sort_order": ["ترتیب باید عدد صحیح باشد."]})
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError({"sort_order": ["ترتیب باید عدد صحیح باشد."]}) from exc
+
+
+def _validate_taxonomy_payload(payload: Any, allowed: set[str]) -> dict:
+    if not isinstance(payload, dict):
+        raise ValidationError({"detail": "بدنه‌ی درخواست باید یک شیء باشد."})
+    unknown = set(payload) - allowed
+    if unknown:
+        raise ValidationError({"detail": f"فیلدهای غیرمجاز: {', '.join(sorted(unknown))}"})
+    return payload
+
+
+def _next_taxonomy_order(model, *, parent=None) -> int:
+    rows = model.objects.all()
+    if parent is not None:
+        rows = rows.filter(muscle=parent)
+    current = rows.order_by("-sort_order").values_list("sort_order", flat=True).first()
+    return (current if current is not None else -1) + 1
+
+
+def _ensure_taxonomy_name_available(model, name: str, *, parent=None, exclude_id=None) -> None:
+    rows = model.objects.filter(name__iexact=name)
+    if parent is not None:
+        rows = rows.filter(muscle=parent)
+    if exclude_id is not None:
+        rows = rows.exclude(pk=exclude_id)
+    if rows.exists():
+        scope = "برای همین عضله" if parent is not None else "در فهرست عضله‌ها"
+        raise ValidationError({"name": [f"این نام {scope} از قبل ثبت شده است."]})
+
+
+def _serialize_muscle(muscle: MuscleTaxonomy) -> dict:
+    return {
+        "id": str(muscle.id),
+        "key": muscle.key,
+        "name": muscle.name,
+        "name_en": muscle.name_en,
+        "is_active": muscle.is_active,
+        "sort_order": muscle.sort_order,
+    }
+
+
+def _serialize_region(region: MuscleRegion) -> dict:
+    return {
+        "id": str(region.id),
+        "muscle_id": str(region.muscle_id),
+        "muscle_key": region.muscle.key,
+        "muscle_name": region.muscle.name,
+        "key": region.key,
+        "name": region.name,
+        "name_en": region.name_en,
+        "is_active": region.is_active,
+        "sort_order": region.sort_order,
+    }
+
+
+@transaction.atomic
+def create_muscle_taxonomy(payload: dict) -> MuscleTaxonomy:
+    payload = _validate_taxonomy_payload(payload, {"name", "name_en", "sort_order"})
+    name = _taxonomy_text(payload.get("name"), "name", required=True)
+    name_en = _taxonomy_text(payload.get("name_en"), "name_en", required=False)
+    _ensure_taxonomy_name_available(MuscleTaxonomy, name)
+    muscle_id = uuid.uuid4()
+    return MuscleTaxonomy.objects.create(
+        id=muscle_id,
+        key=f"custom-muscle-{muscle_id.hex}",
+        name=name,
+        name_en=name_en,
+        sort_order=_taxonomy_order(
+            payload.get("sort_order"), default=_next_taxonomy_order(MuscleTaxonomy)
+        ),
+    )
+
+
+@transaction.atomic
+def update_muscle_taxonomy(muscle: MuscleTaxonomy, payload: dict) -> MuscleTaxonomy:
+    allowed = {"name", "name_en", "sort_order", "is_active"}
+    payload = _validate_taxonomy_payload(payload, allowed)
+    if "name" in payload:
+        name = _taxonomy_text(payload["name"], "name", required=True)
+        _ensure_taxonomy_name_available(MuscleTaxonomy, name, exclude_id=muscle.pk)
+        muscle.name = name
+    if "name_en" in payload:
+        muscle.name_en = _taxonomy_text(payload["name_en"], "name_en", required=False)
+    if "sort_order" in payload:
+        muscle.sort_order = _taxonomy_order(payload["sort_order"])
+    if "is_active" in payload:
+        if not isinstance(payload["is_active"], bool):
+            raise ValidationError({"is_active": ["وضعیت باید روشن یا خاموش باشد."]})
+        muscle.is_active = payload["is_active"]
+    muscle.save()
+    return muscle
+
+
+@transaction.atomic
+def create_muscle_region(muscle: MuscleTaxonomy, payload: dict) -> MuscleRegion:
+    payload = _validate_taxonomy_payload(payload, {"name", "name_en", "sort_order"})
+    if not muscle.is_active:
+        raise ValidationError({"muscle": ["برای عضله غیرفعال نمی‌توان ناحیه جدید ساخت."]})
+    name = _taxonomy_text(payload.get("name"), "name", required=True)
+    name_en = _taxonomy_text(payload.get("name_en"), "name_en", required=False)
+    _ensure_taxonomy_name_available(MuscleRegion, name, parent=muscle)
+    region_id = uuid.uuid4()
+    return MuscleRegion.objects.create(
+        id=region_id,
+        muscle=muscle,
+        key=f"custom-region-{region_id.hex}",
+        name=name,
+        name_en=name_en,
+        sort_order=_taxonomy_order(
+            payload.get("sort_order"), default=_next_taxonomy_order(MuscleRegion, parent=muscle)
+        ),
+    )
+
+
+@transaction.atomic
+def update_muscle_region(region: MuscleRegion, payload: dict) -> MuscleRegion:
+    allowed = {"name", "name_en", "sort_order", "is_active"}
+    payload = _validate_taxonomy_payload(payload, allowed)
+    if "name" in payload:
+        name = _taxonomy_text(payload["name"], "name", required=True)
+        _ensure_taxonomy_name_available(
+            MuscleRegion, name, parent=region.muscle, exclude_id=region.pk
+        )
+        region.name = name
+    if "name_en" in payload:
+        region.name_en = _taxonomy_text(payload["name_en"], "name_en", required=False)
+    if "sort_order" in payload:
+        region.sort_order = _taxonomy_order(payload["sort_order"])
+    if "is_active" in payload:
+        if not isinstance(payload["is_active"], bool):
+            raise ValidationError({"is_active": ["وضعیت باید روشن یا خاموش باشد."]})
+        if payload["is_active"] and not region.muscle.is_active:
+            raise ValidationError(
+                {"is_active": ["برای فعال‌کردن ناحیه، ابتدا عضله‌ی والد را فعال کنید."]}
+            )
+        region.is_active = payload["is_active"]
+    region.save()
+    return region
+
+
+def serialize_muscle(muscle: MuscleTaxonomy) -> dict:
+    return _serialize_muscle(muscle)
+
+
+def serialize_muscle_region(region: MuscleRegion) -> dict:
+    return _serialize_region(region)
 
 
 def _technique_handler_status(technique: TrainingTechnique | None) -> str:
@@ -271,9 +459,7 @@ def _normalize_technique_parameters(
             params.get("pairing_mode") or params.get("pairing") or "same_muscle_isolation"
         ).strip()
         if pairing_mode not in SUPERSET_PAIRING_MODES:
-            raise ValidationError(
-                {field: [f"Unsupported superset pairing mode: {pairing_mode}"]}
-            )
+            raise ValidationError({field: [f"Unsupported superset pairing mode: {pairing_mode}"]})
         params["pairing_mode"] = pairing_mode
         if "max_pairs" in params:
             try:
@@ -314,9 +500,7 @@ def _normalize_technique_parameters(
             except (TypeError, ValueError) as exc:
                 raise ValidationError({field: ["reduction_percent must be an integer."]}) from exc
             if reduction < 1 or reduction > 80:
-                raise ValidationError(
-                    {field: ["reduction_percent must be between 1 and 80."]}
-                )
+                raise ValidationError({field: ["reduction_percent must be between 1 and 80."]})
             params["reduction_percent"] = reduction
     return params
 
@@ -383,7 +567,9 @@ def get_coach_techniques(coach: CoachProfile) -> list[dict]:
                     "parameter_schema": copy.deepcopy(base.parameter_schema or {}),
                 }
             )
-    private = CoachTechnique.objects.filter(coach=coach, base_technique__isnull=True).order_by("name")
+    private = CoachTechnique.objects.filter(coach=coach, base_technique__isnull=True).order_by(
+        "name"
+    )
     rows.extend(serialize_coach_technique(config) for config in private)
     return rows
 
@@ -409,6 +595,14 @@ def _sync_structured_exercise_data(exercise: Exercise, payload: dict) -> None:
         targets = _as_list(payload.get("targets"))
         if not targets:
             raise ValidationError({"targets": ["At least one structured target is required."]})
+        existing_targets = {
+            (
+                target.muscle.key,
+                target.region.key if target.region else "",
+                target.role,
+            )
+            for target in exercise.muscle_targets.select_related("muscle", "region").all()
+        }
         ExerciseMuscleTarget.objects.filter(exercise=exercise).delete()
         primary_targets = 0
         for index, raw in enumerate(targets):
@@ -418,16 +612,16 @@ def _sync_structured_exercise_data(exercise: Exercise, payload: dict) -> None:
             role = str(raw.get("role") or ExerciseMuscleTarget.Role.SECONDARY).strip()
             if role not in {choice[0] for choice in ExerciseMuscleTarget.Role.choices}:
                 raise ValidationError({"targets": [f"Unsupported role: {role}"]})
-            muscle = _taxonomy_by_key(MuscleTaxonomy, muscle_key, "targets")
-            region = None
             region_key = str(raw.get("region_key") or "").strip()
+            retained_target = (muscle_key, region_key, role) in existing_targets
+            muscle = MuscleTaxonomy.objects.filter(key=muscle_key).first()
+            if not muscle or (not muscle.is_active and not retained_target):
+                raise ValidationError({"targets": [f"Unknown taxonomy key: {muscle_key}"]})
+            region = None
             if region_key:
-                try:
-                    region = MuscleRegion.objects.get(
-                        key=region_key, muscle=muscle, is_active=True
-                    )
-                except MuscleRegion.DoesNotExist as exc:
-                    raise ValidationError({"targets": [f"Unknown region key: {region_key}"]}) from exc
+                region = MuscleRegion.objects.filter(key=region_key, muscle=muscle).first()
+                if not region or (not region.is_active and not retained_target):
+                    raise ValidationError({"targets": [f"Unknown region key: {region_key}"]})
             primary_targets += role == ExerciseMuscleTarget.Role.PRIMARY
             ExerciseMuscleTarget.objects.create(
                 exercise=exercise,
@@ -830,7 +1024,11 @@ def create_exercise(coach: CoachProfile, payload: dict) -> Exercise:
     targets = payload.get("targets")
     if targets:
         primary_target = next(
-            (target for target in targets if isinstance(target, dict) and target.get("role") == "primary"),
+            (
+                target
+                for target in targets
+                if isinstance(target, dict) and target.get("role") == "primary"
+            ),
             None,
         )
         primary_key = str(
@@ -843,11 +1041,15 @@ def create_exercise(coach: CoachProfile, payload: dict) -> Exercise:
     if not name or not primary:
         raise ValidationError({"name": ["name and a primary muscle are required."]})
     if external_key and not _valid_external_key(external_key):
-        raise ValidationError({"external_key": ["Use 1-160 lowercase letters, numbers, '.', '_' or '-'."]})
+        raise ValidationError(
+            {"external_key": ["Use 1-160 lowercase letters, numbers, '.', '_' or '-'."]}
+        )
     if Exercise.objects.filter(coach=coach, name=name, primary_muscle=primary).exists():
         raise ValidationError({"name": ["Exercise already exists for this muscle."]})
     if external_key and Exercise.objects.filter(coach=coach, external_key=external_key).exists():
-        raise ValidationError({"external_key": ["Exercise external_key already exists for this coach."]})
+        raise ValidationError(
+            {"external_key": ["Exercise external_key already exists for this coach."]}
+        )
     ex = Exercise.objects.create(
         coach=coach,
         name=name,
@@ -890,7 +1092,9 @@ def _upsert_preference(coach: CoachProfile, ex: Exercise, payload: dict) -> None
         try:
             pref.priority = max(0, int(payload.get("priority") or 0))
         except (TypeError, ValueError) as exc:
-            raise ValidationError({"priority": ["Priority must be a non-negative integer."]}) from exc
+            raise ValidationError(
+                {"priority": ["Priority must be a non-negative integer."]}
+            ) from exc
     if "suitable_levels" in payload:
         pref.suitable_levels = _as_str_list(payload.get("suitable_levels"), "suitable_levels")
     if "preference_notes" in payload:
@@ -910,10 +1114,15 @@ def update_exercise(exercise: Exercise, payload: dict) -> Exercise:
             raise ValidationError(
                 {"external_key": ["Use 1-160 lowercase letters, numbers, '.', '_' or '-'."]}
             )
-        if external_key and Exercise.objects.filter(
-            coach=exercise.coach, external_key=external_key
-        ).exclude(pk=exercise.pk).exists():
-            raise ValidationError({"external_key": ["Exercise external_key already exists for this coach."]})
+        if (
+            external_key
+            and Exercise.objects.filter(coach=exercise.coach, external_key=external_key)
+            .exclude(pk=exercise.pk)
+            .exists()
+        ):
+            raise ValidationError(
+                {"external_key": ["Exercise external_key already exists for this coach."]}
+            )
         exercise.external_key = external_key
     if "primary_muscle" in payload:
         exercise.primary_muscle = str(payload["primary_muscle"]).strip() or exercise.primary_muscle
@@ -1002,9 +1211,11 @@ def update_coach_technique(config: CoachTechnique, payload: dict) -> CoachTechni
                 raise ValidationError(
                     {"base_technique_key": ["Unknown public technique."]}
                 ) from exc
-            if CoachTechnique.objects.filter(
-                coach=config.coach, base_technique=base
-            ).exclude(pk=config.pk).exists():
+            if (
+                CoachTechnique.objects.filter(coach=config.coach, base_technique=base)
+                .exclude(pk=config.pk)
+                .exists()
+            ):
                 raise ValidationError(
                     {"base_technique_key": ["This technique is already configured."]}
                 )

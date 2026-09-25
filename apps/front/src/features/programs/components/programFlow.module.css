@@ -173,6 +173,122 @@
   gap: var(--space-2);
 }
 
+.secondaryTargetList {
+  display: grid;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+
+.secondaryTargetRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+}
+
+.taxonomyDisclosure {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  padding: var(--space-3) var(--space-4);
+}
+
+.taxonomyDisclosureSummary,
+.taxonomyManagerHeader {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.taxonomyDisclosureSummary {
+  min-height: var(--touch-target);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.taxonomyDisclosureSummary::marker {
+  color: var(--color-primary-600);
+}
+
+.taxonomyManager {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+  padding-block-start: var(--space-4);
+}
+
+.taxonomyGroup,
+.taxonomyRegionGroup {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.taxonomyGroup {
+  border-block-start: 1px solid var(--color-border);
+  padding-block-start: var(--space-4);
+}
+
+.taxonomyRegionGroup {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  padding: var(--space-3);
+}
+
+.taxonomyItems {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.taxonomyItem {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  padding: var(--space-3);
+}
+
+.taxonomyItemInfo {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: var(--space-1);
+}
+
+.taxonomyItemInfo small {
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.taxonomyItemActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.taxonomyFeedback {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+  padding: var(--space-3);
+  font-weight: 700;
+}
+
 .trainingToolbar {
   display: grid;
   grid-template-columns: 1fr;
@@ -513,6 +629,26 @@
   }
 
   .rulesStickySave {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .taxonomyDisclosure {
+    padding-inline: var(--space-3);
+  }
+
+  .taxonomyManagerHeader,
+  .taxonomyItem {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .taxonomyItemActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .secondaryTargetRow {
     align-items: stretch;
     flex-direction: column;
   }
