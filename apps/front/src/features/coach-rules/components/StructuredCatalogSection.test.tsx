@@ -100,7 +100,10 @@ describe("StructuredCatalogSection", () => {
               name: "پرس بالاسینه دمبل",
               name_en: "Incline dumbbell press",
               aliases: [],
-              targets: [{ muscle_key: "chest", region_key: "upper_chest", role: "primary" }],
+              targets: [
+                { muscle_key: "chest", region_key: "upper_chest", role: "primary" },
+                { muscle_key: "triceps", region_key: "long_head", role: "secondary" }
+              ],
               levels: ["intermediate"],
               equipment_keys: ["dumbbell"],
               movement_pattern: "press",
@@ -255,25 +258,37 @@ describe("StructuredCatalogSection", () => {
     expect(await screen.findByText("عضله به فهرست مشترک اضافه شد.")).toBeInTheDocument();
   });
 
-  it("lets the coach edit and remove a secondary muscle before saving the exercise", async () => {
+  it("hides secondary-target editing while preserving saved targets when the exercise is edited", async () => {
     const user = userEvent.setup();
     render(<StructuredCatalogSection />);
 
-    await user.click(await screen.findByRole("button", { name: "حرکت جدید" }));
-    const dialog = screen.getByRole("dialog", { name: "حرکت جدید" });
-    await user.selectOptions(within(dialog).getByLabelText("عضله فرعی"), "chest");
-    await user.selectOptions(within(dialog).getByLabelText("ناحیه فرعی"), "upper_chest");
-    await user.click(within(dialog).getByRole("button", { name: "افزودن عضله فرعی" }));
-    expect(within(dialog).getByText("سینه — بالاسینه")).toBeInTheDocument();
+    const exerciseRow = (await screen.findAllByText("پرس بالاسینه دمبل"))
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    expect(exerciseRow).not.toBeNull();
+    await user.click(within(exerciseRow as HTMLElement).getByRole("button", { name: "ویرایش" }));
 
-    await user.click(within(dialog).getByRole("button", { name: "ویرایش" }));
-    await user.selectOptions(within(dialog).getByLabelText("عضله فرعی"), "back");
-    await user.selectOptions(within(dialog).getByLabelText("ناحیه فرعی"), "lats");
-    await user.click(within(dialog).getByRole("button", { name: "ذخیره ویرایش عضله فرعی" }));
-    expect(within(dialog).getByText("زیربغل — لت")).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "ویرایش حرکت" });
+    expect(within(dialog).queryByLabelText("عضله فرعی")).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("ناحیه فرعی")).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("button", { name: "افزودن عضله فرعی" })
+    ).not.toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole("button", { name: "حذف" }));
-    expect(within(dialog).queryByText("زیربغل — لت")).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "ذخیره حرکت" }));
+
+    const patchCall = apiRequestMock.mock.calls.find(
+      ([path, options]) => path === "/exercises/exercise-1/" && options?.method === "PATCH"
+    );
+    expect(patchCall?.[1]).toMatchObject({
+      body: {
+        targets: [
+          { muscle_key: "chest", region_key: "upper_chest", role: "primary" },
+          { muscle_key: "triceps", region_key: "long_head", role: "secondary" }
+        ]
+      },
+      method: "PATCH"
+    });
   });
 
   it("shows executable technique logic and structured superset settings", async () => {

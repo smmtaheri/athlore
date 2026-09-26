@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { Plus, Save, Trash2 } from "lucide-react";
 import {
   Button,
   Card,
@@ -130,8 +130,6 @@ type ExerciseDraft = {
   primary_muscle: string;
   primary_region: string;
   secondary_targets: SecondaryTarget[];
-  secondary_muscle: string;
-  secondary_region: string;
   levels: string[];
   equipment_keys: string[];
   movement_pattern: string;
@@ -150,8 +148,6 @@ const emptyDraft: ExerciseDraft = {
   primary_muscle: "",
   primary_region: "",
   secondary_targets: [],
-  secondary_muscle: "",
-  secondary_region: "",
   levels: [],
   equipment_keys: [],
   movement_pattern: "",
@@ -192,9 +188,7 @@ function exerciseFromRow(row: CatalogExercise, taxonomy: ExerciseTaxonomy): Exer
       muscle_key: target.muscle_key,
       region_key: target.region_key || ""
     })),
-    source_document: row.source_document,
-    secondary_muscle: "",
-    secondary_region: ""
+    source_document: row.source_document
   };
 }
 
@@ -233,7 +227,6 @@ export function StructuredCatalogSection() {
   const [techniques, setTechniques] = useState<Technique[]>([]);
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string>();
-  const [editingSecondaryIndex, setEditingSecondaryIndex] = useState<number>();
   const [techniqueDraft, setTechniqueDraft] = useState<Technique>();
   const [techniqueBaseline, setTechniqueBaseline] = useState<Technique>();
   const [exerciseEditorOpen, setExerciseEditorOpen] = useState(false);
@@ -346,7 +339,6 @@ export function StructuredCatalogSection() {
       );
       setDraft(emptyDraft);
       setEditingId(undefined);
-      setEditingSecondaryIndex(undefined);
       setExerciseEditorOpen(false);
       setFeedback("حرکت ذخیره شد.");
     } catch {
@@ -364,45 +356,9 @@ export function StructuredCatalogSection() {
     }
   };
 
-  const addSecondaryTarget = () => {
-    if (!draft.secondary_muscle) {
-      setFeedback("برای ثبت عضله‌ی فرعی، ابتدا عضله را انتخاب کنید.");
-      return;
-    }
-    const nextTarget = {
-      muscle_key: draft.secondary_muscle,
-      region_key: draft.secondary_region
-    };
-    if (
-      draft.secondary_targets.some(
-        (target, index) =>
-          index !== editingSecondaryIndex &&
-          target.muscle_key === nextTarget.muscle_key &&
-          (target.region_key || "") === nextTarget.region_key
-      )
-    ) {
-      setFeedback("این عضله‌ی فرعی قبلاً به حرکت اضافه شده است.");
-      return;
-    }
-    setDraft((current) => ({
-      ...current,
-      secondary_muscle: "",
-      secondary_region: "",
-      secondary_targets:
-        editingSecondaryIndex === undefined
-          ? [...current.secondary_targets, nextTarget]
-          : current.secondary_targets.map((target, index) =>
-              index === editingSecondaryIndex ? nextTarget : target
-            )
-    }));
-    setEditingSecondaryIndex(undefined);
-    setFeedback("");
-  };
-
   const startNewExercise = () => {
     setDraft(emptyDraft);
     setEditingId(undefined);
-    setEditingSecondaryIndex(undefined);
     setExerciseBaseline(emptyDraft);
     setExerciseEditorOpen(true);
   };
@@ -411,7 +367,6 @@ export function StructuredCatalogSection() {
     const nextDraft = exerciseFromRow(row, taxonomy);
     setEditingId(row.id);
     setDraft(nextDraft);
-    setEditingSecondaryIndex(undefined);
     setExerciseBaseline(nextDraft);
     setExerciseEditorOpen(true);
   };
@@ -419,7 +374,6 @@ export function StructuredCatalogSection() {
   const closeExerciseEditor = () => {
     setExerciseEditorOpen(false);
     setEditingId(undefined);
-    setEditingSecondaryIndex(undefined);
     setDraft(emptyDraft);
   };
 
@@ -708,10 +662,7 @@ export function StructuredCatalogSection() {
             <FormField htmlFor="exercise-primary-muscle" label="عضله اصلی" required>
               <Select
                 id="exercise-primary-muscle"
-                options={editorMuscleOptions([
-                  draft.primary_muscle,
-                  ...draft.secondary_targets.map((target) => target.muscle_key)
-                ])}
+                options={editorMuscleOptions([draft.primary_muscle])}
                 value={draft.primary_muscle}
                 onChange={(event) =>
                   setDraft({ ...draft, primary_muscle: event.target.value, primary_region: "" })
@@ -728,89 +679,6 @@ export function StructuredCatalogSection() {
                 placeholder="بدون ناحیه"
               />
             </FormField>
-            <FormField htmlFor="exercise-secondary-muscle" label="عضله فرعی">
-              <Select
-                id="exercise-secondary-muscle"
-                options={editorMuscleOptions([
-                  draft.secondary_muscle,
-                  ...draft.secondary_targets.map((target) => target.muscle_key)
-                ])}
-                value={draft.secondary_muscle}
-                onChange={(event) =>
-                  setDraft({ ...draft, secondary_muscle: event.target.value, secondary_region: "" })
-                }
-                placeholder="انتخاب عضله"
-              />
-            </FormField>
-            <FormField htmlFor="exercise-secondary-region" label="ناحیه فرعی">
-              <Select
-                id="exercise-secondary-region"
-                options={editorRegionOptions(draft.secondary_muscle, draft.secondary_region)}
-                value={draft.secondary_region}
-                onChange={(event) => setDraft({ ...draft, secondary_region: event.target.value })}
-                placeholder="بدون ناحیه"
-              />
-            </FormField>
-            <div>
-              <Button size="sm" variant="secondary" onClick={addSecondaryTarget}>
-                {editingSecondaryIndex === undefined
-                  ? "افزودن عضله فرعی"
-                  : "ذخیره ویرایش عضله فرعی"}
-              </Button>
-              <div className={styles.secondaryTargetList}>
-                {draft.secondary_targets.map((target, index) => (
-                  <div
-                    className={styles.secondaryTargetRow}
-                    key={`${target.muscle_key}-${target.region_key}-${index}`}
-                  >
-                    <StatusBadge>{describeTarget({ ...target, role: "secondary" })}</StatusBadge>
-                    <div className={styles.actionIconGroup}>
-                      <Button
-                        iconStart={<Pencil size={14} />}
-                        onClick={() => {
-                          setDraft({
-                            ...draft,
-                            secondary_muscle: target.muscle_key,
-                            secondary_region: target.region_key || ""
-                          });
-                          setEditingSecondaryIndex(index);
-                        }}
-                        size="sm"
-                        variant="secondary"
-                      >
-                        ویرایش
-                      </Button>
-                      <Button
-                        iconStart={<Trash2 size={14} />}
-                        onClick={() => {
-                          setDraft((current) => ({
-                            ...current,
-                            secondary_targets: current.secondary_targets.filter((_, i) => i !== index)
-                          }));
-                          if (editingSecondaryIndex === index) {
-                            setEditingSecondaryIndex(undefined);
-                            setDraft((current) => ({
-                              ...current,
-                              secondary_muscle: "",
-                              secondary_region: ""
-                            }));
-                          } else if (
-                            editingSecondaryIndex !== undefined &&
-                            editingSecondaryIndex > index
-                          ) {
-                            setEditingSecondaryIndex(editingSecondaryIndex - 1);
-                          }
-                        }}
-                        size="sm"
-                        variant="danger"
-                      >
-                        حذف
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
             <FormField className={styles.fullField} label="الگو">
               <Input
                 value={draft.movement_pattern}
