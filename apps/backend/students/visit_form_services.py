@@ -626,14 +626,9 @@ def record_answer_changes(
 
 
 def update_visit_answers_as_coach(visit: Visit, answers_partial: dict, *, actor=None) -> dict:
-    """Apply a coach-initiated partial answers update, enforcing coach_editable + lock state."""
+    """Apply coach-editable answers while keeping an open student submission protected."""
     if not isinstance(answers_partial, dict):
         raise ValidationError({"answers": ["Must be an object."]})
-    if visit.status == Visit.Status.FINALIZED:
-        raise ValidationError(
-            {"answers": ["Visit is finalized; answers cannot be modified."]},
-            code="visit_finalized",
-        )
     # Avoid racing the student while the form is open, and require an explicit
     # start-coach-review before editing answers after student_submitted.
     if visit.status in {
@@ -649,7 +644,11 @@ def update_visit_answers_as_coach(visit: Visit, answers_partial: dict, *, actor=
             },
             code="invalid_visit_status",
         )
-    if visit.status not in {Visit.Status.DRAFT, Visit.Status.COACH_REVIEW}:
+    if visit.status not in {
+        Visit.Status.DRAFT,
+        Visit.Status.COACH_REVIEW,
+        Visit.Status.FINALIZED,
+    }:
         raise ValidationError(
             {"answers": [f"Cannot edit answers from status '{visit.status}'."]},
             code="invalid_visit_status",
@@ -754,7 +753,7 @@ def start_coach_review(visit: Visit, *, actor=None) -> Visit:
 
 @transaction.atomic
 def finalize_visit(visit: Visit, *, actor=None) -> Visit:
-    """Coach locks the visit permanently; from draft (in-person) or coach_review."""
+    """Mark the coach's review complete; subsequent coach edits preserve finalized status."""
     allowed = {Visit.Status.DRAFT, Visit.Status.COACH_REVIEW}
     if visit.status not in allowed:
         raise ValidationError(

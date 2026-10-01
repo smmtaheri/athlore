@@ -139,8 +139,7 @@ export function StudentVisitForm({
       status === "coach_review");
   const canStartReview = status === "student_submitted";
   const canFinalize = !isFinalized && (status === "draft" || status === "coach_review");
-  const answersReadOnly =
-    status === "waiting_for_student" || status === "student_submitted" || isFinalized;
+  const answersReadOnly = status === "waiting_for_student" || status === "student_submitted";
   const showRevisions =
     answerRevisions.length > 0 &&
     (status === "student_submitted" ||
@@ -617,8 +616,9 @@ export function StudentVisitForm({
       {dynamicSections.length > 0 ? (
         <VisitDynamicForm
           answers={answers}
-          disabled={answersReadOnly || isFinalized}
+          disabled={answersReadOnly}
           onAnswersChange={setAnswers}
+          respectCoachEditable
           sections={dynamicSections}
           showCoachHelpText
         />
@@ -644,7 +644,7 @@ export function StudentVisitForm({
       <div className={styles.actionBar}>
         <span className={styles.actionHint}>
           {isFinalized
-            ? "این ویزیت نهایی شده و فقط قابل مشاهده است."
+            ? "ویزیت نهایی شده است؛ مربی می‌تواند اطلاعات را اصلاح کند و وضعیت نهایی حفظ می‌شود."
             : status === "coach_review"
               ? "فرم شاگرد قفل است؛ پس از بررسی، ویزیت را نهایی کنید."
               : status === "student_submitted"
@@ -657,7 +657,7 @@ export function StudentVisitForm({
           <Button onClick={onCancel} type="button" variant="secondary">
             انصراف
           </Button>
-          {!isFinalized ? (
+          {mode === "edit" || !isFinalized ? (
             <Button
               iconStart={<Save size={18} />}
               isLoading={submitIntent === "save"}

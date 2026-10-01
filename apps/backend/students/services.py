@@ -353,12 +353,6 @@ def create_visit(coach, student: Student, data: dict, *, actor=None) -> Visit:
 def update_visit(visit: Visit, data: dict, *, actor=None) -> Visit:
     from students import visit_form_services as vfs
 
-    if visit.status == Visit.Status.FINALIZED:
-        raise ValidationError(
-            {"status": ["Visit is finalized and cannot be modified."]},
-            code="visit_finalized",
-        )
-
     measurements = data.pop("measurements", None)
     adherence = data.pop("adherence", None)
     # Lifecycle transitions happen via dedicated actions only.
@@ -416,20 +410,16 @@ def update_visit(visit: Visit, data: dict, *, actor=None) -> Visit:
                 setattr(visit, dest, adherence.get(src))
 
     template_id = data.get("form_template_id") or data.get("template_id")
-    if (template_id is not None or "skip_form_template" in data) and visit.status not in {
-        Visit.Status.DRAFT,
-        Visit.Status.COACH_REVIEW,
-    }:
-        raise ValidationError(
-            {"form_template_id": ["Cannot change visit form template in this status."]},
-            code="invalid_visit_status",
-        )
-
     if template_id is not None or "skip_form_template" in data:
         template = vfs.resolve_form_template(visit.coach, data)
         current_id = str(visit.form_template_id) if visit.form_template_id else ""
         new_id = str(template.id) if template is not None else ""
         if current_id != new_id:
+            if visit.status not in {Visit.Status.DRAFT, Visit.Status.COACH_REVIEW}:
+                raise ValidationError(
+                    {"form_template_id": ["Cannot change visit form template in this status."]},
+                    code="invalid_visit_status",
+                )
             vfs.apply_form_template_to_visit(visit, template, set_answers=False)
             if "answers" in data:
                 vfs.update_visit_answers_as_coach(visit, data["answers"], actor=actor)

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router";
+import { visitFormTemplateFixture } from "../fixtures/visitFormTemplates";
 import { studentFixtures } from "../fixtures/students";
 import { studentVisitFixtures } from "../fixtures/studentVisits";
 import { STUDENT_VISITS_STORAGE_KEY } from "../services/studentVisitsRepository";
@@ -274,6 +275,37 @@ describe("StudentVisitFormPage", () => {
     await user.click(screen.getAllByRole("button", { name: "عملیات" })[0]);
     await user.click(screen.getByRole("menuitem", { name: "مشاهده جزئیات" }));
     expect(screen.getByText("فرم حرکات بهتر شده است.")).toBeInTheDocument();
+  });
+
+  it("lets the coach edit a finalized visit while keeping its finalized status", async () => {
+    const user = userEvent.setup();
+    const finalizedVisit = {
+      ...studentVisitFixtures[0],
+      answers: { goal: "hypertrophy" },
+      status: "finalized" as const
+    };
+    window.localStorage.setItem(STUDENT_VISITS_STORAGE_KEY, JSON.stringify([finalizedVisit]));
+    window.localStorage.setItem(
+      VISIT_FORM_TEMPLATES_STORAGE_KEY,
+      JSON.stringify([visitFormTemplateFixture])
+    );
+
+    renderVisitRoute(`/students/mohammad-taheri/visits/${finalizedVisit.id}/edit`);
+
+    const weight = await screen.findByLabelText(/^وزن جدید/);
+    expect(weight).toBeEnabled();
+    expect(screen.getByRole("button", { name: "ذخیره ویزیت" })).toBeEnabled();
+    await user.clear(weight);
+    await user.type(weight, "88.1");
+    await user.click(screen.getByRole("button", { name: "ذخیره ویزیت" }));
+
+    expect(await screen.findByText("تغییرات ویزیت ذخیره شد.")).toBeInTheDocument();
+    const savedVisits = JSON.parse(
+      window.localStorage.getItem(STUDENT_VISITS_STORAGE_KEY) || "[]"
+    ) as Array<{ answers: Record<string, string>; currentWeightKg: number; status: string }>;
+    expect(savedVisits[0]?.status).toBe("finalized");
+    expect(savedVisits[0]?.currentWeightKg).toBe(88.1);
+    expect(savedVisits[0]?.answers.goal).toBe("hypertrophy");
   });
 
   it("exposes send and finalize actions for draft visits", async () => {

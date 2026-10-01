@@ -387,14 +387,23 @@ class StudentVisitApiTests(TestCase):
             f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/finalize/"
         )
         self.assertEqual(fin.status_code, 200)
-        self.assertEqual(
-            self.coach_client.patch(
-                f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/",
-                {"answers": {"goal": "strength"}},
-                format="json",
-            ).status_code,
-            400,
+        finalized_at = fin.data["finalized_at"]
+        coach_edit = self.coach_client.patch(
+            f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/",
+            {
+                "answers": {"goal": "strength"},
+                "current_weight_kg": "76.0",
+                "form_template_id": str(self.tpl.id),
+            },
+            format="json",
         )
+        self.assertEqual(coach_edit.status_code, 200)
+        self.assertEqual(coach_edit.data["status"], "finalized")
+        self.assertEqual(coach_edit.data["finalized_at"], finalized_at)
+        self.assertEqual(coach_edit.data["answers"]["goal"], "strength")
+        self.assertEqual(str(coach_edit.data["current_weight_kg"]), "76.0")
+
+        # Coach edits after finalization must not reopen student write access.
         self.assertEqual(
             client.patch(
                 f"/api/v1/me/visits/{self.visit.id}/",

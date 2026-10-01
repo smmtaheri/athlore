@@ -21,6 +21,8 @@ export interface VisitDynamicFormProps {
   onCoachNotesChange?: (notes: string) => void;
   /** When true, fields without studentEditable stay read-only even if the form is open. */
   respectStudentEditable?: boolean;
+  /** When true, coach-uneditable fields stay read-only in the coach form. */
+  respectCoachEditable?: boolean;
   sections: VisitFormSectionDefinition[];
   showCoachHelpText?: boolean;
   showNotes?: boolean;
@@ -34,6 +36,7 @@ export function VisitDynamicForm({
   notesTitle = "یادداشت خصوصی مربی",
   onAnswersChange,
   onCoachNotesChange,
+  respectCoachEditable = false,
   respectStudentEditable = false,
   sections,
   showCoachHelpText = false,
@@ -50,7 +53,9 @@ export function VisitDynamicForm({
           <div className={styles.formGrid}>
             {section.fields.map((field) => {
               const fieldDisabled =
-                disabled || (respectStudentEditable && field.studentEditable !== true);
+                disabled ||
+                (respectStudentEditable && field.studentEditable !== true) ||
+                (respectCoachEditable && field.coachEditable === false);
               return (
                 <VisitFormFieldControl
                   disabled={fieldDisabled}

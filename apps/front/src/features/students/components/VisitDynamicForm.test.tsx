@@ -40,4 +40,23 @@ describe("VisitDynamicForm guidance visibility", () => {
     rerender(<VisitDynamicForm {...props} showCoachHelpText />);
     expect(screen.getByText(/یادداشت مربی: این توضیح فقط برای مربی است/)).toBeInTheDocument();
   });
+
+  it("keeps fields marked coach-uneditable disabled in the coach form", () => {
+    const coachRestrictedSections = [
+      {
+        ...sections[0],
+        fields: [{ ...sections[0].fields[0], coachEditable: false }]
+      }
+    ];
+    render(
+      <VisitDynamicForm
+        answers={{}}
+        onAnswersChange={() => undefined}
+        respectCoachEditable
+        sections={coachRestrictedSections}
+      />
+    );
+
+    expect(screen.getByRole("textbox", { name: "فیلد" })).toBeDisabled();
+  });
 });

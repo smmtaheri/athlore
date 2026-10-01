@@ -15,18 +15,14 @@ import {
   type StudentVisitsRepository
 } from "../services/studentVisitsRepository";
 import { studentsRepository, type StudentsRepository } from "../services/studentsRepository";
-import type {
-  StudentVisit,
-  StudentVisitInput,
-  VisitAnswerRevision
-} from "../types/monthlyVisit";
+import type { StudentVisit, StudentVisitInput, VisitAnswerRevision } from "../types/monthlyVisit";
 import type { Student } from "../types/student";
 import type { VisitFormTemplate } from "../types/visitForm";
 import { goalLabels, trainingLevelLabels } from "../types/options";
 import styles from "../components/students.module.css";
 
 function answersLockedForStatus(status: StudentVisit["status"] | undefined): boolean {
-  return status === "waiting_for_student" || status === "student_submitted" || status === "finalized";
+  return status === "waiting_for_student" || status === "student_submitted";
 }
 
 function withoutLockedAnswers(
@@ -65,8 +61,7 @@ export function StudentVisitFormPage({
   const navigate = useNavigate();
   const { studentId, visitId } = useParams();
 
-  const incomingVisitSaved =
-    (location.state as { visitSaved?: string } | null)?.visitSaved ?? "";
+  const incomingVisitSaved = (location.state as { visitSaved?: string } | null)?.visitSaved ?? "";
   if (incomingVisitSaved && routeFeedback !== incomingVisitSaved) {
     setRouteFeedback(incomingVisitSaved);
   }
