@@ -4,10 +4,20 @@ import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { StudentDashboardPage } from "../../student-portal/pages/StudentDashboardPage";
 import { StudentBodyCheckPage } from "./StudentBodyCheckPage";
-import { BodyCheckReportView } from "./StudentBodyCheckTab";
-import type { StudentBodyCheckRepository } from "../services/bodyCheckRepository";
+import { BodyCheckReportView, StudentBodyCheckTab } from "./StudentBodyCheckTab";
+import { studentFixtures } from "../../students/fixtures/students";
+import { persianVisitDateToIso, todayPersianVisitDate } from "../../students/utils/visitDates";
+import type {
+  CoachBodyCheckRepository,
+  StudentBodyCheckRepository
+} from "../services/bodyCheckRepository";
 import type { MyVisitsRepository } from "../../student-portal/services/myVisitsRepository";
-import type { BodyCheckCycle, BodyCheckDashboardSnapshot, BodyCheckDay } from "../types/bodyCheck";
+import type {
+  BodyCheckCycle,
+  BodyCheckCycleCreateInput,
+  BodyCheckDashboardSnapshot,
+  BodyCheckDay
+} from "../types/bodyCheck";
 
 function day(overrides: Partial<BodyCheckDay> = {}): BodyCheckDay {
   return {
@@ -111,7 +121,73 @@ function cycle(overrides: Partial<BodyCheckCycle> = {}): BodyCheckCycle {
   };
 }
 
-describe("Body Check student UI", () => {
+describe("Body Check UI", () => {
+  it("accepts a Jalali cycle start date and sends ISO to the API", async () => {
+    const user = userEvent.setup();
+    let savedCycle: BodyCheckCycle | null = null;
+    const createCycle = vi.fn(async (_studentId: string, input: BodyCheckCycleCreateInput) => {
+      const createdCycle = cycle({ startDate: input.startDate, status: "active" });
+      savedCycle = createdCycle;
+      return createdCycle;
+    });
+    const repository: CoachBodyCheckRepository = {
+      closeCycle: async () => cycle({ status: "closed" }),
+      createCycle,
+      deletePhoto: async () => undefined,
+      downloadPhoto: async () => new Blob(),
+      getCycle: async () => savedCycle ?? cycle(),
+      listCycles: async () => (savedCycle ? [savedCycle] : []),
+      suggestTargets: async () => [],
+      updateCycle: async () => cycle(),
+      uploadPhoto: async () => {
+        throw new Error("unused");
+      }
+    };
+
+    render(<StudentBodyCheckTab repository={repository} student={studentFixtures[0]!} />);
+
+    await user.click(await screen.findByRole("button", { name: "دوره جدید ۳۰ روزه" }));
+    const dateInput = screen.getByLabelText("تاریخ شروع");
+    expect(dateInput).toHaveProperty("type", "text");
+    expect(dateInput).toHaveValue(todayPersianVisitDate());
+
+    await user.clear(dateInput);
+    await user.type(dateInput, "۱۴۰۵/۰۷/۰۲");
+    await user.click(screen.getByRole("button", { name: "ایجاد دوره" }));
+
+    expect(createCycle).toHaveBeenCalledWith(
+      studentFixtures[0]!.id,
+      expect.objectContaining({ startDate: persianVisitDateToIso("۱۴۰۵/۰۷/۰۲") })
+    );
+  });
+
+  it("rejects invalid Jalali cycle start dates without calling the API", async () => {
+    const user = userEvent.setup();
+    const createCycle = vi.fn(async () => cycle());
+    const repository: CoachBodyCheckRepository = {
+      closeCycle: async () => cycle({ status: "closed" }),
+      createCycle,
+      deletePhoto: async () => undefined,
+      downloadPhoto: async () => new Blob(),
+      getCycle: async () => cycle(),
+      listCycles: async () => [],
+      suggestTargets: async () => [],
+      updateCycle: async () => cycle(),
+      uploadPhoto: async () => {
+        throw new Error("unused");
+      }
+    };
+
+    render(<StudentBodyCheckTab repository={repository} student={studentFixtures[0]!} />);
+    await user.click(await screen.findByRole("button", { name: "دوره جدید ۳۰ روزه" }));
+    await user.clear(screen.getByLabelText("تاریخ شروع"));
+    await user.type(screen.getByLabelText("تاریخ شروع"), "۱۴۰۵/۱۳/۴۰");
+    await user.click(screen.getByRole("button", { name: "ایجاد دوره" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("تاریخ شروع را به شکل شمسی");
+    expect(createCycle).not.toHaveBeenCalled();
+  });
+
   it("shows dashboard CTA and today completion state", async () => {
     const bc: BodyCheckDashboardSnapshot = {
       cycle: cycle(),

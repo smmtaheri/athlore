@@ -13,6 +13,7 @@ import {
 } from "../../../components/ui";
 import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
 import type { Student } from "../../students/types/student";
+import { persianVisitDateToIso, todayPersianVisitDate } from "../../students/utils/visitDates";
 import type { BodyCheckCycle } from "../types/bodyCheck";
 import {
   coachBodyCheckRepository,
@@ -44,7 +45,7 @@ export function StudentBodyCheckTab({
   const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(() => todayPersianVisitDate());
   const [startingWeight, setStartingWeight] = useState(String(student.weightKg || ""));
   const [goalWeight, setGoalWeight] = useState("");
   const [targetsText, setTargetsText] = useState("");
@@ -122,7 +123,7 @@ export function StudentBodyCheckTab({
 
   const openCreateEditor = () => {
     const initial = {
-      startDate: new Date().toISOString().slice(0, 10),
+      startDate: todayPersianVisitDate(),
       startingWeight: String(student.weightKg || ""),
       goalWeight: "",
       targetsText: "",
@@ -160,6 +161,12 @@ export function StudentBodyCheckTab({
   };
 
   const create = async () => {
+    const startDateIso = persianVisitDateToIso(startDate);
+    if (!startDateIso) {
+      setError("تاریخ شروع را به شکل شمسی سال/ماه/روز وارد کنید (مثلاً ۱۴۰۵/۰۷/۰۲).");
+      return;
+    }
+
     setCreating(true);
     setError("");
     setFeedback("");
@@ -169,7 +176,7 @@ export function StudentBodyCheckTab({
         .map((v) => Number(v.trim()))
         .filter((v) => Number.isFinite(v));
       const cycle = await repository.createCycle(student.id, {
-        startDate,
+        startDate: startDateIso,
         startingWeightKg: Number(startingWeight),
         goalWeightKg: Number(goalWeight),
         mealDetailEnabled: mealEnabled,
@@ -328,11 +335,17 @@ export function StudentBodyCheckTab({
             </div>
           ) : null}
           {editorMode === "create" ? (
-            <FormField htmlFor="bc-start" label="تاریخ شروع">
+            <FormField
+              hint="تاریخ امروز به‌صورت پیش‌فرض شمسی است؛ در صورت نیاز آن را به شکل سال/ماه/روز ویرایش کنید."
+              htmlFor="bc-start"
+              label="تاریخ شروع"
+            >
               <Input
+                dir="ltr"
                 id="bc-start"
+                inputMode="numeric"
                 onChange={(event) => setStartDate(event.target.value)}
-                type="date"
+                placeholder="۱۴۰۵/۰۷/۰۲"
                 value={startDate}
               />
             </FormField>
