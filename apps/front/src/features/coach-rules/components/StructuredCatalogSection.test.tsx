@@ -206,6 +206,46 @@ describe("StructuredCatalogSection", () => {
     );
   });
 
+  it("limits regions to the selected muscle and clears the region when the muscle changes", async () => {
+    const user = userEvent.setup();
+    render(<StructuredCatalogSection />);
+
+    const muscleFilter = await screen.findByRole("combobox", { name: "فیلتر عضله" });
+    const regionFilter = screen.getByRole("combobox", { name: "فیلتر ناحیه" });
+    await user.selectOptions(regionFilter, "biceps:long_head");
+    await user.selectOptions(muscleFilter, "chest");
+
+    expect(regionFilter).toHaveValue("");
+    expect(
+      within(regionFilter).getByRole("option", { name: "سینه — بالاسینه" })
+    ).toBeInTheDocument();
+    expect(
+      within(regionFilter).queryByRole("option", { name: "جلو بازو — سر بلند" })
+    ).not.toBeInTheDocument();
+    expect(
+      within(regionFilter).queryByRole("option", { name: "زیربغل — لت" })
+    ).not.toBeInTheDocument();
+    expect((await screen.findAllByText("پرس بالاسینه دمبل")).length).toBeGreaterThan(0);
+
+    await user.selectOptions(regionFilter, "chest:upper_chest");
+    await user.selectOptions(muscleFilter, "back");
+    expect(regionFilter).toHaveValue("");
+    expect(within(regionFilter).getByRole("option", { name: "زیربغل — لت" })).toBeInTheDocument();
+    expect(
+      within(regionFilter).queryByRole("option", { name: "سینه — بالاسینه" })
+    ).not.toBeInTheDocument();
+
+    await user.selectOptions(regionFilter, "back:lats");
+    await user.selectOptions(muscleFilter, "");
+    expect(regionFilter).toHaveValue("");
+    expect(
+      within(regionFilter).getByRole("option", { name: "سینه — بالاسینه" })
+    ).toBeInTheDocument();
+    expect(
+      within(regionFilter).getByRole("option", { name: "جلو بازو — سر بلند" })
+    ).toBeInTheDocument();
+  });
+
   it("creates a shared muscle through the taxonomy manager", async () => {
     apiRequestMock.mockImplementation(async (path: string) => {
       if (path === "/exercise-taxonomy/muscles/") {

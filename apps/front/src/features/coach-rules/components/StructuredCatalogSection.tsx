@@ -291,14 +291,16 @@ export function StructuredCatalogSection() {
     label: muscle.name,
     value: muscle.key
   }));
-  const regionOptions = activeMuscles.flatMap((muscle) =>
-    muscle.regions
-      .filter((region) => region.is_active !== false)
-      .map((region) => ({
-        label: `${muscle.name} — ${region.name}`,
-        value: `${muscle.key}:${region.key}`
-      }))
-  );
+  const regionOptions = activeMuscles
+    .filter((muscle) => !filters.muscle || muscle.key === filters.muscle)
+    .flatMap((muscle) =>
+      muscle.regions
+        .filter((region) => region.is_active !== false)
+        .map((region) => ({
+          label: `${muscle.name} — ${region.name}`,
+          value: `${muscle.key}:${region.key}`
+        }))
+    );
   const describeTarget = (target: ExerciseTarget) => {
     const muscle = taxonomy.muscles.find((item) => item.key === target.muscle_key);
     const region = muscle?.regions.find((item) => item.key === target.region_key);
@@ -479,7 +481,9 @@ export function StructuredCatalogSection() {
               id="exercise-catalog-filter-muscle"
               options={muscleOptions}
               value={filters.muscle}
-              onChange={(event) => setFilters({ ...filters, muscle: event.target.value })}
+              onChange={(event) =>
+                setFilters({ ...filters, muscle: event.target.value, region: "" })
+              }
               placeholder="همه"
             />
           </FormField>
