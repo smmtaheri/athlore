@@ -72,6 +72,14 @@ cd /root/athlore/infra/deployment
 ./scripts/up.sh
 ```
 
+## Backups and disaster recovery
+
+The canonical [backup/update/restore runbook](docs/backup-restore.md) covers
+laptop snapshots, offline images, uploaded media, and recovery on a fresh
+replacement server. Run `bash infra/deployment/scripts/backup.sh --mode full`
+from the laptop monorepo root. Use `--mode update` for subsequent snapshots.
+Do not use deployment scripts for offline disaster recovery.
+
 ## Status
 
 ```bash

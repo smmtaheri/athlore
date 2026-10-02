@@ -1,1 +1,4 @@
 .idea/
+/backups/
+/infra/deployment/recovery.compose.json
+/infra/deployment/restore-verification.json

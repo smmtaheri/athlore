@@ -12,3 +12,5 @@ athlore/
 Production layout on the server is identical under `/root/athlore`.
 
 **Product flows (Persian):** canonical coach/team flows live in `apps/front/docs/product-flows/`.
+
+**Operations:** [backup, update and offline recovery](infra/deployment/docs/backup-restore.md).
