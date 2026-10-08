@@ -36,6 +36,7 @@ import { ProfileTabHeader, SummaryMetricCard } from "./ProfileTabHeader";
 import styles from "./students.module.css";
 
 export interface StudentVisitsTabProps {
+  onVisitsChanged?: () => Promise<void> | void;
   repository?: StudentVisitsRepository;
   student: Student;
 }
@@ -48,6 +49,7 @@ const levelLabels: Record<VisitLevel, string> = {
 };
 
 export function StudentVisitsTab({
+  onVisitsChanged,
   repository = studentVisitsRepository,
   student
 }: StudentVisitsTabProps) {
@@ -110,6 +112,7 @@ export function StudentVisitsTab({
       await repository.remove(student.id, visitToDelete.id);
       setVisits((current) => current.filter((visit) => visit.id !== visitToDelete.id));
       setSelectedVisit((current) => (current?.id === visitToDelete.id ? null : current));
+      await onVisitsChanged?.();
       setFeedback("ویزیت انتخاب شده حذف شد.");
       setVisitToDelete(null);
     } catch {

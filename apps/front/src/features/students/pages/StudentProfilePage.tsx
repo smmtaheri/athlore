@@ -75,6 +75,17 @@ export function StudentProfilePage({
     setRequestKey((current) => current + 1);
   };
 
+  const refreshStudentAfterVisitChange = async () => {
+    try {
+      const latestStudent = await repository.getById(studentId ?? "");
+      if (latestStudent) {
+        setStudent(latestStudent);
+      }
+    } catch {
+      // A profile refresh failure must not turn an already completed visit deletion into an error.
+    }
+  };
+
   return (
     <PageContainer>
       <PageHeader
@@ -136,6 +147,7 @@ export function StudentProfilePage({
               student={student}
               tab={tab}
               visitsRepository={visitsRepository}
+              onVisitsChanged={refreshStudentAfterVisitChange}
             />
           </Stack>
         ) : null}
@@ -163,6 +175,7 @@ interface StudentProfileTabContentProps {
   student: Student;
   tab: StudentProfileTab;
   visitsRepository?: StudentVisitsRepository;
+  onVisitsChanged: () => Promise<void>;
 }
 
 function StudentProfileTabContent({
@@ -170,14 +183,21 @@ function StudentProfileTabContent({
   programsRepository,
   student,
   tab,
-  visitsRepository
+  visitsRepository,
+  onVisitsChanged
 }: StudentProfileTabContentProps) {
   if (tab === "overview") {
     return <StudentBasicInfoTab student={student} />;
   }
 
   if (tab === "visits") {
-    return <StudentVisitsTab repository={visitsRepository} student={student} />;
+    return (
+      <StudentVisitsTab
+        onVisitsChanged={onVisitsChanged}
+        repository={visitsRepository}
+        student={student}
+      />
+    );
   }
 
   if (tab === "programs") {

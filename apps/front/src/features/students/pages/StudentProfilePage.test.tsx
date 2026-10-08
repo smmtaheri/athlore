@@ -194,6 +194,54 @@ describe("StudentProfilePage", () => {
     expect(screen.getByText("فرم ویزیت ماهانه")).toBeInTheDocument();
   });
 
+  it("refreshes the profile summary after deleting the latest visit", async () => {
+    const user = userEvent.setup();
+    const latestVisitDate = studentVisitFixtures[0].visitDate;
+    const previousVisitDate = studentVisitFixtures[1].visitDate;
+    const initialStudent = {
+      ...mohammad,
+      summary: { ...mohammad.summary, lastVisitDate: latestVisitDate }
+    };
+    const refreshedStudent = {
+      ...mohammad,
+      summary: { ...mohammad.summary, lastVisitDate: previousVisitDate }
+    };
+    let profileReads = 0;
+    const repository = createRepository(async () => {
+      profileReads += 1;
+      return profileReads === 1 ? initialStudent : refreshedStudent;
+    });
+    const visitsRepository: StudentVisitsRepository = {
+      create: async () => studentVisitFixtures[0],
+      finalize: async () => studentVisitFixtures[0],
+      getById: async () => studentVisitFixtures[0],
+      listAnswerRevisions: async () => [],
+      listByStudent: async () =>
+        studentVisitFixtures.filter((visit) => visit.studentId === mohammad.id),
+      remove: async () => undefined,
+      reset: async () => studentVisitFixtures,
+      sendToStudent: async () => studentVisitFixtures[0],
+      startCoachReview: async () => studentVisitFixtures[0],
+      update: async () => studentVisitFixtures[0]
+    };
+
+    renderProfile("/students/mohammad-taheri/visits", repository, { visitsRepository });
+
+    const profileLastVisitLabel = await screen.findByText("آخرین ویزیت");
+    const profileLastVisit = profileLastVisitLabel.parentElement;
+    expect(await screen.findByText(latestVisitDate)).toBeInTheDocument();
+    expect(profileLastVisit).toHaveTextContent(latestVisitDate);
+
+    await user.click(screen.getAllByRole("button", { name: "عملیات" })[0]);
+    await user.click(screen.getByRole("menuitem", { name: "حذف" }));
+    await user.click(screen.getByRole("button", { name: "حذف ویزیت" }));
+
+    await waitFor(() => expect(profileLastVisit).toHaveTextContent(previousVisitDate));
+    expect(profileLastVisit).not.toHaveTextContent(latestVisitDate);
+    expect(profileReads).toBe(2);
+    expect(screen.getByText("ویزیت انتخاب شده حذف شد.")).toBeInTheDocument();
+  });
+
   it("opens visit details on demand instead of expanding them under the history list", async () => {
     const user = userEvent.setup();
     renderProfile("/students/mohammad-taheri/visits");
