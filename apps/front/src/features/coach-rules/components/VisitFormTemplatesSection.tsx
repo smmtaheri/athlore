@@ -659,8 +659,8 @@ export function VisitFormTemplatesSection({
             <div>
               <h3 className={styles.ruleCardTitle}>بخش‌های فرم</h3>
               <p className={styles.sectionDescription}>
-                بخش‌ها را به ترتیب نمایش مرتب کنید؛ برای افزودن سؤال، نوع آن را از پنل کنار فرم
-                بکشید و در بخش موردنظر رها کنید.
+                فرم را در بوم زیر همان‌طور که شاگرد می‌بیند بسازید؛ تغییرها همان لحظه پیش‌نمایش
+                می‌شوند.
               </p>
             </div>
             <Button
@@ -688,8 +688,8 @@ export function VisitFormTemplatesSection({
 
           <div className={styles.formBuilderLayout}>
             <aside className={styles.formFieldPalette}>
-              <h3>افزودن سؤال</h3>
-              <p>نوع سؤال را بکشید و در محل دلخواه رها کنید؛ با لمس هم به بخش اول اضافه می‌شود.</p>
+              <h3>ابزارهای فرم</h3>
+              <p>نوع سؤال را روی فرم بکشید؛ در موبایل روی آن بزنید تا به فرم اضافه شود.</p>
               <div>
                 {fieldTypeOptions.map((option) => (
                   <button
@@ -721,54 +721,74 @@ export function VisitFormTemplatesSection({
               </p>
             </aside>
             <div className={styles.formBuilderCanvas}>
-              {[...draft.sections]
-                .sort((a, b) => a.order - b.order)
-                .map((section, sectionIndex, orderedSections) => (
-                  <SectionEditor
-                    key={section.key}
-                    canMoveUp={sectionIndex > 0}
-                    canMoveDown={sectionIndex < orderedSections.length - 1}
-                    onChange={(nextSection) =>
-                      updateDraft((current) => ({
-                        ...current,
-                        sections: current.sections.map((item) =>
-                          item.key === nextSection.key ? nextSection : item
-                        )
-                      }))
-                    }
-                    onRemove={() =>
-                      updateDraft((current) => ({
-                        ...current,
-                        sections: current.sections
-                          .filter((item) => item.key !== section.key)
-                          .map((item, index) => ({ ...item, order: index }))
-                      }))
-                    }
-                    onDropField={(type, targetKey, after) =>
-                      updateDraft((current) => ({
-                        ...current,
-                        sections: current.sections.map((item) =>
-                          item.key === section.key
-                            ? insertField(item, type, targetKey, after)
-                            : item
-                        )
-                      }))
-                    }
-                    onMoveUp={() =>
-                      updateDraft((current) => ({
-                        ...current,
-                        sections: moveSection(current.sections, section.key, -1)
-                      }))
-                    }
-                    onMoveDown={() =>
-                      updateDraft((current) => ({
-                        ...current,
-                        sections: moveSection(current.sections, section.key, 1)
-                      }))
-                    }
-                    section={section}
-                  />
-                ))}
+              <div className={styles.formLivePaper}>
+                <header className={styles.formLiveHeader}>
+                  <StatusBadge variant="info">پیش‌نمایش زنده</StatusBadge>
+                  <h3>{draft.name || "عنوان فرم ویزیت"}</h3>
+                  <p>{draft.description || "پاسخ‌های این فرم در ویزیت ماهانه ثبت می‌شوند."}</p>
+                </header>
+                <div className={styles.formLiveSections}>
+                  {[...draft.sections]
+                    .sort((a, b) => a.order - b.order)
+                    .map((section, sectionIndex, orderedSections) => (
+                      <SectionEditor
+                        key={section.key}
+                        canMoveUp={sectionIndex > 0}
+                        canMoveDown={sectionIndex < orderedSections.length - 1}
+                        onChange={(nextSection) =>
+                          updateDraft((current) => ({
+                            ...current,
+                            sections: current.sections.map((item) =>
+                              item.key === nextSection.key ? nextSection : item
+                            )
+                          }))
+                        }
+                        onRemove={() =>
+                          updateDraft((current) => ({
+                            ...current,
+                            sections: current.sections
+                              .filter((item) => item.key !== section.key)
+                              .map((item, index) => ({ ...item, order: index }))
+                          }))
+                        }
+                        onDropField={(type, targetKey, after) =>
+                          updateDraft((current) => ({
+                            ...current,
+                            sections: current.sections.map((item) =>
+                              item.key === section.key
+                                ? insertField(item, type, targetKey, after)
+                                : item
+                            )
+                          }))
+                        }
+                        onMoveUp={() =>
+                          updateDraft((current) => ({
+                            ...current,
+                            sections: moveSection(current.sections, section.key, -1)
+                          }))
+                        }
+                        onMoveDown={() =>
+                          updateDraft((current) => ({
+                            ...current,
+                            sections: moveSection(current.sections, section.key, 1)
+                          }))
+                        }
+                        section={section}
+                      />
+                    ))}
+                  {draft.sections.length === 0 ? (
+                    <div className={styles.formEmptyDropZone}>
+                      برای شروع، یک بخش بسازید و سؤال‌ها را از ابزارها به اینجا بکشید.
+                    </div>
+                  ) : null}
+                </div>
+                <footer className={styles.formLiveFooter}>
+                  <button disabled type="button">
+                    ثبت ویزیت
+                  </button>
+                  <span>این فقط پیش‌نمایش است؛ فرم پس از ذخیره در ویزیت استفاده می‌شود.</span>
+                </footer>
+              </div>
             </div>
           </div>
 
@@ -897,6 +917,67 @@ export function VisitFormTemplatesSection({
           </ul>
         )}
       </Card>
+    </div>
+  );
+}
+
+function FieldCanvasPreview({ field }: { field: VisitFormFieldDefinition }) {
+  if (field.type === "boolean") {
+    return (
+      <div aria-hidden className={styles.formVisualChoiceRow}>
+        <span>بله</span>
+        <span>خیر</span>
+      </div>
+    );
+  }
+
+  if (field.type === "single_select") {
+    return (
+      <div aria-hidden className={styles.formVisualSelect}>
+        <span>یک گزینه انتخاب کنید</span>
+        <span>⌄</span>
+      </div>
+    );
+  }
+
+  if (field.type === "multi_select") {
+    const options = field.options.length ? field.options.slice(0, 3) : [];
+    return (
+      <div aria-hidden className={styles.formVisualOptions}>
+        {options.length ? (
+          options.map((option) => (
+            <span className={styles.formVisualOption} key={option.value}>
+              <i />
+              {option.label}
+            </span>
+          ))
+        ) : (
+          <span className={styles.formVisualPlaceholder}>گزینه‌های پاسخ را تنظیم کنید</span>
+        )}
+        {field.options.length > 3 ? <span>+ {field.options.length - 3} گزینهٔ دیگر</span> : null}
+      </div>
+    );
+  }
+
+  if (field.type === "textarea") {
+    return (
+      <div aria-hidden className={`${styles.formVisualControl} ${styles.formVisualTextarea}`}>
+        <span />
+        <span />
+      </div>
+    );
+  }
+
+  return (
+    <div aria-hidden className={styles.formVisualControl}>
+      <span className={styles.formVisualPlaceholder}>
+        {field.type === "date"
+          ? "انتخاب تاریخ"
+          : field.type === "number"
+            ? "عدد وارد کنید"
+            : "پاسخ شما"}
+      </span>
+      {field.type === "date" ? <span>▦</span> : null}
     </div>
   );
 }
@@ -1034,7 +1115,7 @@ function SectionEditor({
       <ul className={styles.formQuestionList}>
         {fields.map((field, index) => (
           <li
-            className={styles.formQuestionCard}
+            className={`${styles.formQuestionCard} ${field.type === "textarea" || field.type === "multi_select" ? styles.formQuestionCardWide : ""}`}
             data-field-key={field.key}
             key={field.key}
             onDragOver={(event) => event.preventDefault()}
@@ -1103,6 +1184,8 @@ function SectionEditor({
                 </Button>
               </div>
             </div>
+
+            <FieldCanvasPreview field={field} />
 
             {editingFieldKey === field.key ? (
               <div className={styles.formQuestionSettings}>
