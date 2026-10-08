@@ -86,18 +86,6 @@ export function DashboardPage() {
   return (
     <PageContainer>
       <PageHeader
-        actions={
-          <Button
-            iconStart={<RefreshCcw size={18} />}
-            onClick={() => {
-              setStatus("loading");
-              setReloadKey((value) => value + 1);
-            }}
-            variant="secondary"
-          >
-            تازه‌سازی
-          </Button>
-        }
         breadcrumb={["داشبورد"]}
         description="نمای کلی شاگردها، ویزیت‌ها، برنامه‌ها و وضعیت PDF"
         title="داشبورد مربی"
