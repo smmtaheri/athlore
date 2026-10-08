@@ -855,14 +855,44 @@
   gap: var(--space-2);
 }
 
-.formSectionEditorHeader > :first-child {
-  flex: 1 1 240px;
+.formSectionEditorHeader {
+  position: relative;
+}
+
+.formSectionTitleInput {
+  min-height: 40px;
+  padding-inline-start: 164px;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-primary);
+  font-size: 1.0625rem;
+  font-weight: 750;
+}
+
+.formSectionTitleInput:hover,
+.formSectionTitleInput:focus {
+  border-color: var(--color-primary-500);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .formSectionHeaderActions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  align-items: center;
+  gap: 4px;
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+}
+
+.formSectionHeaderActions > button:not(.formSectionIconButton) {
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  justify-content: center;
+  padding: 0;
 }
 
 .formInlineTypes {
@@ -880,6 +910,54 @@
   color: var(--color-text-secondary);
   text-align: center;
   padding: var(--space-3);
+}
+
+.formDropPlacement {
+  display: grid;
+  min-width: 0;
+  min-height: 112px;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  border: 2px dashed var(--color-primary-500);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+  padding: var(--space-3);
+  text-align: center;
+  animation: formDropPulse 1.2s ease-in-out infinite alternate;
+}
+
+.formDropPlacement > div {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--color-primary-500);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.formDropPlacementWide {
+  grid-column: 1 / -1;
+  min-height: 138px;
+}
+
+.formDropPlacementWide > div {
+  min-height: 76px;
+}
+
+.formDropPlacement small {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+@keyframes formDropPulse {
+  from {
+    box-shadow: 0 0 0 0 rgb(11 99 246 / 8%);
+  }
+
+  to {
+    box-shadow: 0 0 0 5px rgb(11 99 246 / 14%);
+  }
 }
 
 .formQuestionList {
@@ -908,7 +986,12 @@
 }
 
 .formQuestionCard:has(.formQuestionSettings) {
-  border-color: var(--color-primary-300);
+  border-color: var(--color-primary-500);
+}
+
+.formQuestionCard:hover,
+.formQuestionCard:focus-within {
+  border-color: var(--color-primary-500);
 }
 
 .formDragHandle {
@@ -936,8 +1019,60 @@
   font-size: 0.8125rem;
 }
 
+.formInlineQuestionLabel {
+  min-height: 32px;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-primary);
+  font-weight: 700;
+  padding-inline: 0;
+}
+
+.formInlineQuestionLabel:hover,
+.formInlineQuestionLabel:focus {
+  border-color: var(--color-primary-500);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  padding-inline: var(--space-2);
+}
+
 .formQuestionActions {
   justify-content: flex-end;
+  flex: 0 0 auto;
+}
+
+.formSectionIconButton {
+  display: inline-grid;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease,
+    transform 120ms ease;
+}
+
+.formSectionIconButton:hover,
+.formSectionIconButton:focus-visible {
+  transform: translateY(-1px);
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+}
+
+.formSectionIconDanger:hover,
+.formSectionIconDanger:focus-visible {
+  border-color: var(--color-danger-500);
+  background: var(--color-danger-50);
+  color: var(--color-danger-700);
 }
 
 .formQuestionSettings {
@@ -1198,11 +1333,15 @@
 
   .formSectionHeaderActions,
   .formQuestionActions {
-    width: 100%;
+    width: auto;
   }
 
   .formQuestionActions > button {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
+  }
+
+  .formSectionTitleInput {
+    padding-inline-start: 164px;
   }
 
   .editableRow,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type DragEvent } from "react";
 import {
   ArrowDown,
   ArrowRight,
@@ -6,11 +6,13 @@ import {
   Copy,
   GripVertical,
   LayoutTemplate,
+  Pencil,
   Plus,
   RefreshCcw,
   Save,
   Star,
-  Trash2
+  Trash2,
+  X
 } from "lucide-react";
 import {
   Button,
@@ -90,6 +92,19 @@ function insertField(
   return { ...section, fields: fields.map((field, index) => ({ ...field, order: index })) };
 }
 
+function insertFieldInLastSection(
+  sections: VisitFormSectionDefinition[],
+  type: VisitFormFieldType
+) {
+  const source = sections.length
+    ? sections
+    : [{ fields: [], key: `section_${Date.now()}`, label: "بخش اول", order: 0 }];
+  const lastIndex = source.length - 1;
+  return source.map((section, index) =>
+    index === lastIndex ? insertField(section, type) : section
+  );
+}
+
 function moveField(
   section: VisitFormSectionDefinition,
   movingKey: string,
@@ -156,6 +171,7 @@ export function VisitFormTemplatesSection({
   const [startPanel, setStartPanel] = useState<StartPanel | null>(null);
   const [previewMode, setPreviewMode] = useState<PreviewMode | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [draggingFieldType, setDraggingFieldType] = useState<VisitFormFieldType | null>(null);
   const [feedback, setFeedback] = useState("");
   const [feedbackTone, setFeedbackTone] = useState<"error" | "success">("success");
   const [status, setStatus] = useState<"error" | "loaded" | "loading" | "saving">("loading");
@@ -689,7 +705,7 @@ export function VisitFormTemplatesSection({
           <div className={styles.formBuilderLayout}>
             <aside className={styles.formFieldPalette}>
               <h3>ابزارهای فرم</h3>
-              <p>نوع سؤال را روی فرم بکشید؛ در موبایل روی آن بزنید تا به فرم اضافه شود.</p>
+              <p>نوع سؤال را روی فرم بکشید؛ در موبایل روی آن بزنید تا به بخش آخر اضافه شود.</p>
               <div>
                 {fieldTypeOptions.map((option) => (
                   <button
@@ -699,15 +715,15 @@ export function VisitFormTemplatesSection({
                     onClick={() =>
                       updateDraft((current) => ({
                         ...current,
-                        sections: current.sections.map((section, index) =>
-                          index === 0 ? insertField(section, option.value) : section
-                        )
+                        sections: insertFieldInLastSection(current.sections, option.value)
                       }))
                     }
                     onDragStart={(event) => {
                       event.dataTransfer.setData("application/x-athlore-field-type", option.value);
                       event.dataTransfer.effectAllowed = "copy";
+                      setDraggingFieldType(option.value);
                     }}
+                    onDragEnd={() => setDraggingFieldType(null)}
                     type="button"
                   >
                     <Plus aria-hidden size={16} />
@@ -761,6 +777,8 @@ export function VisitFormTemplatesSection({
                             )
                           }))
                         }
+                        draggingFieldType={draggingFieldType}
+                        onDragTypeChange={setDraggingFieldType}
                         onMoveUp={() =>
                           updateDraft((current) => ({
                             ...current,
@@ -982,10 +1000,51 @@ function FieldCanvasPreview({ field }: { field: VisitFormFieldDefinition }) {
   );
 }
 
+function dragPositionMatches(
+  position: { after: boolean; targetKey: string | null } | null,
+  targetKey: string,
+  after: boolean
+) {
+  return position?.targetKey === targetKey && position.after === after;
+}
+
+function DropPlacement({
+  after,
+  onDrop,
+  targetKey,
+  type
+}: {
+  after: boolean;
+  onDrop: (event: DragEvent<HTMLLIElement>, targetKey?: string, after?: boolean) => void;
+  targetKey?: string;
+  type: VisitFormFieldType;
+}) {
+  const fullRow = type === "textarea" || type === "multi_select";
+  return (
+    <li
+      aria-label={
+        fullRow ? "جایگاه تمام‌عرض برای رهاکردن سؤال" : "جایگاه نیم‌ردیف برای رهاکردن سؤال"
+      }
+      className={`${styles.formDropPlacement} ${fullRow ? styles.formDropPlacementWide : ""}`}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onDrop={(event) => onDrop(event, targetKey, after)}
+    >
+      <span>{fullRow ? "جایگاه تمام‌ردیف" : "نیم‌ردیف در دسکتاپ · تمام‌عرض در موبایل"}</span>
+      <div />
+      <small>اینجا رها کنید</small>
+    </li>
+  );
+}
+
 function SectionEditor({
   canMoveDown,
   canMoveUp,
+  draggingFieldType,
   onChange,
+  onDragTypeChange,
   onDropField,
   onMoveDown,
   onMoveUp,
@@ -994,7 +1053,9 @@ function SectionEditor({
 }: {
   canMoveDown: boolean;
   canMoveUp: boolean;
+  draggingFieldType: VisitFormFieldType | null;
   onChange: (section: VisitFormSectionDefinition) => void;
+  onDragTypeChange: (type: VisitFormFieldType | null) => void;
   onDropField: (type: VisitFormFieldType, targetKey?: string, after?: boolean) => void;
   onMoveDown: () => void;
   onMoveUp: () => void;
@@ -1003,7 +1064,15 @@ function SectionEditor({
 }) {
   const [editingFieldKey, setEditingFieldKey] = useState<string | null>(null);
   const [showFieldTypes, setShowFieldTypes] = useState(false);
+  const [dropPosition, setDropPosition] = useState<{
+    after: boolean;
+    targetKey: string | null;
+  } | null>(null);
   const fields = [...section.fields].sort((a, b) => a.order - b.order);
+
+  useEffect(() => {
+    if (!draggingFieldType) setDropPosition(null);
+  }, [draggingFieldType]);
 
   const updateField = (key: string, next: VisitFormFieldDefinition) => {
     onChange({
@@ -1020,11 +1089,16 @@ function SectionEditor({
     if (editingFieldKey === key) setEditingFieldKey(null);
   };
 
-  const handleDrop = (event: DragEvent<HTMLElement>, targetKey?: string) => {
+  const handleDrop = (
+    event: DragEvent<HTMLElement>,
+    targetKey?: string,
+    afterOverride?: boolean
+  ) => {
     event.preventDefault();
     event.stopPropagation();
+    setDropPosition(null);
     const rect = event.currentTarget.getBoundingClientRect();
-    const after = event.clientY > rect.top + rect.height / 2;
+    const after = afterOverride ?? event.clientY > rect.top + rect.height / 2;
     const type = event.dataTransfer.getData("application/x-athlore-field-type");
     if (fieldTypeOptions.some((option) => option.value === type)) {
       onDropField(type as VisitFormFieldType, targetKey, after);
@@ -1037,27 +1111,52 @@ function SectionEditor({
     }
   };
 
-  const moveBy = (key: string, amount: -1 | 1) => {
-    const index = fields.findIndex((field) => field.key === key);
-    const target = fields[index + amount];
-    if (!target) return;
-    onChange(moveField(section, key, target.key, amount > 0));
+  const handleDragOver = (event: DragEvent<HTMLElement>, targetKey?: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!draggingFieldType) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const after = targetKey ? event.clientY > rect.top + rect.height / 2 : true;
+    setDropPosition((current) =>
+      current?.targetKey === (targetKey ?? null) && current.after === after
+        ? current
+        : { after, targetKey: targetKey ?? null }
+    );
   };
 
   return (
     <section
       className={styles.formSectionEditor}
-      onDragOver={(event) => event.preventDefault()}
+      onDragOver={(event) => handleDragOver(event)}
       onDrop={(event) => handleDrop(event)}
     >
       <div className={styles.formSectionEditorHeader}>
-        <FormField label="نام بخش">
-          <Input
-            onChange={(event) => onChange({ ...section, label: event.target.value })}
-            value={section.label}
-          />
-        </FormField>
+        <Input
+          aria-label="عنوان بخش فرم"
+          className={styles.formSectionTitleInput}
+          onChange={(event) => onChange({ ...section, label: event.target.value })}
+          placeholder="عنوان بخش"
+          value={section.label}
+        />
         <div className={styles.formSectionHeaderActions}>
+          <button
+            aria-label={`حذف بخش ${section.label}`}
+            className={styles.formSectionIconButton}
+            onClick={onRemove}
+            title="حذف بخش"
+            type="button"
+          >
+            <X aria-hidden size={16} />
+          </button>
+          <button
+            aria-label={`افزودن سؤال به بخش ${section.label}`}
+            className={styles.formSectionIconButton}
+            onClick={() => setShowFieldTypes((current) => !current)}
+            title="افزودن سؤال به این بخش"
+            type="button"
+          >
+            <Plus aria-hidden size={16} />
+          </button>
           <Button
             aria-label="انتقال بخش به بالا"
             disabled={!canMoveUp}
@@ -1074,17 +1173,6 @@ function SectionEditor({
             size="sm"
             variant="secondary"
           />
-          <Button
-            iconStart={<Plus size={16} />}
-            onClick={() => setShowFieldTypes((current) => !current)}
-            size="sm"
-            variant="secondary"
-          >
-            افزودن سؤال
-          </Button>
-          <Button iconStart={<Trash2 size={16} />} onClick={onRemove} size="sm" variant="danger">
-            حذف این بخش
-          </Button>
         </div>
       </div>
 
@@ -1106,227 +1194,257 @@ function SectionEditor({
         </div>
       ) : null}
 
-      {fields.length === 0 ? (
+      {fields.length === 0 && !draggingFieldType ? (
         <div className={styles.formEmptyDropZone}>
-          اینجا سؤال‌ها را رها کنید یا روی «افزودن سؤال» بزنید.
+          اینجا سؤال را رها کنید یا روی + کنار عنوان بخش بزنید.
         </div>
       ) : null}
 
       <ul className={styles.formQuestionList}>
         {fields.map((field, index) => (
-          <li
-            className={`${styles.formQuestionCard} ${field.type === "textarea" || field.type === "multi_select" ? styles.formQuestionCardWide : ""}`}
-            data-field-key={field.key}
-            key={field.key}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => handleDrop(event, field.key)}
-          >
-            <div className={styles.formQuestionHeader}>
-              <button
-                aria-label={`گرفتن برای جابه‌جایی سؤال ${field.label}`}
-                className={styles.formDragHandle}
-                draggable
-                onDragStart={(event) => {
-                  event.dataTransfer.setData("application/x-athlore-field-key", field.key);
-                  event.dataTransfer.effectAllowed = "move";
-                }}
-                type="button"
-              >
-                <GripVertical aria-hidden size={18} />
-              </button>
-              <div className={styles.formQuestionTitle}>
-                <strong>{field.label || "سؤال بدون عنوان"}</strong>
-                <span>
-                  {fieldTypeLabels[field.type]}
-                  {field.required ? " · الزامی" : " · اختیاری"}
-                </span>
-              </div>
-              <div className={styles.formQuestionActions}>
-                <Button
-                  aria-label="انتقال سؤال به بالا"
-                  disabled={index === 0}
-                  iconStart={<ArrowUp size={16} />}
-                  onClick={() => moveBy(field.key, -1)}
-                  size="sm"
-                  variant="secondary"
-                />
-                <Button
-                  aria-label="انتقال سؤال به پایین"
-                  disabled={index === fields.length - 1}
-                  iconStart={<ArrowDown size={16} />}
-                  onClick={() => moveBy(field.key, 1)}
-                  size="sm"
-                  variant="secondary"
-                />
-                <Switch
-                  checked={field.enabled}
-                  label={field.enabled ? "نمایش" : "پنهان"}
-                  onCheckedChange={(checked) =>
-                    updateField(field.key, { ...field, enabled: checked })
-                  }
-                />
-                <Button
-                  onClick={() =>
-                    setEditingFieldKey((current) => (current === field.key ? null : field.key))
-                  }
-                  size="sm"
-                  variant="secondary"
+          <Fragment key={field.key}>
+            {dragPositionMatches(dropPosition, field.key, false) && draggingFieldType ? (
+              <DropPlacement
+                after={false}
+                onDrop={handleDrop}
+                targetKey={field.key}
+                type={draggingFieldType}
+              />
+            ) : null}
+            <li
+              className={`${styles.formQuestionCard} ${field.type === "textarea" || field.type === "multi_select" ? styles.formQuestionCardWide : ""}`}
+              data-field-key={field.key}
+              onDragOver={(event) => handleDragOver(event, field.key)}
+              onDrop={(event) => handleDrop(event, field.key)}
+            >
+              <div className={styles.formQuestionHeader}>
+                <button
+                  aria-label={`جابجایی سؤال ${field.label}؛ با کلیدهای بالا و پایین مرتب کنید`}
+                  className={styles.formDragHandle}
+                  draggable
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData("application/x-athlore-field-key", field.key);
+                    event.dataTransfer.effectAllowed = "move";
+                    onDragTypeChange(field.type);
+                  }}
+                  onDragEnd={() => onDragTypeChange(null)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+                    event.preventDefault();
+                    const target = fields[index + (event.key === "ArrowUp" ? -1 : 1)];
+                    if (target) {
+                      onChange(
+                        moveField(section, field.key, target.key, event.key === "ArrowDown")
+                      );
+                    }
+                  }}
+                  type="button"
                 >
-                  {editingFieldKey === field.key ? "بستن تنظیمات" : "ویرایش سؤال"}
-                </Button>
-                <Button
-                  iconStart={<Trash2 size={16} />}
-                  onClick={() => removeField(field.key)}
-                  size="sm"
-                  variant="danger"
-                >
-                  حذف سؤال
-                </Button>
+                  <GripVertical aria-hidden size={18} />
+                </button>
+                <div className={styles.formQuestionTitle}>
+                  <Input
+                    aria-label={`عنوان سؤال ${field.label || "بدون عنوان"}`}
+                    className={styles.formInlineQuestionLabel}
+                    onChange={(event) =>
+                      updateField(field.key, { ...field, label: event.target.value })
+                    }
+                    placeholder="عنوان سؤال"
+                    value={field.label}
+                  />
+                  <span>
+                    {fieldTypeLabels[field.type]}
+                    {field.required ? " · الزامی" : " · اختیاری"}
+                  </span>
+                </div>
+                <div className={styles.formQuestionActions}>
+                  <button
+                    aria-expanded={editingFieldKey === field.key}
+                    aria-label="ویرایش سؤال"
+                    className={styles.formSectionIconButton}
+                    onClick={() =>
+                      setEditingFieldKey((current) => (current === field.key ? null : field.key))
+                    }
+                    title="تنظیمات سؤال"
+                    type="button"
+                  >
+                    <Pencil aria-hidden size={15} />
+                  </button>
+                  <button
+                    aria-label={`حذف سؤال ${field.label}`}
+                    className={`${styles.formSectionIconButton} ${styles.formSectionIconDanger}`}
+                    onClick={() => removeField(field.key)}
+                    title="حذف سؤال"
+                    type="button"
+                  >
+                    <X aria-hidden size={16} />
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <FieldCanvasPreview field={field} />
+              <FieldCanvasPreview field={field} />
 
-            {editingFieldKey === field.key ? (
-              <div className={styles.formQuestionSettings}>
-                <div className={styles.cardGrid}>
-                  <FormField label="عنوانی که نمایش داده می‌شود">
+              {editingFieldKey === field.key ? (
+                <div className={styles.formQuestionSettings}>
+                  <div className={styles.cardGrid}>
+                    <FormField label="نمایش این سؤال در فرم">
+                      <Switch
+                        checked={field.enabled}
+                        label={field.enabled ? "نمایش داده شود" : "پنهان بماند"}
+                        onCheckedChange={(checked) =>
+                          updateField(field.key, { ...field, enabled: checked })
+                        }
+                      />
+                    </FormField>
+                    <FormField label="عنوانی که نمایش داده می‌شود">
+                      <Input
+                        onChange={(event) =>
+                          updateField(field.key, { ...field, label: event.target.value })
+                        }
+                        value={field.label}
+                      />
+                    </FormField>
+                    <FormField label="نوع پاسخ">
+                      <Select
+                        onChange={(event) =>
+                          updateField(field.key, {
+                            ...field,
+                            type: event.target.value as VisitFormFieldType
+                          })
+                        }
+                        options={fieldTypeOptions}
+                        value={field.type}
+                      />
+                    </FormField>
+                    <FormField label="پاسخ الزامی است؟">
+                      <Switch
+                        checked={field.required}
+                        label={field.required ? "بله، باید پاسخ دهد" : "خیر، اختیاری است"}
+                        onCheckedChange={(checked) =>
+                          updateField(field.key, { ...field, required: checked })
+                        }
+                      />
+                    </FormField>
+                  </div>
+
+                  {field.type === "single_select" || field.type === "multi_select" ? (
+                    <FormField hint="هر گزینه را در یک خط بنویسید." label="گزینه‌های پاسخ">
+                      <Textarea
+                        onChange={(event) => {
+                          const labels = event.target.value
+                            .split("\n")
+                            .map((line) => line.trim())
+                            .filter(Boolean);
+                          const options = labels.map((label, optionIndex) => ({
+                            label,
+                            value: field.options[optionIndex]?.value || `option_${optionIndex + 1}`
+                          }));
+                          updateField(field.key, { ...field, options });
+                        }}
+                        rows={4}
+                        value={field.options.map((option) => option.label).join("\n")}
+                      />
+                    </FormField>
+                  ) : null}
+
+                  <div className={styles.cardGrid}>
+                    <FormField
+                      hint="چه کسی این پاسخ را وارد یا اصلاح می‌کند؟"
+                      label="چه کسی پاسخ می‌دهد؟"
+                    >
+                      <Select
+                        onChange={(event) => {
+                          const respondent = event.target.value;
+                          updateField(field.key, {
+                            ...field,
+                            coachEditable: respondent !== "student",
+                            studentEditable: respondent === "student" || respondent === "both",
+                            studentVisible: respondent !== "coach"
+                          });
+                        }}
+                        options={[
+                          { label: "فقط مربی", value: "coach" },
+                          { label: "فقط شاگرد", value: "student" },
+                          { label: "مربی و شاگرد", value: "both" },
+                          { label: "شاگرد فقط می‌بیند", value: "readonly" }
+                        ]}
+                        value={
+                          field.studentEditable
+                            ? field.coachEditable === false
+                              ? "student"
+                              : "both"
+                            : field.studentVisible
+                              ? "readonly"
+                              : "coach"
+                        }
+                      />
+                    </FormField>
+                    <FormField
+                      hint="پس از نهایی‌شدن ویزیت، پاسخ شاگرد نمایش داده شود؟"
+                      label="نمایش پس از نهایی‌سازی"
+                    >
+                      <Select
+                        onChange={(event) =>
+                          updateField(field.key, {
+                            ...field,
+                            studentVisibleWhenFinalized: event.target.value === "yes"
+                          })
+                        }
+                        options={[
+                          { label: "بله، شاگرد ببیند", value: "yes" },
+                          { label: "خیر، فقط نزد مربی بماند", value: "no" }
+                        ]}
+                        value={
+                          Boolean(field.studentVisibleWhenFinalized ?? field.studentVisible)
+                            ? "yes"
+                            : "no"
+                        }
+                      />
+                    </FormField>
+                  </div>
+
+                  <FormField hint="این راهنما برای شاگرد دیده می‌شود." label="راهنمای پاسخ">
                     <Input
                       onChange={(event) =>
-                        updateField(field.key, { ...field, label: event.target.value })
+                        updateField(field.key, { ...field, helpText: event.target.value })
                       }
-                      value={field.label}
+                      value={field.helpText}
                     />
                   </FormField>
-                  <FormField label="نوع پاسخ">
-                    <Select
+                  <FormField hint="این یادداشت فقط برای مربی است." label="یادداشت داخلی مربی">
+                    <Input
                       onChange={(event) =>
-                        updateField(field.key, {
-                          ...field,
-                          type: event.target.value as VisitFormFieldType
-                        })
+                        updateField(field.key, { ...field, coachHelpText: event.target.value })
                       }
-                      options={fieldTypeOptions}
-                      value={field.type}
+                      value={field.coachHelpText ?? ""}
                     />
                   </FormField>
-                  <FormField label="پاسخ الزامی است؟">
-                    <Switch
-                      checked={field.required}
-                      label={field.required ? "بله، باید پاسخ دهد" : "خیر، اختیاری است"}
-                      onCheckedChange={(checked) =>
-                        updateField(field.key, { ...field, required: checked })
-                      }
-                    />
-                  </FormField>
+
+                  <details className={styles.formAdvancedDetails}>
+                    <summary>اطلاعات فنی و اثر بر تولید برنامه</summary>
+                    <p>
+                      {field.semanticKey
+                        ? `این سؤال با دادهٔ استاندارد «${field.semanticKey}» ذخیره شده است.`
+                        : "این سؤال سفارشی است؛ پاسخ آن ذخیره می‌شود اما به‌تنهایی در تولید برنامه استفاده نمی‌شود."}
+                    </p>
+                    <code>{field.key}</code>
+                  </details>
                 </div>
-
-                {field.type === "single_select" || field.type === "multi_select" ? (
-                  <FormField hint="هر گزینه را در یک خط بنویسید." label="گزینه‌های پاسخ">
-                    <Textarea
-                      onChange={(event) => {
-                        const labels = event.target.value
-                          .split("\n")
-                          .map((line) => line.trim())
-                          .filter(Boolean);
-                        const options = labels.map((label, optionIndex) => ({
-                          label,
-                          value: field.options[optionIndex]?.value || `option_${optionIndex + 1}`
-                        }));
-                        updateField(field.key, { ...field, options });
-                      }}
-                      rows={4}
-                      value={field.options.map((option) => option.label).join("\n")}
-                    />
-                  </FormField>
-                ) : null}
-
-                <div className={styles.cardGrid}>
-                  <FormField
-                    hint="چه کسی این پاسخ را وارد یا اصلاح می‌کند؟"
-                    label="چه کسی پاسخ می‌دهد؟"
-                  >
-                    <Select
-                      onChange={(event) => {
-                        const respondent = event.target.value;
-                        updateField(field.key, {
-                          ...field,
-                          coachEditable: respondent !== "student",
-                          studentEditable: respondent === "student" || respondent === "both",
-                          studentVisible: respondent !== "coach"
-                        });
-                      }}
-                      options={[
-                        { label: "فقط مربی", value: "coach" },
-                        { label: "فقط شاگرد", value: "student" },
-                        { label: "مربی و شاگرد", value: "both" },
-                        { label: "شاگرد فقط می‌بیند", value: "readonly" }
-                      ]}
-                      value={
-                        field.studentEditable
-                          ? field.coachEditable === false
-                            ? "student"
-                            : "both"
-                          : field.studentVisible
-                            ? "readonly"
-                            : "coach"
-                      }
-                    />
-                  </FormField>
-                  <FormField
-                    hint="پس از نهایی‌شدن ویزیت، پاسخ شاگرد نمایش داده شود؟"
-                    label="نمایش پس از نهایی‌سازی"
-                  >
-                    <Select
-                      onChange={(event) =>
-                        updateField(field.key, {
-                          ...field,
-                          studentVisibleWhenFinalized: event.target.value === "yes"
-                        })
-                      }
-                      options={[
-                        { label: "بله، شاگرد ببیند", value: "yes" },
-                        { label: "خیر، فقط نزد مربی بماند", value: "no" }
-                      ]}
-                      value={
-                        Boolean(field.studentVisibleWhenFinalized ?? field.studentVisible)
-                          ? "yes"
-                          : "no"
-                      }
-                    />
-                  </FormField>
-                </div>
-
-                <FormField hint="این راهنما برای شاگرد دیده می‌شود." label="راهنمای پاسخ">
-                  <Input
-                    onChange={(event) =>
-                      updateField(field.key, { ...field, helpText: event.target.value })
-                    }
-                    value={field.helpText}
-                  />
-                </FormField>
-                <FormField hint="این یادداشت فقط برای مربی است." label="یادداشت داخلی مربی">
-                  <Input
-                    onChange={(event) =>
-                      updateField(field.key, { ...field, coachHelpText: event.target.value })
-                    }
-                    value={field.coachHelpText ?? ""}
-                  />
-                </FormField>
-
-                <details className={styles.formAdvancedDetails}>
-                  <summary>اطلاعات فنی و اثر بر تولید برنامه</summary>
-                  <p>
-                    {field.semanticKey
-                      ? `این سؤال با دادهٔ استاندارد «${field.semanticKey}» ذخیره شده است.`
-                      : "این سؤال سفارشی است؛ پاسخ آن ذخیره می‌شود اما به‌تنهایی در تولید برنامه استفاده نمی‌شود."}
-                  </p>
-                  <code>{field.key}</code>
-                </details>
-              </div>
+              ) : null}
+            </li>
+            {dragPositionMatches(dropPosition, field.key, true) && draggingFieldType ? (
+              <DropPlacement
+                after
+                onDrop={handleDrop}
+                targetKey={field.key}
+                type={draggingFieldType}
+              />
             ) : null}
-          </li>
+          </Fragment>
         ))}
+        {dropPosition?.targetKey === null && draggingFieldType ? (
+          <DropPlacement after onDrop={handleDrop} type={draggingFieldType} />
+        ) : null}
       </ul>
     </section>
   );
