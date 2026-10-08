@@ -4,6 +4,7 @@ import { Button, Card, EmptyState, Skeleton, StatusBadge } from "../../../compon
 import { studentPaths } from "../../../app/config/appOrigin";
 import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
 import { VisitDynamicForm } from "../../students/components/VisitDynamicForm";
+import { VisitPhotosPanel } from "../../students/components/VisitPhotosPanel";
 import { enabledSectionsFromTemplate } from "../../students/components/visitFormUtils";
 import type { StudentVisit } from "../../students/types/monthlyVisit";
 import { formatVisitDate } from "../utils/studentVisitUi";
@@ -230,6 +231,8 @@ export function StudentVisitDetailPage({
         ) : (
           <p className={styles.muted}>فیلد قابل‌نمایش برای شما وجود ندارد.</p>
         )}
+
+        <VisitPhotosPanel audience="student" canUpload={open} visitId={visit.id} />
 
         <div className={styles.actionBar}>
           <Button onClick={() => navigate(studentPaths.visits)} variant="secondary">

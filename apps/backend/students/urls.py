@@ -45,6 +45,11 @@ from students.visit_form_views import (
     VisitFormTemplateListCreateView,
     VisitFormTemplateSetDefaultView,
 )
+from students.visit_photo_views import (
+    CoachVisitPhotosView,
+    StudentVisitPhotosView,
+    VisitPhotoDownloadView,
+)
 
 urlpatterns = [
     path("students/", StudentListCreateView.as_view(), name="student-list"),
@@ -85,6 +90,11 @@ urlpatterns = [
         "students/<uuid:student_id>/visits/<uuid:visit_id>/answer-revisions/",
         VisitAnswerRevisionsView.as_view(),
         name="visit-answer-revisions",
+    ),
+    path(
+        "students/<uuid:student_id>/visits/<uuid:visit_id>/photos/",
+        CoachVisitPhotosView.as_view(),
+        name="visit-photos-coach",
     ),
     path(
         "students/<uuid:student_id>/activate-login/",
@@ -132,6 +142,16 @@ urlpatterns = [
         "me/visits/<uuid:visit_id>/submit/",
         MyVisitSubmitView.as_view(),
         name="my-visit-submit",
+    ),
+    path(
+        "me/visits/<uuid:visit_id>/photos/",
+        StudentVisitPhotosView.as_view(),
+        name="my-visit-photos",
+    ),
+    path(
+        "visits/photos/<uuid:photo_id>/download/",
+        VisitPhotoDownloadView.as_view(),
+        name="visit-photo-download",
     ),
     path(
         "visit-form-templates/",

@@ -7,6 +7,7 @@ import { Button, Card, EmptyState, Skeleton } from "../../../components/ui";
 import { ApiError, persianMessageForVisitApiError } from "../../../shared/api/errors";
 import { StudentStatusBadge } from "../components/StudentStatusBadge";
 import { StudentVisitForm, type VisitSubmitIntent } from "../components/StudentVisitForm";
+import { VisitPhotosPanel } from "../components/VisitPhotosPanel";
 import {
   visitFormTemplatesRepository,
   type VisitFormTemplatesRepository
@@ -292,6 +293,14 @@ export function StudentVisitFormPage({
               onSubmit={handleSubmit}
               student={student}
             />
+            {mode === "edit" && visit ? (
+              <VisitPhotosPanel
+                audience="coach"
+                canUpload
+                studentId={student.id}
+                visitId={visit.id}
+              />
+            ) : null}
           </Stack>
         ) : null}
       </ContentSection>

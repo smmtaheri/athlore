@@ -208,6 +208,47 @@ class Visit(models.Model):
         return f"{self.student_id} @ {self.visit_date}"
 
 
+def visit_photo_upload_to(instance, filename: str) -> str:
+    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
+    return (
+        f"visits/{instance.visit.coach_id}/{instance.visit.student_id}/"
+        f"{instance.visit_id}/{instance.id}.{extension}"
+    )
+
+
+class VisitPhoto(models.Model):
+    """Private photo attachment shared by the coach and student of one visit."""
+
+    class UploaderRole(models.TextChoices):
+        COACH = "coach", "Coach"
+        STUDENT = "student", "Student"
+
+    MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    visit = models.ForeignKey(Visit, on_delete=models.CASCADE, related_name="photos")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="visit_photos_uploaded",
+    )
+    uploader_role = models.CharField(max_length=16, choices=UploaderRole.choices)
+    file = models.FileField(upload_to=visit_photo_upload_to, max_length=512)
+    original_filename = models.CharField(max_length=255, blank=True, default="")
+    content_type = models.CharField(max_length=100)
+    size_bytes = models.PositiveIntegerField()
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["uploaded_at", "id"]
+        indexes = [models.Index(fields=["visit", "uploaded_at"])]
+
+    def __str__(self) -> str:
+        return f"VisitPhoto({self.visit_id}, {self.id})"
+
+
 class VisitAnswerRevision(models.Model):
     """Immutable history of a single answer field value change on a Visit."""
 

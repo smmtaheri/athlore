@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from datetime import timedelta
 from decimal import Decimal
+from io import BytesIO
+from tempfile import TemporaryDirectory
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.utils import timezone
+from PIL import Image
 from rest_framework.test import APIClient
 
 from accounts.models import CoachProfile
@@ -147,9 +151,7 @@ class StudentVisitApiTests(TestCase):
         coach = self.coach if student.coach_id == self.coach.id else self.other_coach
         username = f"user_{student.id.hex[:8]}"
         password = "StudentPass123!"
-        set_portal_initial_password(
-            coach, student, username=username, initial_password="123456"
-        )
+        set_portal_initial_password(coach, student, username=username, initial_password="123456")
         setup = login_student(username=username, password="123456")
         user = get_user_model().objects.get(pk=setup["user"]["id"])
         complete_student_setup(
@@ -477,3 +479,82 @@ class StudentVisitApiTests(TestCase):
         )
         self.assertEqual(send.status_code, 200)
         self.assertEqual(send.data["status"], "waiting_for_student")
+
+    def _visit_photo(self):
+        buffer = BytesIO()
+        Image.new("RGB", (3, 3), color="red").save(buffer, format="PNG")
+        return SimpleUploadedFile("progress.png", buffer.getvalue(), content_type="image/png")
+
+    def test_visit_photos_are_shared_only_with_the_visit_coach_and_student(self):
+        send_visit_to_student(self.visit)
+        student_client, _ = self._activate_and_login_student()
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            uploaded = student_client.post(
+                f"/api/v1/me/visits/{self.visit.id}/photos/",
+                {"file": self._visit_photo()},
+                format="multipart",
+            )
+            self.assertEqual(uploaded.status_code, 201, uploaded.data)
+            photo_id = uploaded.data["id"]
+
+            coach_list = self.coach_client.get(
+                f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/photos/"
+            )
+            student_list = student_client.get(f"/api/v1/me/visits/{self.visit.id}/photos/")
+            self.assertEqual(coach_list.status_code, 200)
+            self.assertEqual(student_list.status_code, 200)
+            self.assertEqual(coach_list.data["results"][0]["id"], photo_id)
+            self.assertEqual(student_list.data["results"][0]["uploader_role"], "student")
+
+            download_path = f"/api/v1/visits/photos/{photo_id}/download/"
+            coach_download = self.coach_client.get(download_path)
+            student_download = student_client.get(download_path)
+            self.assertEqual(coach_download.status_code, 200)
+            self.assertEqual(student_download.status_code, 200)
+            self.assertEqual(coach_download["Content-Type"], "image/png")
+
+            other_coach_client = APIClient()
+            other_coach_client.force_authenticate(user=self.other_coach.user)
+            denied = other_coach_client.get(download_path)
+            self.assertEqual(denied.status_code, 404)
+
+            cross_visit = other_coach_client.get(
+                f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/photos/"
+            )
+            self.assertEqual(cross_visit.status_code, 404)
+
+    def test_student_cannot_add_visit_photo_after_submitting_visit(self):
+        send_visit_to_student(self.visit)
+        student_client, _ = self._activate_and_login_student()
+        student_client.post(f"/api/v1/me/visits/{self.visit.id}/submit/")
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = student_client.post(
+                f"/api/v1/me/visits/{self.visit.id}/photos/",
+                {"file": self._visit_photo()},
+                format="multipart",
+            )
+        self.assertEqual(response.status_code, 400)
+
+    def test_coach_can_add_photos_before_sending_and_student_sees_them_after_send(self):
+        student_client, _ = self._activate_and_login_student()
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            uploaded = self.coach_client.post(
+                f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/photos/",
+                {"file": self._visit_photo()},
+                format="multipart",
+            )
+            self.assertEqual(uploaded.status_code, 201, uploaded.data)
+            hidden_while_draft = student_client.get(f"/api/v1/me/visits/{self.visit.id}/photos/")
+            self.assertEqual(hidden_while_draft.status_code, 404)
+
+            send_visit_to_student(self.visit)
+            visible_after_send = student_client.get(f"/api/v1/me/visits/{self.visit.id}/photos/")
+            self.assertEqual(visible_after_send.status_code, 200)
+            self.assertEqual(visible_after_send.data["results"][0]["uploader_role"], "coach")
+
+            invalid = self.coach_client.post(
+                f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/photos/",
+                {"file": SimpleUploadedFile("not-an-image.jpg", b"not an image")},
+                format="multipart",
+            )
+            self.assertEqual(invalid.status_code, 400)
