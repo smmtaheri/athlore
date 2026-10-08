@@ -627,6 +627,7 @@ export function StudentVisitForm({
           respectCoachEditable
           sections={dynamicSections}
           showCoachHelpText
+          theme={templateForSections?.theme}
         />
       ) : null}
 

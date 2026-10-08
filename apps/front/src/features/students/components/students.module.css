@@ -196,6 +196,24 @@
   gap: var(--space-4);
 }
 
+.formSectionCompact {
+  gap: var(--space-3);
+  background: var(--color-surface-muted);
+  box-shadow: none;
+}
+
+.visitFormCompact {
+  gap: var(--space-3);
+}
+
+.visitFormCompact .formGrid {
+  gap: var(--space-3);
+}
+
+.visitFormStandard {
+  gap: var(--space-5);
+}
+
 .sectionHeader {
   display: flex;
   align-items: center;

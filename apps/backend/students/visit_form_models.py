@@ -17,6 +17,10 @@ from accounts.models import CoachProfile
 class CoachVisitFormTemplate(models.Model):
     """Per-coach visit form configuration (sections + fields as JSON)."""
 
+    class Theme(models.TextChoices):
+        ATHLORE = "athlore", "Athlore"
+        ATHLORE_COMPACT = "athlore_compact", "Athlore compact"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     coach = models.ForeignKey(
         CoachProfile,
@@ -31,6 +35,7 @@ class CoachVisitFormTemplate(models.Model):
     # [{key, label, order, fields: [{key, semantic_key, label, type, options,
     #   student_visible, student_editable, coach_editable, ...}]}]
     sections = models.JSONField(default=list, blank=True)
+    theme = models.CharField(max_length=24, choices=Theme.choices, default=Theme.ATHLORE)
     is_active = models.BooleanField(default=True)
     is_default = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

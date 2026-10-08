@@ -476,6 +476,7 @@ function visitFormSectionToApi(section: VisitFormSectionDefinition): Record<stri
 }
 
 export function visitFormTemplateFromApi(dto: Record<string, unknown>): VisitFormTemplate {
+  const theme = str(dto.theme);
   return {
     createdAt: dto.created_at ? str(dto.created_at) : undefined,
     description: str(dto.description),
@@ -485,6 +486,7 @@ export function visitFormTemplateFromApi(dto: Record<string, unknown>): VisitFor
     key: str(dto.key),
     name: str(dto.name),
     sections: visitFormSectionsFromApi(dto.sections),
+    theme: theme === "athlore_compact" ? "athlore_compact" : "athlore",
     updatedAt: dto.updated_at ? str(dto.updated_at) : undefined,
     version: num(dto.version, 1)
   };
@@ -503,6 +505,7 @@ export function visitFormTemplateToApi(
   if (template.sections !== undefined) {
     body.sections = template.sections.map(visitFormSectionToApi);
   }
+  if (template.theme !== undefined) body.theme = template.theme;
   return body;
 }
 
@@ -513,6 +516,7 @@ function visitFormTemplateSnapshotFromApi(value: unknown): VisitFormTemplateSnap
     key: dto.key ? str(dto.key) : undefined,
     name: dto.name ? str(dto.name) : undefined,
     sections: Array.isArray(dto.sections) ? visitFormSectionsFromApi(dto.sections) : undefined,
+    theme: dto.theme === "athlore_compact" ? "athlore_compact" : "athlore",
     version: dto.version == null ? undefined : num(dto.version, 1)
   };
 }

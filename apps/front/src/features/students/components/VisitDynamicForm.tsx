@@ -5,6 +5,7 @@ import type {
   VisitFormFieldDefinition,
   VisitFormSectionDefinition
 } from "../types/visitForm";
+import type { VisitFormTheme } from "../types/visitForm";
 import { Checkbox, FormField, Input, Select, Switch, Textarea } from "../../../components/ui";
 import { formatAnswerDisplay } from "./visitFormUtils";
 import { StudentFormSection } from "./StudentFormSection";
@@ -27,6 +28,7 @@ export interface VisitDynamicFormProps {
   sections: VisitFormSectionDefinition[];
   showCoachHelpText?: boolean;
   showNotes?: boolean;
+  theme?: VisitFormTheme;
 }
 
 export function VisitDynamicForm({
@@ -41,16 +43,26 @@ export function VisitDynamicForm({
   respectStudentEditable = false,
   sections,
   showCoachHelpText = false,
-  showNotes = false
+  showNotes = false,
+  theme = "athlore"
 }: VisitDynamicFormProps) {
   const setAnswer = (key: string, value: VisitFormAnswerValue) => {
     onAnswersChange({ ...answers, [key]: value });
   };
 
   return (
-    <div className={styles.tabContentStack}>
+    <div
+      className={`${styles.tabContentStack} ${
+        theme === "athlore_compact" ? styles.visitFormCompact : styles.visitFormStandard
+      }`}
+    >
       {sections.map((section) => (
-        <StudentFormSection icon={ClipboardList} key={section.key} title={section.label}>
+        <StudentFormSection
+          icon={ClipboardList}
+          key={section.key}
+          theme={theme}
+          title={section.label}
+        >
           <div className={styles.formGrid}>
             {section.fields.map((field) => {
               const fieldDisabled =

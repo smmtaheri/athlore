@@ -571,6 +571,334 @@
   min-width: 0;
 }
 
+.formStartGrid,
+.formSampleGrid,
+.formThemeGrid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.formStartGrid,
+.formThemeGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.formSampleGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.formStartCard,
+.formThemeChoice {
+  display: grid;
+  min-width: 0;
+  justify-items: start;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  padding: var(--space-5);
+  text-align: start;
+  cursor: pointer;
+}
+
+.formStartCard {
+  min-height: 170px;
+  align-content: start;
+  color: var(--color-primary-700);
+}
+
+.formStartCard strong,
+.formThemeChoice strong {
+  color: var(--color-text-primary);
+  font-size: 1rem;
+}
+
+.formStartCard span,
+.formThemeChoice > span {
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+.formStartCard:hover,
+.formThemeChoice:hover {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+}
+
+.formStartHint {
+  grid-column: 1 / -1;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  padding: var(--space-3) var(--space-4);
+  line-height: 1.8;
+}
+
+.formSampleCard {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  padding: var(--space-4);
+}
+
+.formSampleCard h3 {
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: 1rem;
+}
+
+.formSampleCard p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+.formSampleActions {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.formSampleActions > button {
+  width: 100%;
+}
+
+.formThemePreview,
+.formThemePreviewCompact {
+  display: grid;
+  width: 100%;
+  gap: 7px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  padding: 12px;
+}
+
+.formThemePreview span,
+.formThemePreviewCompact span {
+  height: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.formThemePreview span:first-child,
+.formThemePreviewCompact span:first-child {
+  border-color: var(--color-primary-100);
+  background: var(--color-primary-50);
+}
+
+.formThemePreviewCompact {
+  gap: 3px;
+  background: var(--color-surface-muted);
+  padding: 8px;
+}
+
+.formThemePreviewCompact span {
+  height: 18px;
+  border-radius: 3px;
+}
+
+.formEditorCompact {
+  gap: var(--space-3);
+}
+
+.formBuilderLayout {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.formFieldPalette {
+  position: sticky;
+  inset-block-start: calc(var(--header-height) + var(--space-4));
+  display: grid;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  padding: var(--space-3);
+}
+
+.formFieldPalette h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.formFieldPalette p,
+.formPaletteHint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+.formFieldPalette > div {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.formPaletteButton {
+  display: flex;
+  min-height: var(--touch-target);
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  padding-inline: var(--space-3);
+  text-align: start;
+  cursor: grab;
+}
+
+.formPaletteButton:hover {
+  border-color: var(--color-primary-500);
+  color: var(--color-primary-700);
+}
+
+.formBuilderCanvas {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.formSectionEditor {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  padding: var(--space-4);
+}
+
+.formSectionEditorHeader,
+.formQuestionHeader,
+.formQuestionActions,
+.formInlineTypes {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.formSectionEditorHeader > :first-child {
+  flex: 1 1 240px;
+}
+
+.formSectionHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.formInlineTypes {
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  padding: var(--space-2);
+}
+
+.formEmptyDropZone {
+  display: grid;
+  min-height: 84px;
+  place-items: center;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  text-align: center;
+  padding: var(--space-3);
+}
+
+.formQuestionList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.formQuestionCard {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  padding: var(--space-3);
+}
+
+.formQuestionCard:has(.formQuestionSettings) {
+  border-color: var(--color-primary-300);
+}
+
+.formDragHandle {
+  display: inline-grid;
+  width: var(--touch-target);
+  min-width: var(--touch-target);
+  height: var(--touch-target);
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  cursor: grab;
+}
+
+.formQuestionTitle {
+  display: grid;
+  min-width: 120px;
+  flex: 1 1 160px;
+  gap: 3px;
+}
+
+.formQuestionTitle span {
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.formQuestionActions {
+  justify-content: flex-end;
+}
+
+.formQuestionSettings {
+  display: grid;
+  gap: var(--space-4);
+  border-block-start: 1px solid var(--color-border);
+  padding-block-start: var(--space-4);
+}
+
+.formAdvancedDetails {
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  padding: var(--space-3);
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+.formAdvancedDetails summary {
+  min-height: 36px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.formAdvancedDetails p {
+  margin: var(--space-2) 0;
+}
+
+.formAdvancedDetails code {
+  direction: ltr;
+  display: inline-block;
+  overflow-wrap: anywhere;
+}
+
 .pdfPreview {
   display: grid;
   min-height: 360px;
@@ -602,6 +930,22 @@
 
   .stepper {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .formSampleGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .formBuilderLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .formFieldPalette {
+    position: static;
+  }
+
+  .formFieldPalette > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -668,6 +1012,40 @@
     min-width: 0;
     max-width: 100%;
     flex-wrap: wrap;
+  }
+
+  .formStartGrid,
+  .formThemeGrid,
+  .formSampleGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .formStartCard,
+  .formThemeChoice {
+    min-height: 0;
+    padding: var(--space-4);
+  }
+
+  .formFieldPalette > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .formSectionEditor {
+    padding: var(--space-3);
+  }
+
+  .formSectionEditorHeader,
+  .formQuestionHeader {
+    align-items: stretch;
+  }
+
+  .formSectionHeaderActions,
+  .formQuestionActions {
+    width: 100%;
+  }
+
+  .formQuestionActions > button {
+    flex: 1 1 auto;
   }
 
   .editableRow,

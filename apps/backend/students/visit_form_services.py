@@ -72,6 +72,7 @@ def serialize_template(template: CoachVisitFormTemplate) -> dict:
         "version": template.version,
         "description": template.description,
         "sections": _normalize_sections(template.sections or []),
+        "theme": template.theme,
         "is_active": template.is_active,
         "is_default": template.is_default,
         "created_at": template.created_at.isoformat().replace("+00:00", "Z"),
@@ -194,6 +195,13 @@ def _validate_sections(sections: Any) -> list:
     return cleaned
 
 
+def _validate_theme(theme: Any) -> str:
+    value = str(theme or CoachVisitFormTemplate.Theme.ATHLORE)
+    if value not in CoachVisitFormTemplate.Theme.values:
+        raise ValidationError({"theme": ["Unsupported form theme."]})
+    return value
+
+
 def _clear_other_defaults(coach: CoachProfile, keep_id=None) -> None:
     qs = CoachVisitFormTemplate.objects.filter(coach=coach, is_default=True)
     if keep_id is not None:
@@ -221,6 +229,7 @@ def create_template(coach: CoachProfile, payload: dict) -> CoachVisitFormTemplat
         version=int(payload.get("version") or 1),
         description=str(payload.get("description") or ""),
         sections=_validate_sections(payload.get("sections")),
+        theme=_validate_theme(payload.get("theme")),
         is_active=bool(payload.get("is_active", True)),
         is_default=is_default,
     )
@@ -234,6 +243,8 @@ def update_template(
         template.name = str(payload.get("name") or template.name).strip()
     if "description" in payload:
         template.description = str(payload.get("description") or "")
+    if "theme" in payload:
+        template.theme = _validate_theme(payload.get("theme"))
     if "is_active" in payload:
         template.is_active = bool(payload.get("is_active"))
         if not template.is_active:
@@ -288,6 +299,7 @@ def duplicate_template(
         version=1,
         description=template.description,
         sections=copy.deepcopy(template.sections or []),
+        theme=template.theme,
         is_active=True,
         is_default=False,
     )
@@ -313,6 +325,7 @@ def ensure_visit_form_from_fixture(
         version=int(fixture.get("version") or 1),
         description=str(fixture.get("description") or ""),
         sections=copy.deepcopy(fixture.get("sections") or []),
+        theme=_validate_theme(fixture.get("theme")),
         is_active=bool(fixture.get("is_active", True)),
         is_default=is_default,
     )
@@ -342,6 +355,7 @@ def snapshot_template(template: CoachVisitFormTemplate) -> dict:
         "key": template.key,
         "name": template.name,
         "version": template.version,
+        "theme": template.theme,
         "sections": _normalize_sections(copy.deepcopy(template.sections or [])),
     }
 

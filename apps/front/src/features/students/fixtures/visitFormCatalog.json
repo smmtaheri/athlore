@@ -1,0 +1,1081 @@
+[
+  {
+    "id": "sample-athlete-assessment",
+    "key": "athlete_assessment_reference_v1",
+    "name": "ارزیابی ورزشکار",
+    "description": "قالب نمونهٔ کامل ارزیابی ورزشکار، با ساختار و گزینه‌های فرم مرجع.",
+    "version": 1,
+    "isActive": true,
+    "isDefault": false,
+    "theme": "athlore",
+    "sections": [
+      {
+        "key": "section_2",
+        "label": "ارزیابی کلی",
+        "order": 0,
+        "fields": [
+          {
+            "key": "full_name",
+            "label": "نام و نام خانوادگی",
+            "type": "text",
+            "options": [],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 0,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "assessment_date",
+            "label": "تاریخ",
+            "type": "date",
+            "options": [],
+            "semanticKey": "assessment_date",
+            "enabled": true,
+            "required": false,
+            "order": 1,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "phone",
+            "label": "تلفن",
+            "type": "text",
+            "options": [],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 2,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "height_cm",
+            "label": "قد",
+            "type": "number",
+            "options": [],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 3,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "weight_kg",
+            "label": "وزن",
+            "type": "number",
+            "options": [],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 4,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "age",
+            "label": "سن",
+            "type": "text",
+            "options": [],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 5,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "sessions_per_week",
+            "label": "تعداد جلسات",
+            "type": "text",
+            "options": [],
+            "semanticKey": "sessions_per_week",
+            "enabled": true,
+            "required": false,
+            "order": 6,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "has_nutrition_plan",
+            "label": "برنامه غذایی",
+            "type": "boolean",
+            "options": [],
+            "semanticKey": "nutrition_plan",
+            "enabled": true,
+            "required": false,
+            "order": 7,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "calorie_target",
+            "label": "کالری مورد نیاز",
+            "type": "number",
+            "options": [],
+            "semanticKey": "calorie_target",
+            "enabled": true,
+            "required": false,
+            "order": 8,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "supplements",
+            "label": "مکمل",
+            "type": "text",
+            "options": [],
+            "semanticKey": "supplements",
+            "enabled": true,
+            "required": false,
+            "order": 9,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "medications",
+            "label": "دارو",
+            "type": "text",
+            "options": [],
+            "semanticKey": "medications",
+            "enabled": true,
+            "required": false,
+            "order": 10,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "goal",
+            "label": "هدف",
+            "type": "single_select",
+            "options": [
+              {
+                "label": "افرایش وزن",
+                "value": "gain_weight"
+              },
+              {
+                "label": "کاهش وزن",
+                "value": "lose_weight"
+              },
+              {
+                "label": "حفظ وزن",
+                "value": "maintain_weight"
+              }
+            ],
+            "semanticKey": "goal",
+            "enabled": true,
+            "required": false,
+            "order": 11,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "training_level",
+            "label": "سطح برنامه",
+            "type": "single_select",
+            "options": [
+              {
+                "label": "مبتدی",
+                "value": "beginner"
+              },
+              {
+                "label": "متوسط",
+                "value": "intermediate"
+              },
+              {
+                "label": "نیمه حرفه ای",
+                "value": "semi_professional"
+              },
+              {
+                "label": "حرفه ای",
+                "value": "professional"
+              }
+            ],
+            "semanticKey": "training_level",
+            "enabled": true,
+            "required": false,
+            "order": 12,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "weak_muscles",
+            "label": "نقاط ضعف",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "سرشانه",
+                "value": "shoulders"
+              },
+              {
+                "label": "سینه",
+                "value": "chest"
+              },
+              {
+                "label": "زیربغل",
+                "value": "back"
+              },
+              {
+                "label": "جلوبازو",
+                "value": "biceps"
+              },
+              {
+                "label": "پشت بازو",
+                "value": "triceps"
+              },
+              {
+                "label": "چهارسر",
+                "value": "quadriceps"
+              },
+              {
+                "label": "همسترینگ",
+                "value": "hamstrings"
+              },
+              {
+                "label": "سرینی",
+                "value": "glutes"
+              },
+              {
+                "label": "ساق",
+                "value": "calves"
+              },
+              {
+                "label": "ساعد",
+                "value": "forearms"
+              },
+              {
+                "label": "شکم",
+                "value": "abs"
+              }
+            ],
+            "semanticKey": "weak_muscles",
+            "enabled": true,
+            "required": false,
+            "order": 13,
+            "helpText": "به صورت کلی",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "question_15",
+            "label": "سینه",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "سینه",
+                "value": "option_01"
+              },
+              {
+                "label": "بالاسینه",
+                "value": "option_02"
+              },
+              {
+                "label": "زیرسینه",
+                "value": "option_03"
+              },
+              {
+                "label": "داخل",
+                "value": "option_04"
+              },
+              {
+                "label": "داخل",
+                "value": "option_05"
+              },
+              {
+                "label": "داخل",
+                "value": "option_06"
+              },
+              {
+                "label": "خارج",
+                "value": "option_07"
+              },
+              {
+                "label": "خارج",
+                "value": "option_08"
+              },
+              {
+                "label": "خارج",
+                "value": "option_09"
+              }
+            ],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 14,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "question_16",
+            "label": "سرشانه",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "خلفی",
+                "value": "option_01"
+              },
+              {
+                "label": "جانبی",
+                "value": "option_02"
+              },
+              {
+                "label": "قدامی",
+                "value": "option_03"
+              }
+            ],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 15,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "question_17",
+            "label": "جلوبازو",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "حجم",
+                "value": "option_01"
+              },
+              {
+                "label": "ارتفاع",
+                "value": "option_02"
+              },
+              {
+                "label": "تقارن",
+                "value": "option_03"
+              }
+            ],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 16,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "question_19",
+            "label": "پشت بازو",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "سر داخلی",
+                "value": "option_01"
+              },
+              {
+                "label": "سر خارجی",
+                "value": "option_02"
+              }
+            ],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 17,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "question_21",
+            "label": "زیربغل و فیله",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "ارتفاع",
+                "value": "option_01"
+              },
+              {
+                "label": "ضخامت",
+                "value": "option_02"
+              },
+              {
+                "label": "عرض",
+                "value": "option_03"
+              },
+              {
+                "label": "عدم تقارن",
+                "value": "option_04"
+              },
+              {
+                "label": "فیله",
+                "value": "option_05"
+              }
+            ],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 18,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "question_22",
+            "label": "کول",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "بالایی",
+                "value": "option_01"
+              },
+              {
+                "label": "میانی",
+                "value": "option_02"
+              },
+              {
+                "label": "پایینی",
+                "value": "option_03"
+              }
+            ],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 19,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "question_23",
+            "label": "چهارسر",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "سر داخلی",
+                "value": "option_01"
+              },
+              {
+                "label": "سر خارجی",
+                "value": "option_02"
+              },
+              {
+                "label": "بالایی",
+                "value": "option_03"
+              },
+              {
+                "label": "پایینی",
+                "value": "option_04"
+              },
+              {
+                "label": "نزدیک کننده ها",
+                "value": "option_05"
+              }
+            ],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 20,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "question_24",
+            "label": "همسترینگ",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "سر داخلی",
+                "value": "option_01"
+              },
+              {
+                "label": "سر خارجی",
+                "value": "option_02"
+              },
+              {
+                "label": "بالایی",
+                "value": "option_03"
+              },
+              {
+                "label": "پایینی",
+                "value": "option_04"
+              }
+            ],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 21,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "question_25",
+            "label": "سرینی",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "بالایی",
+                "value": "option_01"
+              },
+              {
+                "label": "پایینی",
+                "value": "option_02"
+              },
+              {
+                "label": "خارجی",
+                "value": "option_03"
+              }
+            ],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 22,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "question_26",
+            "label": "شکم",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "بالایی",
+                "value": "option_01"
+              },
+              {
+                "label": "پایینی",
+                "value": "option_02"
+              },
+              {
+                "label": "پهلو ها",
+                "value": "option_03"
+              },
+              {
+                "label": "دنده ای",
+                "value": "option_04"
+              }
+            ],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 23,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "question_27",
+            "label": "ساق پا",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "ساق پا",
+                "value": "option_01"
+              },
+              {
+                "label": "نعلی",
+                "value": "option_02"
+              },
+              {
+                "label": "تیبیا",
+                "value": "option_03"
+              }
+            ],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 24,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "question_28",
+            "label": "ساعد",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "رویی",
+                "value": "option_01"
+              },
+              {
+                "label": "زیری",
+                "value": "option_02"
+              }
+            ],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 25,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          }
+        ]
+      },
+      {
+        "key": "section_206",
+        "label": "پنل",
+        "order": 1,
+        "fields": [
+          {
+            "key": "training_methods",
+            "label": "سرشانه",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "سوپرست",
+                "value": "superset"
+              },
+              {
+                "label": "ترایست",
+                "value": "tri_set"
+              },
+              {
+                "label": "جاینت ست",
+                "value": "giant_set"
+              },
+              {
+                "label": "HIT",
+                "value": "hit"
+              },
+              {
+                "label": "نوبرت",
+                "value": "option_05"
+              },
+              {
+                "label": "پمپ نهایی",
+                "value": "final_pump"
+              },
+              {
+                "label": "100 تکراری",
+                "value": "hundred_rep"
+              },
+              {
+                "label": "حجم آلمانی",
+                "value": "gvt"
+              },
+              {
+                "label": "گزینه",
+                "value": "option_09"
+              }
+            ],
+            "semanticKey": "training_methods",
+            "enabled": true,
+            "required": false,
+            "order": 0,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          }
+        ]
+      },
+      {
+        "key": "section_20",
+        "label": "ارزیابی پاسچر",
+        "order": 2,
+        "fields": [
+          {
+            "key": "question_30",
+            "label": "ناهنجاری اسکلتی",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "سر به جلو",
+                "value": "option_01"
+              },
+              {
+                "label": "شانه های افتاده",
+                "value": "option_02"
+              },
+              {
+                "label": "شانه گرد",
+                "value": "option_03"
+              },
+              {
+                "label": "پشت گرد",
+                "value": "option_04"
+              },
+              {
+                "label": "کراس بالاتنه",
+                "value": "option_05"
+              },
+              {
+                "label": "لوردوز",
+                "value": "option_06"
+              },
+              {
+                "label": "پشت صاف",
+                "value": "option_07"
+              },
+              {
+                "label": "پشت تابدار",
+                "value": "option_08"
+              },
+              {
+                "label": "اسکولیز",
+                "value": "option_09"
+              },
+              {
+                "label": "کتف بالدار",
+                "value": "option_10"
+              },
+              {
+                "label": "تورژن",
+                "value": "option_11"
+              },
+              {
+                "label": "کوکساوار",
+                "value": "option_12"
+              },
+              {
+                "label": "زانوی ضربدری",
+                "value": "option_13"
+              },
+              {
+                "label": "زانوی پرانتزی",
+                "value": "option_14"
+              },
+              {
+                "label": "کوکسا والگا",
+                "value": "option_15"
+              },
+              {
+                "label": "زانوی عقب رفته",
+                "value": "option_16"
+              },
+              {
+                "label": "کف پای صاف",
+                "value": "option_17"
+              },
+              {
+                "label": "کف پای گود",
+                "value": "option_18"
+              },
+              {
+                "label": "شست کج",
+                "value": "option_19"
+              }
+            ],
+            "semanticKey": "posture",
+            "enabled": true,
+            "required": false,
+            "order": 0,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "question_29",
+            "label": "شانه های نابرابر",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "راست افتاده",
+                "value": "option_01"
+              },
+              {
+                "label": "چپ افتاده",
+                "value": "option_02"
+              }
+            ],
+            "semanticKey": "posture",
+            "enabled": true,
+            "required": false,
+            "order": 1,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "question_31",
+            "label": "کج گردنی",
+            "type": "multi_select",
+            "options": [
+              {
+                "label": "به سمت راست",
+                "value": "option_01"
+              },
+              {
+                "label": "به سمت چپ",
+                "value": "option_02"
+              }
+            ],
+            "semanticKey": "posture",
+            "enabled": true,
+            "required": false,
+            "order": 2,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          }
+        ]
+      },
+      {
+        "key": "section_150",
+        "label": "تقسیم عضلانی و نوع ورزش",
+        "order": 3,
+        "fields": [
+          {
+            "key": "split_saturday",
+            "label": "شنبه",
+            "type": "text",
+            "options": [],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 0,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "split_sunday",
+            "label": "یک شنبه",
+            "type": "text",
+            "options": [],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 1,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "split_monday",
+            "label": "دو شنیه",
+            "type": "text",
+            "options": [],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 2,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "split_tuesday",
+            "label": "سه شنبه",
+            "type": "text",
+            "options": [],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 3,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "split_wednesday",
+            "label": "چهارشنبه",
+            "type": "text",
+            "options": [],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 4,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          },
+          {
+            "key": "split_thursday",
+            "label": "پنج شنبه",
+            "type": "text",
+            "options": [],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 5,
+            "helpText": "",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          }
+        ]
+      },
+      {
+        "key": "section_32",
+        "label": "توضیحات",
+        "order": 4,
+        "fields": [
+          {
+            "key": "additional_notes",
+            "label": "توضیحات تکمیلی ارزیابی ورزشکار",
+            "type": "textarea",
+            "options": [],
+            "semanticKey": "",
+            "enabled": true,
+            "required": false,
+            "order": 0,
+            "helpText": "در این باکس هر توضیحی راجب آزمایش خون مریضی درد مفاصل محدودیت های زمانی و رژیمی ورزشکار نوشته میشود.",
+            "prefillFrom": "",
+            "studentVisible": false,
+            "studentEditable": false,
+            "studentVisibleWhenFinalized": false,
+            "coachEditable": true,
+            "coachHelpText": ""
+          }
+        ]
+      }
+    ]
+  }
+]

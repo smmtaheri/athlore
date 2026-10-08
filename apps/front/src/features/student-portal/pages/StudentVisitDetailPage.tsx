@@ -226,6 +226,7 @@ export function StudentVisitDetailPage({
               respectStudentEditable={open}
               sections={sections}
               showNotes={false}
+              theme={visit.formTemplateSnapshot.theme}
             />
           </Card>
         ) : (

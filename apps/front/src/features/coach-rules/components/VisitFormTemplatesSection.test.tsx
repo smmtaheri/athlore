@@ -13,6 +13,7 @@ const baseTemplate: VisitFormTemplate = {
   isDefault: true,
   key: "default_v1",
   name: "فرم پایه",
+  theme: "athlore",
   sections: [
     {
       fields: [
@@ -68,24 +69,24 @@ describe("VisitFormTemplatesSection permissions", () => {
     render(<VisitFormTemplatesSection repository={createRepo()} />);
 
     expect(await screen.findByText("فرم پایه")).toBeInTheDocument();
-    expect(screen.queryByText("قابل مشاهده برای شاگرد (باز)")).not.toBeInTheDocument();
+    expect(screen.queryByText("چه کسی پاسخ می‌دهد؟")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "ویرایش" }));
-    expect(await screen.findByText("قابل مشاهده برای شاگرد (باز)")).toBeInTheDocument();
-    expect(screen.getByText("قابل ویرایش توسط شاگرد")).toBeInTheDocument();
-    expect(screen.getByText("قابل ویرایش توسط مربی")).toBeInTheDocument();
-    expect(screen.getByText("قابل مشاهده پس از نهایی‌سازی")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "ویرایش فرم" }));
+    await userEvent.click(await screen.findByRole("button", { name: "ویرایش سؤال" }));
+    expect(await screen.findByText("چه کسی پاسخ می‌دهد؟")).toBeInTheDocument();
+    expect(screen.getByText("نمایش پس از نهایی‌سازی")).toBeInTheDocument();
   });
 
   it("separates student guidance from coach-only internal notes", async () => {
     render(<VisitFormTemplatesSection repository={createRepo()} />);
 
     await screen.findByText("فرم پایه");
-    await userEvent.click(screen.getByRole("button", { name: "ویرایش" }));
-    expect(await screen.findByText("راهنمای شاگرد")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "ویرایش فرم" }));
+    await userEvent.click(await screen.findByRole("button", { name: "ویرایش سؤال" }));
+    expect(await screen.findByText("راهنمای پاسخ")).toBeInTheDocument();
     expect(screen.getByText("یادداشت داخلی مربی")).toBeInTheDocument();
-    expect(screen.getByText("این متن در فرم شاگرد نمایش داده می‌شود.")).toBeInTheDocument();
-    expect(screen.getByText("این یادداشت فقط در پنل مربی نمایش داده می‌شود.")).toBeInTheDocument();
+    expect(screen.getByText("این راهنما برای شاگرد دیده می‌شود.")).toBeInTheDocument();
+    expect(screen.getByText("این یادداشت فقط برای مربی است.")).toBeInTheDocument();
   });
 
   it("opens a focused editor for a new template without saving before submit", async () => {
@@ -93,9 +94,9 @@ describe("VisitFormTemplatesSection permissions", () => {
     render(<VisitFormTemplatesSection repository={repository} />);
 
     await screen.findByText("فرم پایه");
-    await userEvent.click(screen.getByRole("button", { name: "قالب جدید" }));
+    await userEvent.click(screen.getByRole("button", { name: "ساخت فرم جدید" }));
 
-    expect(screen.getByRole("heading", { name: "ساخت قالب ویزیت" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "فرم را چطور شروع می‌کنید؟" })).toBeInTheDocument();
     expect(repository.create).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,8 @@
 export type VisitFormFieldType =
   "text" | "number" | "boolean" | "single_select" | "multi_select" | "textarea" | "date";
 
+export type VisitFormTheme = "athlore" | "athlore_compact";
+
 export interface VisitFormFieldOption {
   label: string;
   value: string;
@@ -41,6 +43,7 @@ export interface VisitFormTemplate {
   key: string;
   name: string;
   sections: VisitFormSectionDefinition[];
+  theme: VisitFormTheme;
   updatedAt?: string;
   version: number;
 }
@@ -55,6 +58,7 @@ export interface VisitFormTemplateSnapshot {
   key?: string;
   name?: string;
   sections?: VisitFormSectionDefinition[];
+  theme?: VisitFormTheme;
   version?: number;
 }
 

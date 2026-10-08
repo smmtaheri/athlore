@@ -9,6 +9,7 @@ export const visitFormTemplateFixture: VisitFormTemplate = {
   isDefault: true,
   key: "default_v1",
   name: "فرم ویزیت پایه",
+  theme: "athlore",
   updatedAt: "2026-01-01T00:00:00.000Z",
   version: 1,
   sections: [

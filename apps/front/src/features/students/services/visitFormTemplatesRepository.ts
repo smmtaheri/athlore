@@ -22,6 +22,7 @@ export interface VisitFormTemplatesRepository {
 function cloneTemplate(template: VisitFormTemplate): VisitFormTemplate {
   return {
     ...template,
+    theme: template.theme === "athlore_compact" ? "athlore_compact" : "athlore",
     sections: template.sections.map((section) => ({
       ...section,
       fields: section.fields.map((field) => ({
@@ -114,6 +115,7 @@ export function createVisitFormTemplatesRepository(
         key: input.key,
         name: input.name,
         sections: input.sections ?? [],
+        theme: input.theme ?? "athlore",
         updatedAt: now,
         version: input.version ?? 1
       };
@@ -152,7 +154,9 @@ export function createVisitFormTemplatesRepository(
       return items.find((item) => item.isDefault) ?? items[0] ?? null;
     },
     async list() {
-      return read().sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name));
+      return read().sort(
+        (a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name)
+      );
     },
     async reset() {
       const initial = cloneTemplates([visitFormTemplateFixture]);
