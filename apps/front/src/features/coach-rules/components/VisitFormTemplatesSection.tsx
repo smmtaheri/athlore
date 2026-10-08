@@ -645,31 +645,35 @@ export function VisitFormTemplatesSection({
                 value={draft.theme}
               />
             </FormField>
-            <FormField label="نمایش در فهرست قالب‌ها">
-              <Switch
-                checked={draft.isActive}
-                label={draft.isActive ? "قابل انتخاب" : "بایگانی‌شده"}
-                onCheckedChange={(checked) =>
-                  updateDraft((current) => ({
-                    ...current,
-                    isActive: checked,
-                    isDefault: checked ? current.isDefault : false
-                  }))
-                }
-              />
-            </FormField>
+            {!creating ? (
+              <FormField label="نمایش در فهرست قالب‌ها">
+                <Switch
+                  checked={draft.isActive}
+                  label={draft.isActive ? "قابل انتخاب" : "بایگانی‌شده"}
+                  onCheckedChange={(checked) =>
+                    updateDraft((current) => ({
+                      ...current,
+                      isActive: checked,
+                      isDefault: checked ? current.isDefault : false
+                    }))
+                  }
+                />
+              </FormField>
+            ) : null}
           </div>
 
-          <FormField htmlFor="visit-form-template-description" label="توضیحات">
-            <Textarea
-              id="visit-form-template-description"
-              onChange={(event) =>
-                updateDraft((current) => ({ ...current, description: event.target.value }))
-              }
-              rows={3}
-              value={draft.description}
-            />
-          </FormField>
+          {!creating ? (
+            <FormField htmlFor="visit-form-template-description" label="توضیحات">
+              <Textarea
+                id="visit-form-template-description"
+                onChange={(event) =>
+                  updateDraft((current) => ({ ...current, description: event.target.value }))
+                }
+                rows={3}
+                value={draft.description}
+              />
+            </FormField>
+          ) : null}
 
           <div className={styles.sectionHeader}>
             <div>
