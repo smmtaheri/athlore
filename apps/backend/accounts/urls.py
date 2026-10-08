@@ -15,11 +15,27 @@ from accounts.rules_views import (
     TrainingTechniqueDetailView,
     TrainingTechniqueListCreateView,
 )
+from accounts.supplement_views import (
+    SupplementCatalogDetailView,
+    SupplementCatalogListView,
+    SupplementGoalDetailView,
+    SupplementGoalView,
+    SupplementOptionsView,
+    SupplementPrescriptionView,
+    SupplementProposalView,
+)
 from accounts.template_views import NutritionTemplateDetailView, SupplementTemplateDetailView
 from accounts.views import LoginView, LogoutView, MeCoachView, MeView, RefreshView, RegisterView
 from delivery.export_views import CoachRulesPdfExportView
 
 urlpatterns = [
+    path("supplement-catalog/options/", SupplementOptionsView.as_view()),
+    path("supplement-catalog/goals/", SupplementGoalView.as_view()),
+    path("supplement-catalog/goals/<uuid:goal_id>/", SupplementGoalDetailView.as_view()),
+    path("supplement-catalog/propose/", SupplementProposalView.as_view()),
+    path("supplement-catalog/prescribe/", SupplementPrescriptionView.as_view()),
+    path("supplement-catalog/", SupplementCatalogListView.as_view()),
+    path("supplement-catalog/<uuid:entry_id>/", SupplementCatalogDetailView.as_view()),
     path("auth/register/", RegisterView.as_view(), name="auth-register"),
     path("auth/login/", LoginView.as_view(), name="auth-login"),
     path("auth/refresh/", RefreshView.as_view(), name="auth-refresh"),

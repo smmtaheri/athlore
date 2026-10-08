@@ -142,7 +142,8 @@ def build_pdf_context(
                     "amount": _esc(item_d.get("amount") or item_d.get("dose") or ""),
                     "timing": _esc(item_d.get("timing") or ""),
                     "instructions": _esc(item_d.get("instructions") or ""),
-                    "notes": _esc(item_d.get("notes") or item_d.get("warnings") or ""),
+                    "notes": _esc(item_d.get("notes") or ""),
+                    "warnings": _esc(item_d.get("warnings") or ""),
                 }
             )
 

@@ -601,3 +601,8 @@ from accounts.nutrition_models import (  # noqa: E402,F401
     NutritionOptionItem,
     SupplementTemplateItem,
 )
+from accounts.supplement_models import (  # noqa: E402,F401
+    SupplementCatalogEntry,
+    SupplementDose,
+    SupplementGoal,
+)

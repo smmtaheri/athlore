@@ -190,7 +190,7 @@
           <td>{{ item.amount }}</td>
           <td>{{ item.timing }}</td>
           <td>{{ item.instructions }}</td>
-          <td>{{ item.notes }}</td>
+          <td>{{ item.notes }}{% if item.warnings %}<br />هشدار: {{ item.warnings }}{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>

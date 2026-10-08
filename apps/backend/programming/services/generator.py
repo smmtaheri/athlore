@@ -729,6 +729,10 @@ def _generate_document_body(
         "techniques": training_evidence.get("techniques", []),
         "nutrition": nutrition_evidence,
         "supplements": supplements_evidence,
+        "supplement_selection_reasons": [
+            f"{item['name']} — اولویت {item['priority']} — {item['reason']}"
+            for item in supplements_evidence.get("selected", [])
+        ],
         "warnings": list(warnings),
         "generation_notes": generation_notes,
     }
@@ -1098,6 +1102,13 @@ def _build_supplements(
 ) -> tuple[dict, list[str], dict]:
     warnings: list[str] = []
     base = {"enabled": False, "notes": SUPPLEMENT_DISCLAIMER, "items": []}
+
+    if "supplement_selection" in request:
+        from accounts.supplement_catalog import snapshot_selection
+
+        items, evidence = snapshot_selection(coach, student, request["supplement_selection"])
+        base.update(enabled=bool(items), items=items)
+        return base, warnings, evidence
 
     if request.get("supplement_opt_in") is not True:
         warnings.append("supplement_opt_in_required")
