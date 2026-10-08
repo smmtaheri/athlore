@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from django.db.models import Count, Q
+import jdatetime
+from django.db.models import Count, F, Q, Window
+from django.db.models.functions import RowNumber
 from django.utils import timezone
 
 from accounts.models import CoachProfile
@@ -20,6 +22,57 @@ OVERDUE_VISIT_DAYS = 35
 MONTHLY_VISIT_INTERVAL_DAYS = 30
 MONTHLY_VISIT_DUE_SOON_DAYS = 7
 RECENT_LIMIT = 5
+
+
+def _calendar_month_bounds(today: date, calendar: str) -> tuple[date, date, str]:
+    """Return the selected calendar's current month as Gregorian date bounds."""
+    if calendar == "persian":
+        current_month = jdatetime.date.fromgregorian(date=today)
+        month_start = current_month.replace(day=1)
+        next_month = (
+            month_start.replace(year=month_start.year + 1, month=1)
+            if month_start.month == 12
+            else month_start.replace(month=month_start.month + 1)
+        )
+        return (
+            month_start.togregorian(),
+            next_month.togregorian(),
+            f"{month_start.year:04d}-{month_start.month:02d}",
+        )
+
+    month_start = today.replace(day=1)
+    next_month = (
+        month_start.replace(year=month_start.year + 1, month=1)
+        if month_start.month == 12
+        else month_start.replace(month=month_start.month + 1)
+    )
+    return month_start, next_month, month_start.strftime("%Y-%m")
+
+
+def _latest_visits_per_student(coach: CoachProfile, *, order_field: str) -> list[Visit]:
+    """Return each student's latest non-draft visit, ordered by the requested date."""
+    return list(
+        Visit.objects.filter(coach=coach)
+        .exclude(status=Visit.Status.DRAFT)
+        .annotate(
+            student_visit_rank=Window(
+                expression=RowNumber(),
+                partition_by=[F("student_id")],
+                order_by=[F(order_field).desc(), F("updated_at").desc(), F("id").desc()],
+            )
+        )
+        .filter(student_visit_rank=1)
+        .select_related("student")
+        .order_by(f"-{order_field}", "-updated_at", "student__full_name")[:RECENT_LIMIT]
+    )
+
+
+def _serialize_dashboard_visits(visits: list[Visit]) -> list[dict]:
+    serialized_visits = VisitSerializer(visits, many=True).data
+    return [
+        {**serialized, "student_name": visit.student.full_name}
+        for visit, serialized in zip(visits, serialized_visits, strict=True)
+    ]
 
 
 def _build_body_check_today(coach: CoachProfile, today: date) -> list[dict]:
@@ -127,7 +180,9 @@ def _build_body_check_cycle_summary(coach: CoachProfile, today: date) -> dict:
                     "cycle_id": str(cycle.id),
                     "student_id": str(student.id),
                     "student_name": student.full_name,
-                    "status": "expired" if cycle.status == BodyCheckCycle.Status.EXPIRED else "closed",
+                    "status": "expired"
+                    if cycle.status == BodyCheckCycle.Status.EXPIRED
+                    else "closed",
                     "start_date": cycle.start_date.isoformat(),
                     "end_date": cycle.end_date.isoformat(),
                     "days_remaining": (cycle.end_date - today).days,
@@ -166,11 +221,7 @@ def _build_body_check_cycle_summary(coach: CoachProfile, today: date) -> dict:
 
 def _build_monthly_visit_summary(coach: CoachProfile, today: date) -> dict:
     """Return active-student monthly visit status without per-student queries."""
-    month_start = today.replace(day=1)
-    if month_start.month == 12:
-        next_month = month_start.replace(year=month_start.year + 1, month=1)
-    else:
-        next_month = month_start.replace(month=month_start.month + 1)
+    month_start, next_month, month_label = _calendar_month_bounds(today, coach.calendar)
 
     students = list(
         Student.objects.filter(
@@ -271,7 +322,7 @@ def _build_monthly_visit_summary(coach: CoachProfile, today: date) -> dict:
     }
     return {
         "as_of": today.isoformat(),
-        "month": month_start.strftime("%Y-%m"),
+        "month": month_label,
         "active_students": len(students),
         "due_soon": sum(item["due_state"] == "due_soon" for item in items),
         "overdue": sum(item["due_state"] == "overdue" for item in items),
@@ -295,11 +346,7 @@ def build_dashboard(coach: CoachProfile, *, today: date | None = None) -> dict:
     """Return deterministic coach-scoped dashboard payload."""
     today = today or timezone.localdate()
     body_check_services.expire_overdue_cycles(coach=coach, today=today)
-    month_start = today.replace(day=1)
-    if month_start.month == 12:
-        next_month = month_start.replace(year=month_start.year + 1, month=1)
-    else:
-        next_month = month_start.replace(month=month_start.month + 1)
+    month_start, next_month, _ = _calendar_month_bounds(today, coach.calendar)
     overdue_cutoff = today - timedelta(days=OVERDUE_VISIT_DAYS)
 
     students_qs = Student.objects.filter(coach=coach, archived_at__isnull=True)
@@ -361,9 +408,8 @@ def build_dashboard(coach: CoachProfile, *, today: date | None = None) -> dict:
             :RECENT_LIMIT
         ]
     )
-    latest_visits = list(
-        visits_qs.select_related("student").order_by("-visit_date", "-updated_at")[:RECENT_LIMIT]
-    )
+    latest_visits = _latest_visits_per_student(coach, order_field="visit_date")
+    latest_visit_entries = _latest_visits_per_student(coach, order_field="created_at")
 
     today_tasks: list[str] = []
     if overdue_students:
@@ -398,7 +444,8 @@ def build_dashboard(coach: CoachProfile, *, today: date | None = None) -> dict:
         "pdf_files_failed": pdf_failed,
         "pdf_generation_available": True,
         "overdue_visit_days": OVERDUE_VISIT_DAYS,
-        "latest_visits": VisitSerializer(latest_visits, many=True).data,
+        "latest_visits": _serialize_dashboard_visits(latest_visits),
+        "latest_visit_entries": _serialize_dashboard_visits(latest_visit_entries),
         "latest_programs": [serialize_program_summary(p) for p in latest_programs],
         "overdue_visits": StudentListSerializer(overdue_students, many=True).data,
         "follow_up_students": StudentListSerializer(follow_up_students, many=True).data,

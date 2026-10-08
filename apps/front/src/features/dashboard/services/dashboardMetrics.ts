@@ -26,11 +26,7 @@ export interface BodyCheckTodayItem {
 }
 
 export type BodyCheckCycleSummaryStatus =
-  | "active"
-  | "closed"
-  | "expired"
-  | "expiring_soon"
-  | "no_active_cycle";
+  "active" | "closed" | "expired" | "expiring_soon" | "no_active_cycle";
 
 export interface BodyCheckCycleSummaryItem {
   cycleId: string | null;
@@ -51,11 +47,7 @@ export interface BodyCheckCycleSummary {
 }
 
 export type MonthlyVisitStatus =
-  | "not_sent"
-  | "waiting_for_student"
-  | "student_submitted"
-  | "coach_review"
-  | "finalized";
+  "not_sent" | "waiting_for_student" | "student_submitted" | "coach_review" | "finalized";
 
 export type MonthlyVisitDueState = "not_due" | "due_soon" | "overdue";
 
@@ -85,6 +77,10 @@ export interface MonthlyVisitSummary {
   studentSubmitted: number;
 }
 
+export interface DashboardVisit extends StudentVisit {
+  studentName: string;
+}
+
 export interface DashboardMetrics {
   activeStudents: number;
   asOf: string;
@@ -94,7 +90,9 @@ export interface DashboardMetrics {
   finalPrograms: number;
   followUpStudents: Student[];
   latestPrograms: StudentProgramSummary[];
-  latestVisits: StudentVisit[];
+  latestVisits: DashboardVisit[];
+  latestVisitEntries?: DashboardVisit[];
+  inactiveStudents?: number;
   monthlyVisits: MonthlyVisitSummary;
   overdueVisits: Student[];
   pdfFilesFailed?: number;
@@ -117,7 +115,13 @@ export function calculateDashboardMetrics({
   students: Student[];
   visits: StudentVisit[];
 }): DashboardMetrics {
-  const latestVisits = [...visits].sort(compareByUpdatedAt).slice(0, 5);
+  const studentNames = new Map(students.map((student) => [student.id, student.fullName]));
+  const dashboardVisits = visits.map((visit) => ({
+    ...visit,
+    studentName: studentNames.get(visit.studentId) ?? "شاگرد"
+  }));
+  const latestVisits = latestPerStudent(dashboardVisits, (visit) => visit.visitDate);
+  const latestVisitEntries = latestPerStudent(dashboardVisits, (visit) => visit.createdAt);
   const latestPrograms = [...programs].sort(compareByUpdatedAt).slice(0, 5);
   const studentsWithVisit = new Set(visits.map((visit) => visit.studentId));
   const overdueVisits = students
@@ -149,6 +153,8 @@ export function calculateDashboardMetrics({
     followUpStudents,
     latestPrograms,
     latestVisits,
+    latestVisitEntries,
+    inactiveStudents: students.filter((student) => student.status === "inactive").length,
     monthlyVisits: emptyMonthlyVisitSummary(new Date().toISOString().slice(0, 10)),
     overdueVisits,
     readyPdfFiles: pdfFiles.filter((file) => file.status === "ready").length,
@@ -160,6 +166,28 @@ export function calculateDashboardMetrics({
     ],
     totalStudents: students.length
   };
+}
+
+function latestPerStudent(
+  visits: DashboardVisit[],
+  dateForSort: (visit: DashboardVisit) => string
+): DashboardVisit[] {
+  const latestByStudent = new Map<string, DashboardVisit>();
+  for (const visit of visits) {
+    const current = latestByStudent.get(visit.studentId);
+    const nextDate = dateForSort(visit);
+    const currentDate = current ? dateForSort(current) : "";
+    if (
+      !current ||
+      nextDate > currentDate ||
+      (nextDate === currentDate && visit.updatedAt > current.updatedAt)
+    ) {
+      latestByStudent.set(visit.studentId, visit);
+    }
+  }
+  return [...latestByStudent.values()]
+    .sort((a, b) => dateForSort(b).localeCompare(dateForSort(a)) || compareByUpdatedAt(a, b))
+    .slice(0, 5);
 }
 
 export function emptyMonthlyVisitSummary(asOf: string): MonthlyVisitSummary {

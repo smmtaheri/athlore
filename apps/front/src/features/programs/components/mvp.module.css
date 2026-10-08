@@ -36,6 +36,176 @@
   gap: var(--space-3);
 }
 
+.dashboardSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.dashboardSummaryCard {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.dashboardSummaryCardLink {
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.dashboardSummaryCardButton {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: start;
+}
+
+.dashboardSummaryCardButton:hover > .dashboardSummaryCard,
+.dashboardSummaryCardLink:hover > .dashboardSummaryCard {
+  border-color: var(--color-primary-500);
+}
+
+.dashboardSummaryCardButton:focus-visible,
+.dashboardSummaryCardLink:focus-visible {
+  border-radius: var(--radius-md);
+  outline: 3px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
+
+.dashboardSummaryHeading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}
+
+.dashboardSummaryHeading svg {
+  flex: 0 0 auto;
+  color: var(--color-primary-600);
+}
+
+.dashboardSummaryNumber {
+  color: var(--color-text-primary);
+  font-size: 1.65rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.dashboardSummaryBadges,
+.dashboardActionCounts {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dashboardPriorityCard {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: var(--space-3);
+}
+
+.dashboardSectionHeader {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.dashboardSectionHeader > div:first-child {
+  min-width: 0;
+}
+
+.dashboardSort {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.dashboardVisitLink {
+  color: var(--color-primary-700);
+  font-weight: 700;
+}
+
+.dashboardProgramStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.dashboardProgramStats .metricCard {
+  min-height: 84px;
+}
+
+.dashboardDetailsStack {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.dashboardDisclosure {
+  min-width: 0;
+  scroll-margin-block-start: var(--space-5);
+}
+
+.dashboardDisclosureSummary {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+  list-style: none;
+}
+
+.dashboardDisclosureSummary::-webkit-details-marker {
+  display: none;
+}
+
+.dashboardDisclosureTitle {
+  min-width: 0;
+}
+
+.dashboardDisclosureTitle .sectionTitle,
+.dashboardDisclosureTitle .sectionDescription {
+  margin: 0;
+}
+
+.dashboardDisclosureTitle .sectionDescription {
+  margin-block-start: var(--space-1);
+}
+
+.dashboardDisclosureCounts {
+  min-width: 0;
+}
+
+.dashboardDisclosureIcon {
+  color: var(--color-text-secondary);
+  transition: transform 160ms ease;
+}
+
+.dashboardDisclosure[open] .dashboardDisclosureIcon {
+  transform: rotate(180deg);
+}
+
+.dashboardDisclosureContent {
+  display: grid;
+  gap: var(--space-4);
+  margin-block-start: var(--space-4);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--color-border);
+}
+
 .bodyCheckCard {
   display: grid;
   min-width: 0;
@@ -157,6 +327,22 @@
   padding-block-start: var(--space-3);
 }
 
+.listItemLink {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-block-start: 1px solid var(--color-border);
+  color: inherit;
+  padding-block-start: var(--space-3);
+  text-decoration: none;
+}
+
+.listItemLink:hover strong {
+  color: var(--color-primary-700);
+}
+
 .listItem strong,
 .programTitle {
   color: var(--color-text-primary);
@@ -231,6 +417,10 @@
 }
 
 @media (max-width: 1100px) {
+  .dashboardSummaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .metricGrid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -259,6 +449,38 @@
 
   .quickActions {
     display: grid;
+  }
+
+  .dashboardProgramStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboardSectionHeader {
+    flex-direction: column;
+  }
+
+  .dashboardSort {
+    width: 100%;
+  }
+
+  .dashboardSort > button {
+    flex: 1 1 auto;
+  }
+
+  .dashboardDisclosureSummary {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .dashboardDisclosureCounts {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .dashboardDisclosureIcon {
+    grid-column: 2;
+    grid-row: 1;
+    margin-block-start: var(--space-1);
   }
 
   .bodyCheckHeader,

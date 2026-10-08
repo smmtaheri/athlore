@@ -1,7 +1,17 @@
 import { formatCalendarDate } from "../../../shared/dates/calendar";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { FileText, Plus, RefreshCcw, Settings, UserPlus, Users } from "lucide-react";
+import type { ReactNode } from "react";
+import {
+  CalendarDays,
+  ChevronDown,
+  FileText,
+  Plus,
+  RefreshCcw,
+  Settings,
+  UserPlus,
+  Users
+} from "lucide-react";
 import { ContentSection, PageContainer, PageHeader } from "../../../components/layout";
 import { Button, Card, EmptyState, Skeleton, StatusBadge } from "../../../components/ui";
 import { appConfig } from "../../../app/config/appConfig";
@@ -11,8 +21,8 @@ import { studentProgramsRepository } from "../../students/services/studentProgra
 import { studentVisitsRepository } from "../../students/services/studentVisitsRepository";
 import { studentsRepository } from "../../students/services/studentsRepository";
 import { programStatusLabels, programTypeLabels } from "../../students/types/programLabels";
-import type { Student } from "../../students/types/student";
 import type { StudentPdfFile } from "../../students/types/pdfFile";
+import type { Student } from "../../students/types/student";
 import type { StudentProgramSummary } from "../../students/types/studentProgram";
 import type { StudentVisit } from "../../students/types/monthlyVisit";
 import {
@@ -21,6 +31,7 @@ import {
   type BodyCheckCycleSummaryItem,
   type BodyCheckTodayItem,
   type DashboardMetrics,
+  type DashboardVisit,
   type MonthlyVisitStatus,
   type MonthlyVisitSummary,
   type MonthlyVisitSummaryItem
@@ -40,7 +51,6 @@ export function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics>();
   const [status, setStatus] = useState<"error" | "loaded" | "loading">("loading");
   const [reloadKey, setReloadKey] = useState(0);
-  const [primaryStudentId, setPrimaryStudentId] = useState<string>("");
 
   useEffect(() => {
     let mounted = true;
@@ -51,7 +61,6 @@ export function DashboardPage() {
           studentVisitsRepository.list?.() ?? Promise.resolve([]),
           studentPdfFilesRepository.list?.() ?? Promise.resolve([])
         ]).then(([students, programs, visits, pdfFiles]) => {
-          setPrimaryStudentId(students[0]?.id ?? "");
           return calculateDashboardMetrics({
             pdfFiles: pdfFiles as StudentPdfFile[],
             programs: programs as StudentProgramSummary[],
@@ -59,11 +68,7 @@ export function DashboardPage() {
             visits: visits as StudentVisit[]
           });
         })
-      : fetchDashboardMetrics().then(async (data) => {
-          const students = await studentsRepository.list();
-          setPrimaryStudentId(students[0]?.id ?? "");
-          return data;
-        });
+      : fetchDashboardMetrics();
 
     load
       .then((data) => {
@@ -81,6 +86,18 @@ export function DashboardPage() {
   return (
     <PageContainer>
       <PageHeader
+        actions={
+          <Button
+            iconStart={<RefreshCcw size={18} />}
+            onClick={() => {
+              setStatus("loading");
+              setReloadKey((value) => value + 1);
+            }}
+            variant="secondary"
+          >
+            تازه‌سازی
+          </Button>
+        }
         breadcrumb={["داشبورد"]}
         description="نمای کلی شاگردها، ویزیت‌ها، برنامه‌ها و وضعیت PDF"
         title="داشبورد مربی"
@@ -104,54 +121,308 @@ export function DashboardPage() {
             />
           </Card>
         ) : null}
-        {status === "loaded" && metrics ? (
-          <DashboardContent metrics={metrics} primaryStudentId={primaryStudentId} />
-        ) : null}
+        {status === "loaded" && metrics ? <DashboardContent metrics={metrics} /> : null}
       </ContentSection>
     </PageContainer>
   );
 }
 
-export function DashboardContent({
-  metrics,
-  primaryStudentId
-}: {
-  metrics: DashboardMetrics;
-  primaryStudentId: string;
-}) {
-  const visitPath = primaryStudentId ? `/students/${primaryStudentId}/visits/new` : "/students";
-  const programPath = primaryStudentId
-    ? `/programs/new?studentId=${primaryStudentId}`
-    : "/programs/new";
+function DashboardOverview({ metrics }: { metrics: DashboardMetrics }) {
+  const loggedToday = metrics.bodyCheckToday.filter(
+    (item) => bodyCheckState(item) === "complete"
+  ).length;
+  const partialToday = metrics.bodyCheckToday.filter(
+    (item) => bodyCheckState(item) === "partial"
+  ).length;
+  const missingToday = metrics.bodyCheckToday.filter(
+    (item) => bodyCheckState(item) === "missing"
+  ).length;
+  const monthlyFollowups =
+    metrics.monthlyVisits.overdue +
+    metrics.monthlyVisits.dueSoon +
+    metrics.monthlyVisits.coachReview;
 
   return (
-    <div className={mvpStyles.pageStack}>
-      <div className={mvpStyles.metricGrid}>
-        <Metric title="کل شاگردها" value={metrics.totalStudents} />
-        <Metric title="شاگردهای فعال" value={metrics.activeStudents} />
-        <Metric title="ویزیت‌های این ماه" value={metrics.thisMonthVisits} />
-        <Metric title="برنامه‌های Draft" value={metrics.draftPrograms} />
-        <Metric title="برنامه‌های Final" value={metrics.finalPrograms} />
-        <Metric
-          title="PDF آماده"
-          value={metrics.readyPdfFiles}
-          hint={
-            metrics.pdfGenerationAvailable === false
-              ? "تولید فایل PDF در این نسخه فعال نیست"
-              : "فایل‌های آماده شاگردان"
-          }
-        />
+    <div className={mvpStyles.dashboardSummaryGrid}>
+      <DashboardSummaryCard href="/students">
+        <div className={mvpStyles.dashboardSummaryHeading}>
+          <Users aria-hidden="true" size={18} />
+          <strong>شاگردها</strong>
+        </div>
+        <div className={mvpStyles.dashboardSummaryNumber}>{metrics.totalStudents}</div>
+        <div className={mvpStyles.dashboardSummaryBadges}>
+          <StatusBadge variant="success">{metrics.activeStudents} فعال</StatusBadge>
+          <StatusBadge variant="neutral">
+            {metrics.inactiveStudents ??
+              Math.max(0, metrics.totalStudents - metrics.activeStudents)}{" "}
+            متوقف
+          </StatusBadge>
+        </div>
+      </DashboardSummaryCard>
+
+      <DashboardSummaryCard detailId="monthly-visit-details">
+        <div className={mvpStyles.dashboardSummaryHeading}>
+          <CalendarDays aria-hidden="true" size={18} />
+          <strong>ویزیت ماهانه</strong>
+        </div>
+        <div className={mvpStyles.dashboardSummaryNumber}>{metrics.thisMonthVisits}</div>
+        <div className={mvpStyles.dashboardSummaryBadges}>
+          <StatusBadge variant="info">{metrics.monthlyVisits.sent} ارسال‌شده</StatusBadge>
+          <StatusBadge variant="warning">{metrics.monthlyVisits.notSent} ارسال‌نشده</StatusBadge>
+          {monthlyFollowups > 0 ? (
+            <StatusBadge variant="danger">{monthlyFollowups} نیازمند پیگیری</StatusBadge>
+          ) : null}
+        </div>
+      </DashboardSummaryCard>
+
+      <DashboardSummaryCard detailId="daily-body-check-details">
+        <div className={mvpStyles.dashboardSummaryHeading}>
+          <CalendarDays aria-hidden="true" size={18} />
+          <strong>بادی‌چک امروز</strong>
+        </div>
+        <div className={mvpStyles.dashboardSummaryNumber}>{metrics.bodyCheckToday.length}</div>
+        <div className={mvpStyles.dashboardSummaryBadges}>
+          <StatusBadge variant="success">{loggedToday} کامل</StatusBadge>
+          {partialToday > 0 ? <StatusBadge variant="info">{partialToday} ناقص</StatusBadge> : null}
+          <StatusBadge variant="warning">{missingToday} ثبت‌نشده</StatusBadge>
+        </div>
+      </DashboardSummaryCard>
+
+      <DashboardSummaryCard detailId="body-check-cycle-details">
+        <div className={mvpStyles.dashboardSummaryHeading}>
+          <CalendarDays aria-hidden="true" size={18} />
+          <strong>دوره‌های بادی‌چک</strong>
+        </div>
+        <div className={mvpStyles.dashboardSummaryNumber}>{metrics.bodyCheckCycles.active}</div>
+        <div className={mvpStyles.dashboardSummaryBadges}>
+          <StatusBadge variant="success">فعال</StatusBadge>
+          <StatusBadge variant="warning">
+            {metrics.bodyCheckCycles.expiringSoon} نزدیک انقضا
+          </StatusBadge>
+          {metrics.bodyCheckCycles.expired > 0 ? (
+            <StatusBadge variant="danger">{metrics.bodyCheckCycles.expired} منقضی</StatusBadge>
+          ) : null}
+        </div>
+      </DashboardSummaryCard>
+    </div>
+  );
+}
+
+function DashboardSummaryCard({
+  children,
+  detailId,
+  href
+}: {
+  children: ReactNode;
+  detailId?: string;
+  href?: string;
+}) {
+  const card = <Card className={mvpStyles.dashboardSummaryCard}>{children}</Card>;
+  if (href) {
+    return (
+      <Link className={mvpStyles.dashboardSummaryCardLink} to={href}>
+        {card}
+      </Link>
+    );
+  }
+  return (
+    <button
+      className={mvpStyles.dashboardSummaryCardButton}
+      onClick={() => detailId && openDashboardDetail(detailId)}
+      type="button"
+    >
+      {card}
+    </button>
+  );
+}
+
+function openDashboardDetail(id: string) {
+  const element = document.getElementById(id);
+  if (!(element instanceof HTMLDetailsElement)) return;
+  element.open = true;
+  element.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function DashboardVisitsSection({
+  entries,
+  visits
+}: {
+  entries: DashboardVisit[];
+  visits: DashboardVisit[];
+}) {
+  const [sort, setSort] = useState<"created" | "visit">("visit");
+  const items = sort === "visit" ? visits : entries;
+
+  return (
+    <Card className={mvpStyles.dashboardPriorityCard}>
+      <div className={mvpStyles.dashboardSectionHeader}>
+        <div>
+          <h2 className={styles.sectionTitle}>آخرین شاگردهای ویزیت‌شده</h2>
+          <p className={styles.sectionDescription}>هر شاگرد فقط یک‌بار در فهرست دیده می‌شود.</p>
+        </div>
+        <div aria-label="مرتب‌سازی ویزیت‌ها" className={mvpStyles.dashboardSort} role="group">
+          <Button
+            aria-pressed={sort === "visit"}
+            onClick={() => setSort("visit")}
+            size="sm"
+            variant={sort === "visit" ? "primary" : "secondary"}
+          >
+            تاریخ ویزیت
+          </Button>
+          <Button
+            aria-pressed={sort === "created"}
+            onClick={() => setSort("created")}
+            size="sm"
+            variant={sort === "created" ? "primary" : "secondary"}
+          >
+            زمان ثبت
+          </Button>
+        </div>
       </div>
+      {items.length === 0 ? (
+        <EmptyState
+          action={<Link to="/students">انتخاب شاگرد</Link>}
+          description="با ثبت ویزیت، نام شاگرد و وضعیت آخرین ویزیتش اینجا دیده می‌شود."
+          title="هنوز ویزیتی برای نمایش نیست"
+        />
+      ) : (
+        <div className={mvpStyles.bodyCheckList}>
+          {items.map((visit) => {
+            const statusInfo = visitStatusInfo(visit.status);
+            return (
+              <Link
+                className={mvpStyles.bodyCheckItem}
+                key={`${sort}-${visit.studentId}-${visit.id}`}
+                to={`/students/${visit.studentId}/visits`}
+              >
+                <div className={mvpStyles.bodyCheckIdentity}>
+                  <strong>{visit.studentName}</strong>
+                  <StatusBadge variant={statusInfo.variant}>{statusInfo.label}</StatusBadge>
+                </div>
+                <div className={mvpStyles.bodyCheckDetails}>
+                  <span>تاریخ ویزیت: {formatCalendarDate(visit.visitDate)}</span>
+                  {visit.nextCycleGoal ? <span>هدف: {visit.nextCycleGoal}</span> : null}
+                  <span className={mvpStyles.dashboardVisitLink}>مشاهده ویزیت</span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function DashboardActionsSection({ metrics }: { metrics: DashboardMetrics }) {
+  const visitItems = metrics.monthlyVisits.items
+    .filter((item) => item.dueState !== "not_due" || item.status === "coach_review")
+    .slice(0, DASHBOARD_PREVIEW_LIMIT);
+  const partialBodyChecks = metrics.bodyCheckToday.filter(
+    (item) => bodyCheckState(item) === "partial"
+  ).length;
+  const missingBodyChecks = metrics.bodyCheckToday.filter((item) => !item.isLogged).length;
+  const bodyCheckFollowups = partialBodyChecks + missingBodyChecks;
+  const actionCount =
+    metrics.monthlyVisits.overdue +
+    metrics.monthlyVisits.dueSoon +
+    metrics.monthlyVisits.coachReview +
+    bodyCheckFollowups +
+    metrics.bodyCheckCycles.expired +
+    metrics.bodyCheckCycles.expiringSoon;
+
+  return (
+    <Card className={mvpStyles.dashboardPriorityCard}>
+      <div className={mvpStyles.dashboardSectionHeader}>
+        <div>
+          <h2 className={styles.sectionTitle}>نیازمند اقدام</h2>
+          <p className={styles.sectionDescription}>موارد نزدیک موعد و بررسی مربی</p>
+        </div>
+        <StatusBadge variant={actionCount > 0 ? "warning" : "success"}>
+          {actionCount} مورد
+        </StatusBadge>
+      </div>
+      <div className={mvpStyles.dashboardActionCounts}>
+        <StatusBadge variant={metrics.monthlyVisits.overdue > 0 ? "danger" : "neutral"}>
+          {metrics.monthlyVisits.overdue} ویزیت عقب‌افتاده
+        </StatusBadge>
+        <StatusBadge variant={metrics.monthlyVisits.dueSoon > 0 ? "warning" : "neutral"}>
+          {metrics.monthlyVisits.dueSoon} نزدیک موعد
+        </StatusBadge>
+        <StatusBadge variant={bodyCheckFollowups > 0 ? "warning" : "neutral"}>
+          {bodyCheckFollowups} بادی‌چک ناقص یا ثبت‌نشده
+        </StatusBadge>
+        <StatusBadge variant={metrics.bodyCheckCycles.expired > 0 ? "danger" : "neutral"}>
+          {metrics.bodyCheckCycles.expired} دوره منقضی
+        </StatusBadge>
+      </div>
+      {visitItems.length === 0 ? (
+        <p className={styles.sectionDescription}>ویزیت موعدگذشته‌ای برای پیگیری نیست.</p>
+      ) : (
+        <div className={mvpStyles.bodyCheckList}>
+          {visitItems.map((item) => {
+            const state = monthlyVisitState(item.status);
+            return (
+              <Link
+                className={mvpStyles.bodyCheckItem}
+                key={item.studentId}
+                to={`/students/${item.studentId}/visits`}
+              >
+                <div className={mvpStyles.bodyCheckIdentity}>
+                  <strong>{item.studentName}</strong>
+                  <StatusBadge variant={item.dueState === "overdue" ? "danger" : state.variant}>
+                    {item.dueState === "overdue" ? "عقب‌افتاده" : state.label}
+                  </StatusBadge>
+                </div>
+                <div className={mvpStyles.bodyCheckDetails}>
+                  <span>{monthlyVisitMeta(item)}</span>
+                  {item.status === "coach_review" ? <span>نیاز به بررسی مربی</span> : null}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function visitStatusInfo(status: DashboardVisit["status"]): {
+  label: string;
+  variant: "danger" | "info" | "neutral" | "success" | "warning";
+} {
+  switch (status) {
+    case "waiting_for_student":
+      return { label: "منتظر پاسخ شاگرد", variant: "info" };
+    case "student_submitted":
+      return { label: "پاسخ شاگرد ثبت شده", variant: "success" };
+    case "coach_review":
+      return { label: "در انتظار بررسی مربی", variant: "warning" };
+    case "finalized":
+      return { label: "نهایی‌شده", variant: "success" };
+    default:
+      return { label: "پیش‌نویس", variant: "neutral" };
+  }
+}
+
+export function DashboardContent({
+  metrics
+}: {
+  metrics: DashboardMetrics;
+  primaryStudentId?: string;
+}) {
+  return (
+    <div className={mvpStyles.pageStack}>
+      <DashboardOverview metrics={metrics} />
       <Card className={mvpStyles.quickActions}>
         <Link to="/students/new">
           <Button iconStart={<UserPlus size={18} />}>افزودن شاگرد</Button>
         </Link>
-        <Link to={visitPath}>
+        <Link to="/students">
           <Button iconStart={<Plus size={18} />} variant="secondary">
-            ثبت ویزیت
+            انتخاب شاگرد و ثبت ویزیت
           </Button>
         </Link>
-        <Link to={programPath}>
+        <Link to="/programs/new">
           <Button iconStart={<FileText size={18} />} variant="secondary">
             ساخت برنامه
           </Button>
@@ -168,34 +439,20 @@ export function DashboardContent({
         </Link>
       </Card>
       <div className={mvpStyles.twoColumn}>
-        <DashboardList
-          title="کارهای امروز"
-          items={metrics.todayTasks.map((task) => ({ id: task, title: task, meta: "امروز" }))}
+        <DashboardVisitsSection
+          visits={metrics.latestVisits}
+          entries={metrics.latestVisitEntries ?? []}
         />
-        <DashboardList
-          title="ویزیت‌های عقب‌افتاده"
-          items={metrics.overdueVisits.map((student) => ({
-            id: student.id,
-            title: student.fullName,
-            meta: student.summary.lastVisitDate
-              ? formatCalendarDate(student.summary.lastVisitDate)
-              : "بدون ویزیت"
-          }))}
-        />
+        <DashboardActionsSection metrics={metrics} />
+      </div>
+      <div className={mvpStyles.twoColumn}>
         <DashboardList
           title="آخرین برنامه‌ها"
           items={metrics.latestPrograms.map((program) => ({
             id: program.id,
             title: program.title,
-            meta: `${programTypeLabels[program.programType]} - ${programStatusLabels[program.status]}`
-          }))}
-        />
-        <DashboardList
-          title="آخرین ویزیت‌ها"
-          items={metrics.latestVisits.map((visit) => ({
-            id: visit.id,
-            title: visit.nextCycleGoal || "ویزیت",
-            meta: formatCalendarDate(visit.visitDate)
+            meta: `${programTypeLabels[program.programType]} · ${programStatusLabels[program.status]}`,
+            href: `/programs/${program.id}`
           }))}
         />
         <DashboardList
@@ -203,13 +460,25 @@ export function DashboardContent({
           items={metrics.followUpStudents.map((student) => ({
             id: student.id,
             title: student.fullName,
-            meta: student.summary.medicalNote || "پیگیری وضعیت"
+            meta: student.summary.medicalNote || "پیگیری وضعیت",
+            href: `/students/${student.id}`
           }))}
         />
       </div>
-      <MonthlyVisitSummarySection summary={metrics.monthlyVisits} />
-      <BodyCheckTodaySection asOf={metrics.asOf} items={metrics.bodyCheckToday} />
-      <BodyCheckCycleSummarySection summary={metrics.bodyCheckCycles} />
+      <div className={mvpStyles.dashboardProgramStats}>
+        <Metric title="برنامه‌های پیش‌نویس" value={metrics.draftPrograms} />
+        <Metric title="برنامه‌های نهایی" value={metrics.finalPrograms} />
+        <Metric
+          title="PDF آماده"
+          value={metrics.readyPdfFiles}
+          hint={metrics.pdfGenerationAvailable === false ? "تولید PDF فعال نیست" : "فایل شاگردان"}
+        />
+      </div>
+      <div className={mvpStyles.dashboardDetailsStack}>
+        <MonthlyVisitSummarySection summary={metrics.monthlyVisits} />
+        <BodyCheckTodaySection asOf={metrics.asOf} items={metrics.bodyCheckToday} />
+        <BodyCheckCycleSummarySection summary={metrics.bodyCheckCycles} />
+      </div>
     </div>
   );
 }
@@ -241,18 +510,19 @@ export function BodyCheckCycleSummarySection({ summary }: { summary: BodyCheckCy
   const visibleItems = candidateItems.slice(0, visibleCount);
 
   return (
-    <Card className={mvpStyles.bodyCheckCard}>
-      <div className={mvpStyles.bodyCheckHeader}>
-        <div>
-          <h2 className={styles.sectionTitle}>وضعیت دوره‌های بادی‌چک</h2>
-          <p className={styles.sectionDescription}>
-            خلاصه‌ای برای تصمیم‌گیری درباره تمدید یا فعال‌سازی دوره شاگردها
-          </p>
+    <DashboardDisclosure
+      id="body-check-cycle-details"
+      title="وضعیت دوره‌های بادی‌چک"
+      subtitle="تصمیم‌گیری درباره تمدید یا فعال‌سازی دوره شاگردها"
+      summary={
+        <div className={mvpStyles.dashboardSummaryBadges}>
+          <StatusBadge variant="success">{summary.active} فعال</StatusBadge>
+          <StatusBadge variant="warning">{summary.expiringSoon} نزدیک انقضا</StatusBadge>
+          <StatusBadge variant="danger">{summary.expired} منقضی</StatusBadge>
+          <StatusBadge variant="info">{summary.withoutActiveCycle} بدون دوره</StatusBadge>
         </div>
-        <StatusBadge variant={summary.expired > 0 ? "danger" : "info"}>
-          {summary.active} دوره فعال
-        </StatusBadge>
-      </div>
+      }
+    >
       <div className={mvpStyles.bodyCheckCounts}>
         <StatusBadge variant="success">{summary.active} فعال</StatusBadge>
         <StatusBadge variant="warning">{summary.expiringSoon} نزدیک انقضا</StatusBadge>
@@ -306,7 +576,7 @@ export function BodyCheckCycleSummarySection({ summary }: { summary: BodyCheckCy
         shown={visibleItems.length}
         total={candidateItems.length}
       />
-    </Card>
+    </DashboardDisclosure>
   );
 }
 
@@ -341,23 +611,18 @@ export function BodyCheckTodaySection({
   const complete = items.filter((item) => bodyCheckState(item) === "complete");
   const logged = items.filter((item) => item.isLogged);
   return (
-    <Card className={mvpStyles.bodyCheckCard}>
-      <div className={mvpStyles.bodyCheckHeader}>
-        <div>
-          <h2 className={styles.sectionTitle}>پیگیری بادی‌چک امروز</h2>
-          <p className={styles.sectionDescription}>
-            {formatBodyCheckDate(asOf)} · وضعیت شاگردهای دارای دوره فعال امروز
-          </p>
-          {items.length > 0 ? (
-            <p className={styles.sectionDescription}>
-              از {items.length} شاگرد دارای دوره فعال، {logged.length} نفر امروز بادی‌چک را ثبت
-              کرده‌اند و {missing.length} نفر هنوز ثبت نکرده‌اند.
-            </p>
-          ) : null}
+    <DashboardDisclosure
+      id="daily-body-check-details"
+      title="پیگیری بادی‌چک امروز"
+      subtitle={`${formatBodyCheckDate(asOf)} · وضعیت شاگردهای دارای دوره فعال`}
+      summary={
+        <div className={mvpStyles.dashboardSummaryBadges}>
+          <StatusBadge>{items.length} شاگرد</StatusBadge>
+          <StatusBadge variant="success">{logged.length} ثبت‌شده</StatusBadge>
+          <StatusBadge variant="warning">{missing.length} ثبت‌نشده</StatusBadge>
         </div>
-        {items.length > 0 ? <StatusBadge>{items.length} دوره فعال</StatusBadge> : null}
-      </div>
-
+      }
+    >
       {items.length === 0 ? (
         <EmptyState
           description="فعلاً هیچ شاگردی دوره‌ی فعال بادی‌چک ندارد."
@@ -376,7 +641,7 @@ export function BodyCheckTodaySection({
           <BodyCheckGroup items={complete} title="ثبت کامل امروز" />
         </>
       )}
-    </Card>
+    </DashboardDisclosure>
   );
 }
 
@@ -385,22 +650,20 @@ export function MonthlyVisitSummarySection({ summary }: { summary: MonthlyVisitS
   const sentItems = summary.items.filter((item) => item.status !== "not_sent");
 
   return (
-    <Card className={mvpStyles.bodyCheckCard}>
-      <div className={mvpStyles.bodyCheckHeader}>
-        <div>
-          <h2 className={styles.sectionTitle}>پیگیری ویزیت ماهانه</h2>
-          <p className={styles.sectionDescription}>
-            {formatBodyCheckDate(summary.asOf)} · فقط شاگردهای فعال
-          </p>
-          <p className={styles.sectionDescription}>
-            از {summary.activeStudents} شاگرد فعال، وضعیت ارسال و پاسخ ویزیت این ماه را ببینید.
-          </p>
+    <DashboardDisclosure
+      id="monthly-visit-details"
+      title="پیگیری ویزیت ماهانه"
+      subtitle={`ماه جاری · ${summary.activeStudents} شاگرد فعال`}
+      summary={
+        <div className={mvpStyles.dashboardSummaryBadges}>
+          <StatusBadge variant={summary.notSent > 0 ? "warning" : "success"}>
+            {summary.notSent} ارسال‌نشده
+          </StatusBadge>
+          <StatusBadge variant="info">{summary.sent} ارسال‌شده</StatusBadge>
+          <StatusBadge variant="success">{summary.studentSubmitted} پاسخ‌داده</StatusBadge>
         </div>
-        <StatusBadge variant={summary.notSent > 0 ? "warning" : "success"}>
-          {summary.notSent > 0 ? "نیازمند پیگیری" : "همه ارسال شده‌اند"}
-        </StatusBadge>
-      </div>
-
+      }
+    >
       {summary.activeStudents === 0 ? (
         <EmptyState
           description="برای نمایش وضعیت ویزیت ماهانه، ابتدا شاگرد فعال داشته باشید."
@@ -424,6 +687,36 @@ export function MonthlyVisitSummarySection({ summary }: { summary: MonthlyVisitS
           </div>
         </>
       )}
+    </DashboardDisclosure>
+  );
+}
+
+function DashboardDisclosure({
+  children,
+  id,
+  subtitle,
+  summary,
+  title
+}: {
+  children: ReactNode;
+  id?: string;
+  subtitle: string;
+  summary: ReactNode;
+  title: string;
+}) {
+  return (
+    <Card className={mvpStyles.bodyCheckCard}>
+      <details className={mvpStyles.dashboardDisclosure} id={id}>
+        <summary className={mvpStyles.dashboardDisclosureSummary}>
+          <div className={mvpStyles.dashboardDisclosureTitle}>
+            <h2 className={styles.sectionTitle}>{title}</h2>
+            <p className={styles.sectionDescription}>{subtitle}</p>
+          </div>
+          <div className={mvpStyles.dashboardDisclosureCounts}>{summary}</div>
+          <ChevronDown aria-hidden="true" className={mvpStyles.dashboardDisclosureIcon} size={18} />
+        </summary>
+        <div className={mvpStyles.dashboardDisclosureContent}>{children}</div>
+      </details>
     </Card>
   );
 }
@@ -609,19 +902,30 @@ function DashboardList({
   items,
   title
 }: {
-  items: Array<{ id: string; meta: string; title: string }>;
+  items: Array<{ href?: string; id: string; meta: string; title: string }>;
   title: string;
 }) {
   return (
     <Card className={mvpStyles.listCard}>
       <h2 className={styles.sectionTitle}>{title}</h2>
       {items.length === 0 ? <StatusBadge>موردی ثبت نشده</StatusBadge> : null}
-      {items.map((item) => (
-        <div className={mvpStyles.listItem} key={item.id}>
-          <strong>{item.title}</strong>
-          <span>{item.meta}</span>
-        </div>
-      ))}
+      {items.map((item) => {
+        const content = (
+          <>
+            <strong>{item.title}</strong>
+            <span>{item.meta}</span>
+          </>
+        );
+        return item.href ? (
+          <Link className={mvpStyles.listItemLink} key={item.id} to={item.href}>
+            {content}
+          </Link>
+        ) : (
+          <div className={mvpStyles.listItem} key={item.id}>
+            {content}
+          </div>
+        );
+      })}
     </Card>
   );
 }

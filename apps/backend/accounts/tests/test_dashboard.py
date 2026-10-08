@@ -229,6 +229,8 @@ class DashboardApiTests(APITestCase):
 
     def test_monthly_visit_summary_is_active_scoped_and_separates_send_status(self):
         today = date(2026, 9, 21)
+        self.coach_a.calendar = "gregory"
+        self.coach_a.save(update_fields=["calendar"])
 
         def make_student(name, status=Student.Status.ACTIVE):
             return Student.objects.create(
@@ -372,7 +374,9 @@ class DashboardApiTests(APITestCase):
 
         self.assertEqual(res.status_code, 200)
         items = res.data["body_check_today"]
-        self.assertEqual([item["student_name"] for item in items], ["شاگرد ثبت‌نشده", "شاگرد ثبت‌شده"])
+        self.assertEqual(
+            [item["student_name"] for item in items], ["شاگرد ثبت‌نشده", "شاگرد ثبت‌شده"]
+        )
         self.assertFalse(items[0]["is_logged"])
         self.assertEqual(items[1]["actual_weight_kg"], 85.5)
         self.assertEqual(items[1]["sleep_start_time"], "23:30:00")

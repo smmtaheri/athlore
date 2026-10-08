@@ -40,6 +40,7 @@ import type {
   BodyCheckCycleSummary,
   BodyCheckCycleSummaryItem,
   BodyCheckTodayItem,
+  DashboardVisit,
   DashboardMetrics,
   MonthlyVisitSummary,
   MonthlyVisitSummaryItem
@@ -1009,7 +1010,13 @@ export function dashboardFromApi(dto: Record<string, unknown>): DashboardMetrics
     latestPrograms: ((dto.latest_programs as Record<string, unknown>[]) || []).map(
       programSummaryFromApi
     ),
-    latestVisits: ((dto.latest_visits as Record<string, unknown>[]) || []).map(visitFromApi),
+    latestVisits: ((dto.latest_visits as Record<string, unknown>[]) || []).map(
+      dashboardVisitFromApi
+    ),
+    latestVisitEntries: ((dto.latest_visit_entries as Record<string, unknown>[]) || []).map(
+      dashboardVisitFromApi
+    ),
+    inactiveStudents: num(dto.inactive_students),
     monthlyVisits: monthlyVisitSummaryFromApi(
       (dto.monthly_visits as Record<string, unknown>) || {}
     ),
@@ -1022,6 +1029,10 @@ export function dashboardFromApi(dto: Record<string, unknown>): DashboardMetrics
     pdfFilesFailed: num(dto.pdf_files_failed),
     pdfFilesPending: num(dto.pdf_files_pending)
   };
+}
+
+function dashboardVisitFromApi(dto: Record<string, unknown>): DashboardVisit {
+  return { ...visitFromApi(dto), studentName: str(dto.student_name) || "شاگرد" };
 }
 
 function monthlyVisitSummaryFromApi(dto: Record<string, unknown>): MonthlyVisitSummary {
