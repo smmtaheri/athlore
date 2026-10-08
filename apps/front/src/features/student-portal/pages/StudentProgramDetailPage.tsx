@@ -1,9 +1,14 @@
+import { formatCalendarDate, formatCalendarText } from "../../../shared/dates/calendar";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { ArrowRight, CalendarDays, Download, FileText } from "lucide-react";
 import { Button, Card, EmptyState, Skeleton, StatusBadge } from "../../../components/ui";
 import { studentPaths } from "../../../app/config/appOrigin";
-import type { GeneratedProgram, TrainingExercise, TrainingDay } from "../../programs/types/generatedProgram";
+import type {
+  GeneratedProgram,
+  TrainingExercise,
+  TrainingDay
+} from "../../programs/types/generatedProgram";
 import type { StudentPdfFile } from "../../students/types/pdfFile";
 import {
   studentProgramsRepository,
@@ -12,11 +17,7 @@ import {
 import styles from "../components/studentPortal.module.css";
 
 function formatDate(value: string): string {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleDateString("fa-IR-u-ca-persian", { year: "numeric", month: "long", day: "numeric" });
+  return formatCalendarDate(value);
 }
 
 function programStatusLabel(program: GeneratedProgram): string {
@@ -37,7 +38,9 @@ export function StudentProgramDetailPage({
   const [program, setProgram] = useState<GeneratedProgram | null>(null);
   const [pdfFiles, setPdfFiles] = useState<StudentPdfFile[]>([]);
   const [status, setStatus] = useState<"loading" | "loaded" | "error" | "notFound">("loading");
-  const [pdfStatus, setPdfStatus] = useState<"loading" | "loaded" | "creating" | "error">("loading");
+  const [pdfStatus, setPdfStatus] = useState<"loading" | "loaded" | "creating" | "error">(
+    "loading"
+  );
   const [pdfError, setPdfError] = useState("");
   const [downloadingId, setDownloadingId] = useState("");
 
@@ -106,7 +109,11 @@ export function StudentProgramDetailPage({
     return (
       <div className={styles.page}>
         <EmptyState
-          action={<Button onClick={() => navigate(studentPaths.programs)} variant="secondary">بازگشت به برنامه‌ها</Button>}
+          action={
+            <Button onClick={() => navigate(studentPaths.programs)} variant="secondary">
+              بازگشت به برنامه‌ها
+            </Button>
+          }
           description="این برنامه پیدا نشد یا دیگر برای شما قابل مشاهده نیست."
           title="برنامه پیدا نشد"
         />
@@ -114,17 +121,27 @@ export function StudentProgramDetailPage({
     );
   }
   if (status === "loading") {
-    return <div className={styles.page}><Skeleton height={280} /></div>;
+    return (
+      <div className={styles.page}>
+        <Skeleton height={280} />
+      </div>
+    );
   }
   if (status === "error" || !program) {
-    return <div className={styles.page}><EmptyState description="دریافت برنامه ممکن نشد." title="خطا در دریافت برنامه" /></div>;
+    return (
+      <div className={styles.page}>
+        <EmptyState description="دریافت برنامه ممکن نشد." title="خطا در دریافت برنامه" />
+      </div>
+    );
   }
 
   return (
     <div className={styles.page}>
       <div className={styles.stack}>
         <nav aria-label="مسیر صفحه" className={styles.breadcrumb}>
-          <Link className={styles.breadcrumbLink} to={studentPaths.programs}>برنامه‌های من</Link>
+          <Link className={styles.breadcrumbLink} to={studentPaths.programs}>
+            برنامه‌های من
+          </Link>
           <span aria-hidden>←</span>
           <span>{program.title}</span>
         </nav>
@@ -138,13 +155,17 @@ export function StudentProgramDetailPage({
           </div>
           <div className={styles.programDetailMeta}>
             <span>نسخه {program.version}</span>
-            {program.dateRange ? <span>{program.dateRange}</span> : null}
-            <span><CalendarDays aria-hidden size={15} /> به‌روزرسانی {formatDate(program.updatedAt)}</span>
+            {program.dateRange ? <span>{formatCalendarText(program.dateRange)}</span> : null}
+            <span>
+              <CalendarDays aria-hidden size={15} /> به‌روزرسانی {formatDate(program.updatedAt)}
+            </span>
           </div>
         </header>
 
         <Card className={styles.programDownloadCard} padding="md">
-          <div className={styles.programDownloadIcon} aria-hidden><FileText size={22} /></div>
+          <div className={styles.programDownloadIcon} aria-hidden>
+            <FileText size={22} />
+          </div>
           <div className={styles.programDownloadBody}>
             <h2 className={styles.sectionTitle}>نسخه قابل دانلود</h2>
             <p className={styles.muted}>
@@ -166,7 +187,11 @@ export function StudentProgramDetailPage({
               </Button>
             ))}
             {pdfStatus !== "loading" && readyFiles.length === 0 ? (
-              <Button isLoading={pdfStatus === "creating"} onClick={() => void createPdfs()} size="sm">
+              <Button
+                isLoading={pdfStatus === "creating"}
+                onClick={() => void createPdfs()}
+                size="sm"
+              >
                 آماده‌سازی فایل PDF
               </Button>
             ) : null}
@@ -175,7 +200,9 @@ export function StudentProgramDetailPage({
 
         {days.length > 0 ? (
           <section className={styles.stackTight} aria-labelledby="training-heading">
-            <h2 className={styles.sectionTitle} id="training-heading">برنامه تمرینی</h2>
+            <h2 className={styles.sectionTitle} id="training-heading">
+              برنامه تمرینی
+            </h2>
             <div className={styles.programDays}>
               {days.map((day) => (
                 <Card className={styles.programDayCard} key={day.id} padding="md">
@@ -184,14 +211,21 @@ export function StudentProgramDetailPage({
                       <p className={styles.eyebrow}>روز {day.order}</p>
                       <h3 className={styles.programDayTitle}>{day.title || `روز ${day.order}`}</h3>
                     </div>
-                    {day.targetMuscles.length > 0 ? <p className={styles.programDayMuscles}>{day.targetMuscles.join("، ")}</p> : null}
+                    {day.targetMuscles.length > 0 ? (
+                      <p className={styles.programDayMuscles}>{day.targetMuscles.join("، ")}</p>
+                    ) : null}
                   </div>
                   {day.notes ? <p className={styles.muted}>{day.notes}</p> : null}
                   <div className={styles.exerciseList}>
                     {dayExercises(day).map((exercise) => (
-                      <div className={styles.exerciseRow} key={`${day.id}-${exercise.id}-${exercise.order}`}>
+                      <div
+                        className={styles.exerciseRow}
+                        key={`${day.id}-${exercise.id}-${exercise.order}`}
+                      >
                         <div className={styles.exerciseMain}>
-                          <strong>{exercise.order}. {exercise.name}</strong>
+                          <strong>
+                            {exercise.order}. {exercise.name}
+                          </strong>
                           {exercise.notes ? <span>{exercise.notes}</span> : null}
                         </div>
                         <div className={styles.exercisePrescription}>
@@ -210,30 +244,42 @@ export function StudentProgramDetailPage({
 
         {program.nutrition?.meals?.length ? (
           <section className={styles.stackTight} aria-labelledby="nutrition-heading">
-            <h2 className={styles.sectionTitle} id="nutrition-heading">برنامه تغذیه</h2>
+            <h2 className={styles.sectionTitle} id="nutrition-heading">
+              برنامه تغذیه
+            </h2>
             <Card padding="md">
               <div className={styles.mealList}>
                 {program.nutrition.meals.map((meal) => (
                   <div className={styles.mealRow} key={meal.id}>
                     <strong>{meal.title}</strong>
-                    <span>{meal.foods.map((food) => `${food.name}${food.amount ? ` (${food.amount})` : ""}`).join("، ")}</span>
+                    <span>
+                      {meal.foods
+                        .map((food) => `${food.name}${food.amount ? ` (${food.amount})` : ""}`)
+                        .join("، ")}
+                    </span>
                   </div>
                 ))}
               </div>
-              {program.nutrition.notes ? <p className={styles.muted}>{program.nutrition.notes}</p> : null}
+              {program.nutrition.notes ? (
+                <p className={styles.muted}>{program.nutrition.notes}</p>
+              ) : null}
             </Card>
           </section>
         ) : null}
 
         {program.supplements?.items?.length ? (
           <section className={styles.stackTight} aria-labelledby="supplements-heading">
-            <h2 className={styles.sectionTitle} id="supplements-heading">مکمل‌ها</h2>
+            <h2 className={styles.sectionTitle} id="supplements-heading">
+              مکمل‌ها
+            </h2>
             <Card padding="md">
               <div className={styles.mealList}>
                 {program.supplements.items.map((item) => (
                   <div className={styles.mealRow} key={item.id}>
                     <strong>{item.name}</strong>
-                    <span>{[item.amount, item.timing, item.notes].filter(Boolean).join(" · ")}</span>
+                    <span>
+                      {[item.amount, item.timing, item.notes].filter(Boolean).join(" · ")}
+                    </span>
                     {item.instructions ? <span>دستور مصرف: {item.instructions}</span> : null}
                     {item.warnings ? <span>هشدار: {item.warnings}</span> : null}
                   </div>
@@ -243,7 +289,11 @@ export function StudentProgramDetailPage({
           </section>
         ) : null}
 
-        <Button iconStart={<ArrowRight size={17} />} onClick={() => navigate(studentPaths.programs)} variant="ghost">
+        <Button
+          iconStart={<ArrowRight size={17} />}
+          onClick={() => navigate(studentPaths.programs)}
+          variant="ghost"
+        >
           بازگشت به برنامه‌های من
         </Button>
       </div>

@@ -1,3 +1,4 @@
+import { formatCalendarDate } from "../../../shared/dates/calendar";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { FileText, Plus, RefreshCcw, Settings, UserPlus, Users } from "lucide-react";
@@ -176,7 +177,9 @@ export function DashboardContent({
           items={metrics.overdueVisits.map((student) => ({
             id: student.id,
             title: student.fullName,
-            meta: student.summary.lastVisitDate || "بدون ویزیت"
+            meta: student.summary.lastVisitDate
+              ? formatCalendarDate(student.summary.lastVisitDate)
+              : "بدون ویزیت"
           }))}
         />
         <DashboardList
@@ -192,7 +195,7 @@ export function DashboardContent({
           items={metrics.latestVisits.map((visit) => ({
             id: visit.id,
             title: visit.nextCycleGoal || "ویزیت",
-            meta: visit.visitDate
+            meta: formatCalendarDate(visit.visitDate)
           }))}
         />
         <DashboardList

@@ -8,7 +8,8 @@ import type {
 import { Checkbox, FormField, Input, Select, Switch, Textarea } from "../../../components/ui";
 import { formatAnswerDisplay } from "./visitFormUtils";
 import { StudentFormSection } from "./StudentFormSection";
-import { formatVisitDatePersian } from "../utils/visitDates";
+import { formatCalendarDate } from "../../../shared/dates/calendar";
+import { CalendarDateInput } from "../../../shared/dates/CalendarDateInput";
 import styles from "./students.module.css";
 
 export interface VisitDynamicFormProps {
@@ -286,19 +287,28 @@ function VisitFormFieldControl({
       label={field.label}
       required={field.required}
     >
-      <Input
-        disabled={disabled}
-        id={fieldId}
-        onChange={(event) => onChange(event.target.value)}
-        type={field.type === "date" && !disabled ? "date" : "text"}
-        value={
-          value == null
-            ? ""
-            : field.type === "date" && disabled
-              ? formatVisitDatePersian(String(value))
-              : String(value)
-        }
-      />
+      {field.type === "date" && !disabled ? (
+        <CalendarDateInput
+          id={fieldId}
+          required={field.required}
+          value={value == null ? "" : String(value)}
+          onChange={onChange}
+        />
+      ) : (
+        <Input
+          disabled={disabled}
+          id={fieldId}
+          type="text"
+          onChange={(event) => onChange(event.target.value)}
+          value={
+            value == null
+              ? ""
+              : field.type === "date"
+                ? formatCalendarDate(String(value))
+                : String(value)
+          }
+        />
+      )}
     </FormField>
   );
 }

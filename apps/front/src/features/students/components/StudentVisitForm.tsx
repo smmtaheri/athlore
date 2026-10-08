@@ -1,3 +1,9 @@
+import {
+  formatCalendarDateTime,
+  formatCalendarText,
+  calendarName,
+  calendarPlaceholder
+} from "../../../shared/dates/calendar";
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 import {
@@ -80,7 +86,7 @@ function visitStatusVariant(status: VisitStatus): "success" | "warning" | "neutr
 function formatExpiry(value?: string | null): string {
   if (!value) return "";
   try {
-    return new Date(value).toLocaleString("fa-IR");
+    return formatCalendarDateTime(value);
   } catch {
     return value;
   }
@@ -88,7 +94,7 @@ function formatExpiry(value?: string | null): string {
 
 function formatRevisionValue(value: unknown): string {
   if (value == null) return "—";
-  if (typeof value === "string") return value;
+  if (typeof value === "string") return formatCalendarText(value);
   try {
     return JSON.stringify(value);
   } catch {
@@ -316,7 +322,7 @@ export function StudentVisitForm({
         <div className={styles.formGrid}>
           <FormField
             error={errors.visitDate}
-            hint="تاریخ امروز به‌صورت پیش‌فرض ثبت شده؛ در صورت نیاز آن را به شکل شمسی سال/ماه/روز ویرایش کنید."
+            hint={`تاریخ امروز به‌صورت پیش‌فرض ثبت شده؛ تاریخ ${calendarName()} را به شکل سال/ماه/روز وارد کنید.`}
             htmlFor="visit-date"
             label="تاریخ ویزیت"
             required
@@ -328,7 +334,7 @@ export function StudentVisitForm({
               inputMode="numeric"
               invalid={Boolean(errors.visitDate)}
               onChange={(event) => updateField("visitDate", event.target.value)}
-              placeholder="۱۴۰۵/۰۷/۰۲"
+              placeholder={calendarPlaceholder()}
               value={values.visitDate}
             />
           </FormField>

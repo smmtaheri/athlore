@@ -1,3 +1,4 @@
+import { formatCalendarDate } from "../../../shared/dates/calendar";
 /** Format minutes as Persian-friendly "Xh Ym". */
 export function formatSleepDuration(minutes: number | null | undefined): string {
   if (minutes == null || !Number.isFinite(minutes)) return "—";
@@ -8,24 +9,9 @@ export function formatSleepDuration(minutes: number | null | undefined): string 
   return `${h} ساعت و ${m} دقیقه`;
 }
 
-function localDateFromIso(value: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return null;
-  const [, year, month, day] = match;
-  const result = new Date(Number(year), Number(month) - 1, Number(day), 12);
-  return Number.isNaN(result.getTime()) ? null : result;
-}
-
-/** Format a Body Check calendar day in the Persian calendar without changing its ISO value. */
-export function formatBodyCheckDate(value: string | null | undefined, short = false): string {
-  if (!value) return "—";
-  const date = localDateFromIso(value);
-  if (!date) return value;
-  return new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
-    day: "numeric",
-    month: short ? "numeric" : "long",
-    year: "numeric"
-  }).format(date);
+/** Shared coach calendar policy also governs Body Check dates. */
+export function formatBodyCheckDate(value: string | null | undefined): string {
+  return formatCalendarDate(value);
 }
 
 export function formatClockTime(value: string | null | undefined): string {

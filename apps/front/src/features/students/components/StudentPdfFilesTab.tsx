@@ -1,3 +1,4 @@
+import { formatCalendarDateTime } from "../../../shared/dates/calendar";
 import { useEffect, useState } from "react";
 import {
   Download,
@@ -282,7 +283,7 @@ export function StudentPdfFilesTab({
           hint="بر اساس آخرین فایل"
           icon={FileText}
           label="تاریخ آخرین فایل"
-          value={lastFileDate}
+          value={formatCalendarDateTime(lastFileDate)}
         />
         <SummaryMetricCard
           hint="از فضای ذخیره"
@@ -433,7 +434,7 @@ function PdfFilesTable({
       id: "version"
     },
     {
-      cell: (file) => file.generatedAt,
+      cell: (file) => formatCalendarDateTime(file.generatedAt),
       header: "تاریخ تولید",
       id: "generatedAt"
     },
@@ -524,7 +525,7 @@ function PdfFileCard({
       <div className={styles.metricGrid}>
         <PdfMetric label="نسخه" value={file.version} />
         <PdfMetric label="حجم فایل" value={file.size} />
-        <PdfMetric label="تاریخ تولید" value={file.generatedAt} />
+        <PdfMetric label="تاریخ تولید" value={formatCalendarDateTime(file.generatedAt)} />
       </div>
     </Card>
   );

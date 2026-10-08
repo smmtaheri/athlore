@@ -1,3 +1,4 @@
+import { formatCalendarDate } from "../../../shared/dates/calendar";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import {
@@ -24,7 +25,7 @@ import type { TableColumn } from "../../../components/ui";
 import type { StudentVisit, VisitLevel } from "../types/monthlyVisit";
 import { visitStatusLabels, type VisitStatus } from "../types/visitForm";
 import type { Student } from "../types/student";
-import { formatVisitDatePersian, sortVisitsNewestFirst } from "../utils/visitDates";
+import { sortVisitsNewestFirst } from "../utils/visitDates";
 import {
   studentVisitsRepository,
   type StudentVisitsRepository
@@ -162,7 +163,7 @@ export function StudentVisitsTab({
           hint={latestVisit ? "آخرین رکورد ثبت شده" : "بدون رکورد"}
           icon={CalendarDays}
           label="تاریخ آخرین ویزیت"
-          value={latestVisit ? formatVisitDatePersian(latestVisit.visitDate) : "ثبت نشده"}
+          value={latestVisit ? formatCalendarDate(latestVisit.visitDate) : "ثبت نشده"}
         />
         <SummaryMetricCard
           hint="بر اساس آخرین ویزیت"
@@ -245,7 +246,7 @@ export function StudentVisitsTab({
         open={Boolean(selectedVisit)}
         title={
           selectedVisit
-            ? `جزئیات ویزیت · ${formatVisitDatePersian(selectedVisit.visitDate)}`
+            ? `جزئیات ویزیت · ${formatCalendarDate(selectedVisit.visitDate)}`
             : "جزئیات ویزیت"
         }
       >
@@ -268,7 +269,7 @@ export function StudentVisitsTab({
         title="حذف ویزیت"
       >
         <p className={styles.modalText}>
-          آیا از حذف ویزیت {formatVisitDatePersian(visitToDelete?.visitDate)} مطمئن هستید؟
+          آیا از حذف ویزیت {formatCalendarDate(visitToDelete?.visitDate)} مطمئن هستید؟
         </p>
         <p className={styles.dangerText}>این عملیات قابل بازگشت نیست.</p>
       </Modal>
@@ -286,7 +287,7 @@ interface VisitsTableProps {
 function VisitsTable({ onDelete, onSelect, studentId, visits }: VisitsTableProps) {
   const columns: Array<TableColumn<StudentVisit>> = [
     {
-      cell: (visit) => formatVisitDatePersian(visit.visitDate),
+      cell: (visit) => formatCalendarDate(visit.visitDate),
       header: "تاریخ ویزیت",
       id: "visitDate"
     },
@@ -362,7 +363,7 @@ function VisitCard({ onDelete, onSelect, studentId, visit }: VisitCardProps) {
     <Card className={styles.studentCard} padding="md">
       <div className={styles.studentCardHeader}>
         <div className={styles.studentCardTitleText}>
-          <span className={styles.studentName}>{formatVisitDatePersian(visit.visitDate)}</span>
+          <span className={styles.studentName}>{formatCalendarDate(visit.visitDate)}</span>
           <span className={getChangeClass(visit)}>
             تغییر وزن {formatSignedNumber(visit.currentWeightKg - visit.previousWeightKg)} کیلوگرم
           </span>
@@ -439,7 +440,7 @@ function VisitDetailsPanel({ visit }: { visit: StudentVisit }) {
         </span>
         <div>
           <h2>جزئیات ویزیت</h2>
-          <p className={styles.subtleText}>{formatVisitDatePersian(visit.visitDate)}</p>
+          <p className={styles.subtleText}>{formatCalendarDate(visit.visitDate)}</p>
         </div>
       </div>
 

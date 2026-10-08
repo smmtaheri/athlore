@@ -1,3 +1,4 @@
+import { formatCalendarDate } from "../../../shared/dates/calendar";
 import { useEffect, useMemo, useState } from "react";
 import { Copy, Eye, FileText, Plus, RefreshCcw, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router";
@@ -525,7 +526,7 @@ function MetaBox({ label, value }: { label: string; value: string }) {
 
 function formatDate(value: string) {
   const timestamp = Date.parse(value);
-  return Number.isNaN(timestamp) ? value : new Date(timestamp).toLocaleDateString("fa-IR");
+  return Number.isNaN(timestamp) ? value : formatCalendarDate(value);
 }
 
 function matchesDateRange(value: string, range: string) {

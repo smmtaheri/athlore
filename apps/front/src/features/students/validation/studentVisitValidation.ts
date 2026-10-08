@@ -7,10 +7,11 @@ import type {
 } from "../types/monthlyVisit";
 import type { Student } from "../types/student";
 import {
-  formatVisitDatePersian,
-  persianVisitDateToIso,
-  todayPersianVisitDate
-} from "../utils/visitDates";
+  calendarInputValue,
+  calendarInputToIso,
+  todayCalendarInput,
+  calendarName
+} from "../../../shared/dates/calendar";
 
 const defaultLevel = "medium" as const;
 const fieldOrder: StudentVisitFormField[] = [
@@ -118,7 +119,7 @@ export function createEmptyVisitFormValues(
     thighCm: "",
     trainingConditionChanges: "",
     trainingPercent: "80",
-    visitDate: todayPersianVisitDate(),
+    visitDate: todayCalendarInput(),
     waistCm: ""
   };
 }
@@ -148,7 +149,7 @@ export function studentVisitToFormValues(visit: StudentVisit): StudentVisitFormV
     thighCm: numberToString(visit.measurements.thighCm),
     trainingConditionChanges: visit.trainingConditionChanges,
     trainingPercent: String(visit.adherence.trainingPercent),
-    visitDate: formatVisitDatePersian(visit.visitDate),
+    visitDate: calendarInputValue(visit.visitDate),
     waistCm: numberToString(visit.measurements.waistCm)
   };
 }
@@ -159,8 +160,8 @@ export function validateStudentVisitForm(values: StudentVisitFormValues): Studen
 
   if (!values.visitDate.trim()) {
     errors.visitDate = "تاریخ ویزیت الزامی است.";
-  } else if (!persianVisitDateToIso(values.visitDate)) {
-    errors.visitDate = "تاریخ ویزیت را به شکل شمسی سال/ماه/روز وارد کنید (مثلاً ۱۴۰۵/۰۷/۰۲).";
+  } else if (!calendarInputToIso(values.visitDate)) {
+    errors.visitDate = `تاریخ ویزیت ${calendarName()} را به شکل سال/ماه/روز وارد کنید.`;
   }
 
   if (!currentWeight || currentWeight < 30 || currentWeight > 250) {
@@ -244,6 +245,6 @@ export function visitFormValuesToInput(values: StudentVisitFormValues): StudentV
     stressLevel: values.stressLevel,
     studentFeedback: values.studentFeedback.trim(),
     trainingConditionChanges: values.trainingConditionChanges.trim(),
-    visitDate: persianVisitDateToIso(values.visitDate) ?? toEnglishDigits(values.visitDate).trim()
+    visitDate: calendarInputToIso(values.visitDate) ?? toEnglishDigits(values.visitDate).trim()
   };
 }

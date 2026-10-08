@@ -29,6 +29,11 @@ export const primaryNavigationItems: NavigationItem[] = [
     icon: SlidersHorizontal,
     label: "قوانین مربی",
     path: "/coach-rules"
+  },
+  {
+    icon: SlidersHorizontal,
+    label: "تنظیمات",
+    path: "/settings"
   }
 ];
 

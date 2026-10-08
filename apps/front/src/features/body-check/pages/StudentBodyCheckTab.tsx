@@ -13,7 +13,12 @@ import {
 } from "../../../components/ui";
 import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
 import type { Student } from "../../students/types/student";
-import { persianVisitDateToIso, todayPersianVisitDate } from "../../students/utils/visitDates";
+import {
+  calendarInputToIso,
+  todayCalendarInput,
+  calendarName,
+  calendarPlaceholder
+} from "../../../shared/dates/calendar";
 import type { BodyCheckCycle } from "../types/bodyCheck";
 import {
   coachBodyCheckRepository,
@@ -45,7 +50,7 @@ export function StudentBodyCheckTab({
   const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
-  const [startDate, setStartDate] = useState(() => todayPersianVisitDate());
+  const [startDate, setStartDate] = useState(() => todayCalendarInput());
   const [startingWeight, setStartingWeight] = useState(String(student.weightKg || ""));
   const [goalWeight, setGoalWeight] = useState("");
   const [targetsText, setTargetsText] = useState("");
@@ -123,7 +128,7 @@ export function StudentBodyCheckTab({
 
   const openCreateEditor = () => {
     const initial = {
-      startDate: todayPersianVisitDate(),
+      startDate: todayCalendarInput(),
       startingWeight: String(student.weightKg || ""),
       goalWeight: "",
       targetsText: "",
@@ -161,9 +166,9 @@ export function StudentBodyCheckTab({
   };
 
   const create = async () => {
-    const startDateIso = persianVisitDateToIso(startDate);
+    const startDateIso = calendarInputToIso(startDate);
     if (!startDateIso) {
-      setError("تاریخ شروع را به شکل شمسی سال/ماه/روز وارد کنید (مثلاً ۱۴۰۵/۰۷/۰۲).");
+      setError(`تاریخ شروع ${calendarName()} را به شکل سال/ماه/روز وارد کنید.`);
       return;
     }
 
@@ -336,7 +341,7 @@ export function StudentBodyCheckTab({
           ) : null}
           {editorMode === "create" ? (
             <FormField
-              hint="تاریخ امروز به‌صورت پیش‌فرض شمسی است؛ در صورت نیاز آن را به شکل سال/ماه/روز ویرایش کنید."
+              hint={`تاریخ امروز با تقویم ${calendarName()} نمایش داده می‌شود؛ به شکل سال/ماه/روز ویرایش کنید.`}
               htmlFor="bc-start"
               label="تاریخ شروع"
             >
@@ -345,7 +350,7 @@ export function StudentBodyCheckTab({
                 id="bc-start"
                 inputMode="numeric"
                 onChange={(event) => setStartDate(event.target.value)}
-                placeholder="۱۴۰۵/۰۷/۰۲"
+                placeholder={calendarPlaceholder()}
                 value={startDate}
               />
             </FormField>
@@ -471,7 +476,7 @@ export function BodyCheckReportView({
           {(cycle.days || []).map((day) => (
             <article className={styles.mobileReportCard} key={day.localDate}>
               <div className={styles.mobileReportHeader}>
-                <strong>{formatBodyCheckDate(day.localDate, true)}</strong>
+                <strong>{formatBodyCheckDate(day.localDate)}</strong>
                 <StatusBadge variant={day.isLogged ? "success" : "neutral"}>
                   {day.isLogged ? "ثبت‌شده" : "ثبت‌نشده"}
                 </StatusBadge>
@@ -510,7 +515,7 @@ export function BodyCheckReportView({
             <tbody>
               {(cycle.days || []).map((day) => (
                 <tr key={day.localDate}>
-                  <td>{formatBodyCheckDate(day.localDate, true)}</td>
+                  <td>{formatBodyCheckDate(day.localDate)}</td>
                   <td>{day.dayNumber}</td>
                   <td>{day.targetWeightKg ?? "—"}</td>
                   <td className={day.isLogged ? undefined : styles.missingCell}>

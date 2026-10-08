@@ -134,7 +134,7 @@ const VISIT_FIELD_ERROR_LABELS: Record<string, string> = {
 function localizeFieldErrorMessage(key: string, message: string): string {
   const lower = message.toLowerCase();
   if (key === "visit_date" && (lower.includes("date") || lower.includes("invalid"))) {
-    return "تاریخ ویزیت باید به صورت میلادی YYYY-MM-DD باشد (مثلاً 2026-08-09).";
+    return "تاریخ ویزیت معتبر نیست؛ تاریخ را مطابق تقویم انتخاب‌شده به شکل سال/ماه/روز وارد کنید.";
   }
   if (key === "answers" && lower.includes("cannot edit answers while")) {
     return "در این وضعیت امکان ویرایش پاسخ‌های فرم وجود ندارد. فقط ارسال مجدد را بزنید.";

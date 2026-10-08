@@ -29,6 +29,7 @@ import { PlaceholderPage } from "../../pages/placeholders/PlaceholderPage";
 import { UiKitPage } from "../../pages/ui-kit/UiKitPage";
 import { resolveAppSurface } from "../config/appOrigin";
 import type { AppSurface } from "../config/appOrigin";
+import { SettingsPage } from "../../pages/settings/SettingsPage";
 
 const nextStepMessage = "پیاده سازی این صفحه در مرحله بعد انجام می شود.";
 
@@ -120,16 +121,7 @@ function CoachRoutes() {
         <Route element={<ProgramPreviewPage />} path="programs/:programId" />
         <Route element={<ProgramPreviewPage />} path="programs/:programId/preview" />
         <Route element={<CoachRulesPage />} path="coach-rules" />
-        <Route
-          element={
-            <PlaceholderPage
-              breadcrumb={["داشبورد", "تنظیمات"]}
-              description={nextStepMessage}
-              title="تنظیمات"
-            />
-          }
-          path="settings"
-        />
+        <Route element={<SettingsPage />} path="settings" />
         <Route element={<UiKitPage />} path="ui-kit" />
       </Route>
       <Route element={<NotFoundPage />} path="*" />

@@ -1,6 +1,6 @@
 import type { StatusBadgeVariant } from "../../../components/ui";
 import type { StudentVisit } from "../../students/types/monthlyVisit";
-import { formatVisitDatePersian } from "../../students/utils/visitDates";
+import { formatCalendarDate, formatCalendarDateTime } from "../../../shared/dates/calendar";
 import type { VisitStatus } from "../../students/types/visitForm";
 
 export type StudentVisitFilter = "all" | "action" | "submitted" | "finalized" | "expired";
@@ -91,17 +91,14 @@ export function formatVisitDeadline(visit: StudentVisit): string | null {
     return null;
   }
   try {
-    return new Date(visit.expiresAt).toLocaleString("fa-IR", {
-      dateStyle: "medium",
-      timeStyle: "short"
-    });
+    return formatCalendarDateTime(visit.expiresAt);
   } catch {
     return visit.expiresAt;
   }
 }
 
 export function formatVisitDate(visit: StudentVisit): string | null {
-  return visit.visitDate?.trim() ? formatVisitDatePersian(visit.visitDate) : null;
+  return visit.visitDate?.trim() ? formatCalendarDate(visit.visitDate) : null;
 }
 
 export function visitActionLabel(visit: StudentVisit): string | null {

@@ -120,7 +120,7 @@ export function createStudentPdfFilesRepository(storage = getStorage()): Student
         const training: StudentPdfFile = {
           contentType: "workout",
           fileName: "mock_تمرین_v1.pdf",
-          generatedAt: new Date().toLocaleString("fa-IR"),
+          generatedAt: new Date().toISOString(),
           id: `pdf-mock-train-${programId}-${Date.now()}`,
           programId,
           programTitle: "Mock program",
@@ -133,7 +133,7 @@ export function createStudentPdfFilesRepository(storage = getStorage()): Student
         const nutrition: StudentPdfFile = {
           contentType: "nutrition",
           fileName: "mock_تغذیه_مکمل_v1.pdf",
-          generatedAt: new Date().toLocaleString("fa-IR"),
+          generatedAt: new Date().toISOString(),
           id: `pdf-mock-nutrition-${programId}-${Date.now()}`,
           programId,
           programTitle: "Mock program",
@@ -150,7 +150,7 @@ export function createStudentPdfFilesRepository(storage = getStorage()): Student
       const file: StudentPdfFile = {
         contentType: "complete",
         fileName: options.fileName || "program.pdf",
-        generatedAt: new Date().toLocaleString("fa-IR"),
+        generatedAt: new Date().toISOString(),
         id: `pdf-mock-${programId}-${Date.now()}`,
         programId,
         programTitle: "Mock program",

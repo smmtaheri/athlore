@@ -1,3 +1,4 @@
+import { formatCalendarDate } from "../../../shared/dates/calendar";
 import { useNavigate } from "react-router";
 import { CalendarDays, Dumbbell, Eye, Pencil, Target, UserRound } from "lucide-react";
 import { Button, Card, EmptyState, Pagination, StatusBadge, Table } from "../../../components/ui";
@@ -113,7 +114,7 @@ function StudentsTable({ students }: StudentsTableProps) {
       id: "days"
     },
     {
-      cell: (student) => student.summary.lastVisitDate,
+      cell: (student) => formatCalendarDate(student.summary.lastVisitDate),
       header: "آخرین مراجعه",
       id: "visit"
     },

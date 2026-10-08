@@ -1,3 +1,4 @@
+import { formatCalendarDateTime, formatCalendarText } from "../../../shared/dates/calendar";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import {
@@ -219,7 +220,7 @@ export function StudentProgramsTab({
           hint="آخرین برنامه ساخته شده"
           icon={FileText}
           label="آخرین برنامه"
-          value={latestProgram?.generatedAt ?? "ثبت نشده"}
+          value={latestProgram ? formatCalendarDateTime(latestProgram.generatedAt) : "ثبت نشده"}
         />
       </div>
 
@@ -320,12 +321,12 @@ function ProgramsTable({ onActivate, onDelete, onDuplicate, programs }: Programs
       id: "version"
     },
     {
-      cell: (program) => program.generatedAt,
+      cell: (program) => formatCalendarDateTime(program.generatedAt),
       header: "تاریخ تولید",
       id: "generatedAt"
     },
     {
-      cell: (program) => program.dateRange,
+      cell: (program) => formatCalendarText(program.dateRange),
       header: "بازه برنامه",
       id: "dateRange"
     },
@@ -383,7 +384,7 @@ function ProgramCard({ onActivate, onDelete, onDuplicate, program }: ProgramCard
       <div className={styles.studentCardHeader}>
         <div className={styles.studentCardTitleText}>
           <span className={styles.studentName}>{program.title}</span>
-          <span>{program.generatedAt}</span>
+          <span>{formatCalendarDateTime(program.generatedAt)}</span>
         </div>
         <ProgramActions
           onActivate={() => onActivate(program)}
@@ -403,7 +404,7 @@ function ProgramCard({ onActivate, onDelete, onDuplicate, program }: ProgramCard
       </div>
       <div className={styles.metricGrid}>
         <StudentRecordMetric label="نسخه" value={program.version} />
-        <StudentRecordMetric label="بازه برنامه" value={program.dateRange} />
+        <StudentRecordMetric label="بازه برنامه" value={formatCalendarText(program.dateRange)} />
       </div>
     </Card>
   );

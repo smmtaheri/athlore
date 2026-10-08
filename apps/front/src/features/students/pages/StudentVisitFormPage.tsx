@@ -1,3 +1,4 @@
+import { formatCalendarDateTime } from "../../../shared/dates/calendar";
 import { useEffect, useState } from "react";
 import { ArrowRight, UserRound } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router";
@@ -150,7 +151,7 @@ export function StudentVisitFormPage({
           replace: true,
           state: {
             visitSaved: resent.expiresAt
-              ? `فرم دوباره برای شاگرد ارسال شد. انقضا: ${new Date(resent.expiresAt).toLocaleString("fa-IR")}`
+              ? `فرم دوباره برای شاگرد ارسال شد. انقضا: ${formatCalendarDateTime(resent.expiresAt)}`
               : "فرم دوباره برای شاگرد ارسال شد."
           }
         });
@@ -169,7 +170,7 @@ export function StudentVisitFormPage({
           replace: true,
           state: {
             visitSaved: savedVisit.expiresAt
-              ? `فرم برای شاگرد ارسال شد. انقضا: ${new Date(savedVisit.expiresAt).toLocaleString("fa-IR")}`
+              ? `فرم برای شاگرد ارسال شد. انقضا: ${formatCalendarDateTime(savedVisit.expiresAt)}`
               : "فرم برای شاگرد ارسال شد."
           }
         });

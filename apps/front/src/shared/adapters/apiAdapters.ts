@@ -1159,9 +1159,9 @@ export function pdfFileFromApi(dto: Record<string, unknown>): StudentPdfFile {
   const sizeBytes = dto.size_bytes == null ? undefined : num(dto.size_bytes);
   const generated =
     dto.generated_at != null
-      ? new Date(String(dto.generated_at)).toLocaleString("fa-IR")
+      ? String(dto.generated_at)
       : dto.created_at != null
-        ? new Date(String(dto.created_at)).toLocaleString("fa-IR")
+        ? String(dto.created_at)
         : "-";
   return {
     id: str(dto.id),

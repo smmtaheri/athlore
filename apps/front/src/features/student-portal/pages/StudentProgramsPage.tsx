@@ -1,3 +1,4 @@
+import { formatCalendarDate, formatCalendarText } from "../../../shared/dates/calendar";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { CalendarDays, ChevronLeft, Dumbbell } from "lucide-react";
@@ -19,11 +20,7 @@ function statusVariant(status: StudentProgramSummary["status"]): "success" | "in
 }
 
 function formatDate(value: string): string {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleDateString("fa-IR-u-ca-persian", { year: "numeric", month: "long", day: "numeric" });
+  return formatCalendarDate(value);
 }
 
 export function StudentProgramsPage({
@@ -58,13 +55,17 @@ export function StudentProgramsPage({
           <p className={styles.eyebrow}>برنامه‌های اختصاصی شما</p>
           <h1 className={styles.welcomeTitle}>برنامه‌های من</h1>
           <p className={styles.lead}>
-            برنامه‌هایی که مربی برای شما نهایی کرده است، به‌ترتیب آخرین به‌روزرسانی اینجا قرار می‌گیرند.
+            برنامه‌هایی که مربی برای شما نهایی کرده است، به‌ترتیب آخرین به‌روزرسانی اینجا قرار
+            می‌گیرند.
           </p>
         </header>
 
         {status === "loading" ? <Skeleton height={180} /> : null}
         {status === "error" ? (
-          <EmptyState description="دریافت برنامه‌ها ممکن نشد. دوباره تلاش کنید." title="خطا در دریافت برنامه" />
+          <EmptyState
+            description="دریافت برنامه‌ها ممکن نشد. دوباره تلاش کنید."
+            title="خطا در دریافت برنامه"
+          />
         ) : null}
         {status === "loaded" && programs.length === 0 ? (
           <EmptyState
@@ -95,7 +96,9 @@ export function StudentProgramsPage({
                       </StatusBadge>
                     </div>
                     <div className={styles.programCardDetails}>
-                      {program.dateRange ? <span>{program.dateRange}</span> : null}
+                      {program.dateRange ? (
+                        <span>{formatCalendarText(program.dateRange)}</span>
+                      ) : null}
                       <span>
                         <CalendarDays aria-hidden size={15} />
                         به‌روزرسانی {formatDate(program.updatedAt)}

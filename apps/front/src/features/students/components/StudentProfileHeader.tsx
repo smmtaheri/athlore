@@ -1,3 +1,4 @@
+import { formatCalendarDate } from "../../../shared/dates/calendar";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { CalendarDays, Dumbbell, FileDown, KeyRound, Pencil, UserRound } from "lucide-react";
@@ -219,7 +220,10 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
         />
         <ProfileSummaryItem label="وزن فعلی" value={`${student.weightKg} کیلوگرم`} />
         <ProfileSummaryItem label="وضعیت" value={<StudentStatusBadge status={student.status} />} />
-        <ProfileSummaryItem label="آخرین ویزیت" value={student.summary.lastVisitDate} />
+        <ProfileSummaryItem
+          label="آخرین ویزیت"
+          value={formatCalendarDate(student.summary.lastVisitDate)}
+        />
       </div>
 
       {exportError ? (

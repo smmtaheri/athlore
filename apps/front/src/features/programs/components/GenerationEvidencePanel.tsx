@@ -1,3 +1,4 @@
+import { formatCalendarDate } from "../../../shared/dates/calendar";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Card, StatusBadge } from "../../../components/ui";
@@ -121,7 +122,7 @@ export function GenerationEvidencePanel({
             label="ویزیت مرجع"
             value={
               evidence.visitDate
-                ? `${evidence.visitDate}${evidence.visitId ? ` (#${evidence.visitId})` : ""}`
+                ? `${formatCalendarDate(evidence.visitDate)}${evidence.visitId ? ` (#${evidence.visitId})` : ""}`
                 : "بدون ویزیت مرجع"
             }
           />
@@ -151,7 +152,12 @@ export function GenerationEvidencePanel({
           />
           <EvidenceRow
             label="حرکات کاتالوگ ساختاریافته"
-            value={<CatalogSelectionList selected={evidence.exerciseCatalog?.selected || []} excluded={evidence.exerciseCatalog?.excluded || []} />}
+            value={
+              <CatalogSelectionList
+                selected={evidence.exerciseCatalog?.selected || []}
+                excluded={evidence.exerciseCatalog?.excluded || []}
+              />
+            }
           />
           <EvidenceRow
             label="تکنیک‌های اعمال‌شده"
@@ -231,7 +237,13 @@ function CatalogSelectionList({
   selected
 }: {
   excluded: Array<{ name: string; reason: string }>;
-  selected: Array<{ levels: string[]; name: string; reason?: string; regions: string[]; source: string }>;
+  selected: Array<{
+    levels: string[];
+    name: string;
+    reason?: string;
+    regions: string[];
+    source: string;
+  }>;
 }) {
   if (!selected.length && !excluded.length) {
     return <span>—</span>;
@@ -240,7 +252,8 @@ function CatalogSelectionList({
     <ul className={styles.metaList}>
       {selected.map((item) => (
         <li key={`selected-${item.name}`}>
-          انتخاب شد: {item.name} ({item.source || "کاتالوگ مربی"}{item.reason ? `، ${item.reason}` : ""})
+          انتخاب شد: {item.name} ({item.source || "کاتالوگ مربی"}
+          {item.reason ? `، ${item.reason}` : ""})
         </li>
       ))}
       {excluded.map((item, index) => (

@@ -1,3 +1,4 @@
+import { formatCalendarDate, formatCalendarText } from "../../../shared/dates/calendar";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
@@ -190,7 +191,7 @@ export function ProgramPreviewPage({
         : await pdfFilesRepo.create({
             contentType: saved.programType,
             fileName: `${saved.pdfSettings.fileTitle.replace(/\s+/g, "_")}_v${saved.version}.pdf`,
-            generatedAt: new Date().toLocaleString("fa-IR"),
+            generatedAt: new Date().toISOString(),
             id: `pdf-${saved.id}-${Date.now()}`,
             programId: saved.id,
             programTitle: saved.title,
@@ -462,16 +463,15 @@ function ProgramHeader({ program, student }: { program: GeneratedProgram; studen
       <div>
         <h2 className={styles.sectionTitle}>{program.title}</h2>
         <p className={styles.sectionDescription}>
-          {student?.fullName ?? "شاگرد نامشخص"} - نسخه {program.version} - {program.dateRange}
+          {student?.fullName ?? "شاگرد نامشخص"} - نسخه {program.version} -{" "}
+          {formatCalendarText(program.dateRange)}
         </p>
       </div>
       <div className={styles.chipList}>
         <StatusBadge variant={program.status === "ready" ? "success" : "warning"}>
           {program.status === "ready" ? "آماده" : "پیش نویس"}
         </StatusBadge>
-        <StatusBadge variant="info">
-          {new Date(program.createdAt).toLocaleDateString("fa-IR")}
-        </StatusBadge>
+        <StatusBadge variant="info">{formatCalendarDate(program.createdAt)}</StatusBadge>
       </div>
     </Card>
   );
