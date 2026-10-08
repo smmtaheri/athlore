@@ -234,6 +234,8 @@ export function StudentProgramDetailPage({
                   <div className={styles.mealRow} key={item.id}>
                     <strong>{item.name}</strong>
                     <span>{[item.amount, item.timing, item.notes].filter(Boolean).join(" · ")}</span>
+                    {item.instructions ? <span>دستور مصرف: {item.instructions}</span> : null}
+                    {item.warnings ? <span>هشدار: {item.warnings}</span> : null}
                   </div>
                 ))}
               </div>

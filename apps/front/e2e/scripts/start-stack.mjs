@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const frontendRoot = path.resolve(__dirname, "../..");
-const backendRoot = path.resolve(frontendRoot, "../coach-assistant-backend");
+const backendRoot = path.resolve(frontendRoot, "../backend");
 const backendPython = path.join(backendRoot, ".venv/bin/python");
 const preferUv = fs.existsSync(path.join(backendRoot, "uv.lock"));
 

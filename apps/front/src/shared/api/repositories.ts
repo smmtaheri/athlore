@@ -426,6 +426,9 @@ export function createApiProgramsRepository(): ProgramsRepository & {
       if (input.targetMuscle) {
         body.target_muscle = input.targetMuscle;
       }
+      if (input.supplementSelection) {
+        body.supplement_selection = input.supplementSelection;
+      }
       if (input.targetRegion) {
         body.target_region = input.targetRegion;
       }

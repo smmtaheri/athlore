@@ -23,6 +23,7 @@ import { NutritionTemplatesSection } from "../components/NutritionTemplatesSecti
 import { StructuredCatalogSection } from "../components/StructuredCatalogSection";
 import { VisitFormTemplatesSection } from "../components/VisitFormTemplatesSection";
 import { SupplementTemplatesSection } from "../components/SupplementTemplatesSection";
+import { SupplementCatalogSection } from "../components/SupplementCatalogSection";
 import {
   coachRulesRepository,
   cloneCoachRules,
@@ -51,7 +52,7 @@ const sectionLabels: Record<CoachRuleSection, string> = {
   levels: "قوانین سطح تمرین",
   muscles: "اولویت عضلات",
   nutritionTemplates: "برنامه غذایی مرجع",
-  supplementTemplates: "مکمل های مرجع",
+  supplementTemplates: "بانک مکمل‌ها",
   templates: "قالب های برنامه"
 };
 
@@ -367,13 +368,19 @@ function RulesSection({ rules, section, templatesRepository, updateRules }: Rule
   }
   if (section === "supplementTemplates") {
     return (
-      <SupplementTemplatesSection
-        onTemplatesChange={(supplementTemplates) =>
-          updateRules((next) => ({ ...next, supplementTemplates }))
-        }
-        repository={templatesRepository}
-        templates={rules.supplementTemplates}
-      />
+      <>
+        <SupplementCatalogSection />
+        <details>
+          <summary>قالب‌های مرجع قبلی</summary>
+          <SupplementTemplatesSection
+            onTemplatesChange={(supplementTemplates) =>
+              updateRules((next) => ({ ...next, supplementTemplates }))
+            }
+            repository={templatesRepository}
+            templates={rules.supplementTemplates}
+          />
+        </details>
+      </>
     );
   }
   return <GeneralRules rules={rules} updateRules={updateRules} />;

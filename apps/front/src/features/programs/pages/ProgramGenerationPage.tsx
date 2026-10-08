@@ -49,6 +49,8 @@ import {
 } from "../services/programsRepository";
 import type { ProgramGenerationInput } from "../types/generatedProgram";
 import styles from "../components/programFlow.module.css";
+import { SupplementSelectionFields } from "../../coach-rules/components/SupplementSelectionFields";
+import { emptySupplementSelection } from "../../coach-rules/services/supplementCatalogRepository";
 
 const programTypeOptions = [
   { label: "کامل", value: "complete" },
@@ -117,6 +119,7 @@ export function ProgramGenerationPage({
     musclePriorities: ["سینه", "سرشانه"],
     programType: "complete",
     studentId: initialStudentId,
+    supplementSelection: emptySupplementSelection(),
     targetExerciseCount: 2,
     targetMuscle: "",
     targetRegion: "",
@@ -235,6 +238,7 @@ export function ProgramGenerationPage({
       level: student?.trainingBackground.level ?? current.level,
       musclePriorities: student?.goals.musclePriorities ?? current.musclePriorities,
       studentId,
+      supplementSelection: emptySupplementSelection(),
       templateId: template?.id ?? "",
       title: student ? `برنامه کامل ${student.fullName}` : current.title
     }));
@@ -428,6 +432,7 @@ export function ProgramGenerationPage({
             <div className={styles.formGrid}>
               <FormField error={errors.programType} label="نوع برنامه" required>
                 <Select
+                  aria-label="نوع برنامه"
                   options={programTypeOptions}
                   value={form.programType}
                   onChange={(event) =>
@@ -592,6 +597,19 @@ export function ProgramGenerationPage({
             </div>
           </Card>
 
+          {form.programType === "complete" || form.programType === "supplement" ? (
+            <Card className={styles.pageStack}>
+              <h2>مکمل‌های شاگرد</h2>
+              <SupplementSelectionFields
+                key={form.studentId}
+                studentId={form.studentId}
+                selection={form.supplementSelection || emptySupplementSelection()}
+                onChange={(supplementSelection) =>
+                  updateForm("supplementSelection", supplementSelection)
+                }
+              />
+            </Card>
+          ) : null}
           <Card className={styles.toolbar}>
             <span className={styles.sectionDescription}>
               خروجی با وضعیت پیش نویس ذخیره می شود و بعد از تولید وارد صفحه پیش نمایش می شوید.
@@ -681,6 +699,27 @@ function validateForm(
   }
   if (!form.templateId) {
     errors.templateId = "قالب برنامه باید انتخاب شود.";
+  }
+  if (
+    (form.programType === "complete" || form.programType === "supplement") &&
+    form.supplementSelection?.items.length
+  ) {
+    if (!form.supplementSelection.confirmed || !form.supplementSelection.safety_reviewed) {
+      errors.supplementSelection =
+        "وضعیت فردی، مقدارها و زمان مصرف مکمل‌های شاگرد را بررسی و تأیید کنید.";
+    }
+    if (
+      form.supplementSelection.items.some((item) =>
+        item.doses.some(
+          (dose) =>
+            !Number.isFinite(Number(dose.amount)) ||
+            Number(dose.amount) <= 0 ||
+            (dose.timing === "custom" && !dose.custom_time.trim())
+        )
+      )
+    ) {
+      errors.supplementDoses = "مقدار مثبت و زمان معتبر برای همه نوبت‌های مصرف مشخص کنید.";
+    }
   }
   if (form.durationWeeks < 1) {
     errors.durationWeeks = "مدت برنامه باید معتبر باشد.";

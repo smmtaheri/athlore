@@ -69,6 +69,13 @@ export interface NutritionProgram {
 }
 
 export interface SupplementItem {
+  entry_id?: string;
+  dose?: import("../../coach-rules/services/supplementCatalogRepository").SupplementDose;
+  reason?: string;
+  instructions?: string;
+  warnings?: string;
+  source?: string;
+  category?: string;
   amount: string;
   id: string;
   name: string;
@@ -127,7 +134,13 @@ export interface GenerationEvidenceNutritionSupplement {
 
 export interface GenerationEvidenceCatalog {
   excluded: Array<{ name: string; reason: string }>;
-  selected: Array<{ levels: string[]; name: string; reason?: string; regions: string[]; source: string }>;
+  selected: Array<{
+    levels: string[];
+    name: string;
+    reason?: string;
+    regions: string[];
+    source: string;
+  }>;
 }
 
 export interface GenerationEvidenceTechnique {
@@ -203,6 +216,7 @@ export interface ProgramGenerationInput {
   targetExerciseCount?: number;
   targetMuscle?: string;
   targetRegion?: string;
+  supplementSelection?: import("../../coach-rules/services/supplementCatalogRepository").SupplementSelection;
   templateId: string;
   title: string;
 }

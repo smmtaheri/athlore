@@ -912,6 +912,15 @@ export function programDetailFromApi(dto: Record<string, unknown>): GeneratedPro
     ? {
         items: (Array.isArray(supplementsRaw.items) ? supplementsRaw.items : []).map(
           (item: Record<string, unknown>, index: number) => ({
+            entry_id: item.entry_id ? String(item.entry_id) : undefined,
+            dose: item.dose as
+              | import("../../features/coach-rules/services/supplementCatalogRepository").SupplementDose
+              | undefined,
+            reason: String(item.reason ?? ""),
+            instructions: String(item.instructions ?? ""),
+            warnings: String(item.warnings ?? ""),
+            source: String(item.source ?? ""),
+            category: String(item.category ?? ""),
             amount: String(item.amount ?? ""),
             id: String(item.id ?? `supp-${index + 1}`),
             name: String(item.name ?? ""),

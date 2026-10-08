@@ -61,7 +61,8 @@ describe("CoachRulesPage", () => {
     expect(await screen.findAllByText("برنامه غذایی مرجع")).not.toHaveLength(0);
     expect(screen.getByText("قالب غذایی‌ای برای نمایش نیست")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "مکمل های مرجع" }));
+    await user.click(screen.getByRole("tab", { name: "بانک مکمل‌ها" }));
+    await user.click(screen.getByText("قالب‌های مرجع قبلی"));
     expect(
       await screen.findByText(
         "مصرف مکمل باید با توجه به وضعیت فردی، سوابق پزشکی و نظر متخصص واجد صلاحیت بررسی شود."

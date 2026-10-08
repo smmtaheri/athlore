@@ -51,7 +51,14 @@ describe("API programs repository", () => {
       targetMuscle: "سینه",
       targetRegion: "inner_upper_chest",
       templateId: "template-1",
-      title: "برنامه تست"
+      title: "برنامه تست",
+      supplementSelection: {
+        items: [],
+        confirmed: true,
+        safety_reviewed: true,
+        mode: "manual",
+        goal_ids: []
+      }
     };
 
     await createApiProgramsRepository().generate(input);
@@ -63,7 +70,8 @@ describe("API programs repository", () => {
         body: expect.objectContaining({
           target_muscle: "سینه",
           target_region: "inner_upper_chest",
-          exercise_count: 2
+          exercise_count: 2,
+          supplement_selection: input.supplementSelection
         })
       })
     );

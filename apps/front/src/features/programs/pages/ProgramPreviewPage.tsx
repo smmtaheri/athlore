@@ -16,6 +16,7 @@ import {
   Card,
   Checkbox,
   EmptyState,
+  EditorDrawer,
   FormField,
   Input,
   Modal,
@@ -54,6 +55,12 @@ import type {
   TrainingExercise
 } from "../types/generatedProgram";
 import styles from "../components/programFlow.module.css";
+import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
+import { SupplementSelectionFields } from "../../coach-rules/components/SupplementSelectionFields";
+import {
+  emptySupplementSelection,
+  supplementCatalogRepository
+} from "../../coach-rules/services/supplementCatalogRepository";
 
 const previewTabLabels: Record<ProgramPreviewTab, string> = {
   nutrition: "برنامه غذایی",
@@ -922,6 +929,10 @@ function SupplementsEditor({
   program: GeneratedProgram;
   updateProgram: (updater: (program: GeneratedProgram) => GeneratedProgram) => void;
 }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [selection, setSelection] = useState(emptySupplementSelection);
+  const [feedback, setFeedback] = useState("");
+  const [applying, setApplying] = useState(false);
   const updateItems = (updater: (items: SupplementItem[]) => SupplementItem[]) =>
     updateProgram((next) => ({
       ...next,
@@ -932,6 +943,66 @@ function SupplementsEditor({
 
   return (
     <Card className={styles.pageStack}>
+      <Button
+        onClick={() => {
+          setSelection(emptySupplementSelection());
+          setFeedback("");
+          setPickerOpen(true);
+        }}
+      >
+        انتخاب از بانک مکمل
+      </Button>
+      <EditorDrawer
+        open={pickerOpen}
+        title="انتخاب مکمل برای شاگرد"
+        onClose={() => setPickerOpen(false)}
+        hasUnsavedChanges={selection.items.length > 0}
+        footer={
+          <Button
+            disabled={!selection.confirmed || !selection.safety_reviewed || !selection.items.length}
+            isLoading={applying}
+            onClick={async () => {
+              setApplying(true);
+              setFeedback("");
+              try {
+                const result = await supplementCatalogRepository.prescribe(
+                  program.studentId,
+                  selection
+                );
+                updateItems((items) =>
+                  [
+                    ...items.filter(
+                      (item) =>
+                        !selection.items.some((selected) => selected.entry_id === item.entry_id)
+                    ),
+                    ...result.items
+                  ].map((item, index) => ({ ...item, order: index + 1 }))
+                );
+                setPickerOpen(false);
+              } catch (error) {
+                setFeedback(
+                  error instanceof ApiError
+                    ? persianMessageForApiError(error)
+                    : "افزودن مکمل به برنامه انجام نشد."
+                );
+              } finally {
+                setApplying(false);
+              }
+            }}
+          >
+            افزودن انتخاب‌ها به برنامه
+          </Button>
+        }
+      >
+        {feedback ? <p role="alert">{feedback}</p> : null}
+        {pickerOpen ? (
+          <SupplementSelectionFields
+            studentId={program.studentId}
+            selection={selection}
+            onChange={setSelection}
+          />
+        ) : null}
+      </EditorDrawer>
       <SectionHeader
         action={
           <Button
@@ -982,7 +1053,9 @@ function SupplementsEditor({
                 onChange={(event) =>
                   updateItems((items) =>
                     items.map((entry) =>
-                      entry.id === item.id ? { ...entry, amount: event.target.value } : entry
+                      entry.id === item.id
+                        ? { ...entry, amount: event.target.value, dose: undefined }
+                        : entry
                     )
                   )
                 }
@@ -1000,13 +1073,15 @@ function SupplementsEditor({
                 }
               />
             </FormField>
-            <FormField label="توضیح">
+            <FormField label="دلیل مصرف / توضیح">
               <Input
                 value={item.notes}
                 onChange={(event) =>
                   updateItems((items) =>
                     items.map((entry) =>
-                      entry.id === item.id ? { ...entry, notes: event.target.value } : entry
+                      entry.id === item.id
+                        ? { ...entry, notes: event.target.value, reason: event.target.value }
+                        : entry
                     )
                   )
                 }
