@@ -9,8 +9,10 @@ from typing import Any
 from django.template.loader import render_to_string
 from django.utils import timezone
 
+from common.calendar import format_date, format_date_text
+
 # Bump when template structure or CSS layout changes in a meaningful way.
-RENDER_TEMPLATE_VERSION = "1.0.0"
+RENDER_TEMPLATE_VERSION = "1.1.0"
 RENDER_ENGINE_NAME = "weasyprint"
 RENDER_ENGINE_VERSION = "66"
 
@@ -155,7 +157,9 @@ def build_pdf_context(
         limitations.append(_esc(student.summary_medical_note))
 
     file_title = pdf_settings.get("fileTitle") or program.title
-    subtitle = pdf_settings.get("subtitle") or program.date_range_label or ""
+    subtitle = format_date_text(
+        pdf_settings.get("subtitle") or program.date_range_label or "", calendar=coach.calendar
+    )
     coach_notes = pdf_settings.get("coachNotes") or ""
     contact = pdf_settings.get("contactInfo") or ""
 
@@ -174,10 +178,18 @@ def build_pdf_context(
         "version_number": version.version_number,
         "version_label": _esc(f"v{version.version_number}"),
         "finalized_at": _esc(
-            version.finalized_at.isoformat() if getattr(version, "finalized_at", None) else ""
+            format_date(
+                version.finalized_at,
+                calendar=coach.calendar,
+                include_time=True,
+            )
+            if getattr(version, "finalized_at", None)
+            else ""
         ),
-        "date_range": _esc(program.date_range_label or ""),
-        "generated_at": _esc(timezone.now().strftime("%Y-%m-%d %H:%M UTC")),
+        "date_range": _esc(format_date_text(program.date_range_label, calendar=coach.calendar)),
+        "generated_at": _esc(
+            format_date(timezone.now(), calendar=coach.calendar, include_time=True)
+        ),
         "template_version": RENDER_TEMPLATE_VERSION,
         "goal": _esc(goals.get("primary_goal") or goals.get("goal") or ""),
         "level": _esc(training_bg.get("level") or ""),

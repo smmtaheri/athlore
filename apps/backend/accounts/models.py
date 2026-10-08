@@ -18,6 +18,11 @@ class CoachProfile(models.Model):
         related_name="coach_profile",
     )
     display_name = models.CharField(max_length=120)
+    calendar = models.CharField(
+        max_length=12,
+        choices=[("persian", "Persian"), ("gregory", "Gregorian")],
+        default="persian",
+    )
     # Canonical E.164 Iranian mobile (+989…). Nullable only for legacy rows.
     phone_number = models.CharField(max_length=16, blank=True, null=True)
     style_notes = models.TextField(blank=True, default="")

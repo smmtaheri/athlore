@@ -208,3 +208,30 @@ class MeCoachView(APIView):
             )
         coach.refresh_from_db()
         return Response(services.serialize_coach(coach))
+
+
+class DateSettingsView(APIView):
+    """Students inherit their coach's calendar; only the owner may change it."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        coach = getattr(request.user, "coach_profile", None)
+        if coach is None:
+            profile = getattr(request.user, "student_profile", None)
+            if profile is None or not profile.portal_enabled:
+                raise PermissionDenied(detail="Coach or student profile is required.")
+            coach = profile.student.coach
+        return Response({"calendar": coach.calendar, "time_zone": "Asia/Tehran"})
+
+    def patch(self, request):
+        coach = get_request_coach(request)
+        serializer = CoachProfileSerializer(coach, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        if set(request.data) != {"calendar"}:
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError({"calendar": "Only calendar may be updated here."})
+        coach.calendar = serializer.validated_data["calendar"]
+        coach.save(update_fields=["calendar", "updated_at"])
+        return self.get(request)

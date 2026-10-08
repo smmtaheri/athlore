@@ -25,7 +25,15 @@ from accounts.supplement_views import (
     SupplementProposalView,
 )
 from accounts.template_views import NutritionTemplateDetailView, SupplementTemplateDetailView
-from accounts.views import LoginView, LogoutView, MeCoachView, MeView, RefreshView, RegisterView
+from accounts.views import (
+    DateSettingsView,
+    LoginView,
+    LogoutView,
+    MeCoachView,
+    MeView,
+    RefreshView,
+    RegisterView,
+)
 from delivery.export_views import CoachRulesPdfExportView
 
 urlpatterns = [
@@ -41,6 +49,7 @@ urlpatterns = [
     path("auth/refresh/", RefreshView.as_view(), name="auth-refresh"),
     path("auth/logout/", LogoutView.as_view(), name="auth-logout"),
     path("me/", MeView.as_view(), name="me"),
+    path("me/date-settings/", DateSettingsView.as_view(), name="date-settings"),
     path("me/coach/", MeCoachView.as_view(), name="me-coach"),
     path("me/coach-rules/pdf/", CoachRulesPdfExportView.as_view(), name="me-coach-rules-pdf"),
     path(

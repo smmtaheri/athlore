@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import html
-from datetime import date
 from typing import Any
 
 from django.template.loader import render_to_string
@@ -11,6 +10,7 @@ from django.utils import timezone
 
 from accounts.models import CoachProfile, CoachRuleSet
 from accounts.rules_services import get_coach_rules_aggregate
+from common.calendar import format_date
 from delivery.services.render import resolve_font_path
 from students.models import Student, Visit
 
@@ -148,8 +148,10 @@ def build_coach_rules_pdf(*, coach: CoachProfile) -> tuple[bytes, str]:
         "style_notes": _esc(coach.style_notes or "— (خالی)"),
         "default_session_minutes": _esc(coach.default_session_minutes),
         "ruleset_id": _esc(rule_set.id if rule_set else "—"),
-        "rules_updated_at": _esc(aggregate.get("updated_at") or ""),
-        "export_at": _esc(export_at.strftime("%Y-%m-%d %H:%M UTC")),
+        "rules_updated_at": _esc(
+            format_date(aggregate.get("updated_at"), calendar=coach.calendar, include_time=True)
+        ),
+        "export_at": _esc(format_date(export_at, calendar=coach.calendar, include_time=True)),
         "schema_version": _esc(aggregate.get("schema_version")),
         "templates": templates or None,
         "levels": levels or None,
@@ -185,7 +187,7 @@ def build_coach_rules_pdf(*, coach: CoachProfile) -> tuple[bytes, str]:
     }
     html_document = render_to_string("delivery/coach_rules_pdf.html", context)
     pdf = render_html_to_pdf(html_document)
-    filename = f"قوانین-مربی-{_slug_name(coach.display_name)}-{date.today().isoformat()}.pdf"
+    filename = f"قوانین-مربی-{_slug_name(coach.display_name)}-{format_date(export_at, calendar=coach.calendar, filename=True)}.pdf"
     return pdf, filename
 
 
@@ -206,7 +208,7 @@ def build_student_profile_pdf(*, student: Student, coach: CoachProfile) -> tuple
         visit_rows.append(
             {
                 "id": _esc(visit.id),
-                "date": _esc(visit.visit_date),
+                "date": _esc(format_date(visit.visit_date, calendar=coach.calendar)),
                 "weight": _esc(visit.current_weight_kg),
                 "prev_weight": _esc(visit.previous_weight_kg),
                 "energy": _esc(visit.daily_energy_level),
@@ -230,9 +232,9 @@ def build_student_profile_pdf(*, student: Student, coach: CoachProfile) -> tuple
         "coach_name": _esc(coach.display_name),
         "coach_email": _esc(coach.user.email),
         "profile_updated_at": _esc(
-            student.updated_at.isoformat().replace("+00:00", "Z") if student.updated_at else ""
+            format_date(student.updated_at, calendar=coach.calendar, include_time=True)
         ),
-        "export_at": _esc(export_at.strftime("%Y-%m-%d %H:%M UTC")),
+        "export_at": _esc(format_date(export_at, calendar=coach.calendar, include_time=True)),
         "age": _esc(student.age),
         "gender": _esc(student.gender),
         "height_cm": _esc(student.height_cm),
@@ -298,10 +300,12 @@ def build_student_profile_pdf(*, student: Student, coach: CoachProfile) -> tuple
             )
         ),
         "latest_visit_id": _esc(latest.id if latest else "—"),
-        "latest_visit_date": _esc(latest.visit_date if latest else "—"),
+        "latest_visit_date": _esc(
+            format_date(latest.visit_date if latest else None, calendar=coach.calendar)
+        ),
         "visit_rows": visit_rows or None,
     }
     html_document = render_to_string("delivery/student_profile_pdf.html", context)
     pdf = render_html_to_pdf(html_document)
-    filename = f"اطلاعات-شاگرد-{_slug_name(student.full_name)}-{date.today().isoformat()}.pdf"
+    filename = f"اطلاعات-شاگرد-{_slug_name(student.full_name)}-{format_date(export_at, calendar=coach.calendar, filename=True)}.pdf"
     return pdf, filename

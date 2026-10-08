@@ -64,6 +64,7 @@ def serialize_coach(coach: CoachProfile) -> dict:
         "style_notes": coach.style_notes,
         "control_mode": coach.control_mode,
         "default_session_minutes": coach.default_session_minutes,
+        "calendar": coach.calendar,
     }
 
 
@@ -304,6 +305,7 @@ def update_coach_profile(coach: CoachProfile, **fields) -> CoachProfile:
         "control_mode",
         "default_session_minutes",
         "phone_number",
+        "calendar",
     }
     for key, value in fields.items():
         if key not in allowed:

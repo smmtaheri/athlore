@@ -56,6 +56,7 @@ class CoachProfileSerializer(serializers.ModelSerializer):
             "style_notes",
             "control_mode",
             "default_session_minutes",
+            "calendar",
         )
         extra_kwargs = {
             "display_name": {"required": False},
