@@ -5,7 +5,7 @@ import {
   calendarPlaceholder
 } from "../../../shared/dates/calendar";
 import type { FormEvent } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   ClipboardCheck,
@@ -58,6 +58,8 @@ export interface StudentVisitFormProps {
   latestVisit?: StudentVisit;
   mode: "create" | "edit";
   onCancel: () => void;
+  onDraftInputChange?: (input: StudentVisitInput | null) => void;
+  photosUploading?: boolean;
   onSubmit: (input: StudentVisitInput, intent: VisitSubmitIntent) => Promise<void>;
   student: Student;
 }
@@ -112,6 +114,8 @@ export function StudentVisitForm({
   latestVisit,
   mode,
   onCancel,
+  onDraftInputChange,
+  photosUploading = false,
   onSubmit,
   student
 }: StudentVisitFormProps) {
@@ -176,6 +180,20 @@ export function StudentVisitForm({
     () => enabledSectionsFromTemplate(templateForSections),
     [templateForSections]
   );
+
+  useEffect(() => {
+    if (!onDraftInputChange) return;
+    try {
+      const input = visitFormValuesToInput(values);
+      input.coachPrivateNotes = values.coachPrivateNotes;
+      input.formTemplateId = formTemplateId || null;
+      input.status = status;
+      if (!answersReadOnly) input.answers = answers;
+      onDraftInputChange(input);
+    } catch {
+      onDraftInputChange(null);
+    }
+  }, [answers, answersReadOnly, formTemplateId, onDraftInputChange, status, values]);
 
   const templateOptions = formTemplates
     .filter((item) => item.isActive || item.id === formTemplateId)
@@ -650,33 +668,39 @@ export function StudentVisitForm({
 
       <div className={styles.actionBar}>
         <span className={styles.actionHint}>
-          {isFinalized
-            ? "ویزیت نهایی شده است؛ مربی می‌تواند اطلاعات را اصلاح کند و وضعیت نهایی حفظ می‌شود."
-            : status === "coach_review"
-              ? "فرم شاگرد قفل است؛ پس از بررسی، ویزیت را نهایی کنید."
-              : status === "student_submitted"
-                ? "برای ویرایش پاسخ‌ها ابتدا بررسی مربی را شروع کنید."
-                : mode === "edit"
-                  ? "تغییرات روی ویزیت انتخاب شده ذخیره می شود."
-                  : "پس از ثبت، ویزیت به صورت پیش‌نویس ذخیره می شود."}
+          {photosUploading
+            ? "عکس در حال آپلود است؛ بعد از مشخص‌شدن نتیجه می‌توانید ویزیت را ادامه دهید."
+            : isFinalized
+              ? "ویزیت نهایی شده است؛ مربی می‌تواند اطلاعات را اصلاح کند و وضعیت نهایی حفظ می‌شود."
+              : status === "coach_review"
+                ? "فرم شاگرد قفل است؛ پس از بررسی، ویزیت را نهایی کنید."
+                : status === "student_submitted"
+                  ? "برای ویرایش پاسخ‌ها ابتدا بررسی مربی را شروع کنید."
+                  : mode === "edit"
+                    ? "تغییرات روی ویزیت انتخاب شده ذخیره می شود."
+                    : initialVisit
+                      ? "پیش‌نویس ویزیت برای آپلود عکس ایجاد شده؛ تغییرات فرم را با ذخیره ویزیت ثبت کنید."
+                      : "پس از ثبت، ویزیت به صورت پیش‌نویس ذخیره می شود."}
         </span>
         <div className={styles.actionBarButtons}>
-          <Button onClick={onCancel} type="button" variant="secondary">
+          <Button disabled={photosUploading} onClick={onCancel} type="button" variant="secondary">
             انصراف
           </Button>
           {mode === "edit" || !isFinalized ? (
             <Button
               iconStart={<Save size={18} />}
+              disabled={photosUploading}
               isLoading={submitIntent === "save"}
               type="submit"
               variant="secondary"
             >
-              {mode === "edit" ? "ذخیره ویزیت" : "ثبت پیش‌نویس"}
+              {mode === "edit" || initialVisit ? "ذخیره ویزیت" : "ثبت پیش‌نویس"}
             </Button>
           ) : null}
           {canSend ? (
             <Button
               iconStart={<Send size={18} />}
+              disabled={photosUploading}
               isLoading={submitIntent === "send-to-student"}
               onClick={() => submit("send-to-student")}
               type="button"
@@ -688,6 +712,7 @@ export function StudentVisitForm({
           {canStartReview ? (
             <Button
               iconStart={<ClipboardCheck size={18} />}
+              disabled={photosUploading}
               isLoading={submitIntent === "start-coach-review"}
               onClick={() => submit("start-coach-review")}
               type="button"
@@ -698,6 +723,7 @@ export function StudentVisitForm({
           {canFinalize ? (
             <Button
               iconStart={<ClipboardCheck size={18} />}
+              disabled={photosUploading}
               isLoading={submitIntent === "finalize"}
               onClick={() => submit("finalize")}
               type="button"
@@ -708,6 +734,7 @@ export function StudentVisitForm({
           {!isFinalized ? (
             <Button
               iconStart={<Target size={18} />}
+              disabled={photosUploading}
               isLoading={submitIntent === "generate-program"}
               onClick={() => submit("generate-program")}
               type="button"

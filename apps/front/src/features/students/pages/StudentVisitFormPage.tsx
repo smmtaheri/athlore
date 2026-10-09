@@ -1,5 +1,5 @@
 import { formatCalendarDateTime } from "../../../shared/dates/calendar";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, UserRound } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { ContentSection, PageContainer, PageHeader, Stack } from "../../../components/layout";
@@ -11,8 +11,6 @@ import { VisitPhotosPanel } from "../components/VisitPhotosPanel";
 import {
   coachVisitPhotosPath,
   uploadVisitPhoto,
-  visitPhotoPoseOptions,
-  type PendingVisitPhotos,
   type VisitPhotoPose
 } from "../services/visitPhotosRepository";
 import {
@@ -62,11 +60,12 @@ export function StudentVisitFormPage({
   const [answerRevisions, setAnswerRevisions] = useState<VisitAnswerRevision[]>([]);
   const [formTemplates, setFormTemplates] = useState<VisitFormTemplate[]>([]);
   const [latestVisit, setLatestVisit] = useState<StudentVisit | undefined>();
-  const [pendingPhotos, setPendingPhotos] = useState<PendingVisitPhotos>({});
+  const [photosUploading, setPhotosUploading] = useState(false);
   const [routeFeedback, setRouteFeedback] = useState("");
   const [status, setStatus] = useState<"error" | "loaded" | "loading" | "notFound">("loading");
   const [student, setStudent] = useState<Student | undefined>();
   const [visit, setVisit] = useState<StudentVisit | undefined>();
+  const draftInputRef = useRef<StudentVisitInput | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { studentId, visitId } = useParams();
@@ -138,6 +137,25 @@ export function StudentVisitFormPage({
 
   const goToVisits = () => navigate(`/students/${studentId}/visits`);
 
+  const rememberDraftInput = useCallback((input: StudentVisitInput | null) => {
+    draftInputRef.current = input;
+  }, []);
+
+  const uploadPhotoForNewVisit = useCallback(
+    async (pose: VisitPhotoPose, file: File) => {
+      if (!studentId) throw new Error("شناسه شاگرد پیدا نشد.");
+      let targetVisit = visit;
+      if (!targetVisit) {
+        const input = draftInputRef.current;
+        if (!input) throw new Error("ابتدا اطلاعات اولیه فرم را تکمیل کنید.");
+        targetVisit = await visitsRepo.create(studentId, { ...input, status: "draft" });
+        setVisit(targetVisit);
+      }
+      return uploadVisitPhoto(coachVisitPhotosPath(studentId, targetVisit.id), pose, file);
+    },
+    [studentId, visit, visitsRepo]
+  );
+
   const handleSubmit = async (input: StudentVisitInput, intent: VisitSubmitIntent) => {
     if (!studentId) {
       throw new Error("Student id is required.");
@@ -168,32 +186,10 @@ export function StudentVisitFormPage({
         return;
       }
 
-      let savedVisit =
-        mode === "edit" && visitId
-          ? await visitsRepo.update(studentId, visitId, payload)
-          : await visitsRepo.create(studentId, payload);
-
-      const failedPhotoPoses: VisitPhotoPose[] = [];
-      if (mode === "create") {
-        const photoPath = coachVisitPhotosPath(studentId, savedVisit.id);
-        for (const { value: pose } of visitPhotoPoseOptions) {
-          const file = pendingPhotos[pose];
-          if (!file) continue;
-          try {
-            await uploadVisitPhoto(photoPath, pose, file);
-          } catch {
-            failedPhotoPoses.push(pose);
-          }
-        }
-        setPendingPhotos({});
-      }
-
-      const failedPoseLabels = failedPhotoPoses
-        .map((pose) => visitPhotoPoseOptions.find((option) => option.value === pose)?.label)
-        .filter((label) => label !== undefined);
-      const photoFailureMessage = failedPoseLabels.length
-        ? `ویزیت ثبت شد؛ عکس پوزهای ${failedPoseLabels.join("، ")} آپلود نشد. از بخش عکس‌های ارزیابی همین ویزیت دوباره انتخابشان کنید.`
-        : "";
+      const existingVisitId = visit?.id ?? (mode === "edit" ? visitId : undefined);
+      let savedVisit = existingVisitId
+        ? await visitsRepo.update(studentId, existingVisitId, payload)
+        : await visitsRepo.create(studentId, payload);
 
       if (intent === "send-to-student") {
         savedVisit = await visitsRepo.sendToStudent(studentId, savedVisit.id);
@@ -201,8 +197,8 @@ export function StudentVisitFormPage({
           replace: true,
           state: {
             visitSaved: savedVisit.expiresAt
-              ? `فرم برای شاگرد ارسال شد. انقضا: ${formatCalendarDateTime(savedVisit.expiresAt)}${photoFailureMessage ? ` ${photoFailureMessage}` : ""}`
-              : `فرم برای شاگرد ارسال شد.${photoFailureMessage ? ` ${photoFailureMessage}` : ""}`
+              ? `فرم برای شاگرد ارسال شد. انقضا: ${formatCalendarDateTime(savedVisit.expiresAt)}`
+              : "فرم برای شاگرد ارسال شد."
           }
         });
         setVisit(savedVisit);
@@ -213,9 +209,7 @@ export function StudentVisitFormPage({
         savedVisit = await visitsRepo.startCoachReview(studentId, savedVisit.id);
         navigate(`/students/${studentId}/visits/${savedVisit.id}/edit`, {
           replace: true,
-          state: {
-            visitSaved: `بررسی مربی شروع شد؛ فرم شاگرد قفل است.${photoFailureMessage ? ` ${photoFailureMessage}` : ""}`
-          }
+          state: { visitSaved: "بررسی مربی شروع شد؛ فرم شاگرد قفل است." }
         });
         setVisit(savedVisit);
         return;
@@ -223,32 +217,15 @@ export function StudentVisitFormPage({
 
       if (intent === "finalize") {
         savedVisit = await visitsRepo.finalize(studentId, savedVisit.id);
-        if (photoFailureMessage) {
-          navigate(`/students/${studentId}/visits/${savedVisit.id}/edit`, {
-            replace: true,
-            state: { visitSaved: `ویزیت نهایی شد. ${photoFailureMessage}` }
-          });
-        } else {
-          navigate(`/students/${studentId}/visits`, {
-            state: { visitSaved: "ویزیت نهایی شد." }
-          });
-        }
+        navigate(`/students/${studentId}/visits`, {
+          state: { visitSaved: "ویزیت نهایی شد." }
+        });
         return;
       }
 
       if (intent === "generate-program") {
         navigate(`/programs/new?studentId=${studentId}&visitId=${savedVisit.id}`, {
-          state: {
-            visitSaved: `ویزیت ذخیره شد و تولید برنامه در مرحله بعد تکمیل می شود.${photoFailureMessage ? ` ${photoFailureMessage}` : ""}`
-          }
-        });
-        return;
-      }
-
-      if (photoFailureMessage) {
-        navigate(`/students/${studentId}/visits/${savedVisit.id}/edit`, {
-          replace: true,
-          state: { visitSaved: photoFailureMessage }
+          state: { visitSaved: "ویزیت ذخیره شد و تولید برنامه در مرحله بعد تکمیل می شود." }
         });
         return;
       }
@@ -336,8 +313,8 @@ export function StudentVisitFormPage({
             <VisitPhotosPanel
               audience="coach"
               canUpload
-              onPendingPhotosChange={setPendingPhotos}
-              pendingPhotos={pendingPhotos}
+              onUploadForNewVisit={uploadPhotoForNewVisit}
+              onUploadStateChange={setPhotosUploading}
               studentId={student.id}
               visitId={visit?.id ?? null}
             />
@@ -350,6 +327,8 @@ export function StudentVisitFormPage({
               latestVisit={latestVisit}
               mode={mode}
               onCancel={goToVisits}
+              onDraftInputChange={mode === "create" && !visit ? rememberDraftInput : undefined}
+              photosUploading={photosUploading}
               onSubmit={handleSubmit}
               student={student}
             />

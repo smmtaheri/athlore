@@ -11,10 +11,10 @@ class Migration(migrations.Migration):
             field=models.CharField(
                 blank=True,
                 choices=[
-                    ("back", "Back"),
                     ("front", "Front"),
-                    ("right_side", "Right side"),
                     ("left_side", "Left side"),
+                    ("back", "Back"),
+                    ("right_side", "Right side"),
                 ],
                 max_length=16,
                 null=True,

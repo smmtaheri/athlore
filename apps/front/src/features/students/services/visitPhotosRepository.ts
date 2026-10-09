@@ -1,14 +1,13 @@
 import { apiUploadFormData } from "../../../shared/api/client";
 
 export const visitPhotoPoseOptions = [
-  { label: "پشت", value: "back" },
   { label: "جلو", value: "front" },
-  { label: "پهلو راست", value: "right_side" },
-  { label: "پهلو چپ", value: "left_side" }
+  { label: "پهلو چپ", value: "left_side" },
+  { label: "پشت", value: "back" },
+  { label: "پهلو راست", value: "right_side" }
 ] as const;
 
 export type VisitPhotoPose = (typeof visitPhotoPoseOptions)[number]["value"];
-export type PendingVisitPhotos = Partial<Record<VisitPhotoPose, File>>;
 
 export function coachVisitPhotosPath(studentId: string, visitId: string): string {
   return `/students/${studentId}/visits/${visitId}/photos/`;

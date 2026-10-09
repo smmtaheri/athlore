@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ImagePlus, LoaderCircle, Upload, X } from "lucide-react";
 import { Card } from "../../../components/ui";
 import { ApiError } from "../../../shared/api/errors";
@@ -9,7 +9,6 @@ import {
   studentVisitPhotosPath,
   uploadVisitPhoto,
   visitPhotoPoseOptions,
-  type PendingVisitPhotos,
   type VisitPhotoPose
 } from "../services/visitPhotosRepository";
 import styles from "./visitPhotos.module.css";
@@ -29,14 +28,17 @@ type VisitPhotosPanelProps =
   | {
       audience: "coach";
       canUpload: boolean;
-      onPendingPhotosChange?: (photos: PendingVisitPhotos) => void;
-      pendingPhotos?: PendingVisitPhotos;
+      onUploadForNewVisit?: (pose: VisitPhotoPose, file: File) => Promise<Record<string, unknown>>;
+      onUploadStateChange?: (uploading: boolean) => void;
       studentId: string;
       visitId: string | null;
     }
   | { audience: "student"; canUpload: boolean; studentId?: never; visitId: string };
 
-const EMPTY_PENDING_PHOTOS: PendingVisitPhotos = {};
+interface LocalPhotoSelection {
+  file: File;
+  previewUrl: string;
+}
 
 function photoFromApi(value: Record<string, unknown>): VisitPhoto {
   const pose = visitPhotoPoseOptions.some((option) => option.value === value.pose)
@@ -62,24 +64,27 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
   const { audience, canUpload, visitId } = props;
   const [photos, setPhotos] = useState<VisitPhoto[]>([]);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  const [localSelections, setLocalSelections] = useState<
+    Partial<Record<VisitPhotoPose, LocalPhotoSelection>>
+  >({});
   const [loading, setLoading] = useState(Boolean(visitId));
   const [uploadingPose, setUploadingPose] = useState<VisitPhotoPose | null>(null);
   const [poseErrors, setPoseErrors] = useState<Partial<Record<VisitPhotoPose, string>>>({});
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const localPreviewUrls = useRef<Partial<Record<VisitPhotoPose, string>>>({});
 
   const photosPath = visitId
     ? audience === "coach"
       ? coachVisitPhotosPath(props.studentId, visitId)
       : studentVisitPhotosPath(visitId)
     : null;
-  const pendingPhotos =
-    audience === "coach" ? (props.pendingPhotos ?? EMPTY_PENDING_PHOTOS) : EMPTY_PENDING_PHOTOS;
-
   const refresh = useCallback(async () => {
-    if (!photosPath) return;
+    if (!photosPath) return [];
     const payload = await apiRequest<{ results?: Record<string, unknown>[] }>(photosPath);
-    setPhotos((payload.results ?? []).map(photoFromApi));
+    const latestPhotos = (payload.results ?? []).map(photoFromApi);
+    setPhotos(latestPhotos);
+    return latestPhotos;
   }, [photosPath]);
 
   useEffect(() => {
@@ -127,9 +132,18 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
     };
   }, [photos]);
 
+  useEffect(
+    () => () => {
+      Object.values(localPreviewUrls.current).forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    },
+    []
+  );
+
   const upload = async (pose: VisitPhotoPose, file: File) => {
-    if (!photosPath) return;
     setUploadingPose(pose);
+    if (audience === "coach") props.onUploadStateChange?.(true);
     setError("");
     setMessage("");
     setPoseErrors((current) => {
@@ -138,8 +152,17 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
       return next;
     });
     try {
-      const result = await uploadVisitPhoto(photosPath, pose, file);
-      setPhotos((current) => [...current, photoFromApi(result)]);
+      const result = photosPath
+        ? await uploadVisitPhoto(photosPath, pose, file)
+        : audience === "coach" && props.onUploadForNewVisit
+          ? await props.onUploadForNewVisit(pose, file)
+          : null;
+      if (!result) throw new Error("آپلود عکس برای این ویزیت در دسترس نیست.");
+      const uploadedPhoto = photoFromApi(result);
+      setPhotos((current) => [
+        ...current.filter((photo) => photo.id !== uploadedPhoto.id && photo.pose !== pose),
+        uploadedPhoto
+      ]);
       setMessage("عکس این پوز ثبت شد و برای طرف دیگر ویزیت قابل مشاهده است.");
     } catch (uploadError) {
       setPoseErrors((current) => ({
@@ -147,33 +170,68 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
         [pose]:
           uploadError instanceof ApiError
             ? uploadError.message
-            : "آپلود این عکس انجام نشد؛ دوباره تلاش کنید."
+            : uploadError instanceof Error && uploadError.message
+              ? uploadError.message
+              : "آپلود این عکس انجام نشد؛ دوباره تلاش کنید."
       }));
       try {
-        await refresh();
+        const latestPhotos = await refresh();
+        if (latestPhotos.some((photo) => photo.pose === pose)) {
+          const previewUrl = localPreviewUrls.current[pose];
+          if (previewUrl) URL.revokeObjectURL(previewUrl);
+          delete localPreviewUrls.current[pose];
+          setLocalSelections((current) => {
+            const next = { ...current };
+            delete next[pose];
+            return next;
+          });
+          setPoseErrors((current) => {
+            const next = { ...current };
+            delete next[pose];
+            return next;
+          });
+          setMessage("این پوز هم‌زمان توسط طرف دیگر ویزیت ثبت شد و عکس ثبت‌شده نمایش داده می‌شود.");
+        }
       } catch {
         // Keep the upload error visible; the next page load will refresh the slot.
       }
     } finally {
       setUploadingPose(null);
+      if (audience === "coach") props.onUploadStateChange?.(false);
     }
   };
 
   const chooseFile = (pose: VisitPhotoPose, file?: File) => {
     if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    const previousPreviewUrl = localPreviewUrls.current[pose];
+    if (previousPreviewUrl) URL.revokeObjectURL(previousPreviewUrl);
+    localPreviewUrls.current[pose] = previewUrl;
+    setLocalSelections((current) => ({ ...current, [pose]: { file, previewUrl } }));
     setPoseErrors((current) => ({ ...current, [pose]: undefined }));
-    if (audience === "coach" && !visitId && props.onPendingPhotosChange) {
-      props.onPendingPhotosChange({ ...pendingPhotos, [pose]: file });
-      return;
-    }
     void upload(pose, file);
+  };
+
+  const removeFailedSelection = (pose: VisitPhotoPose) => {
+    const previewUrl = localPreviewUrls.current[pose];
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    delete localPreviewUrls.current[pose];
+    setLocalSelections((current) => {
+      const next = { ...current };
+      delete next[pose];
+      return next;
+    });
+    setPoseErrors((current) => {
+      const next = { ...current };
+      delete next[pose];
+      return next;
+    });
   };
 
   const photosByPose = new Map<VisitPhotoPose, VisitPhoto>(
     photos.flatMap((photo) => (photo.pose ? [[photo.pose, photo] as const] : []))
   );
   const legacyPhotos = photos.filter((photo) => photo.pose === null);
-  const stagedCount = Object.keys(pendingPhotos).length;
 
   return (
     <Card>
@@ -182,13 +240,15 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
           <div className={styles.title}>
             <ImagePlus aria-hidden size={20} />
             <h2>عکس‌های ارزیابی</h2>
-            <span className={styles.count}>
-              {(photosByPose.size + stagedCount).toLocaleString("fa-IR")}
-            </span>
+            <span className={styles.count}>{photosByPose.size.toLocaleString("fa-IR")}</span>
           </div>
           <p className={styles.intro}>
             برای هر پوز یک عکس ثبت می‌شود؛ عکس را در کادر همان پوز انتخاب کنید. سمت راست و چپ از دید
-            شاگرد است. عکس‌های خالی را بعداً هم می‌توانید اضافه کنید.
+            شاگرد است. عکس بلافاصله آپلود می‌شود؛ اگر آپلود نشود، همین‌جا می‌توانید دوباره تلاش کنید
+            یا ویزیت را بدون آن ادامه دهید.
+            {!visitId && audience === "coach"
+              ? " با انتخاب اولین عکس، پیش‌نویس ویزیت برای اتصال عکس خودکار ذخیره می‌شود."
+              : ""}
           </p>
         </div>
         {error ? (
@@ -202,19 +262,19 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
           </p>
         ) : null}
         {loading ? <p className={styles.muted}>در حال دریافت عکس‌ها…</p> : null}
-        {!loading && photos.length === 0 && stagedCount === 0 ? (
+        {!loading && photos.length === 0 && Object.keys(localSelections).length === 0 ? (
           <p className={styles.muted}>هنوز عکسی برای این ویزیت ثبت نشده است.</p>
         ) : null}
 
         <div className={styles.poseGrid}>
           {visitPhotoPoseOptions.map(({ label, value: pose }) => {
             const photo = photosByPose.get(pose);
-            const pendingFile = pendingPhotos[pose];
+            const localSelection = localSelections[pose];
+            const poseError = poseErrors[pose];
             const canChoose =
               canUpload &&
               !photo &&
-              (Boolean(photosPath) ||
-                (audience === "coach" && Boolean(props.onPendingPhotosChange)));
+              (Boolean(photosPath) || (audience === "coach" && Boolean(props.onUploadForNewVisit)));
             const inputId = `visit-photo-${visitId ?? "new"}-${pose}`;
 
             return (
@@ -226,15 +286,21 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
                       ? "ثبت شده"
                       : uploadingPose === pose
                         ? "در حال آپلود"
-                        : pendingFile
-                          ? "آمادهٔ آپلود"
-                          : "خالی"}
+                        : poseError
+                          ? "آپلود ناموفق"
+                          : localSelection
+                            ? "پیش‌نمایش عکس"
+                            : "خالی"}
                   </span>
                 </div>
                 {photo ? (
                   <figure className={styles.photo}>
-                    {imageUrls[photo.id] ? (
-                      <img alt={`عکس پوز ${label}`} loading="lazy" src={imageUrls[photo.id]} />
+                    {imageUrls[photo.id] || localSelection?.previewUrl ? (
+                      <img
+                        alt={`عکس پوز ${label}`}
+                        loading="lazy"
+                        src={imageUrls[photo.id] ?? localSelection?.previewUrl}
+                      />
                     ) : (
                       <div aria-label="در حال بارگذاری تصویر" className={styles.imagePlaceholder} />
                     )}
@@ -244,28 +310,35 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
                       <small>{formatCalendarDateTime(photo.uploadedAt)}</small>
                     </figcaption>
                   </figure>
-                ) : pendingFile ? (
+                ) : localSelection ? (
                   <div className={styles.pendingPhoto}>
-                    <ImagePlus aria-hidden size={24} />
-                    <span>{pendingFile.name}</span>
+                    <img alt={`پیش‌نمایش پوز ${label}`} src={localSelection.previewUrl} />
+                    <span>{localSelection.file.name}</span>
                     <small>
-                      {visitId
-                        ? "در صف آپلود"
-                        : "پس از ثبت ویزیت آپلود می‌شود؛ ثبت ویزیت منتظر آپلود نمی‌ماند."}
+                      {uploadingPose === pose
+                        ? "عکس در حال آپلود است…"
+                        : poseError
+                          ? "عکس آپلود نشد؛ می‌توانید دوباره تلاش کنید یا بدون آن ادامه دهید."
+                          : "آپلود عکس آغاز می‌شود. منطق ثبت ویزیت مستقل است."}
                     </small>
-                    {!visitId && audience === "coach" && props.onPendingPhotosChange ? (
-                      <button
-                        aria-label={`حذف عکس انتخاب‌شده برای پوز ${label}`}
-                        className={styles.removePending}
-                        onClick={() => {
-                          const next = { ...pendingPhotos };
-                          delete next[pose];
-                          props.onPendingPhotosChange?.(next);
-                        }}
-                        type="button"
-                      >
-                        <X aria-hidden size={16} />
-                      </button>
+                    {poseError && uploadingPose !== pose ? (
+                      <>
+                        <button
+                          className={styles.retryButton}
+                          onClick={() => void upload(pose, localSelection.file)}
+                          type="button"
+                        >
+                          تلاش دوباره برای آپلود
+                        </button>
+                        <button
+                          aria-label={`حذف عکس انتخاب‌شده برای پوز ${label}`}
+                          className={styles.removePending}
+                          onClick={() => removeFailedSelection(pose)}
+                          type="button"
+                        >
+                          <X aria-hidden size={16} />
+                        </button>
+                      </>
                     ) : null}
                   </div>
                 ) : (
@@ -296,8 +369,8 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
                       )}
                       {uploadingPose === pose
                         ? "در حال آپلود…"
-                        : pendingFile
-                          ? "تغییر عکس"
+                        : poseError
+                          ? "انتخاب عکس دیگر"
                           : "انتخاب عکس"}
                     </span>
                   </label>
@@ -305,9 +378,9 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
                 {!canUpload && !photo ? (
                   <p className={styles.muted}>برای این ویزیت امکان افزودن عکس ندارید.</p>
                 ) : null}
-                {poseErrors[pose] ? (
+                {poseError ? (
                   <p className={styles.error} role="alert">
-                    {poseErrors[pose]}
+                    {poseError}
                   </p>
                 ) : null}
                 {photo ? (

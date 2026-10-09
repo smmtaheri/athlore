@@ -220,10 +220,10 @@ class VisitPhoto(models.Model):
     """Private photo attachment shared by the coach and student of one visit."""
 
     class Pose(models.TextChoices):
-        BACK = "back", "Back"
         FRONT = "front", "Front"
-        RIGHT_SIDE = "right_side", "Right side"
         LEFT_SIDE = "left_side", "Left side"
+        BACK = "back", "Back"
+        RIGHT_SIDE = "right_side", "Right side"
 
     class UploaderRole(models.TextChoices):
         COACH = "coach", "Coach"
