@@ -111,7 +111,7 @@ describe("StudentVisitFormPage", () => {
     });
     await user.click(screen.getByRole("button", { name: "ثبت پیش‌نویس" }));
 
-    expect(await screen.findByText(/تاریخ ویزیت را به شکل شمسی سال\/ماه\/روز/)).toBeInTheDocument();
+    expect(await screen.findByText(/تاریخ ویزیت شمسی را به شکل سال\/ماه\/روز/)).toBeInTheDocument();
   });
 
   it("defaults new visits to today's editable Jalali date", async () => {

@@ -32,6 +32,9 @@ export function StudentVisitDetailPage({
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [photosUploading, setPhotosUploading] = useState(false);
+  const [hasStagedPhotos, setHasStagedPhotos] = useState(false);
+  const [photoSessionId, setPhotoSessionId] = useState(() => globalThis.crypto.randomUUID());
 
   useEffect(() => {
     if (!visitId) {
@@ -103,15 +106,23 @@ export function StudentVisitDetailPage({
   };
 
   const save = async () => {
-    if (!visit || !open) return;
+    if (!visit || !open || photosUploading) return;
     setSaving(true);
     setError("");
     setFeedback("");
     try {
-      const next = await repository.updateAnswers(visit.id, editableAnswersPayload());
+      const next = await repository.updateAnswers(
+        visit.id,
+        editableAnswersPayload(),
+        hasStagedPhotos ? photoSessionId : undefined
+      );
       setVisit(next);
       setAnswers(next.answers || {});
-      setFeedback("پاسخ‌ها ذخیره شد.");
+      setPhotoSessionId(globalThis.crypto.randomUUID());
+      setHasStagedPhotos(false);
+      setFeedback(
+        `پاسخ‌ها ذخیره شد.${next.photoIssues?.length ? ` ${next.photoIssues.join(" ")}` : ""}`
+      );
     } catch (err) {
       setError(err instanceof ApiError ? persianMessageForApiError(err) : "ذخیره انجام نشد.");
     } finally {
@@ -120,16 +131,24 @@ export function StudentVisitDetailPage({
   };
 
   const submit = async () => {
-    if (!visit || !open) return;
+    if (!visit || !open || photosUploading) return;
     setSaving(true);
     setError("");
     setFeedback("");
     try {
-      await repository.updateAnswers(visit.id, editableAnswersPayload());
+      const updated = await repository.updateAnswers(
+        visit.id,
+        editableAnswersPayload(),
+        hasStagedPhotos ? photoSessionId : undefined
+      );
       const next = await repository.submit(visit.id);
       setVisit(next);
-      setFeedback("ویزیت برای مربی ارسال شد.");
-      navigate(studentPaths.visits);
+      setPhotoSessionId(globalThis.crypto.randomUUID());
+      setHasStagedPhotos(false);
+      setFeedback(
+        `ویزیت برای مربی ارسال شد.${updated.photoIssues?.length ? ` ${updated.photoIssues.join(" ")}` : ""}`
+      );
+      if (!updated.photoIssues?.length) navigate(studentPaths.visits);
     } catch (err) {
       setError(err instanceof ApiError ? persianMessageForApiError(err) : "ارسال انجام نشد.");
     } finally {
@@ -220,6 +239,11 @@ export function StudentVisitDetailPage({
         <VisitPhotosPanel
           audience="student"
           canUpload={visit.status !== "draft"}
+          commitInPanel={!open}
+          key={photoSessionId}
+          onStagedChange={setHasStagedPhotos}
+          onUploadStateChange={setPhotosUploading}
+          sessionId={photoSessionId}
           visitId={visit.id}
         />
 
@@ -245,10 +269,15 @@ export function StudentVisitDetailPage({
           </Button>
           {open ? (
             <div className={styles.actionButtons}>
-              <Button isLoading={saving} onClick={() => void save()} variant="secondary">
+              <Button
+                disabled={photosUploading}
+                isLoading={saving}
+                onClick={() => void save()}
+                variant="secondary"
+              >
                 ذخیره
               </Button>
-              <Button isLoading={saving} onClick={() => void submit()}>
+              <Button disabled={photosUploading} isLoading={saving} onClick={() => void submit()}>
                 ارسال برای مربی
               </Button>
             </div>

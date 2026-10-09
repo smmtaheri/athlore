@@ -1,8 +1,4 @@
-import type {
-  VisitFormAnswers,
-  VisitFormTemplateSnapshot,
-  VisitStatus
-} from "./visitForm";
+import type { VisitFormAnswers, VisitFormTemplateSnapshot, VisitStatus } from "./visitForm";
 
 export type VisitLevel = "low" | "medium" | "good" | "high";
 
@@ -47,6 +43,7 @@ export interface StudentVisit {
   newInjuryNotes: string;
   nextCycleGoal: string;
   previousWeightKg: number;
+  photoIssues?: string[];
   sentAt?: string | null;
   sleepQuality: VisitLevel;
   status: VisitStatus;
@@ -99,6 +96,7 @@ export type StudentVisitInput = Omit<
   coachPrivateNotes?: string;
   formTemplateId?: string | null;
   status?: VisitStatus;
+  stagedPhotoSessionId?: string;
 };
 
 export interface StudentVisitFormValues {

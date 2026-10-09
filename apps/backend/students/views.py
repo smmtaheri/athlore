@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.permissions import AllowAny
@@ -15,6 +16,7 @@ from common.permissions import (
 )
 from students import services
 from students import visit_form_services as vfs
+from students import visit_photo_services as photo_services
 from students.serializers import (
     ActivateLoginSerializer,
     ResetPortalPasswordSerializer,
@@ -135,8 +137,24 @@ class VisitListCreateView(APIView):
         student = services.get_student_for_coach(coach, student_id)
         serializer = VisitWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        visit = services.create_visit(coach, student, serializer.validated_data, actor=request.user)
-        return Response(VisitSerializer(visit).data, status=status.HTTP_201_CREATED)
+        data = dict(serializer.validated_data)
+        session_id = data.pop("staged_photo_session_id", None)
+        with transaction.atomic():
+            visit = services.create_visit(coach, student, data, actor=request.user)
+            issues = (
+                photo_services.commit_staged_photos(
+                    session_id=session_id,
+                    visit=visit,
+                    actor=request.user,
+                    allow_unbound=True,
+                )
+                if session_id
+                else []
+            )
+        return Response(
+            {**VisitSerializer(visit).data, "photo_issues": issues},
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class VisitLatestView(APIView):
@@ -164,8 +182,18 @@ class VisitDetailView(APIView):
         visit = services.get_visit_for_student(coach, student, visit_id)
         serializer = VisitWriteSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        visit = services.update_visit(visit, serializer.validated_data, actor=request.user)
-        return Response(VisitSerializer(visit).data)
+        data = dict(serializer.validated_data)
+        session_id = data.pop("staged_photo_session_id", None)
+        with transaction.atomic():
+            visit = services.update_visit(visit, data, actor=request.user)
+            issues = (
+                photo_services.commit_staged_photos(
+                    session_id=session_id, visit=visit, actor=request.user
+                )
+                if session_id
+                else []
+            )
+        return Response({**VisitSerializer(visit).data, "photo_issues": issues})
 
     def delete(self, request, student_id, visit_id):
         coach = get_request_coach(request)
@@ -406,10 +434,19 @@ class MyVisitDetailView(StudentWritableAccessMixin, APIView):
         visit = services.get_visit_for_student_profile(student, visit_id)
         serializer = StudentAnswersUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        visit = vfs.student_update_answers(
-            visit, serializer.validated_data["answers"], actor=request.user
-        )
-        return Response(vfs.serialize_visit_for_student(visit))
+        with transaction.atomic():
+            visit = vfs.student_update_answers(
+                visit, serializer.validated_data["answers"], actor=request.user
+            )
+            session_id = serializer.validated_data.get("staged_photo_session_id")
+            issues = (
+                photo_services.commit_staged_photos(
+                    session_id=session_id, visit=visit, actor=request.user
+                )
+                if session_id
+                else []
+            )
+        return Response({**vfs.serialize_visit_for_student(visit), "photo_issues": issues})
 
 
 class MyVisitSubmitView(StudentWritableAccessMixin, APIView):

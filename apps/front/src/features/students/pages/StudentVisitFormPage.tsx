@@ -1,5 +1,5 @@
 import { formatCalendarDateTime } from "../../../shared/dates/calendar";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, UserRound } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { ContentSection, PageContainer, PageHeader, Stack } from "../../../components/layout";
@@ -8,11 +8,6 @@ import { ApiError, persianMessageForVisitApiError } from "../../../shared/api/er
 import { StudentStatusBadge } from "../components/StudentStatusBadge";
 import { StudentVisitForm, type VisitSubmitIntent } from "../components/StudentVisitForm";
 import { VisitPhotosPanel } from "../components/VisitPhotosPanel";
-import {
-  coachVisitPhotosPath,
-  uploadVisitPhoto,
-  type VisitPhotoPose
-} from "../services/visitPhotosRepository";
 import {
   visitFormTemplatesRepository,
   type VisitFormTemplatesRepository
@@ -61,11 +56,12 @@ export function StudentVisitFormPage({
   const [formTemplates, setFormTemplates] = useState<VisitFormTemplate[]>([]);
   const [latestVisit, setLatestVisit] = useState<StudentVisit | undefined>();
   const [photosUploading, setPhotosUploading] = useState(false);
+  const [hasStagedPhotos, setHasStagedPhotos] = useState(false);
   const [routeFeedback, setRouteFeedback] = useState("");
   const [status, setStatus] = useState<"error" | "loaded" | "loading" | "notFound">("loading");
   const [student, setStudent] = useState<Student | undefined>();
   const [visit, setVisit] = useState<StudentVisit | undefined>();
-  const draftInputRef = useRef<StudentVisitInput | null>(null);
+  const [photoSessionId] = useState(() => globalThis.crypto.randomUUID());
   const location = useLocation();
   const navigate = useNavigate();
   const { studentId, visitId } = useParams();
@@ -137,25 +133,6 @@ export function StudentVisitFormPage({
 
   const goToVisits = () => navigate(`/students/${studentId}/visits`);
 
-  const rememberDraftInput = useCallback((input: StudentVisitInput | null) => {
-    draftInputRef.current = input;
-  }, []);
-
-  const uploadPhotoForNewVisit = useCallback(
-    async (pose: VisitPhotoPose, file: File) => {
-      if (!studentId) throw new Error("شناسه شاگرد پیدا نشد.");
-      let targetVisit = visit;
-      if (!targetVisit) {
-        const input = draftInputRef.current;
-        if (!input) throw new Error("ابتدا اطلاعات اولیه فرم را تکمیل کنید.");
-        targetVisit = await visitsRepo.create(studentId, { ...input, status: "draft" });
-        setVisit(targetVisit);
-      }
-      return uploadVisitPhoto(coachVisitPhotosPath(studentId, targetVisit.id), pose, file);
-    },
-    [studentId, visit, visitsRepo]
-  );
-
   const handleSubmit = async (input: StudentVisitInput, intent: VisitSubmitIntent) => {
     if (!studentId) {
       throw new Error("Student id is required.");
@@ -164,6 +141,7 @@ export function StudentVisitFormPage({
     try {
       const currentStatus = visit?.status ?? input.status ?? "draft";
       const payload = withoutLockedAnswers(input, currentStatus);
+      if (hasStagedPhotos) payload.stagedPhotoSessionId = photoSessionId;
 
       // Resend while answers are locked: skip PATCH (answers would be rejected)
       // and only extend the student send window.
@@ -171,6 +149,7 @@ export function StudentVisitFormPage({
         intent === "send-to-student" &&
         mode === "edit" &&
         visitId &&
+        !hasStagedPhotos &&
         answersLockedForStatus(currentStatus)
       ) {
         const resent = await visitsRepo.sendToStudent(studentId, visitId);
@@ -190,6 +169,9 @@ export function StudentVisitFormPage({
       let savedVisit = existingVisitId
         ? await visitsRepo.update(studentId, existingVisitId, payload)
         : await visitsRepo.create(studentId, payload);
+      const photoWarning = savedVisit.photoIssues?.length
+        ? ` ${savedVisit.photoIssues.join(" ")}`
+        : "";
 
       if (intent === "send-to-student") {
         savedVisit = await visitsRepo.sendToStudent(studentId, savedVisit.id);
@@ -197,8 +179,8 @@ export function StudentVisitFormPage({
           replace: true,
           state: {
             visitSaved: savedVisit.expiresAt
-              ? `فرم برای شاگرد ارسال شد. انقضا: ${formatCalendarDateTime(savedVisit.expiresAt)}`
-              : "فرم برای شاگرد ارسال شد."
+              ? `فرم برای شاگرد ارسال شد. انقضا: ${formatCalendarDateTime(savedVisit.expiresAt)}${photoWarning}`
+              : `فرم برای شاگرد ارسال شد.${photoWarning}`
           }
         });
         setVisit(savedVisit);
@@ -209,7 +191,7 @@ export function StudentVisitFormPage({
         savedVisit = await visitsRepo.startCoachReview(studentId, savedVisit.id);
         navigate(`/students/${studentId}/visits/${savedVisit.id}/edit`, {
           replace: true,
-          state: { visitSaved: "بررسی مربی شروع شد؛ فرم شاگرد قفل است." }
+          state: { visitSaved: `بررسی مربی شروع شد؛ فرم شاگرد قفل است.${photoWarning}` }
         });
         setVisit(savedVisit);
         return;
@@ -218,21 +200,23 @@ export function StudentVisitFormPage({
       if (intent === "finalize") {
         savedVisit = await visitsRepo.finalize(studentId, savedVisit.id);
         navigate(`/students/${studentId}/visits`, {
-          state: { visitSaved: "ویزیت نهایی شد." }
+          state: { visitSaved: `ویزیت نهایی شد.${photoWarning}` }
         });
         return;
       }
 
       if (intent === "generate-program") {
         navigate(`/programs/new?studentId=${studentId}&visitId=${savedVisit.id}`, {
-          state: { visitSaved: "ویزیت ذخیره شد و تولید برنامه در مرحله بعد تکمیل می شود." }
+          state: {
+            visitSaved: `ویزیت ذخیره شد و تولید برنامه در مرحله بعد تکمیل می شود.${photoWarning}`
+          }
         });
         return;
       }
 
       navigate(`/students/${studentId}/visits`, {
         state: {
-          visitSaved: mode === "edit" ? "تغییرات ویزیت ذخیره شد." : "ویزیت جدید ثبت شد."
+          visitSaved: `${mode === "edit" ? "تغییرات ویزیت ذخیره شد." : "ویزیت جدید ثبت شد."}${photoWarning}`
         }
       });
     } catch (error) {
@@ -313,8 +297,9 @@ export function StudentVisitFormPage({
             <VisitPhotosPanel
               audience="coach"
               canUpload
-              onUploadForNewVisit={uploadPhotoForNewVisit}
+              onStagedChange={setHasStagedPhotos}
               onUploadStateChange={setPhotosUploading}
+              sessionId={photoSessionId}
               studentId={student.id}
               visitId={visit?.id ?? null}
             />
@@ -327,7 +312,6 @@ export function StudentVisitFormPage({
               latestVisit={latestVisit}
               mode={mode}
               onCancel={goToVisits}
-              onDraftInputChange={mode === "create" && !visit ? rememberDraftInput : undefined}
               photosUploading={photosUploading}
               onSubmit={handleSubmit}
               student={student}

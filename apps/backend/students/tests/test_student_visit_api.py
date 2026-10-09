@@ -5,10 +5,13 @@ from __future__ import annotations
 from datetime import timedelta
 from decimal import Decimal
 from io import BytesIO
+from pathlib import Path
 from tempfile import TemporaryDirectory
+from uuid import uuid4
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from PIL import Image
@@ -17,7 +20,7 @@ from rest_framework.test import APIClient
 from accounts.models import CoachProfile
 from accounts.visit_form_fixtures import MINIMAL_VISIT_FORM_TEMPLATE
 from students.body_check_services import create_cycle, local_today
-from students.models import Student, VisitAnswerRevision
+from students.models import StagedVisitPhoto, Student, Visit, VisitAnswerRevision, VisitPhoto
 from students.services import (
     complete_student_setup,
     create_visit,
@@ -484,6 +487,141 @@ class StudentVisitApiTests(TestCase):
         buffer = BytesIO()
         Image.new("RGB", (3, 3), color="red").save(buffer, format="PNG")
         return SimpleUploadedFile("progress.png", buffer.getvalue(), content_type="image/png")
+
+    def test_staged_photo_waits_for_explicit_visit_save_and_can_be_replaced_or_deleted(self):
+        session_id = str(uuid4())
+        staging_path = f"/api/v1/students/{self.student.id}/visits/photo-staging/"
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            first = self.coach_client.post(
+                staging_path,
+                {"file": self._visit_photo(), "pose": "front", "session_id": session_id},
+                format="multipart",
+            )
+            self.assertEqual(first.status_code, 201, first.data)
+            self.assertEqual(Visit.objects.filter(student=self.student).count(), 1)
+            self.assertEqual(VisitPhoto.objects.filter(visit=self.visit).count(), 0)
+
+            replacement = self.coach_client.post(
+                staging_path,
+                {"file": self._visit_photo(), "pose": "front", "session_id": session_id},
+                format="multipart",
+            )
+            self.assertEqual(replacement.status_code, 201, replacement.data)
+            self.assertEqual(first.data["id"], replacement.data["id"])
+            self.assertEqual(StagedVisitPhoto.objects.filter(session_id=session_id).count(), 1)
+
+            with self.captureOnCommitCallbacks(execute=True):
+                removed = self.coach_client.delete(
+                    f"/api/v1/visits/photos/staged/{replacement.data['id']}/"
+                )
+            self.assertEqual(removed.status_code, 204)
+            self.assertEqual(StagedVisitPhoto.objects.filter(session_id=session_id).count(), 0)
+
+            staged = self.coach_client.post(
+                staging_path,
+                {"file": self._visit_photo(), "pose": "front", "session_id": session_id},
+                format="multipart",
+            )
+            self.assertEqual(staged.status_code, 201, staged.data)
+            wrong_visit = self.coach_client.post(
+                f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/photos/commit/",
+                {"session_id": session_id},
+                format="json",
+            )
+            self.assertEqual(wrong_visit.status_code, 200, wrong_visit.data)
+            self.assertEqual(len(wrong_visit.data["photo_issues"]), 1)
+            self.assertEqual(VisitPhoto.objects.filter(visit=self.visit).count(), 0)
+            with self.captureOnCommitCallbacks(execute=True):
+                new_visit = self.coach_client.post(
+                    f"/api/v1/students/{self.student.id}/visits/",
+                    _payload(visit_date="2026-08-03", staged_photo_session_id=session_id),
+                    format="json",
+                )
+            self.assertEqual(new_visit.status_code, 201, new_visit.data)
+            self.assertEqual(new_visit.data["photo_issues"], [])
+            photo = VisitPhoto.objects.get(visit_id=new_visit.data["id"], pose="front")
+            self.assertEqual(photo.original_filename, "progress.png")
+            self.assertTrue(Path(photo.file.path).exists())
+            self.assertEqual(StagedVisitPhoto.objects.filter(session_id=session_id).count(), 0)
+
+    def test_staged_photo_is_owned_and_loses_pose_race_without_blocking_visit(self):
+        session_id = str(uuid4())
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            staged = self.coach_client.post(
+                f"/api/v1/students/{self.student.id}/visits/photo-staging/",
+                {
+                    "file": self._visit_photo(),
+                    "pose": "front",
+                    "session_id": session_id,
+                    "visit_id": str(self.visit.id),
+                },
+                format="multipart",
+            )
+            self.assertEqual(staged.status_code, 201, staged.data)
+            other_client = APIClient()
+            other_client.force_authenticate(user=self.other_coach.user)
+            denied = other_client.delete(f"/api/v1/visits/photos/staged/{staged.data['id']}/")
+            self.assertEqual(denied.status_code, 404)
+
+            immediate = self.coach_client.post(
+                f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/photos/",
+                {"file": self._visit_photo(), "pose": "front"},
+                format="multipart",
+            )
+            self.assertEqual(immediate.status_code, 201, immediate.data)
+            saved = self.coach_client.patch(
+                f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/",
+                {"staged_photo_session_id": session_id},
+                format="json",
+            )
+            self.assertEqual(saved.status_code, 200, saved.data)
+            self.assertEqual(len(saved.data["photo_issues"]), 1)
+            self.assertEqual(VisitPhoto.objects.filter(visit=self.visit, pose="front").count(), 1)
+
+    def test_student_photo_stays_private_until_answer_save(self):
+        send_visit_to_student(self.visit)
+        student_client, _ = self._activate_and_login_student()
+        session_id = str(uuid4())
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            staged = student_client.post(
+                f"/api/v1/me/visits/{self.visit.id}/photo-staging/",
+                {"file": self._visit_photo(), "pose": "left_side", "session_id": session_id},
+                format="multipart",
+            )
+            self.assertEqual(staged.status_code, 201, staged.data)
+            self.assertEqual(VisitPhoto.objects.filter(visit=self.visit).count(), 0)
+
+            saved = student_client.patch(
+                f"/api/v1/me/visits/{self.visit.id}/",
+                {
+                    "answers": {"goal": "hypertrophy"},
+                    "staged_photo_session_id": session_id,
+                },
+                format="json",
+            )
+            self.assertEqual(saved.status_code, 200, saved.data)
+            self.assertEqual(saved.data["photo_issues"], [])
+            self.assertEqual(VisitPhoto.objects.get(visit=self.visit).uploader_role, "student")
+
+    def test_expired_staging_cleanup_removes_file(self):
+        session_id = str(uuid4())
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            staged = self.coach_client.post(
+                f"/api/v1/students/{self.student.id}/visits/photo-staging/",
+                {"file": self._visit_photo(), "pose": "back", "session_id": session_id},
+                format="multipart",
+            )
+            self.assertEqual(staged.status_code, 201, staged.data)
+            photo = StagedVisitPhoto.objects.get(pk=staged.data["id"])
+            photo_path = Path(photo.file.path)
+            self.assertTrue(photo_path.exists())
+            StagedVisitPhoto.objects.filter(pk=photo.pk).update(
+                expires_at=timezone.now() - timedelta(minutes=1)
+            )
+            with self.captureOnCommitCallbacks(execute=True):
+                call_command("prune_staged_visit_photos")
+            self.assertFalse(StagedVisitPhoto.objects.filter(pk=photo.pk).exists())
+            self.assertFalse(photo_path.exists())
 
     def test_visit_photos_are_shared_only_with_the_visit_coach_and_student(self):
         send_visit_to_student(self.visit)

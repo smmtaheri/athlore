@@ -105,5 +105,11 @@ https://student.athlore.ir/visits/:visitId
 https://student.athlore.ir/body-check
 ```
 
-The API is available under `/api/v1/` through Nginx. No database migration is
-introduced by this deployment change.
+The API is available under `/api/v1/` through Nginx. The backend entrypoint
+applies database migrations before becoming healthy; visit photo staging adds
+the `0015_stagedvisitphoto` migration.
+
+Visit photo uploads use a private staging table and shared media volume. The
+`visit-photo-pruner` service removes expired uploads every hour after the
+backend is healthy. Check `docker compose ps visit-photo-pruner` if temporary
+media usage grows unexpectedly.

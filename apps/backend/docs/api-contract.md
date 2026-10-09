@@ -382,6 +382,12 @@ Side effect: update Student `summary_last_visit_date`
 
 ### Visit photos
 
+- Coach staging: `POST /api/v1/students/{student_id}/visits/photo-staging/` (multipart `session_id`, `pose`, `file`, optional `visit_id`).
+- Student staging: `POST /api/v1/me/visits/{visit_id}/photo-staging/` (multipart `session_id`, `pose`, `file`).
+- Discard own staged upload: `DELETE /api/v1/visits/photos/staged/{staged_photo_id}/`.
+- Commit staged photos for an existing visit: `POST /api/v1/students/{student_id}/visits/{visit_id}/photos/commit/` or `POST /api/v1/me/visits/{visit_id}/photos/commit/` with `session_id`.
+- Coach create/update and student answer PATCH also accept optional `staged_photo_session_id`; successful staged photos are attached during that explicit save. Responses include `photo_issues` for expired or occupied poses. Uploading a staged photo never creates a Visit.
+- Staged files are private, scoped to actor/student/visit/session, replaceable until commit, and expire after 24 hours. The deployment prunes expired stages hourly.
 - Coach collection: `GET/POST /api/v1/students/{student_id}/visits/{visit_id}/photos/`
 - Student collection: `GET/POST /api/v1/me/visits/{visit_id}/photos/`
 - Private download: `GET /api/v1/visits/photos/{photo_id}/download/`

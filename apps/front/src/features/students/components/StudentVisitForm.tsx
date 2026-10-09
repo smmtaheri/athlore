@@ -5,7 +5,7 @@ import {
   calendarPlaceholder
 } from "../../../shared/dates/calendar";
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Activity,
   ClipboardCheck,
@@ -58,7 +58,6 @@ export interface StudentVisitFormProps {
   latestVisit?: StudentVisit;
   mode: "create" | "edit";
   onCancel: () => void;
-  onDraftInputChange?: (input: StudentVisitInput | null) => void;
   photosUploading?: boolean;
   onSubmit: (input: StudentVisitInput, intent: VisitSubmitIntent) => Promise<void>;
   student: Student;
@@ -114,7 +113,6 @@ export function StudentVisitForm({
   latestVisit,
   mode,
   onCancel,
-  onDraftInputChange,
   photosUploading = false,
   onSubmit,
   student
@@ -181,20 +179,6 @@ export function StudentVisitForm({
     [templateForSections]
   );
 
-  useEffect(() => {
-    if (!onDraftInputChange) return;
-    try {
-      const input = visitFormValuesToInput(values);
-      input.coachPrivateNotes = values.coachPrivateNotes;
-      input.formTemplateId = formTemplateId || null;
-      input.status = status;
-      if (!answersReadOnly) input.answers = answers;
-      onDraftInputChange(input);
-    } catch {
-      onDraftInputChange(null);
-    }
-  }, [answers, answersReadOnly, formTemplateId, onDraftInputChange, status, values]);
-
   const templateOptions = formTemplates
     .filter((item) => item.isActive || item.id === formTemplateId)
     .map((item) => ({
@@ -231,6 +215,7 @@ export function StudentVisitForm({
   };
 
   const submit = async (intent: VisitSubmitIntent) => {
+    if (photosUploading || submitIntent) return;
     const nextErrors = validateStudentVisitForm(values);
     setErrors(nextErrors);
     setSubmitError("");
@@ -678,9 +663,7 @@ export function StudentVisitForm({
                   ? "برای ویرایش پاسخ‌ها ابتدا بررسی مربی را شروع کنید."
                   : mode === "edit"
                     ? "تغییرات روی ویزیت انتخاب شده ذخیره می شود."
-                    : initialVisit
-                      ? "پیش‌نویس ویزیت برای آپلود عکس ایجاد شده؛ تغییرات فرم را با ذخیره ویزیت ثبت کنید."
-                      : "پس از ثبت، ویزیت به صورت پیش‌نویس ذخیره می شود."}
+                    : "پس از ثبت، ویزیت به صورت پیش‌نویس ذخیره می شود."}
         </span>
         <div className={styles.actionBarButtons}>
           <Button disabled={photosUploading} onClick={onCancel} type="button" variant="secondary">

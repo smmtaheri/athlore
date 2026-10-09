@@ -33,6 +33,7 @@ services:
       - internal
 
   backend:
+    image: athlore-backend
     build:
       context: ../../apps/backend
       dockerfile: Dockerfile
@@ -83,6 +84,35 @@ services:
     tmpfs:
       - /tmp
       - /app/staticfiles
+    networks:
+      - internal
+
+  visit-photo-pruner:
+    image: athlore-backend
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["while true; do python manage.py prune_staged_visit_photos || exit 1; sleep 3600; done"]
+    user: "10001:10001"
+    environment:
+      DB_ENGINE: postgresql
+      POSTGRES_DB: ${POSTGRES_DB:-coach_assistant}
+      POSTGRES_USER: ${POSTGRES_USER:-coach_assistant}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
+      DJANGO_MEDIA_ROOT: ${DJANGO_MEDIA_ROOT:-/data/media}
+    volumes:
+      - media_data:/data/media
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
     networks:
       - internal
 

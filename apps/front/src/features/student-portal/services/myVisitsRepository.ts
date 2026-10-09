@@ -9,7 +9,11 @@ export interface MyVisitsRepository {
   getById(visitId: string): Promise<StudentVisit | null>;
   list(): Promise<StudentVisit[]>;
   submit(visitId: string): Promise<StudentVisit>;
-  updateAnswers(visitId: string, answers: VisitFormAnswers): Promise<StudentVisit>;
+  updateAnswers(
+    visitId: string,
+    answers: VisitFormAnswers,
+    stagedPhotoSessionId?: string
+  ): Promise<StudentVisit>;
 }
 
 export function createMyVisitsRepository(): MyVisitsRepository {
@@ -31,10 +35,13 @@ export function createMyVisitsRepository(): MyVisitsRepository {
         throw error;
       }
     },
-    async updateAnswers(visitId, answers) {
+    async updateAnswers(visitId, answers, stagedPhotoSessionId) {
       const dto = await apiRequest<Record<string, unknown>>(`/me/visits/${visitId}/`, {
         method: "PATCH",
-        body: { answers }
+        body: {
+          answers,
+          ...(stagedPhotoSessionId ? { staged_photo_session_id: stagedPhotoSessionId } : {})
+        }
       });
       return visitFromApi(dto);
     },

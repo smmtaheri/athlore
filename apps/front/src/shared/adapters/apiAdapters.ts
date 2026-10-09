@@ -263,6 +263,7 @@ export function visitFromApi(dto: Record<string, unknown>): StudentVisit {
     newInjuryNotes: String(dto.new_injury_notes ?? ""),
     nextCycleGoal: String(dto.next_cycle_goal ?? ""),
     previousWeightKg: num(dto.previous_weight_kg),
+    photoIssues: Array.isArray(dto.photo_issues) ? dto.photo_issues.map(String) : [],
     sentAt: dto.sent_at == null ? null : str(dto.sent_at),
     sleepQuality: (dto.sleep_quality as StudentVisit["sleepQuality"]) || "medium",
     status,
@@ -335,6 +336,9 @@ export function studentActivateLoginFromApi(
 
 export function visitInputToApi(input: Partial<StudentVisitInput>): Record<string, unknown> {
   const body: Record<string, unknown> = {};
+  if (input.stagedPhotoSessionId !== undefined) {
+    body.staged_photo_session_id = input.stagedPhotoSessionId;
+  }
   if (input.visitDate !== undefined) body.visit_date = input.visitDate;
   if (input.currentWeightKg !== undefined) body.current_weight_kg = input.currentWeightKg;
   if (input.previousWeightKg !== undefined) body.previous_weight_kg = input.previousWeightKg;

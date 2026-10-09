@@ -515,7 +515,13 @@ function VisitDetailsPanel({ studentId, visit }: { studentId: string; visit: Stu
         </div>
       </details>
 
-      <VisitPhotosPanel audience="coach" canUpload studentId={studentId} visitId={visit.id} />
+      <VisitPhotosPanel
+        audience="coach"
+        canUpload
+        commitInPanel
+        studentId={studentId}
+        visitId={visit.id}
+      />
     </Card>
   );
 }

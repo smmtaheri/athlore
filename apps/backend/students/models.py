@@ -263,6 +263,36 @@ class VisitPhoto(models.Model):
         return f"VisitPhoto({self.visit_id}, {self.id})"
 
 
+def staged_visit_photo_upload_to(instance, filename: str) -> str:
+    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
+    return f"visits/staged/{uuid.uuid4()}.{extension}"
+
+
+class StagedVisitPhoto(models.Model):
+    """Private, replaceable upload awaiting an explicit visit save."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session_id = models.UUIDField(db_index=True)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    visit = models.ForeignKey(Visit, on_delete=models.CASCADE, null=True, blank=True)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    uploader_role = models.CharField(max_length=16, choices=VisitPhoto.UploaderRole.choices)
+    pose = models.CharField(max_length=16, choices=VisitPhoto.Pose.choices)
+    file = models.FileField(upload_to=staged_visit_photo_upload_to, max_length=512)
+    original_filename = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=100)
+    size_bytes = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["session_id", "pose"], name="uniq_staged_visit_photo_pose"
+            )
+        ]
+
+
 class VisitAnswerRevision(models.Model):
     """Immutable history of a single answer field value change on a Visit."""
 

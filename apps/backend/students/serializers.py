@@ -276,6 +276,7 @@ class VisitSerializer(serializers.ModelSerializer):
 
 
 class VisitWriteSerializer(serializers.Serializer):
+    staged_photo_session_id = serializers.UUIDField(required=False)
     visit_date = serializers.DateField(required=True)
     current_weight_kg = serializers.DecimalField(max_digits=5, decimal_places=1, required=True)
     previous_weight_kg = serializers.DecimalField(max_digits=5, decimal_places=1, required=True)
@@ -353,3 +354,4 @@ class StudentPortalLoginSerializer(serializers.Serializer):
 
 class StudentAnswersUpdateSerializer(serializers.Serializer):
     answers = serializers.DictField(required=True)
+    staged_photo_session_id = serializers.UUIDField(required=False)

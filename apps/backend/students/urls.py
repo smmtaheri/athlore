@@ -46,7 +46,12 @@ from students.visit_form_views import (
     VisitFormTemplateSetDefaultView,
 )
 from students.visit_photo_views import (
+    CoachCommitVisitPhotosView,
+    CoachStagedVisitPhotosView,
     CoachVisitPhotosView,
+    StagedVisitPhotoDetailView,
+    StudentCommitVisitPhotosView,
+    StudentStagedVisitPhotosView,
     StudentVisitPhotosView,
     VisitPhotoDownloadView,
 )
@@ -95,6 +100,16 @@ urlpatterns = [
         "students/<uuid:student_id>/visits/<uuid:visit_id>/photos/",
         CoachVisitPhotosView.as_view(),
         name="visit-photos-coach",
+    ),
+    path(
+        "students/<uuid:student_id>/visits/photo-staging/",
+        CoachStagedVisitPhotosView.as_view(),
+        name="visit-photo-staging-coach",
+    ),
+    path(
+        "students/<uuid:student_id>/visits/<uuid:visit_id>/photos/commit/",
+        CoachCommitVisitPhotosView.as_view(),
+        name="visit-photos-commit-coach",
     ),
     path(
         "students/<uuid:student_id>/activate-login/",
@@ -147,6 +162,21 @@ urlpatterns = [
         "me/visits/<uuid:visit_id>/photos/",
         StudentVisitPhotosView.as_view(),
         name="my-visit-photos",
+    ),
+    path(
+        "me/visits/<uuid:visit_id>/photo-staging/",
+        StudentStagedVisitPhotosView.as_view(),
+        name="my-visit-photo-staging",
+    ),
+    path(
+        "me/visits/<uuid:visit_id>/photos/commit/",
+        StudentCommitVisitPhotosView.as_view(),
+        name="my-visit-photos-commit",
+    ),
+    path(
+        "visits/photos/staged/<uuid:photo_id>/",
+        StagedVisitPhotoDetailView.as_view(),
+        name="visit-photo-staged-detail",
     ),
     path(
         "visits/photos/<uuid:photo_id>/download/",
