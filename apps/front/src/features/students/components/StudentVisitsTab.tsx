@@ -31,6 +31,7 @@ import {
   type StudentVisitsRepository
 } from "../services/studentVisitsRepository";
 import { VisitAnswersReadonly } from "./VisitDynamicForm";
+import { VisitPhotosPanel } from "./VisitPhotosPanel";
 import { enabledSectionsFromTemplate } from "./visitFormUtils";
 import { ProfileTabHeader, SummaryMetricCard } from "./ProfileTabHeader";
 import styles from "./students.module.css";
@@ -253,7 +254,7 @@ export function StudentVisitsTab({
             : "جزئیات ویزیت"
         }
       >
-        {selectedVisit ? <VisitDetailsPanel visit={selectedVisit} /> : null}
+        {selectedVisit ? <VisitDetailsPanel studentId={student.id} visit={selectedVisit} /> : null}
       </Modal>
 
       <Modal
@@ -430,7 +431,7 @@ function VisitActions({ onDelete, onSelect, studentId, visit }: VisitActionsProp
   );
 }
 
-function VisitDetailsPanel({ visit }: { visit: StudentVisit }) {
+function VisitDetailsPanel({ studentId, visit }: { studentId: string; visit: StudentVisit }) {
   const weightChange = visit.currentWeightKg - visit.previousWeightKg;
   const dynamicSections = enabledSectionsFromTemplate(visit.formTemplateSnapshot);
   const hasMeasurements = Object.values(visit.measurements).some((value) => value !== undefined);
@@ -513,6 +514,8 @@ function VisitDetailsPanel({ visit }: { visit: StudentVisit }) {
           ) : null}
         </div>
       </details>
+
+      <VisitPhotosPanel audience="coach" canUpload studentId={studentId} visitId={visit.id} />
     </Card>
   );
 }

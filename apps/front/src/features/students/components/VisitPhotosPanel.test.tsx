@@ -26,7 +26,7 @@ describe("VisitPhotosPanel", () => {
     expect(await screen.findByText("هنوز عکسی برای این ویزیت ثبت نشده است.")).toBeTruthy();
 
     const file = new File(["jpeg"], "front.jpg", { type: "image/jpeg" });
-    fireEvent.change(screen.getByLabelText("انتخاب عکس برای ویزیت"), {
+    fireEvent.change(screen.getByLabelText("انتخاب عکس برای پوز جلو"), {
       target: { files: [file] }
     });
 
@@ -42,7 +42,7 @@ describe("VisitPhotosPanel", () => {
     render(<VisitPhotosPanel audience="coach" canUpload studentId="student-1" visitId="visit-1" />);
     expect(await screen.findByText("هنوز عکسی برای این ویزیت ثبت نشده است.")).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText("انتخاب عکس برای ویزیت"), {
+    fireEvent.change(screen.getByLabelText("انتخاب عکس برای پوز پشت"), {
       target: { files: [new File(["jpeg"], "front.jpg", { type: "image/jpeg" })] }
     });
 

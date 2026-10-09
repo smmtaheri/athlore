@@ -219,6 +219,12 @@ def visit_photo_upload_to(instance, filename: str) -> str:
 class VisitPhoto(models.Model):
     """Private photo attachment shared by the coach and student of one visit."""
 
+    class Pose(models.TextChoices):
+        BACK = "back", "Back"
+        FRONT = "front", "Front"
+        RIGHT_SIDE = "right_side", "Right side"
+        LEFT_SIDE = "left_side", "Left side"
+
     class UploaderRole(models.TextChoices):
         COACH = "coach", "Coach"
         STUDENT = "student", "Student"
@@ -227,6 +233,7 @@ class VisitPhoto(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     visit = models.ForeignKey(Visit, on_delete=models.CASCADE, related_name="photos")
+    pose = models.CharField(max_length=16, choices=Pose.choices, blank=True, null=True)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -244,6 +251,13 @@ class VisitPhoto(models.Model):
     class Meta:
         ordering = ["uploaded_at", "id"]
         indexes = [models.Index(fields=["visit", "uploaded_at"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["visit", "pose"],
+                condition=models.Q(pose__isnull=False),
+                name="uniq_visit_photo_pose",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"VisitPhoto({self.visit_id}, {self.id})"

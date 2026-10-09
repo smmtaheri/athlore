@@ -380,6 +380,16 @@ Side effect: update Student `summary_last_visit_date`
 - PATCH: mutable fields  
 - DELETE: allowed in MVP; **Open question** if linked generation snapshots exist (snapshots remain in Generation Run)
 
+### Visit photos
+
+- Coach collection: `GET/POST /api/v1/students/{student_id}/visits/{visit_id}/photos/`
+- Student collection: `GET/POST /api/v1/me/visits/{visit_id}/photos/`
+- Private download: `GET /api/v1/visits/photos/{photo_id}/download/`
+- Upload uses multipart fields `file` and `pose`; `pose` is one of `back`, `front`, `right_side`, or `left_side`.
+- A visit has at most one photo per pose across coach and student uploads. A filled slot is immutable; a second upload returns **409** (`visit_photo_pose_taken`).
+- Photo uploads do not change visit status. Students may add a photo to any visible non-draft visit while their central writable access is active; coach uploads are scoped to their own student and visit.
+- Existing photos without a pose remain visible as unassigned historical photos.
+
 ---
 
 ## 6. Coach rules

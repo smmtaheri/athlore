@@ -491,7 +491,7 @@ class StudentVisitApiTests(TestCase):
         with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
             uploaded = student_client.post(
                 f"/api/v1/me/visits/{self.visit.id}/photos/",
-                {"file": self._visit_photo()},
+                {"file": self._visit_photo(), "pose": "front"},
                 format="multipart",
             )
             self.assertEqual(uploaded.status_code, 201, uploaded.data)
@@ -523,24 +523,24 @@ class StudentVisitApiTests(TestCase):
             )
             self.assertEqual(cross_visit.status_code, 404)
 
-    def test_student_cannot_add_visit_photo_after_submitting_visit(self):
+    def test_student_can_add_visit_photo_after_submitting_visit(self):
         send_visit_to_student(self.visit)
         student_client, _ = self._activate_and_login_student()
         student_client.post(f"/api/v1/me/visits/{self.visit.id}/submit/")
         with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
             response = student_client.post(
                 f"/api/v1/me/visits/{self.visit.id}/photos/",
-                {"file": self._visit_photo()},
+                {"file": self._visit_photo(), "pose": "back"},
                 format="multipart",
             )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 201, response.data)
 
     def test_coach_can_add_photos_before_sending_and_student_sees_them_after_send(self):
         student_client, _ = self._activate_and_login_student()
         with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
             uploaded = self.coach_client.post(
                 f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/photos/",
-                {"file": self._visit_photo()},
+                {"file": self._visit_photo(), "pose": "right_side"},
                 format="multipart",
             )
             self.assertEqual(uploaded.status_code, 201, uploaded.data)
@@ -554,7 +554,30 @@ class StudentVisitApiTests(TestCase):
 
             invalid = self.coach_client.post(
                 f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/photos/",
-                {"file": SimpleUploadedFile("not-an-image.jpg", b"not an image")},
+                {
+                    "file": SimpleUploadedFile("not-an-image.jpg", b"not an image"),
+                    "pose": "left_side",
+                },
                 format="multipart",
             )
             self.assertEqual(invalid.status_code, 400)
+
+    def test_student_cannot_replace_a_pose_already_uploaded_by_coach(self):
+        student_client, _ = self._activate_and_login_student()
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            coach_upload = self.coach_client.post(
+                f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/photos/",
+                {"file": self._visit_photo(), "pose": "front"},
+                format="multipart",
+            )
+            self.assertEqual(coach_upload.status_code, 201, coach_upload.data)
+
+            send_visit_to_student(self.visit)
+            student_upload = student_client.post(
+                f"/api/v1/me/visits/{self.visit.id}/photos/",
+                {"file": self._visit_photo(), "pose": "front"},
+                format="multipart",
+            )
+
+        self.assertEqual(student_upload.status_code, 409)
+        self.assertEqual(student_upload.data["error"]["code"], "visit_photo_pose_taken")

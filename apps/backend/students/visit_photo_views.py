@@ -18,10 +18,12 @@ from common.permissions import (
 )
 from students import services as student_services
 from students import visit_photo_services as photo_services
+from students.models import VisitPhoto
 
 
 class VisitPhotoUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
+    pose = serializers.ChoiceField(choices=VisitPhoto.Pose.choices)
 
 
 def _serialize_photos(visit):
@@ -40,6 +42,7 @@ def _add_photo(request, visit, role):
         photo = photo_services.add_visit_photo(
             visit,
             uploaded_file=serializer.validated_data["file"],
+            pose=serializer.validated_data["pose"],
             actor=request.user,
             uploader_role=role,
         )

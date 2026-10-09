@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, Eye, RefreshCcw, WandSparkles } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import {
   ContentSection,
   PageContainer,
@@ -96,10 +96,13 @@ export function ProgramGenerationPage({
   studentsRepo = studentsRepository,
   visitsRepo = studentVisitsRepository
 }: ProgramGenerationPageProps) {
+  const location = useLocation();
   const [students, setStudents] = useState<Student[]>([]);
   const [rules, setRules] = useState<CoachRules>();
   const [visits, setVisits] = useState<StudentVisit[]>([]);
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState(
+    () => (location.state as { visitSaved?: string } | null)?.visitSaved ?? ""
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<"error" | "generating" | "loaded" | "loading">("loading");
   const [searchParams] = useSearchParams();
@@ -363,7 +366,9 @@ export function ProgramGenerationPage({
           {feedback ? (
             <div
               className={`${styles.alert} ${
-                feedback.includes("خطا") || feedback.includes("لطفا")
+                feedback.includes("خطا") ||
+                feedback.includes("لطفا") ||
+                feedback.includes("آپلود نشد")
                   ? styles.alertError
                   : styles.alertSuccess
               }`}

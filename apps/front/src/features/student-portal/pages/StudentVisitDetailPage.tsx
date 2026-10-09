@@ -217,6 +217,12 @@ export function StudentVisitDetailPage({
           </div>
         ) : null}
 
+        <VisitPhotosPanel
+          audience="student"
+          canUpload={visit.status !== "draft"}
+          visitId={visit.id}
+        />
+
         {sections.length > 0 ? (
           <Card>
             <VisitDynamicForm
@@ -232,8 +238,6 @@ export function StudentVisitDetailPage({
         ) : (
           <p className={styles.muted}>فیلد قابل‌نمایش برای شما وجود ندارد.</p>
         )}
-
-        <VisitPhotosPanel audience="student" canUpload={open} visitId={visit.id} />
 
         <div className={styles.actionBar}>
           <Button onClick={() => navigate(studentPaths.visits)} variant="secondary">

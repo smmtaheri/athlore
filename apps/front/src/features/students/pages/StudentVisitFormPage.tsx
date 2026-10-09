@@ -9,6 +9,13 @@ import { StudentStatusBadge } from "../components/StudentStatusBadge";
 import { StudentVisitForm, type VisitSubmitIntent } from "../components/StudentVisitForm";
 import { VisitPhotosPanel } from "../components/VisitPhotosPanel";
 import {
+  coachVisitPhotosPath,
+  uploadVisitPhoto,
+  visitPhotoPoseOptions,
+  type PendingVisitPhotos,
+  type VisitPhotoPose
+} from "../services/visitPhotosRepository";
+import {
   visitFormTemplatesRepository,
   type VisitFormTemplatesRepository
 } from "../services/visitFormTemplatesRepository";
@@ -55,6 +62,7 @@ export function StudentVisitFormPage({
   const [answerRevisions, setAnswerRevisions] = useState<VisitAnswerRevision[]>([]);
   const [formTemplates, setFormTemplates] = useState<VisitFormTemplate[]>([]);
   const [latestVisit, setLatestVisit] = useState<StudentVisit | undefined>();
+  const [pendingPhotos, setPendingPhotos] = useState<PendingVisitPhotos>({});
   const [routeFeedback, setRouteFeedback] = useState("");
   const [status, setStatus] = useState<"error" | "loaded" | "loading" | "notFound">("loading");
   const [student, setStudent] = useState<Student | undefined>();
@@ -165,14 +173,36 @@ export function StudentVisitFormPage({
           ? await visitsRepo.update(studentId, visitId, payload)
           : await visitsRepo.create(studentId, payload);
 
+      const failedPhotoPoses: VisitPhotoPose[] = [];
+      if (mode === "create") {
+        const photoPath = coachVisitPhotosPath(studentId, savedVisit.id);
+        for (const { value: pose } of visitPhotoPoseOptions) {
+          const file = pendingPhotos[pose];
+          if (!file) continue;
+          try {
+            await uploadVisitPhoto(photoPath, pose, file);
+          } catch {
+            failedPhotoPoses.push(pose);
+          }
+        }
+        setPendingPhotos({});
+      }
+
+      const failedPoseLabels = failedPhotoPoses
+        .map((pose) => visitPhotoPoseOptions.find((option) => option.value === pose)?.label)
+        .filter((label) => label !== undefined);
+      const photoFailureMessage = failedPoseLabels.length
+        ? `ویزیت ثبت شد؛ عکس پوزهای ${failedPoseLabels.join("، ")} آپلود نشد. از بخش عکس‌های ارزیابی همین ویزیت دوباره انتخابشان کنید.`
+        : "";
+
       if (intent === "send-to-student") {
         savedVisit = await visitsRepo.sendToStudent(studentId, savedVisit.id);
         navigate(`/students/${studentId}/visits/${savedVisit.id}/edit`, {
           replace: true,
           state: {
             visitSaved: savedVisit.expiresAt
-              ? `فرم برای شاگرد ارسال شد. انقضا: ${formatCalendarDateTime(savedVisit.expiresAt)}`
-              : "فرم برای شاگرد ارسال شد."
+              ? `فرم برای شاگرد ارسال شد. انقضا: ${formatCalendarDateTime(savedVisit.expiresAt)}${photoFailureMessage ? ` ${photoFailureMessage}` : ""}`
+              : `فرم برای شاگرد ارسال شد.${photoFailureMessage ? ` ${photoFailureMessage}` : ""}`
           }
         });
         setVisit(savedVisit);
@@ -183,7 +213,9 @@ export function StudentVisitFormPage({
         savedVisit = await visitsRepo.startCoachReview(studentId, savedVisit.id);
         navigate(`/students/${studentId}/visits/${savedVisit.id}/edit`, {
           replace: true,
-          state: { visitSaved: "بررسی مربی شروع شد؛ فرم شاگرد قفل است." }
+          state: {
+            visitSaved: `بررسی مربی شروع شد؛ فرم شاگرد قفل است.${photoFailureMessage ? ` ${photoFailureMessage}` : ""}`
+          }
         });
         setVisit(savedVisit);
         return;
@@ -191,15 +223,32 @@ export function StudentVisitFormPage({
 
       if (intent === "finalize") {
         savedVisit = await visitsRepo.finalize(studentId, savedVisit.id);
-        navigate(`/students/${studentId}/visits`, {
-          state: { visitSaved: "ویزیت نهایی شد." }
-        });
+        if (photoFailureMessage) {
+          navigate(`/students/${studentId}/visits/${savedVisit.id}/edit`, {
+            replace: true,
+            state: { visitSaved: `ویزیت نهایی شد. ${photoFailureMessage}` }
+          });
+        } else {
+          navigate(`/students/${studentId}/visits`, {
+            state: { visitSaved: "ویزیت نهایی شد." }
+          });
+        }
         return;
       }
 
       if (intent === "generate-program") {
         navigate(`/programs/new?studentId=${studentId}&visitId=${savedVisit.id}`, {
-          state: { visitSaved: "ویزیت ذخیره شد و تولید برنامه در مرحله بعد تکمیل می شود." }
+          state: {
+            visitSaved: `ویزیت ذخیره شد و تولید برنامه در مرحله بعد تکمیل می شود.${photoFailureMessage ? ` ${photoFailureMessage}` : ""}`
+          }
+        });
+        return;
+      }
+
+      if (photoFailureMessage) {
+        navigate(`/students/${studentId}/visits/${savedVisit.id}/edit`, {
+          replace: true,
+          state: { visitSaved: photoFailureMessage }
         });
         return;
       }
@@ -276,11 +325,22 @@ export function StudentVisitFormPage({
         {status === "loaded" && student ? (
           <Stack gap="20px">
             {routeFeedback ? (
-              <div className={`${styles.alert} ${styles.alertSuccess}`} role="status">
+              <div
+                className={`${styles.alert} ${routeFeedback.includes("آپلود نشد") ? styles.alertError : styles.alertSuccess}`}
+                role="status"
+              >
                 {routeFeedback}
               </div>
             ) : null}
             <VisitStudentSummary student={student} />
+            <VisitPhotosPanel
+              audience="coach"
+              canUpload
+              onPendingPhotosChange={setPendingPhotos}
+              pendingPhotos={pendingPhotos}
+              studentId={student.id}
+              visitId={visit?.id ?? null}
+            />
             <StudentVisitForm
               answerRevisions={answerRevisions}
               formTemplates={formTemplates}
@@ -293,14 +353,6 @@ export function StudentVisitFormPage({
               onSubmit={handleSubmit}
               student={student}
             />
-            {mode === "edit" && visit ? (
-              <VisitPhotosPanel
-                audience="coach"
-                canUpload
-                studentId={student.id}
-                visitId={visit.id}
-              />
-            ) : null}
           </Stack>
         ) : null}
       </ContentSection>

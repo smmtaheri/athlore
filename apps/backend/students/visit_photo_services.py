@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from PIL import Image, UnidentifiedImageError
 
-from students import visit_form_services
+from common.exceptions import ConflictError
 from students.models import Visit, VisitPhoto
 
 ALLOWED_IMAGE_TYPES = {
@@ -23,6 +23,7 @@ def serialize_photo(photo: VisitPhoto) -> dict:
     return {
         "id": str(photo.id),
         "visit_id": str(photo.visit_id),
+        "pose": photo.pose,
         "original_filename": photo.original_filename,
         "content_type": photo.content_type,
         "size_bytes": photo.size_bytes,
@@ -33,9 +34,18 @@ def serialize_photo(photo: VisitPhoto) -> dict:
 
 
 @transaction.atomic
-def add_visit_photo(visit: Visit, *, uploaded_file, actor, uploader_role: str) -> VisitPhoto:
+def add_visit_photo(
+    visit: Visit, *, uploaded_file, pose: str, actor, uploader_role: str
+) -> VisitPhoto:
     if not uploaded_file:
         raise ValidationError({"file": ["یک عکس انتخاب کنید."]})
+
+    visit = Visit.objects.select_for_update().get(pk=visit.pk)
+    if VisitPhoto.objects.filter(visit=visit, pose=pose).exists():
+        raise ConflictError(
+            detail="این پوز قبلاً برای این ویزیت عکس دارد و قابل جایگزینی نیست.",
+            code="visit_photo_pose_taken",
+        )
 
     size = getattr(uploaded_file, "size", 0) or 0
     if size <= 0 or size > VisitPhoto.MAX_UPLOAD_BYTES:
@@ -62,21 +72,29 @@ def add_visit_photo(visit: Visit, *, uploaded_file, actor, uploader_role: str) -
     original_filename = original_filename.rsplit("/", 1)[-1][:255]
     photo = VisitPhoto(
         visit=visit,
+        pose=pose,
         uploaded_by=actor,
         uploader_role=uploader_role,
         original_filename=original_filename,
         content_type=content_type,
         size_bytes=size,
     )
-    photo.file.save(f"{photo.id}.{extension}", uploaded_file, save=False)
-    photo.save()
+    try:
+        with transaction.atomic():
+            photo.file.save(f"{photo.id}.{extension}", uploaded_file, save=False)
+            photo.save()
+    except IntegrityError as exc:
+        if photo.file:
+            photo.file.delete(save=False)
+        if VisitPhoto.objects.filter(visit=visit, pose=pose).exists():
+            raise ConflictError(
+                detail="این پوز هم‌زمان برای این ویزیت ثبت شده است.",
+                code="visit_photo_pose_taken",
+            ) from exc
+        raise
     return photo
 
 
 def ensure_student_upload_allowed(visit: Visit) -> None:
-    if visit.status != Visit.Status.WAITING_FOR_STUDENT:
-        raise ValidationError(
-            {"visit": ["آپلود عکس فقط تا زمان بازبودن ویزیت برای شاگرد ممکن است."]}
-        )
-    if visit_form_services.is_visit_expired(visit):
-        raise ValidationError({"visit": ["مهلت این ویزیت تمام شده است."]})
+    if visit.status == Visit.Status.DRAFT:
+        raise ValidationError({"visit": ["عکس فقط برای ویزیت ارسال‌شده قابل ثبت است."]})
