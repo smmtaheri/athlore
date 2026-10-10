@@ -13,8 +13,7 @@ const profileTabs: Array<Pick<TabItem, "id" | "label"> & { id: StudentProfileTab
   { id: "overview", label: "اطلاعات پایه" },
   { id: "visits", label: "ویزیت ها" },
   { id: "body-check", label: "بادی چک" },
-  { id: "programs", label: "برنامه ها" },
-  { id: "pdf-files", label: "فایل های PDF" }
+  { id: "programs", label: "برنامه‌ها و فایل‌ها" }
 ];
 
 const tabPath: Record<StudentProfileTab, (studentId: string) => string> = {

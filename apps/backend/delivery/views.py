@@ -25,6 +25,7 @@ from delivery.serializers import (
 )
 from delivery.services import artifacts as artifact_services
 from delivery.services import share as share_services
+from delivery.services import staged_program_pdfs as staged_pdf_services
 from programming.models import Program, ProgramVersion
 from students import services as student_services
 
@@ -50,6 +51,55 @@ class StudentPdfListView(APIView):
         return paginator.get_paginated_response(data)
 
 
+class ProgramPdfStagingView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def post(self, request):
+        coach = get_request_coach(request)
+        student_id = request.data.get("student_id")
+        if not student_id:
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError({"student_id": ["شاگرد الزامی است."]})
+        student = student_services.get_student_for_coach(coach, student_id)
+        staged = staged_pdf_services.stage_program_pdf(
+            coach=coach,
+            student=student,
+            actor=request.user,
+            uploaded_file=request.FILES.get("file"),
+        )
+        return Response(
+            {
+                "id": str(staged.id),
+                "file_name": staged.original_filename,
+                "size_bytes": staged.size_bytes,
+                "expires_at": staged.expires_at.isoformat().replace("+00:00", "Z"),
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class StagedProgramPdfDetailView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def get(self, request, staged_pdf_id):
+        coach = get_request_coach(request)
+        staged = staged_pdf_services.get_staged_pdf_for_coach(coach, staged_pdf_id)
+        staged.file.open("rb")
+        response = FileResponse(staged.file, content_type="application/pdf")
+        disposition = "inline" if request.query_params.get("inline") == "1" else "attachment"
+        response["Content-Disposition"] = (
+            f'{disposition}; filename="program.pdf"; '
+            f"filename*=UTF-8''{quote(staged.original_filename)}"
+        )
+        return response
+
+    def delete(self, request, staged_pdf_id):
+        coach = get_request_coach(request)
+        staged_pdf_services.discard_staged_pdf(coach=coach, staged_id=staged_pdf_id)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 def _get_student_program(student, program_id) -> Program:
     try:
         return Program.objects.select_related("student", "coach").get(
@@ -67,13 +117,15 @@ def _get_student_program(student, program_id) -> Program:
 
 def _get_student_artifact(student, pdf_id):
     try:
-        return artifact_services.artifacts_for_coach(student.coach).select_related(
-            "program", "program_version"
-        ).get(
-            pk=pdf_id,
-            student=student,
-            program__student=student,
-            program__coach_id=student.coach_id,
+        return (
+            artifact_services.artifacts_for_coach(student.coach)
+            .select_related("program", "program_version")
+            .get(
+                pk=pdf_id,
+                student=student,
+                program__student=student,
+                program__coach_id=student.coach_id,
+            )
         )
     except PdfArtifact.DoesNotExist as exc:
         from rest_framework.exceptions import NotFound

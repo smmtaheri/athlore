@@ -92,6 +92,7 @@ def serialize_artifact(artifact: PdfArtifact, *, include_share_meta: bool = True
         "program_version_id": str(artifact.program_version_id),
         "program_title": artifact.program.title,
         "program_type": artifact.program_type or artifact.program.program_type,
+        "source": artifact.source,
         "file_name": artifact.display_name,
         "display_name": artifact.display_name,
         "original_filename": artifact.original_filename,
@@ -238,6 +239,11 @@ def create_artifact_from_version(
         raise NotFound(detail="Not found.")
 
     version = _resolve_finalized_version(coach, program, version_id)
+    if version.delivery_source == ProgramVersion.DeliverySource.UPLOADED_PDF:
+        raise InvalidStateError(
+            detail="این برنامه PDF آماده دارد و نباید از محتوای ساختاریافته دوباره تولید شود.",
+            code="uploaded_pdf_cannot_be_rendered",
+        )
     name = normalize_display_name(
         display_name
         or (version.pdf_settings or {}).get("fileTitle")
@@ -310,6 +316,23 @@ def create_and_render_delivery_pair(
     skipped when the finalized version has neither section.
     """
     version = _resolve_finalized_version(coach, program, version_id)
+    if version.delivery_source == ProgramVersion.DeliverySource.UPLOADED_PDF:
+        uploaded = list(
+            artifacts_for_coach(coach)
+            .filter(
+                program=program,
+                program_version=version,
+                source=PdfArtifact.Source.UPLOADED,
+                status=PdfArtifact.Status.READY,
+            )
+            .order_by("-created_at")
+        )
+        if uploaded:
+            return uploaded
+        raise InvalidStateError(
+            detail="فایل PDF بارگذاری‌شده برای این برنامه در دسترس نیست؛ مربی باید آن را دوباره بارگذاری کند.",
+            code="uploaded_pdf_missing",
+        )
     base_settings = version.pdf_settings if isinstance(version.pdf_settings, dict) else {}
     base_title = (base_settings.get("fileTitle") or program.title or "program").strip() or "program"
     base_slug = re.sub(r"\s+", "_", base_title)

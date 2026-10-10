@@ -246,10 +246,10 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
         </Button>
         <Button
           iconStart={<Dumbbell size={18} />}
-          onClick={() => navigate("/programs/new")}
+          onClick={() => navigate(`/programs/new?studentId=${student.id}`)}
           variant="secondary"
         >
-          تولید برنامه
+          ساخت یا بارگذاری برنامه
         </Button>
         <Button
           iconStart={<FileDown size={18} />}

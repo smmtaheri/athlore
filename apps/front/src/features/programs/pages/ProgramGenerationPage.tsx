@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Eye, RefreshCcw, WandSparkles } from "lucide-react";
+import { ArrowRight, Eye, FileUp, RefreshCcw, Trash2, WandSparkles } from "lucide-react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import {
   ContentSection,
@@ -51,6 +51,12 @@ import type { ProgramGenerationInput } from "../types/generatedProgram";
 import styles from "../components/programFlow.module.css";
 import { SupplementSelectionFields } from "../../coach-rules/components/SupplementSelectionFields";
 import { emptySupplementSelection } from "../../coach-rules/services/supplementCatalogRepository";
+import {
+  calendarInputToIso,
+  calendarPlaceholder,
+  formatCalendarDate,
+  todayCalendarInput
+} from "../../../shared/dates/calendar";
 
 const programTypeOptions = [
   { label: "کامل", value: "complete" },
@@ -104,6 +110,17 @@ export function ProgramGenerationPage({
     () => (location.state as { visitSaved?: string } | null)?.visitSaved ?? ""
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [creationMode, setCreationMode] = useState<"generated" | "uploaded_pdf">("generated");
+  const [stagedPdf, setStagedPdf] = useState<{
+    expiresAt: string;
+    fileName: string;
+    id: string;
+    sizeBytes: number;
+  } | null>(null);
+  const [startDate, setStartDate] = useState(todayCalendarInput());
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [creatingUploadedDraft, setCreatingUploadedDraft] = useState(false);
+  const [uploadInputKey, setUploadInputKey] = useState(0);
   const [status, setStatus] = useState<"error" | "generating" | "loaded" | "loading">("loading");
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -132,7 +149,7 @@ export function ProgramGenerationPage({
 
   useEffect(() => {
     let isMounted = true;
-    Promise.all([studentsRepo.list(), coachRulesRepo.get()])
+    Promise.all([studentsRepo.list(), coachRulesRepo.get().catch(() => undefined)])
       .then(([studentItems, coachRules]) => {
         if (!isMounted) {
           return;
@@ -142,14 +159,18 @@ export function ProgramGenerationPage({
         const studentDays = selectedStudent?.trainingConditions.trainingDaysPerWeek;
         const preferredName = "۴ روزه حجم متوسط";
         const matchingTemplates = studentDays
-          ? coachRules.templates.filter((item) => item.daysPerWeek === studentDays)
-          : coachRules.templates;
+          ? coachRules?.templates.filter((item) => item.daysPerWeek === studentDays)
+          : coachRules?.templates;
         const template =
-          matchingTemplates.find((item) => item.name === preferredName) ??
-          matchingTemplates.find((item) => item.daysPerWeek === 4) ??
-          matchingTemplates[0];
+          matchingTemplates?.find((item) => item.name === preferredName) ??
+          matchingTemplates?.find((item) => item.daysPerWeek === 4) ??
+          matchingTemplates?.[0];
         setStudents(studentItems);
         setRules(coachRules);
+        if (!coachRules) {
+          setCreationMode("uploaded_pdf");
+          setFeedback("قوانین تولید برنامه در دسترس نیست؛ می‌توانید PDF آماده بارگذاری کنید.");
+        }
         setForm((current) => ({
           ...current,
           daysPerWeek: studentDays ?? template?.daysPerWeek ?? 4,
@@ -223,7 +244,73 @@ export function ProgramGenerationPage({
     setErrors((current) => ({ ...current, [field]: "" }));
   };
 
+  const getProgramPeriod = () => {
+    const startIso = calendarInputToIso(startDate);
+    if (!startIso || form.durationWeeks < 1) return null;
+    const endDate = new Date(`${startIso}T12:00:00Z`);
+    endDate.setUTCDate(endDate.getUTCDate() + form.durationWeeks * 7 - 1);
+    const endIso = endDate.toISOString().slice(0, 10);
+    return {
+      endIso,
+      label: `${formatCalendarDate(startIso)} تا ${formatCalendarDate(endIso)}`,
+      startIso
+    };
+  };
+
+  const handleStagePdf = async (file?: File) => {
+    if (!file || !form.studentId) return;
+    if (file.size > 25 * 1024 * 1024) {
+      setFeedback("حجم PDF باید حداکثر ۲۵ مگابایت باشد.");
+      setUploadInputKey((current) => current + 1);
+      return;
+    }
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      setFeedback("فقط فایل PDF قابل بارگذاری است.");
+      setUploadInputKey((current) => current + 1);
+      return;
+    }
+    if (!programsRepo.uploadStagedPdf) {
+      setFeedback("بارگذاری PDF در این محیط در دسترس نیست.");
+      return;
+    }
+    setUploadingPdf(true);
+    setFeedback("");
+    try {
+      const next = await programsRepo.uploadStagedPdf(form.studentId, file);
+      const previous = stagedPdf;
+      setStagedPdf(next);
+      if (previous && programsRepo.deleteStagedPdf) {
+        void programsRepo.deleteStagedPdf(previous.id).catch(() => undefined);
+      }
+      setFeedback("PDF بارگذاری شد و تا نهایی‌سازی فقط به‌صورت پیش‌نویس خصوصی می‌ماند.");
+    } catch (error) {
+      setFeedback(
+        error instanceof ApiError
+          ? persianMessageForApiError(error)
+          : "بارگذاری PDF انجام نشد؛ فایل قبلی همچنان حفظ شده است."
+      );
+    } finally {
+      setUploadingPdf(false);
+      setUploadInputKey((current) => current + 1);
+    }
+  };
+
+  const handleRemoveStagedPdf = async () => {
+    if (!stagedPdf) return;
+    try {
+      await programsRepo.deleteStagedPdf?.(stagedPdf.id);
+      setStagedPdf(null);
+      setFeedback("فایل موقت حذف شد.");
+    } catch {
+      setFeedback("حذف فایل موقت انجام نشد؛ دوباره تلاش کنید.");
+    }
+  };
+
   const handleStudentChange = (studentId: string) => {
+    if (stagedPdf && programsRepo.deleteStagedPdf) {
+      void programsRepo.deleteStagedPdf(stagedPdf.id).catch(() => undefined);
+      setStagedPdf(null);
+    }
     const student = students.find((item) => item.id === studentId);
     const studentDays = student?.trainingConditions.trainingDaysPerWeek;
     const preferredName = "۴ روزه حجم متوسط";
@@ -253,7 +340,9 @@ export function ProgramGenerationPage({
       return;
     }
 
+    const period = getProgramPeriod();
     const nextErrors = validateForm(form, selectedTemplate);
+    if (!period) nextErrors.startDate = "تاریخ شروع و مدت برنامه را بررسی کنید.";
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -265,17 +354,23 @@ export function ProgramGenerationPage({
     setFeedback("");
 
     try {
+      const generationInput = {
+        ...form,
+        dateRangeEnd: period!.endIso,
+        dateRangeLabel: period!.label,
+        dateRangeStart: period!.startIso
+      };
       let savedProgram;
       let warnings: string[] = [];
       if (programsRepo.generate) {
-        const result = await programsRepo.generate(form);
+        const result = await programsRepo.generate(generationInput);
         savedProgram = result.program;
         warnings = result.warnings;
       } else {
         // Test / mock path only — not used in normal API runtime.
         savedProgram = await programsRepo.create(
           generateProgram({
-            input: form,
+            input: generationInput,
             rules,
             student: selectedStudent,
             visit: latestVisit
@@ -300,13 +395,55 @@ export function ProgramGenerationPage({
     }
   };
 
+  const handleCreateUploadedDraft = async () => {
+    const period = getProgramPeriod();
+    const nextErrors: Record<string, string> = {};
+    if (!form.studentId) nextErrors.studentId = "انتخاب شاگرد الزامی است.";
+    if (!form.title.trim()) nextErrors.title = "عنوان برنامه الزامی است.";
+    if (!period) nextErrors.startDate = "تاریخ شروع و مدت برنامه را بررسی کنید.";
+    if (!stagedPdf) nextErrors.file = "ابتدا PDF برنامه را بارگذاری کنید.";
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) {
+      setFeedback(Object.values(nextErrors)[0]);
+      return;
+    }
+    if (!stagedPdf || !period || !programsRepo.createUploadedDraft) {
+      setFeedback("ساخت پیش‌نویس PDF در این محیط در دسترس نیست.");
+      return;
+    }
+    setCreatingUploadedDraft(true);
+    setFeedback("");
+    try {
+      const savedProgram = await programsRepo.createUploadedDraft({
+        dateRangeEnd: period.endIso,
+        dateRangeLabel: period.label,
+        dateRangeStart: period.startIso,
+        programType: form.programType,
+        stagedPdfId: stagedPdf.id,
+        studentId: form.studentId,
+        title: form.title
+      });
+      await studentProgramsRepo.upsert?.(createProgramSummary(savedProgram));
+      setStagedPdf(null);
+      navigate(`/programs/${savedProgram.id}`);
+    } catch (error) {
+      setFeedback(
+        error instanceof ApiError
+          ? persianMessageForApiError(error)
+          : "ساخت پیش‌نویس انجام نشد؛ فایل موقت را می‌توانید دوباره ارسال کنید."
+      );
+    } finally {
+      setCreatingUploadedDraft(false);
+    }
+  };
+
   if (status === "loading") {
     return (
       <PageContainer>
         <PageHeader
           breadcrumb={["داشبورد", "برنامه ها", "تولید برنامه"]}
           description="در حال آماده سازی اطلاعات شاگرد و قوانین مربی"
-          title="تولید برنامه"
+          title="ساخت برنامه برای شاگرد"
         />
         <ContentSection>
           <Card>
@@ -324,7 +461,10 @@ export function ProgramGenerationPage({
   if (status === "error") {
     return (
       <PageContainer>
-        <PageHeader breadcrumb={["داشبورد", "برنامه ها", "تولید برنامه"]} title="تولید برنامه" />
+        <PageHeader
+          breadcrumb={["داشبورد", "برنامه ها", "ساخت برنامه"]}
+          title="ساخت برنامه برای شاگرد"
+        />
         <ContentSection>
           <Card padding="lg">
             <EmptyState
@@ -357,20 +497,16 @@ export function ProgramGenerationPage({
           </Button>
         }
         breadcrumb={["داشبورد", "برنامه ها", "تولید برنامه"]}
-        description="انتخاب شاگرد، بررسی آخرین اطلاعات و تولید draft قابل ویرایش"
-        title="تولید برنامه"
+        description="برنامه را با Athlore بسازید یا PDF آمادهٔ خودتان را بارگذاری کنید؛ در هر دو حالت بازبینی و ارسال در یک مسیر انجام می‌شود."
+        title="ساخت برنامه برای شاگرد"
       />
       <ContentSection>
         <div className={styles.pageStack}>
-          <GenerationStepper />
+          <GenerationStepper mode={creationMode} />
           {feedback ? (
             <div
               className={`${styles.alert} ${
-                feedback.includes("خطا") ||
-                feedback.includes("لطفا") ||
-                feedback.includes("آپلود نشد")
-                  ? styles.alertError
-                  : styles.alertSuccess
+                isErrorFeedback(feedback) ? styles.alertError : styles.alertSuccess
               }`}
               role="status"
             >
@@ -383,12 +519,47 @@ export function ProgramGenerationPage({
             </div>
           ) : null}
 
+          <Card>
+            <div className={styles.sectionHeader}>
+              <div>
+                <h2 className={styles.sectionTitle}>روش آماده‌کردن برنامه</h2>
+                <p className={styles.sectionDescription}>
+                  یا برنامه را با اطلاعات شاگرد تولید کنید، یا PDF آمادهٔ خودتان را بارگذاری کنید؛
+                  بازبینی و ارسال در هر دو روش یکسان است.
+                </p>
+              </div>
+            </div>
+            <div className={styles.creationModeGrid}>
+              <button
+                aria-pressed={creationMode === "generated"}
+                className={`${styles.creationModeCard} ${creationMode === "generated" ? styles.creationModeCardActive : ""}`}
+                disabled={!rules}
+                onClick={() => setCreationMode("generated")}
+                type="button"
+              >
+                <WandSparkles aria-hidden size={22} />
+                <strong>تولید برنامه با Athlore</strong>
+                <span>برنامه با قوانین، سابقه و اطلاعات شاگرد ساخته می‌شود.</span>
+              </button>
+              <button
+                aria-pressed={creationMode === "uploaded_pdf"}
+                className={`${styles.creationModeCard} ${creationMode === "uploaded_pdf" ? styles.creationModeCardActive : ""}`}
+                onClick={() => setCreationMode("uploaded_pdf")}
+                type="button"
+              >
+                <FileUp aria-hidden size={22} />
+                <strong>بارگذاری PDF آماده</strong>
+                <span>فایل خودتان را موقتاً بارگذاری و پیش از ارسال بازبینی کنید.</span>
+              </button>
+            </div>
+          </Card>
+
           <Card className={styles.pageStack}>
             <div className={styles.sectionHeader}>
               <div>
                 <h2 className={styles.sectionTitle}>انتخاب شاگرد و مرور اطلاعات</h2>
                 <p className={styles.sectionDescription}>
-                  اطلاعات موجود به صورت خودکار از پروفایل و آخرین ویزیت پر شده است.
+                  شاگرد، عنوان، نوع و بازهٔ زمانی در هر دو روش یکسان ثبت می‌شوند.
                 </p>
               </div>
               <Button
@@ -414,27 +585,6 @@ export function ProgramGenerationPage({
                   onChange={(event) => updateForm("title", event.target.value)}
                 />
               </FormField>
-            </ResponsiveGrid>
-
-            {selectedStudent ? (
-              <StudentSummary student={selectedStudent} visit={latestVisit} />
-            ) : null}
-          </Card>
-
-          <Card className={styles.pageStack}>
-            <div className={styles.sectionHeader}>
-              <div>
-                <h2 className={styles.sectionTitle}>تنظیمات برنامه</h2>
-                <p className={styles.sectionDescription}>
-                  مربی می تواند قبل از تولید موارد قابل تغییر را اصلاح کند.
-                </p>
-              </div>
-              {selectedTemplate ? (
-                <StatusBadge variant="info">قالب: {selectedTemplate.name}</StatusBadge>
-              ) : null}
-            </div>
-
-            <div className={styles.formGrid}>
               <FormField error={errors.programType} label="نوع برنامه" required>
                 <Select
                   aria-label="نوع برنامه"
@@ -445,164 +595,208 @@ export function ProgramGenerationPage({
                   }
                 />
               </FormField>
-              <FormField error={errors.templateId} label="قالب برنامه" required>
-                <Select
-                  options={templateOptions}
-                  value={form.templateId}
-                  onChange={(event) => {
-                    const template = rules?.templates.find(
-                      (item) => item.id === event.target.value
-                    );
-                    setForm((current) => ({
-                      ...current,
-                      daysPerWeek: template?.daysPerWeek ?? current.daysPerWeek,
-                      templateId: event.target.value
-                    }));
-                  }}
+            </ResponsiveGrid>
+
+            <ResponsiveGrid columns={2}>
+              <FormField error={errors.startDate} label="شروع برنامه" required>
+                <Input
+                  aria-label="شروع برنامه"
+                  inputMode="numeric"
+                  placeholder={calendarPlaceholder()}
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
                 />
               </FormField>
-              <FormField error={errors.durationWeeks} label="مدت برنامه" required>
+              <FormField label="مدت برنامه (هفته)" required>
                 <Input
                   min={1}
+                  max={52}
                   type="number"
                   value={form.durationWeeks}
                   onChange={(event) => updateForm("durationWeeks", Number(event.target.value))}
                 />
               </FormField>
-              <FormField error={errors.daysPerWeek} label="تعداد روز تمرین" required>
-                <Input
-                  min={1}
-                  max={7}
-                  type="number"
-                  value={form.daysPerWeek}
-                  onChange={(event) => updateForm("daysPerWeek", Number(event.target.value))}
-                />
-              </FormField>
-              <FormField label="هدف">
-                <Input
-                  value={form.goal}
-                  onChange={(event) => updateForm("goal", event.target.value)}
-                />
-              </FormField>
-              <FormField label="سطح">
-                <Select
-                  options={levelOptions}
-                  value={form.level}
-                  onChange={(event) => updateForm("level", event.target.value as TrainingLevel)}
-                />
-              </FormField>
-              <FormField
-                hint="اختیاری؛ برای محدودکردن انتخاب حرکات به یک عضله و ناحیهٔ ساختاریافته."
-                htmlFor="program-target-muscle"
-                label="عضله هدف"
-              >
-                <Select
-                  id="program-target-muscle"
-                  options={targetMuscleOptions}
-                  value={form.targetMuscle ?? ""}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      targetMuscle: event.target.value,
-                      targetRegion: event.target.value ? current.targetRegion : ""
-                    }))
-                  }
-                />
-              </FormField>
-              {form.targetMuscle === "سینه" ? (
-                <>
-                  <FormField
-                    hint="فقط حرکاتی انتخاب می‌شوند که همین ناحیه را در catalog ساختاریافته داشته باشند."
-                    htmlFor="program-target-region"
-                    label="ناحیه هدف"
-                  >
-                    <Select
-                      id="program-target-region"
-                      options={chestTargetRegionOptions}
-                      value={form.targetRegion ?? ""}
-                      onChange={(event) => updateForm("targetRegion", event.target.value)}
-                    />
-                  </FormField>
-                  <FormField
-                    hint="تعداد حرکت سینه در هر جلسه؛ فقط وقتی ناحیه هدف انتخاب شده باشد اعمال می‌شود."
-                    htmlFor="program-target-exercise-count"
-                    label="تعداد حرکت هدف"
-                  >
-                    <Input
-                      id="program-target-exercise-count"
-                      min={1}
-                      max={8}
-                      type="number"
-                      value={form.targetExerciseCount ?? 2}
-                      onChange={(event) =>
-                        updateForm("targetExerciseCount", Number(event.target.value))
-                      }
-                    />
-                  </FormField>
-                </>
-              ) : null}
-              <FormField className={styles.fullField} label="اولویت عضلات">
-                <Input
-                  value={form.musclePriorities.join("، ")}
-                  onChange={(event) =>
-                    updateForm(
-                      "musclePriorities",
-                      event.target.value
-                        .split(/[،,]/)
-                        .map((item) => item.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                />
-              </FormField>
-              <FormField className={styles.fullField} label="توضیح یا دستور خاص مربی">
-                <Textarea
-                  value={form.customInstructions}
-                  onChange={(event) => updateForm("customInstructions", event.target.value)}
-                />
-              </FormField>
-            </div>
+            </ResponsiveGrid>
+            <p className={styles.sectionDescription}>
+              {getProgramPeriod()
+                ? `بازهٔ ثبت‌شده: ${getProgramPeriod()?.label}`
+                : "تاریخ شروع را به تقویم انتخاب‌شده در تنظیمات وارد کنید."}
+            </p>
+
+            {selectedStudent ? (
+              <StudentSummary student={selectedStudent} visit={latestVisit} />
+            ) : null}
           </Card>
 
-          <Card className={styles.pageStack}>
-            <div className={styles.sectionHeader}>
-              <div>
-                <h2 className={styles.sectionTitle}>قوانین اعمال شونده</h2>
-                <p className={styles.sectionDescription}>
-                  generator موقت فقط از همین قوانین انتخاب شده استفاده می کند.
-                </p>
+          {creationMode === "generated" ? (
+            <Card className={styles.pageStack}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.sectionTitle}>تنظیمات برنامه</h2>
+                  <p className={styles.sectionDescription}>
+                    مربی می تواند قبل از تولید موارد قابل تغییر را اصلاح کند.
+                  </p>
+                </div>
+                {selectedTemplate ? (
+                  <StatusBadge variant="info">قالب: {selectedTemplate.name}</StatusBadge>
+                ) : null}
               </div>
-            </div>
-            <div className={styles.checkboxGrid}>
-              <Checkbox
-                checked={form.applyLevelRules}
-                label="قوانین سطح تمرین"
-                onChange={(event) => updateForm("applyLevelRules", event.target.checked)}
-              />
-              <Checkbox
-                checked={form.applyInjuryRules}
-                label="آسیب ها و محدودیت ها"
-                onChange={(event) => updateForm("applyInjuryRules", event.target.checked)}
-              />
-              <Checkbox
-                checked={form.applyMusclePriorityRules}
-                label="اولویت عضلات"
-                onChange={(event) => updateForm("applyMusclePriorityRules", event.target.checked)}
-              />
-              <Checkbox
-                checked={form.applyExerciseBank}
-                label="بانک حرکات"
-                onChange={(event) => updateForm("applyExerciseBank", event.target.checked)}
-              />
-              <Checkbox
-                checked={form.applyGeneralRules}
-                label="قوانین عمومی"
-                onChange={(event) => updateForm("applyGeneralRules", event.target.checked)}
-              />
-            </div>
-          </Card>
 
-          {form.programType === "complete" || form.programType === "supplement" ? (
+              <div className={styles.formGrid}>
+                <FormField error={errors.templateId} label="قالب برنامه" required>
+                  <Select
+                    options={templateOptions}
+                    value={form.templateId}
+                    onChange={(event) => {
+                      const template = rules?.templates.find(
+                        (item) => item.id === event.target.value
+                      );
+                      setForm((current) => ({
+                        ...current,
+                        daysPerWeek: template?.daysPerWeek ?? current.daysPerWeek,
+                        templateId: event.target.value
+                      }));
+                    }}
+                  />
+                </FormField>
+                <FormField error={errors.daysPerWeek} label="تعداد روز تمرین" required>
+                  <Input
+                    min={1}
+                    max={7}
+                    type="number"
+                    value={form.daysPerWeek}
+                    onChange={(event) => updateForm("daysPerWeek", Number(event.target.value))}
+                  />
+                </FormField>
+                <FormField label="هدف">
+                  <Input
+                    value={form.goal}
+                    onChange={(event) => updateForm("goal", event.target.value)}
+                  />
+                </FormField>
+                <FormField label="سطح">
+                  <Select
+                    options={levelOptions}
+                    value={form.level}
+                    onChange={(event) => updateForm("level", event.target.value as TrainingLevel)}
+                  />
+                </FormField>
+                <FormField
+                  hint="اختیاری؛ برای محدودکردن انتخاب حرکات به یک عضله و ناحیهٔ ساختاریافته."
+                  htmlFor="program-target-muscle"
+                  label="عضله هدف"
+                >
+                  <Select
+                    id="program-target-muscle"
+                    options={targetMuscleOptions}
+                    value={form.targetMuscle ?? ""}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        targetMuscle: event.target.value,
+                        targetRegion: event.target.value ? current.targetRegion : ""
+                      }))
+                    }
+                  />
+                </FormField>
+                {form.targetMuscle === "سینه" ? (
+                  <>
+                    <FormField
+                      hint="فقط حرکاتی انتخاب می‌شوند که همین ناحیه را در catalog ساختاریافته داشته باشند."
+                      htmlFor="program-target-region"
+                      label="ناحیه هدف"
+                    >
+                      <Select
+                        id="program-target-region"
+                        options={chestTargetRegionOptions}
+                        value={form.targetRegion ?? ""}
+                        onChange={(event) => updateForm("targetRegion", event.target.value)}
+                      />
+                    </FormField>
+                    <FormField
+                      hint="تعداد حرکت سینه در هر جلسه؛ فقط وقتی ناحیه هدف انتخاب شده باشد اعمال می‌شود."
+                      htmlFor="program-target-exercise-count"
+                      label="تعداد حرکت هدف"
+                    >
+                      <Input
+                        id="program-target-exercise-count"
+                        min={1}
+                        max={8}
+                        type="number"
+                        value={form.targetExerciseCount ?? 2}
+                        onChange={(event) =>
+                          updateForm("targetExerciseCount", Number(event.target.value))
+                        }
+                      />
+                    </FormField>
+                  </>
+                ) : null}
+                <FormField className={styles.fullField} label="اولویت عضلات">
+                  <Input
+                    value={form.musclePriorities.join("، ")}
+                    onChange={(event) =>
+                      updateForm(
+                        "musclePriorities",
+                        event.target.value
+                          .split(/[،,]/)
+                          .map((item) => item.trim())
+                          .filter(Boolean)
+                      )
+                    }
+                  />
+                </FormField>
+                <FormField className={styles.fullField} label="توضیح یا دستور خاص مربی">
+                  <Textarea
+                    value={form.customInstructions}
+                    onChange={(event) => updateForm("customInstructions", event.target.value)}
+                  />
+                </FormField>
+              </div>
+            </Card>
+          ) : null}
+
+          {creationMode === "generated" ? (
+            <Card className={styles.pageStack}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.sectionTitle}>قوانین اعمال شونده</h2>
+                  <p className={styles.sectionDescription}>
+                    generator موقت فقط از همین قوانین انتخاب شده استفاده می کند.
+                  </p>
+                </div>
+              </div>
+              <div className={styles.checkboxGrid}>
+                <Checkbox
+                  checked={form.applyLevelRules}
+                  label="قوانین سطح تمرین"
+                  onChange={(event) => updateForm("applyLevelRules", event.target.checked)}
+                />
+                <Checkbox
+                  checked={form.applyInjuryRules}
+                  label="آسیب ها و محدودیت ها"
+                  onChange={(event) => updateForm("applyInjuryRules", event.target.checked)}
+                />
+                <Checkbox
+                  checked={form.applyMusclePriorityRules}
+                  label="اولویت عضلات"
+                  onChange={(event) => updateForm("applyMusclePriorityRules", event.target.checked)}
+                />
+                <Checkbox
+                  checked={form.applyExerciseBank}
+                  label="بانک حرکات"
+                  onChange={(event) => updateForm("applyExerciseBank", event.target.checked)}
+                />
+                <Checkbox
+                  checked={form.applyGeneralRules}
+                  label="قوانین عمومی"
+                  onChange={(event) => updateForm("applyGeneralRules", event.target.checked)}
+                />
+              </div>
+            </Card>
+          ) : null}
+
+          {creationMode === "generated" &&
+          (form.programType === "complete" || form.programType === "supplement") ? (
             <Card className={styles.pageStack}>
               <h2>مکمل‌های شاگرد</h2>
               <SupplementSelectionFields
@@ -615,29 +809,90 @@ export function ProgramGenerationPage({
               />
             </Card>
           ) : null}
-          <Card className={styles.toolbar}>
-            <span className={styles.sectionDescription}>
-              خروجی با وضعیت پیش نویس ذخیره می شود و بعد از تولید وارد صفحه پیش نمایش می شوید.
-            </span>
-            <Button
-              iconStart={
-                status === "generating" ? <RefreshCcw size={18} /> : <WandSparkles size={18} />
-              }
-              isLoading={status === "generating"}
-              onClick={handleGenerate}
-              size="lg"
-            >
-              تولید برنامه
-            </Button>
-          </Card>
+          {creationMode === "uploaded_pdf" ? (
+            <Card className={styles.uploadProgramCard}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.sectionTitle}>فایل برنامه</h2>
+                  <p className={styles.sectionDescription}>
+                    فایل تا وقتی در صفحهٔ بازبینی «نهایی‌سازی و ارسال» نزنید، برای شاگرد قابل مشاهده
+                    نیست. می‌توانید قبل از ادامه آن را عوض یا حذف کنید.
+                  </p>
+                </div>
+              </div>
+              <FormField
+                error={errors.file}
+                hint="PDF، حداکثر ۲۵ مگابایت"
+                label="PDF برنامه"
+                required
+              >
+                <Input
+                  key={uploadInputKey}
+                  accept="application/pdf,.pdf"
+                  aria-label="بارگذاری PDF برنامه"
+                  disabled={uploadingPdf || !form.studentId}
+                  type="file"
+                  onChange={(event) => void handleStagePdf(event.currentTarget.files?.[0])}
+                />
+              </FormField>
+              {stagedPdf ? (
+                <div className={styles.stagedPdfRow}>
+                  <div>
+                    <strong>{stagedPdf.fileName}</strong>
+                    <span>{formatFileSize(stagedPdf.sizeBytes)} · خصوصی تا نهایی‌سازی</span>
+                  </div>
+                  <Button
+                    iconStart={<Trash2 size={17} />}
+                    onClick={() => void handleRemoveStagedPdf()}
+                    variant="danger"
+                  >
+                    حذف فایل
+                  </Button>
+                </div>
+              ) : null}
+              <Button
+                iconStart={<Eye size={18} />}
+                disabled={uploadingPdf || creatingUploadedDraft}
+                isLoading={creatingUploadedDraft}
+                onClick={() => void handleCreateUploadedDraft()}
+                size="lg"
+              >
+                ادامه به بازبینی
+              </Button>
+            </Card>
+          ) : null}
+          {creationMode === "generated" ? (
+            <Card className={styles.toolbar}>
+              <span className={styles.sectionDescription}>
+                برنامه ابتدا به‌صورت پیش‌نویس ساخته می‌شود و بعد از بازبینی، از همان مسیر نهایی و
+                ارسال می‌شود.
+              </span>
+              <Button
+                disabled={!rules}
+                iconStart={
+                  status === "generating" ? <RefreshCcw size={18} /> : <WandSparkles size={18} />
+                }
+                isLoading={status === "generating"}
+                onClick={handleGenerate}
+                size="lg"
+              >
+                تولید برنامه
+              </Button>
+            </Card>
+          ) : null}
         </div>
       </ContentSection>
     </PageContainer>
   );
 }
 
-function GenerationStepper() {
-  const steps = ["انتخاب شاگرد", "بررسی آخرین اطلاعات و ویزیت", "تنظیمات برنامه", "مرور و تولید"];
+function GenerationStepper({ mode }: { mode: "generated" | "uploaded_pdf" }) {
+  const steps = [
+    "انتخاب شاگرد",
+    "عنوان و بازهٔ برنامه",
+    mode === "generated" ? "تنظیمات تولید" : "بارگذاری PDF",
+    "بازبینی و ارسال"
+  ];
 
   return (
     <div className={styles.stepper} aria-label="مراحل تولید برنامه">
@@ -684,6 +939,18 @@ function Metric({ label, value }: { label: string; value: string }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+function formatFileSize(size: number): string {
+  return size < 1024 * 1024
+    ? `${Math.max(1, Math.round(size / 1024))} کیلوبایت`
+    : `${(size / (1024 * 1024)).toFixed(1)} مگابایت`;
+}
+
+function isErrorFeedback(message: string): boolean {
+  return ["خطا", "لطفا", "نشد", "الزامی", "نامعتبر", "در دسترس نیست", "باید"].some((phrase) =>
+    message.includes(phrase)
   );
 }
 

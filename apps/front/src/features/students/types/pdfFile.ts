@@ -11,6 +11,7 @@ export interface StudentPdfFile {
   programId: string;
   programTitle: string;
   programVersionId?: string;
+  source?: "generated" | "uploaded";
   /** Raw share URL is only available immediately after createShare — never persisted. */
   shareUrl?: string;
   size: string;

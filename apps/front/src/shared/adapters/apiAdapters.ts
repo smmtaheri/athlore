@@ -700,6 +700,7 @@ export function programSummaryFromApi(dto: Record<string, unknown>): StudentProg
   return {
     createdAt: String(dto.created_at ?? ""),
     dateRange: String(dto.date_range ?? ""),
+    deliverySource: dto.delivery_source === "uploaded_pdf" ? "uploaded_pdf" : "generated",
     generatedAt: String(dto.created_at ?? ""),
     id: String(dto.id),
     isCurrent: Boolean(dto.is_current),
@@ -946,6 +947,7 @@ export function programDetailFromApi(dto: Record<string, unknown>): GeneratedPro
   return {
     createdAt: String(dto.created_at ?? ""),
     dateRange: String(dto.date_range ?? dto.date_range_label ?? ""),
+    deliverySource: dto.delivery_source === "uploaded_pdf" ? "uploaded_pdf" : "generated",
     id: String(dto.id),
     nutrition: nutrition as GeneratedProgram["nutrition"],
     pdfSettings: {
@@ -964,6 +966,14 @@ export function programDetailFromApi(dto: Record<string, unknown>): GeneratedPro
     programType: (dto.program_type as GeneratedProgram["programType"]) || "complete",
     status,
     studentId: String(dto.student_id ?? ""),
+    stagedPdf: dto.staged_pdf
+      ? {
+          id: str((dto.staged_pdf as Record<string, unknown>).id),
+          fileName: str((dto.staged_pdf as Record<string, unknown>).file_name),
+          sizeBytes: num((dto.staged_pdf as Record<string, unknown>).size_bytes),
+          expiresAt: str((dto.staged_pdf as Record<string, unknown>).expires_at)
+        }
+      : null,
     supplements,
     title: String(dto.title ?? ""),
     training: (dto.training as GeneratedProgram["training"]) ?? undefined,
@@ -1187,6 +1197,7 @@ export function pdfFileFromApi(dto: Record<string, unknown>): StudentPdfFile {
     studentId: str(dto.student_id),
     programId: str(dto.program_id),
     programVersionId: dto.program_version_id ? str(dto.program_version_id) : undefined,
+    source: dto.source === "uploaded" ? "uploaded" : "generated",
     programTitle: str(dto.program_title || ""),
     contentType: str(dto.program_type || "complete") as StudentProgramType,
     fileName: str(dto.file_name || dto.display_name || "program.pdf"),

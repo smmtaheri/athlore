@@ -36,27 +36,29 @@ export function StudentProgramDetailPage({
   const { programId } = useParams();
   const navigate = useNavigate();
   const [program, setProgram] = useState<GeneratedProgram | null>(null);
+  const [loadedProgramId, setLoadedProgramId] = useState<string>();
   const [pdfFiles, setPdfFiles] = useState<StudentPdfFile[]>([]);
   const [status, setStatus] = useState<"loading" | "loaded" | "error" | "notFound">("loading");
-  const [pdfStatus, setPdfStatus] = useState<"loading" | "loaded" | "creating" | "error">(
-    "loading"
-  );
+  const [pdfStatus, setPdfStatus] = useState<"loading" | "loaded" | "error">("loading");
   const [pdfError, setPdfError] = useState("");
   const [downloadingId, setDownloadingId] = useState("");
 
   useEffect(() => {
     if (!programId) return;
     let mounted = true;
-    setStatus("loading");
+    let programLoaded = false;
     repository
       .getById(programId)
       .then((item) => {
         if (!mounted) return;
         if (!item) {
+          setLoadedProgramId(programId);
           setStatus("notFound");
           return;
         }
+        programLoaded = true;
         setProgram(item);
+        setLoadedProgramId(programId);
         setStatus("loaded");
         return repository.listPdfFiles(programId);
       })
@@ -67,7 +69,8 @@ export function StudentProgramDetailPage({
       })
       .catch(() => {
         if (mounted) {
-          setStatus((current) => (current === "loading" ? "error" : current));
+          setLoadedProgramId(programId);
+          if (!programLoaded) setStatus("error");
           setPdfStatus("error");
         }
       });
@@ -76,22 +79,10 @@ export function StudentProgramDetailPage({
     };
   }, [programId, repository]);
 
+  const visibleStatus = loadedProgramId === programId ? status : "loading";
+
   const days = useMemo(() => program?.training?.days ?? [], [program]);
   const readyFiles = pdfFiles.filter((file) => file.status === "ready");
-
-  const createPdfs = async () => {
-    if (!programId) return;
-    setPdfStatus("creating");
-    setPdfError("");
-    try {
-      const files = await repository.createPdfFiles(programId);
-      setPdfFiles(files);
-      setPdfStatus("loaded");
-    } catch {
-      setPdfStatus("error");
-      setPdfError("ساخت فایل PDF انجام نشد. لطفاً دوباره تلاش کنید.");
-    }
-  };
 
   const download = async (file: StudentPdfFile) => {
     setDownloadingId(file.id);
@@ -105,7 +96,7 @@ export function StudentProgramDetailPage({
     }
   };
 
-  if (!programId || status === "notFound") {
+  if (!programId || visibleStatus === "notFound") {
     return (
       <div className={styles.page}>
         <EmptyState
@@ -120,14 +111,14 @@ export function StudentProgramDetailPage({
       </div>
     );
   }
-  if (status === "loading") {
+  if (visibleStatus === "loading") {
     return (
       <div className={styles.page}>
         <Skeleton height={280} />
       </div>
     );
   }
-  if (status === "error" || !program) {
+  if (visibleStatus === "error" || !program) {
     return (
       <div className={styles.page}>
         <EmptyState description="دریافت برنامه ممکن نشد." title="خطا در دریافت برنامه" />
@@ -155,6 +146,11 @@ export function StudentProgramDetailPage({
           </div>
           <div className={styles.programDetailMeta}>
             <span>نسخه {program.version}</span>
+            <span>
+              {program.deliverySource === "uploaded_pdf"
+                ? "فایل بارگذاری‌شده توسط مربی"
+                : "تولیدشده با Athlore"}
+            </span>
             {program.dateRange ? <span>{formatCalendarText(program.dateRange)}</span> : null}
             <span>
               <CalendarDays aria-hidden size={15} /> به‌روزرسانی {formatDate(program.updatedAt)}
@@ -169,7 +165,9 @@ export function StudentProgramDetailPage({
           <div className={styles.programDownloadBody}>
             <h2 className={styles.sectionTitle}>نسخه قابل دانلود</h2>
             <p className={styles.muted}>
-              فایل تمرین و در صورت وجود، فایل تغذیه و مکمل را از اینجا دریافت کنید.
+              {program.deliverySource === "uploaded_pdf"
+                ? "PDF برنامه‌ای که مربی برای این دوره بارگذاری کرده است."
+                : "فایل‌های تمرین و در صورت وجود، تغذیه و مکمل که مربی هنگام ارسال برنامه آماده کرده است."}
             </p>
             {pdfError ? <p className={styles.errorAlert}>{pdfError}</p> : null}
           </div>
@@ -183,17 +181,15 @@ export function StudentProgramDetailPage({
                 size="sm"
                 variant="secondary"
               >
-                دانلود {file.contentType === "workout" ? "تمرین" : "تغذیه و مکمل"}
+                {program.deliverySource === "uploaded_pdf"
+                  ? "دانلود برنامه"
+                  : `دانلود ${file.contentType === "workout" ? "تمرین" : "تغذیه و مکمل"}`}
               </Button>
             ))}
             {pdfStatus !== "loading" && readyFiles.length === 0 ? (
-              <Button
-                isLoading={pdfStatus === "creating"}
-                onClick={() => void createPdfs()}
-                size="sm"
-              >
-                آماده‌سازی فایل PDF
-              </Button>
+              <p className={styles.muted}>
+                هنوز فایل آماده‌ای برای این برنامه ثبت نشده است؛ برای دریافت آن با مربی تماس بگیرید.
+              </p>
             ) : null}
           </div>
         </Card>

@@ -28,6 +28,10 @@ import {
   type StudentProgramsRepository
 } from "../services/studentProgramsRepository";
 import {
+  studentPdfFilesRepository,
+  type StudentPdfFilesRepository
+} from "../services/studentPdfFilesRepository";
+import {
   createGeneratedProgramFromSummary,
   programsRepository,
   type ProgramsRepository
@@ -37,9 +41,11 @@ import type { Student } from "../types/student";
 import { programStatusLabels, programTypeLabels } from "../types/programLabels";
 import { ProfileTabHeader, SummaryMetricCard } from "./ProfileTabHeader";
 import styles from "./students.module.css";
+import { StudentPdfFilesTab } from "./StudentPdfFilesTab";
 
 export interface StudentProgramsTabProps {
   generatedProgramsRepository?: ProgramsRepository;
+  pdfFilesRepository?: StudentPdfFilesRepository;
   repository?: StudentProgramsRepository;
   student: Student;
 }
@@ -54,6 +60,7 @@ const statusVariant: Record<StudentProgramStatus, StatusBadgeVariant> = {
 
 export function StudentProgramsTab({
   generatedProgramsRepository = programsRepository,
+  pdfFilesRepository = studentPdfFilesRepository,
   repository = studentProgramsRepository,
   student
 }: StudentProgramsTabProps) {
@@ -196,10 +203,10 @@ export function StudentProgramsTab({
             iconStart={<Plus size={18} />}
             onClick={() => navigate(`/programs/new?studentId=${student.id}`)}
           >
-            تولید برنامه جدید
+            ساخت یا بارگذاری برنامه
           </Button>
         }
-        description="برنامه های ساخته شده برای شاگرد و نسخه های قبلی"
+        description="برنامه‌ها و فایل‌های نهایی همین شاگرد؛ ساخت با Athlore و بارگذاری PDF از یک مسیر انجام می‌شود."
         title="برنامه های شاگرد"
       />
 
@@ -232,7 +239,7 @@ export function StudentProgramsTab({
                 iconStart={<Plus size={18} />}
                 onClick={() => navigate(`/programs/new?studentId=${student.id}`)}
               >
-                تولید برنامه جدید
+                ساخت یا بارگذاری برنامه
               </Button>
             }
             description="برای این شاگرد هنوز برنامه ای ثبت نشده است."
@@ -264,6 +271,8 @@ export function StudentProgramsTab({
           </div>
         </Card>
       )}
+
+      <StudentPdfFilesTab embedded repository={pdfFilesRepository} student={student} />
 
       <Modal
         footer={
@@ -436,7 +445,7 @@ function ProgramActions({ onActivate, onDelete, onDuplicate, program }: ProgramA
         {
           icon: <Download size={16} />,
           label: "فایل‌های PDF",
-          onSelect: () => navigate(`/students/${program.studentId}/pdf-files`)
+          onSelect: () => navigate(`/students/${program.studentId}/programs#program-files`)
         },
         {
           disabled: program.isCurrent,

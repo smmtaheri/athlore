@@ -17,12 +17,60 @@ def pdf_artifact_upload_to(instance: PdfArtifact, filename: str) -> str:
     return f"pdfs/{instance.coach_id}/{instance.id}/{safe_name}"
 
 
+def staged_program_pdf_upload_to(instance: StagedProgramPdf, filename: str) -> str:
+    return f"pdfs/staged/{instance.coach_id}/{instance.id}.pdf"
+
+
+class StagedProgramPdf(models.Model):
+    """Private PDF upload attached to a draft until the coach publishes it."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    coach = models.ForeignKey(
+        CoachProfile,
+        on_delete=models.CASCADE,
+        related_name="staged_program_pdfs",
+    )
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="staged_program_pdfs",
+    )
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="staged_program_pdfs",
+    )
+    program_version = models.OneToOneField(
+        ProgramVersion,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="staged_pdf_upload",
+    )
+    file = models.FileField(upload_to=staged_program_pdf_upload_to, max_length=512)
+    original_filename = models.CharField(max_length=255)
+    size_bytes = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["coach", "expires_at"])]
+
+    def __str__(self) -> str:
+        return f"StagedProgramPdf({self.id})"
+
+
 class PdfArtifact(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
         RENDERING = "rendering", "Rendering"
         READY = "ready", "Ready"
         FAILED = "failed", "Failed"
+
+    class Source(models.TextChoices):
+        GENERATED = "generated", "Generated"
+        UPLOADED = "uploaded", "Uploaded by coach"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     coach = models.ForeignKey(
@@ -45,6 +93,7 @@ class PdfArtifact(models.Model):
         on_delete=models.PROTECT,
         related_name="pdf_artifacts",
     )
+    source = models.CharField(max_length=16, choices=Source.choices, default=Source.GENERATED)
     display_name = models.CharField(max_length=255)
     original_filename = models.CharField(max_length=255)
     status = models.CharField(

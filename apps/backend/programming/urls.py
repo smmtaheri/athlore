@@ -3,18 +3,20 @@ from django.urls import path
 from programming.views import (
     GenerationRunDetailView,
     GenerationRunListView,
+    MyProgramDetailView,
+    MyProgramListView,
     ProgramActivateView,
     ProgramArchiveView,
     ProgramDetailView,
     ProgramGenerateView,
     ProgramListCreateView,
+    ProgramUploadedPdfDraftView,
     ProgramVersionDetailView,
     ProgramVersionDuplicateView,
     ProgramVersionFinalizeView,
     ProgramVersionListView,
-    MyProgramDetailView,
-    MyProgramListView,
     ProgramVersionNewVersionView,
+    ProgramVersionStagedPdfView,
     StudentProgramListView,
 )
 
@@ -23,6 +25,11 @@ urlpatterns = [
     path("me/programs/<uuid:program_id>/", MyProgramDetailView.as_view(), name="my-program-detail"),
     path("programs/", ProgramListCreateView.as_view(), name="program-list"),
     path("programs/generate/", ProgramGenerateView.as_view(), name="program-generate"),
+    path(
+        "programs/upload-pdf/",
+        ProgramUploadedPdfDraftView.as_view(),
+        name="program-upload-pdf-draft",
+    ),
     path("programs/<uuid:program_id>/", ProgramDetailView.as_view(), name="program-detail"),
     path(
         "programs/<uuid:program_id>/archive/",
@@ -43,6 +50,11 @@ urlpatterns = [
         "programs/<uuid:program_id>/versions/<uuid:version_id>/",
         ProgramVersionDetailView.as_view(),
         name="program-version-detail",
+    ),
+    path(
+        "programs/<uuid:program_id>/versions/<uuid:version_id>/staged-pdf/",
+        ProgramVersionStagedPdfView.as_view(),
+        name="program-version-staged-pdf",
     ),
     path(
         "programs/<uuid:program_id>/versions/<uuid:version_id>/finalize/",

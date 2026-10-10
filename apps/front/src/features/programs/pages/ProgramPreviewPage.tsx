@@ -20,7 +20,6 @@ import {
   EditorDrawer,
   FormField,
   Input,
-  Modal,
   Select,
   Skeleton,
   StatusBadge,
@@ -87,8 +86,11 @@ export function ProgramPreviewPage({
   const [student, setStudent] = useState<Student>();
   const [feedback, setFeedback] = useState("");
   const [isDirty, setIsDirty] = useState(false);
-  const [finalizeForPdfOpen, setFinalizeForPdfOpen] = useState(false);
-  const [pdfCreating, setPdfCreating] = useState(false);
+  const [stagedPdfPreview, setStagedPdfPreview] = useState<{ id: string; url: string } | null>(
+    null
+  );
+  const [uploadingReplacement, setUploadingReplacement] = useState(false);
+  const [uploadKey, setUploadKey] = useState(0);
   const [status, setStatus] = useState<"error" | "loaded" | "loading" | "notFound" | "saving">(
     "loading"
   );
@@ -141,18 +143,42 @@ export function ProgramPreviewPage({
     if (program.supplements) {
       available.push("supplements");
     }
-    available.push("pdf");
+    if (program.deliverySource !== "uploaded_pdf") available.push("pdf");
     return available;
   }, [program]);
 
+  useEffect(() => {
+    const stagedPdfId = program?.stagedPdf?.id;
+    if (!stagedPdfId || !programsRepo.downloadStagedPdf) return;
+    let objectUrl = "";
+    let mounted = true;
+    programsRepo
+      .downloadStagedPdf(stagedPdfId)
+      .then((blob) => {
+        if (!mounted) return;
+        objectUrl = URL.createObjectURL(blob);
+        setStagedPdfPreview({ id: stagedPdfId, url: objectUrl });
+      })
+      .catch(() => {
+        if (mounted)
+          setFeedback("پیش‌نمایش فایل PDF بارگذاری نشد؛ می‌توانید فایل را جایگزین کنید.");
+      });
+    return () => {
+      mounted = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [program?.stagedPdf?.id, programsRepo]);
+
   const activeTab = getPreviewTab(searchParams.get("tab"), tabs);
+  const stagedPdfUrl =
+    stagedPdfPreview?.id === program?.stagedPdf?.id ? stagedPdfPreview?.url ?? "" : "";
 
   const updateProgram = (updater: (program: GeneratedProgram) => GeneratedProgram) => {
     setProgram((current) => (current ? updater(structuredClone(current)) : current));
     setIsDirty(true);
   };
 
-  const saveProgram = async (nextStatus?: GeneratedProgram["status"]) => {
+  const saveProgram = async () => {
     if (!program) {
       return;
     }
@@ -160,111 +186,109 @@ export function ProgramPreviewPage({
     setFeedback("");
 
     try {
-      const savedProgram = await programsRepo.update(program.id, {
-        ...program,
-        status: nextStatus ?? program.status
-      });
+      const savedProgram = await programsRepo.update(program.id, program);
       await studentProgramsRepo.upsert?.(createProgramSummary(savedProgram));
       setProgram(savedProgram);
       setIsDirty(false);
       setStatus("loaded");
-      setFeedback(nextStatus === "ready" ? "برنامه آماده سازی شد." : "تغییرات برنامه ذخیره شد.");
+      setFeedback("تغییرات پیش‌نویس ذخیره شد.");
     } catch {
       setStatus("loaded");
       setFeedback("ذخیره برنامه انجام نشد.");
     }
   };
 
-  const createRealPdf = async (sourceProgram: GeneratedProgram) => {
-    if (!student) {
-      return;
-    }
-    setPdfCreating(true);
+  const publishProgram = async () => {
+    if (!program || !student) return;
     setStatus("saving");
-    setFeedback("در حال ساخت فایل‌های PDF تمرین و تغذیه…");
-    try {
-      // Always persist PDF include flags before render (finalized versions allow pdf_settings).
-      const saved = await programsRepo.update(sourceProgram.id, sourceProgram);
-      setProgram(saved);
-      const created = pdfFilesRepo.createForProgram
-        ? await pdfFilesRepo.createForProgram(saved.id, { deliveryOutputs: "pair" })
-        : await pdfFilesRepo.create({
-            contentType: saved.programType,
-            fileName: `${saved.pdfSettings.fileTitle.replace(/\s+/g, "_")}_v${saved.version}.pdf`,
-            generatedAt: new Date().toISOString(),
-            id: `pdf-${saved.id}-${Date.now()}`,
-            programId: saved.id,
-            programTitle: saved.title,
-            size: "-",
-            status: "ready",
-            studentId: student.id,
-            version: `v${saved.version}`
-          });
-      const artifacts =
-        created && typeof created === "object" && "artifacts" in created
-          ? created.artifacts
-          : [created as { status?: string }];
-      if (artifacts.some((item) => item.status === "failed")) {
-        setStatus("loaded");
-        setFeedback("ساخت PDF ناموفق بود.");
-        return;
-      }
-      setIsDirty(false);
-      setStatus("loaded");
-      setFeedback(
-        artifacts.length > 1 ? "فایل تمرین و فایل تغذیه/مکمل ساخته شد." : "فایل PDF تمرین ساخته شد."
-      );
-      navigate(`/students/${student.id}/pdf-files`);
-    } catch (error) {
-      const code = (error as { code?: string; message?: string }).code;
-      setStatus("loaded");
-      if (code === "program_not_finalized" || code === "version_not_finalized") {
-        setFeedback("برای ساخت PDF باید ابتدا نسخه برنامه نهایی شود.");
-        setFinalizeForPdfOpen(true);
-      } else {
-        setFeedback("ساخت فایل PDF انجام نشد. لطفا دوباره تلاش کنید.");
-      }
-    } finally {
-      setPdfCreating(false);
-    }
-  };
-
-  const requestCreatePdf = async () => {
-    if (!program || !student) {
-      return;
-    }
-    if (program.status === "draft") {
-      setFeedback(
-        "برای ساخت PDF رسمی، ابتدا باید نسخه فعلی برنامه را نهایی کنید. نهایی‌سازی با تایید شما انجام می‌شود."
-      );
-      setFinalizeForPdfOpen(true);
-      return;
-    }
-    await createRealPdf(program);
-  };
-
-  const confirmFinalizeThenPdf = async () => {
-    if (!program || !student) {
-      return;
-    }
-    setFinalizeForPdfOpen(false);
-    setStatus("saving");
+    setFeedback("");
     try {
       let next = program;
-      if (isDirty) {
-        next = await programsRepo.update(program.id, program);
-      }
-      if (programsRepo.finalize) {
+      if (isDirty) next = await programsRepo.update(program.id, program);
+      if (next.status === "draft" && programsRepo.finalize) {
         next = await programsRepo.finalize(program.id);
-      } else {
-        next = await programsRepo.update(program.id, { ...program, status: "ready" });
       }
-      setProgram(next);
+      if (next.deliverySource !== "uploaded_pdf") {
+        const existing = await pdfFilesRepo.listByProgram?.(program.id);
+        const expectedVersion = `v${next.version}`;
+        if (
+          !existing?.some((file) => file.status === "ready" && file.version === expectedVersion)
+        ) {
+          if (!pdfFilesRepo.createForProgram) {
+            throw new Error("ساخت فایل PDF در دسترس نیست.");
+          }
+          const result = await pdfFilesRepo.createForProgram(program.id, {
+            deliveryOutputs: "pair"
+          });
+          const artifacts =
+            result && typeof result === "object" && "artifacts" in result
+              ? result.artifacts
+              : [result as { status?: string }];
+          if (artifacts.some((artifact) => artifact.status !== "ready")) {
+            throw new Error("ساخت PDF ناموفق بود؛ دوباره از همین صفحه تلاش کنید.");
+          }
+        }
+      }
+      await studentProgramsRepo.activate(program.id);
       setIsDirty(false);
-      await createRealPdf(next);
-    } catch {
       setStatus("loaded");
-      setFeedback("نهایی‌سازی یا ساخت PDF انجام نشد.");
+      navigate(`/students/${student.id}/programs`);
+    } catch (error) {
+      setStatus("loaded");
+      setFeedback(
+        error instanceof ApiError
+          ? persianMessageForApiError(error)
+          : error instanceof Error
+            ? error.message
+            : "نهایی‌سازی و ارسال انجام نشد؛ اطلاعات پیش‌نویس حفظ شده است."
+      );
+    }
+  };
+
+  const replaceUploadedPdf = async (file?: File) => {
+    if (!file || !student || !program || !programsRepo.uploadStagedPdf) return;
+    if (file.size > 25 * 1024 * 1024 || !file.name.toLowerCase().endsWith(".pdf")) {
+      setFeedback("فقط PDF معتبر تا سقف ۲۵ مگابایت پذیرفته می‌شود.");
+      setUploadKey((current) => current + 1);
+      return;
+    }
+    const versionId = String((program as GeneratedProgram & { draftId?: string }).draftId ?? "");
+    if (!versionId || !programsRepo.attachStagedPdf) {
+      setFeedback("نسخهٔ پیش‌نویس برای جایگزینی فایل پیدا نشد.");
+      return;
+    }
+    setUploadingReplacement(true);
+    try {
+      const staged = await programsRepo.uploadStagedPdf(student.id, file);
+      try {
+        const updated = await programsRepo.attachStagedPdf(program.id, versionId, staged.id);
+        setProgram(updated);
+        setFeedback("PDF جایگزین شد؛ فایل قبلی از فضای موقت پاک می‌شود.");
+      } catch (error) {
+        await programsRepo.deleteStagedPdf?.(staged.id).catch(() => undefined);
+        throw error;
+      }
+    } catch (error) {
+      setFeedback(
+        error instanceof ApiError
+          ? persianMessageForApiError(error)
+          : "جایگزینی PDF انجام نشد؛ فایل قبلی حفظ شده است."
+      );
+    } finally {
+      setUploadingReplacement(false);
+      setUploadKey((current) => current + 1);
+    }
+  };
+
+  const removeUploadedPdf = async () => {
+    if (!program?.stagedPdf?.id || !programsRepo.deleteStagedPdf) return;
+    try {
+      await programsRepo.deleteStagedPdf(program.stagedPdf.id);
+      const updated = await programsRepo.getById(program.id);
+      if (updated) setProgram(updated);
+      setFeedback("PDF موقت حذف شد؛ پیش از نهایی‌سازی باید فایل دیگری بارگذاری کنید.");
+    } catch {
+      setFeedback("حذف PDF انجام نشد؛ دوباره تلاش کنید.");
     }
   };
 
@@ -329,22 +353,26 @@ export function ProgramPreviewPage({
             <Button
               iconStart={<Save size={18} />}
               isLoading={status === "saving"}
-              onClick={() => saveProgram()}
+              onClick={saveProgram}
               variant="secondary"
             >
-              ذخیره تغییرات
+              ذخیره پیش‌نویس
             </Button>
             <Button
               isLoading={status === "saving"}
-              onClick={() => saveProgram("ready")}
+              onClick={() => void publishProgram()}
               variant="success"
             >
-              نهایی سازی برنامه
+              نهایی‌سازی و ارسال به شاگرد
             </Button>
           </div>
         }
         breadcrumb={["داشبورد", "برنامه ها", "پیش نمایش"]}
-        description="پیش نمایش و ویرایش برنامه تمرینی، غذایی، مکمل و تنظیمات PDF"
+        description={
+          program.deliverySource === "uploaded_pdf"
+            ? "PDF را بازبینی کنید؛ در صورت نیاز جایگزین یا حذفش کنید، سپس از همین‌جا نهایی و برای شاگرد ارسال کنید."
+            : "برنامه را بازبینی و ویرایش کنید؛ PDFهای لازم هنگام نهایی‌سازی آماده و به شاگرد تحویل می‌شوند."
+        }
         title="پیش نمایش برنامه"
       />
       <ContentSection>
@@ -352,7 +380,7 @@ export function ProgramPreviewPage({
           {feedback ? (
             <div
               className={`${styles.alert} ${
-                feedback.includes("نشد") ? styles.alertError : styles.alertSuccess
+                isErrorFeedback(feedback) ? styles.alertError : styles.alertSuccess
               }`}
               role="status"
             >
@@ -366,16 +394,86 @@ export function ProgramPreviewPage({
           ) : null}
 
           <ProgramHeader program={program} student={student} />
-          <GenerationEvidencePanel program={program} />
-          <Card>
-            <Tabs
-              ariaLabel="تب های پیش نمایش برنامه"
-              items={tabs.map((tab) => ({ id: tab, label: previewTabLabels[tab] }))}
-              onChange={(tab) => setSearchParams({ tab })}
-              renderPanels={false}
-              value={activeTab}
-            />
-          </Card>
+          {program.deliverySource === "uploaded_pdf" ? (
+            <Card className={styles.pageStack}>
+              <SectionHeader
+                description="فایل تا نهایی‌سازی و ارسال فقط برای مربی قابل دسترسی است. می‌توانید همین‌جا آن را بازبینی، جایگزین یا حذف کنید."
+                title="PDF برنامهٔ شاگرد"
+              />
+              {program.stagedPdf ? (
+                <>
+                  <div className={styles.pdfPreview}>
+                    {stagedPdfUrl ? (
+                      <iframe
+                        className={styles.uploadedPdfFrame}
+                        src={stagedPdfUrl}
+                        title={`پیش‌نمایش ${program.stagedPdf.fileName}`}
+                      />
+                    ) : (
+                      <div className={styles.alert} role="status">
+                        در حال آماده‌کردن پیش‌نمایش PDF…
+                      </div>
+                    )}
+                  </div>
+                  <div className={styles.stagedPdfRow}>
+                    <div>
+                      <strong>{program.stagedPdf.fileName}</strong>
+                      <span>
+                        {formatProgramFileSize(program.stagedPdf.sizeBytes)} · فقط تا ۷ روز در فضای
+                        موقت می‌ماند
+                      </span>
+                    </div>
+                    <div className={styles.toolbarActions}>
+                      <Button
+                        disabled={!stagedPdfUrl}
+                        iconStart={<FileDown size={17} />}
+                        onClick={() =>
+                          stagedPdfUrl && window.open(stagedPdfUrl, "_blank", "noopener,noreferrer")
+                        }
+                        variant="secondary"
+                      >
+                        مشاهده
+                      </Button>
+                      <Button
+                        iconStart={<Trash2 size={17} />}
+                        onClick={() => void removeUploadedPdf()}
+                        variant="danger"
+                      >
+                        حذف فایل
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className={`${styles.alert} ${styles.alertWarning}`} role="alert">
+                  فایل پیش‌نویس موجود نیست یا مهلت موقت آن تمام شده؛ قبل از ارسال PDF جدیدی بارگذاری
+                  کنید.
+                </div>
+              )}
+              <FormField label="جایگزینی PDF" hint="PDF، حداکثر ۲۵ مگابایت">
+                <Input
+                  key={uploadKey}
+                  accept="application/pdf,.pdf"
+                  disabled={uploadingReplacement || program.status !== "draft"}
+                  type="file"
+                  onChange={(event) => void replaceUploadedPdf(event.currentTarget.files?.[0])}
+                />
+              </FormField>
+            </Card>
+          ) : (
+            <GenerationEvidencePanel program={program} />
+          )}
+          {tabs.length > 0 ? (
+            <Card>
+              <Tabs
+                ariaLabel="تب های پیش نمایش برنامه"
+                items={tabs.map((tab) => ({ id: tab, label: previewTabLabels[tab] }))}
+                onChange={(tab) => setSearchParams({ tab })}
+                renderPanels={false}
+                value={activeTab}
+              />
+            </Card>
+          ) : null}
 
           {activeTab === "training" && program.training ? (
             <TrainingEditor program={program} updateProgram={updateProgram} />
@@ -387,55 +485,28 @@ export function ProgramPreviewPage({
             <SupplementsEditor program={program} updateProgram={updateProgram} />
           ) : null}
           {activeTab === "pdf" ? (
-            <PdfSettingsEditor
-              onCreatePdf={requestCreatePdf}
-              pdfCreating={pdfCreating}
-              program={program}
-              updateProgram={updateProgram}
-            />
+            <PdfSettingsEditor program={program} updateProgram={updateProgram} />
           ) : null}
 
           <div className={styles.mobilePreviewActions}>
             <Button
               iconStart={<Save size={18} />}
               isLoading={status === "saving"}
-              onClick={() => saveProgram()}
+              onClick={saveProgram}
               variant="secondary"
             >
-              ذخیره تغییرات
+              ذخیره پیش‌نویس
             </Button>
             <Button
               isLoading={status === "saving"}
-              onClick={() => saveProgram("ready")}
+              onClick={() => void publishProgram()}
               variant="success"
             >
-              نهایی سازی برنامه
+              نهایی‌سازی و ارسال به شاگرد
             </Button>
           </div>
         </div>
       </ContentSection>
-
-      <Modal
-        footer={
-          <>
-            <Button onClick={() => setFinalizeForPdfOpen(false)} variant="secondary">
-              انصراف
-            </Button>
-            <Button data-testid="confirm-finalize-for-pdf" onClick={confirmFinalizeThenPdf}>
-              نهایی‌سازی و ساخت PDF
-            </Button>
-          </>
-        }
-        onClose={() => setFinalizeForPdfOpen(false)}
-        open={finalizeForPdfOpen}
-        title="نهایی‌سازی برای PDF"
-      >
-        <p>
-          ساخت PDF رسمی فقط از نسخه نهایی‌شده امکان‌پذیر است. با تایید شما، نسخه پیش‌نویس فعلی نهایی
-          می‌شود و سپس فایل PDF ساخته خواهد شد. این کار به‌صورت خودکار با زدن «ساخت PDF» انجام
-          نمی‌شود.
-        </p>
-      </Modal>
     </PageContainer>
   );
 }
@@ -1128,13 +1199,9 @@ function SupplementsEditor({
 }
 
 function PdfSettingsEditor({
-  onCreatePdf,
-  pdfCreating,
   program,
   updateProgram
 }: {
-  onCreatePdf: () => void;
-  pdfCreating?: boolean;
   program: GeneratedProgram;
   updateProgram: (updater: (program: GeneratedProgram) => GeneratedProgram) => void;
 }) {
@@ -1220,18 +1287,9 @@ function PdfSettingsEditor({
         </div>
         {program.status === "draft" ? (
           <p role="status">
-            این برنامه هنوز پیش‌نویس است. برای ساخت PDF رسمی باید ابتدا نهایی شود.
+            با «نهایی‌سازی و ارسال به شاگرد»، PDFهای قابل دانلود به‌صورت خودکار آماده می‌شوند.
           </p>
         ) : null}
-        <Button
-          data-testid="create-program-pdf"
-          disabled={pdfCreating}
-          iconStart={<FileDown size={18} />}
-          onClick={onCreatePdf}
-          size="lg"
-        >
-          {pdfCreating ? "در حال ساخت PDF…" : "ساخت PDF"}
-        </Button>
       </Card>
       <Card className={styles.pdfPreview}>
         <div>
@@ -1285,6 +1343,18 @@ function getPreviewTab(value: string | null, tabs: ProgramPreviewTab[]) {
     return value as ProgramPreviewTab;
   }
   return tabs[0] ?? "pdf";
+}
+
+function formatProgramFileSize(size: number): string {
+  return size < 1024 * 1024
+    ? `${Math.max(1, Math.round(size / 1024))} کیلوبایت`
+    : `${(size / (1024 * 1024)).toFixed(1)} مگابایت`;
+}
+
+function isErrorFeedback(message: string): boolean {
+  return ["خطا", "نشد", "نمی‌شود", "نیست", "نامعتبر", "باید", "الزامی"].some((phrase) =>
+    message.includes(phrase)
+  );
 }
 
 function moveItem<Item extends { order: number }>(

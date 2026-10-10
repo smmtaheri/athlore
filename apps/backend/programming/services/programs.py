@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import copy
+from datetime import timedelta
 from typing import Any
 
 from django.db import transaction
 from django.db.models import Max, Q
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from rest_framework.exceptions import NotFound, ValidationError
 
 from accounts.models import CoachProfile, ProgramTemplate
@@ -85,6 +87,7 @@ def serialize_version_summary(v: ProgramVersion) -> dict:
         "id": str(v.id),
         "version_number": v.version_number,
         "status": v.status,
+        "delivery_source": v.delivery_source,
         "finalized_at": v.finalized_at.isoformat().replace("+00:00", "Z")
         if v.finalized_at
         else None,
@@ -130,6 +133,9 @@ def serialize_program_summary(program: Program) -> dict:
         "student_name": program.student.full_name,
         "title": program.title,
         "program_type": program.program_type,
+        "delivery_source": current.delivery_source
+        if current
+        else ProgramVersion.DeliverySource.GENERATED,
         "status": status,
         "version": current.version_number if current else 0,
         "version_label": str(current.version_number) if current else "0",
@@ -165,6 +171,9 @@ def serialize_student_program_summary(program: Program) -> dict:
         "student_id": str(program.student_id),
         "title": program.title,
         "program_type": program.program_type,
+        "delivery_source": version.delivery_source
+        if version
+        else ProgramVersion.DeliverySource.GENERATED,
         "status": "active" if version and program.active_version_id == version.id else "ready",
         "version": version.version_number if version else 0,
         "is_current": bool(version and program.active_version_id == version.id),
@@ -186,6 +195,7 @@ def serialize_student_program_detail(program: Program) -> dict:
         else None,
         "date_range_end": program.date_range_end.isoformat() if program.date_range_end else None,
         "program_version_id": str(version.id),
+        "delivery_source": version.delivery_source,
         "training": _deep_copy(version.training),
         "nutrition": _deep_copy(version.nutrition),
         "supplements": _deep_copy(version.supplements),
@@ -213,6 +223,24 @@ def serialize_program_detail(program: Program) -> dict:
         pass
 
     content_source = draft or latest_final
+    staged_pdf = None
+    if (
+        content_source
+        and content_source.delivery_source == ProgramVersion.DeliverySource.UPLOADED_PDF
+    ):
+        from delivery.models import StagedProgramPdf
+
+        staged = StagedProgramPdf.objects.filter(
+            program_version=content_source,
+            expires_at__gt=timezone.now(),
+        ).first()
+        if staged:
+            staged_pdf = {
+                "id": str(staged.id),
+                "file_name": staged.original_filename,
+                "size_bytes": staged.size_bytes,
+                "expires_at": staged.expires_at.isoformat().replace("+00:00", "Z"),
+            }
     return {
         **summary,
         "date_range_start": program.date_range_start.isoformat()
@@ -230,6 +258,12 @@ def serialize_program_detail(program: Program) -> dict:
         "nutrition": _deep_copy(content_source.nutrition) if content_source else None,
         "supplements": _deep_copy(content_source.supplements) if content_source else None,
         "pdf_settings": _deep_copy(content_source.pdf_settings) if content_source else {},
+        "delivery_source": (
+            content_source.delivery_source
+            if content_source
+            else ProgramVersion.DeliverySource.GENERATED
+        ),
+        "staged_pdf": staged_pdf,
         "generator": generator_meta,
         "provenance": {
             "copied_from_program_id": (
@@ -316,6 +350,116 @@ def create_empty_draft(
         },
     )
     return program
+
+
+@transaction.atomic
+def create_uploaded_pdf_draft(
+    coach: CoachProfile,
+    *,
+    student_id,
+    staged_pdf_id,
+    title: str,
+    program_type: str,
+    date_range_label: str = "",
+    date_range_start=None,
+    date_range_end=None,
+) -> Program:
+    from delivery.models import StagedProgramPdf
+
+    student = _get_owned_student(coach, student_id)
+    if student.archived_at:
+        raise InvalidStateError(detail="Student is archived.", code="archived_student")
+    if program_type not in Program.ProgramType.values:
+        raise ValidationError({"program_type": ["Invalid program_type."]})
+    title = (title or "").strip()
+    if not title:
+        raise ValidationError({"title": ["عنوان برنامه الزامی است."]})
+
+    start = parse_date(str(date_range_start)) if date_range_start else None
+    end = parse_date(str(date_range_end)) if date_range_end else None
+    if date_range_start and not start:
+        raise ValidationError({"date_range_start": ["تاریخ شروع معتبر نیست."]})
+    if date_range_end and not end:
+        raise ValidationError({"date_range_end": ["تاریخ پایان معتبر نیست."]})
+    if not start or not end:
+        raise ValidationError({"date_range_start": ["تاریخ شروع و پایان برنامه الزامی است."]})
+    if start and end and end < start:
+        raise ValidationError({"date_range_end": ["تاریخ پایان نمی‌تواند قبل از شروع باشد."]})
+
+    try:
+        staged = StagedProgramPdf.objects.select_for_update().get(
+            pk=staged_pdf_id,
+            coach=coach,
+            student=student,
+            program_version__isnull=True,
+            expires_at__gt=timezone.now(),
+        )
+    except StagedProgramPdf.DoesNotExist as exc:
+        raise ValidationError(
+            {"staged_pdf_id": ["فایل موقت معتبر نیست یا منقضی شده است؛ دوباره بارگذاری کنید."]}
+        ) from exc
+
+    program = Program.objects.create(
+        coach=coach,
+        student=student,
+        title=title,
+        program_type=program_type,
+        date_range_label=(date_range_label or "").strip(),
+        date_range_start=start,
+        date_range_end=end,
+    )
+    version = ProgramVersion.objects.create(
+        program=program,
+        coach=coach,
+        version_number=1,
+        status=ProgramVersion.Status.DRAFT,
+        delivery_source=ProgramVersion.DeliverySource.UPLOADED_PDF,
+        pdf_settings={"fileTitle": title},
+    )
+    staged.program_version = version
+    staged.expires_at = timezone.now() + timedelta(days=7)
+    staged.save(update_fields=["program_version", "expires_at"])
+    return program
+
+
+@transaction.atomic
+def attach_staged_pdf_to_version(
+    coach: CoachProfile, version: ProgramVersion, staged_pdf_id
+) -> ProgramVersion:
+    from delivery.models import StagedProgramPdf
+
+    version = (
+        ProgramVersion.objects.select_for_update().select_related("program").get(pk=version.pk)
+    )
+    if version.coach_id != coach.id or version.program.coach_id != coach.id:
+        raise NotFound(detail="Not found.")
+    if version.status != ProgramVersion.Status.DRAFT:
+        raise InvalidStateError(detail="فقط پیش‌نویس برنامه قابل تغییر است.")
+    if version.delivery_source != ProgramVersion.DeliverySource.UPLOADED_PDF:
+        raise InvalidStateError(detail="این برنامه از نوع PDF آپلودی نیست.")
+    try:
+        staged = StagedProgramPdf.objects.select_for_update().get(
+            pk=staged_pdf_id,
+            coach=coach,
+            student=version.program.student,
+            program_version__isnull=True,
+            expires_at__gt=timezone.now(),
+        )
+    except StagedProgramPdf.DoesNotExist as exc:
+        raise ValidationError(
+            {"staged_pdf_id": ["فایل موقت معتبر نیست یا منقضی شده است."]}
+        ) from exc
+
+    previous = StagedProgramPdf.objects.select_for_update().filter(program_version=version).first()
+    staged.program_version = version
+    staged.expires_at = timezone.now() + timedelta(days=7)
+    staged.save(update_fields=["program_version", "expires_at"])
+    if previous:
+        filename = previous.file.name
+        storage = previous.file.storage
+        previous.delete()
+        transaction.on_commit(lambda: storage.delete(filename))
+    return version
 
 
 @transaction.atomic
@@ -573,6 +717,10 @@ def finalize_version(version: ProgramVersion, *, actor) -> ProgramVersion:
         return version  # idempotent
     if version.status != ProgramVersion.Status.DRAFT:
         raise InvalidStateError(detail="Only draft versions can be finalized.")
+    if version.delivery_source == ProgramVersion.DeliverySource.UPLOADED_PDF:
+        from delivery.services.staged_program_pdfs import promote_staged_pdf
+
+        promote_staged_pdf(version, actor=actor)
     version.status = ProgramVersion.Status.FINALIZED
     version.finalized_at = timezone.now()
     version.finalized_by = actor
@@ -616,11 +764,12 @@ def create_new_version(source: ProgramVersion) -> ProgramVersion:
     if ProgramVersion.objects.filter(program=program, version_number=next_number).exists():
         raise ConflictError(detail="Version number conflict.", code="duplicate_version_number")
 
-    return ProgramVersion.objects.create(
+    version = ProgramVersion.objects.create(
         program=program,
         coach=program.coach,
         version_number=next_number,
         status=ProgramVersion.Status.DRAFT,
+        delivery_source=source.delivery_source,
         training=_deep_copy(source.training),
         nutrition=_deep_copy(source.nutrition),
         supplements=_deep_copy(source.supplements),
@@ -628,6 +777,11 @@ def create_new_version(source: ProgramVersion) -> ProgramVersion:
         content_schema_version=source.content_schema_version,
         source_version=source,
     )
+    if version.delivery_source == ProgramVersion.DeliverySource.UPLOADED_PDF:
+        from delivery.services.staged_program_pdfs import clone_program_pdf_to_draft
+
+        clone_program_pdf_to_draft(source, version)
+    return version
 
 
 @transaction.atomic
@@ -652,11 +806,12 @@ def duplicate_program(
         date_range_start=source_program.date_range_start,
         date_range_end=source_program.date_range_end,
     )
-    ProgramVersion.objects.create(
+    version = ProgramVersion.objects.create(
         program=new_program,
         coach=coach,
         version_number=1,
         status=ProgramVersion.Status.DRAFT,
+        delivery_source=source_version.delivery_source,
         training=_deep_copy(source_version.training),
         nutrition=_deep_copy(source_version.nutrition),
         supplements=_deep_copy(source_version.supplements),
@@ -665,6 +820,10 @@ def duplicate_program(
         source_version=None,
         copied_from_program=source_program,
     )
+    if version.delivery_source == ProgramVersion.DeliverySource.UPLOADED_PDF:
+        from delivery.services.staged_program_pdfs import clone_program_pdf_to_draft
+
+        clone_program_pdf_to_draft(source_version, version)
     return new_program
 
 

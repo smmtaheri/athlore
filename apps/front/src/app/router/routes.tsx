@@ -91,7 +91,7 @@ function CoachRoutes() {
           path="students/:studentId/programs"
         />
         <Route
-          element={<StudentProfilePage tab="pdf-files" />}
+          element={<StudentProfilePage tab="programs" />}
           path="students/:studentId/pdf-files"
         />
         <Route

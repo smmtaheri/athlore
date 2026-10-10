@@ -4,6 +4,106 @@
   gap: var(--space-5);
 }
 
+.creationModeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.creationModeCard {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  padding: var(--space-4);
+  text-align: start;
+  cursor: pointer;
+}
+
+.creationModeCard > svg {
+  color: var(--color-primary-600);
+}
+
+.creationModeCard > span {
+  color: var(--color-text-secondary);
+  line-height: 1.7;
+}
+
+.creationModeCardActive {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+  box-shadow: 0 0 0 2px rgb(91 33 182 / 10%);
+}
+
+.uploadProgramCard {
+  display: grid;
+  gap: var(--space-4);
+  border-color: var(--color-primary-100);
+}
+
+.stagedPdfRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  padding: var(--space-3) var(--space-4);
+}
+
+.stagedPdfRow > div {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.stagedPdfRow > div > strong,
+.stagedPdfRow > div > span {
+  overflow-wrap: anywhere;
+}
+
+.uploadedPdfFrame {
+  display: block;
+  width: 100%;
+  min-height: min(76vh, 900px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+
+@media (max-width: 640px) {
+  .creationModeGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stagedPdfRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .stagedPdfRow > .toolbarActions {
+    width: 100%;
+  }
+
+  .stagedPdfRow > .toolbarActions > button {
+    flex: 1;
+  }
+
+  .uploadedPdfFrame {
+    min-height: 62vh;
+  }
+}
+
+.stagedPdfRow > div > span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
 .templateEditorPage {
   display: grid;
   min-width: 0;

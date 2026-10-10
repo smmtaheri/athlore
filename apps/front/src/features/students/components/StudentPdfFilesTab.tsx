@@ -1,16 +1,6 @@
 import { formatCalendarDateTime } from "../../../shared/dates/calendar";
 import { useEffect, useState } from "react";
-import {
-  Download,
-  Eye,
-  FilePlus2,
-  FileText,
-  Link2,
-  Link2Off,
-  Plus,
-  RefreshCcw,
-  Trash2
-} from "lucide-react";
+import { Download, Eye, FileText, Link2, Link2Off, RefreshCcw, Trash2 } from "lucide-react";
 import {
   Button,
   Card,
@@ -34,6 +24,7 @@ import { ProfileTabHeader, SummaryMetricCard } from "./ProfileTabHeader";
 import styles from "./students.module.css";
 
 export interface StudentPdfFilesTabProps {
+  embedded?: boolean;
   repository?: StudentPdfFilesRepository;
   student: Student;
 }
@@ -55,6 +46,7 @@ const pdfStatusVariant: Record<StudentPdfFileStatus, StatusBadgeVariant> = {
 };
 
 export function StudentPdfFilesTab({
+  embedded = false,
   repository = studentPdfFilesRepository,
   student
 }: StudentPdfFilesTabProps) {
@@ -254,61 +246,44 @@ export function StudentPdfFilesTab({
         </div>
       ) : null}
 
-      <ProfileTabHeader
-        action={
-          <Button
-            data-testid="pdf-create-hint"
-            iconStart={<Plus size={18} />}
-            onClick={() =>
-              setFeedback(
-                "برای ساخت PDF از صفحه برنامه، ابتدا نسخه را نهایی کنید و سپس «ساخت PDF» را بزنید. خروجی شامل فایل تمرین و فایل تغذیه/مکمل است."
-              )
-            }
-          >
-            ساخت PDF جدید
-          </Button>
-        }
-        description="خروجی‌های شاگرد: فایل تمرین و فایل تغذیه/مکمل (نه یک PDF ترکیبی)"
-        title="فایل های PDF"
-      />
+      <section id={embedded ? "program-files" : undefined}>
+        <ProfileTabHeader
+          description={
+            embedded
+              ? "فایل نهایی هر برنامه از همین‌جا قابل مشاهده و دریافت است. برای ساخت، تعویض یا ثبت برنامه از همین تب اقدام کنید."
+              : "PDFهای نهایی برنامه‌های این شاگرد"
+          }
+          title={embedded ? "فایل‌های تحویل‌شده" : "برنامه‌ها و فایل‌های PDF"}
+        />
+      </section>
 
-      <div className={styles.summaryMetricGrid}>
-        <SummaryMetricCard
-          hint="همه خروجی های شاگرد"
-          icon={FileText}
-          label="تعداد فایل های PDF"
-          value={files.length}
-        />
-        <SummaryMetricCard
-          hint="بر اساس آخرین فایل"
-          icon={FileText}
-          label="تاریخ آخرین فایل"
-          value={formatCalendarDateTime(lastFileDate)}
-        />
-        <SummaryMetricCard
-          hint="از فضای ذخیره"
-          icon={FileText}
-          label="فضای مصرف شده"
-          value={usedStorage}
-        />
-      </div>
+      {!embedded ? (
+        <div className={styles.summaryMetricGrid}>
+          <SummaryMetricCard
+            hint="همه خروجی های شاگرد"
+            icon={FileText}
+            label="تعداد فایل های PDF"
+            value={files.length}
+          />
+          <SummaryMetricCard
+            hint="بر اساس آخرین فایل"
+            icon={FileText}
+            label="تاریخ آخرین فایل"
+            value={formatCalendarDateTime(lastFileDate)}
+          />
+          <SummaryMetricCard
+            hint="از فضای ذخیره"
+            icon={FileText}
+            label="فضای مصرف شده"
+            value={usedStorage}
+          />
+        </div>
+      ) : null}
 
       {files.length === 0 ? (
         <Card padding="lg">
           <EmptyState
-            action={
-              <Button
-                iconStart={<FilePlus2 size={18} />}
-                onClick={() =>
-                  setFeedback(
-                    "برای ساخت PDF از صفحه برنامه، ابتدا نسخه را نهایی کنید و سپس «ساخت PDF» را بزنید."
-                  )
-                }
-              >
-                ساخت PDF جدید
-              </Button>
-            }
-            description="برای این شاگرد هنوز فایل PDF ثبت نشده است."
+            description="پس از نهایی‌سازی یک برنامه، فایل آمادهٔ شاگرد در اینجا نمایش داده می‌شود."
             title="هنوز فایل PDF وجود ندارد"
           />
         </Card>
@@ -425,8 +400,17 @@ function PdfFilesTable({
           {programTypeLabels[file.contentType]}
         </StatusBadge>
       ),
-      header: "نوع محتوا",
+      header: "نوع برنامه",
       id: "contentType"
+    },
+    {
+      cell: (file) => (
+        <StatusBadge variant={file.source === "uploaded" ? "neutral" : "info"}>
+          {file.source === "uploaded" ? "PDF مربی" : "ساخته‌شده با Athlore"}
+        </StatusBadge>
+      ),
+      header: "روش آماده‌سازی",
+      id: "source"
     },
     {
       cell: (file) => file.version,
@@ -518,6 +502,9 @@ function PdfFileCard({
         <StatusBadge variant={file.contentType === "complete" ? "purple" : "info"}>
           {programTypeLabels[file.contentType]}
         </StatusBadge>
+        <StatusBadge variant={file.source === "uploaded" ? "neutral" : "info"}>
+          {file.source === "uploaded" ? "PDF مربی" : "Athlore"}
+        </StatusBadge>
         <StatusBadge variant={pdfStatusVariant[file.status]}>
           {pdfStatusLabels[file.status]}
         </StatusBadge>
@@ -599,26 +586,30 @@ function PdfActions({
           variant="ghost"
         />
       )}
-      <IconButton
-        aria-label="بازسازی PDF"
-        className={styles.pdfIconAction}
-        data-testid="pdf-regenerate"
-        disabled={busy}
-        icon={<RefreshCcw size={16} strokeWidth={1.75} />}
-        onClick={onRegenerate}
-        title="بازسازی"
-        variant="ghost"
-      />
-      <IconButton
-        aria-label="حذف PDF"
-        className={`${styles.pdfIconAction} ${styles.pdfIconActionDanger}`}
-        data-testid="pdf-delete"
-        disabled={busy}
-        icon={<Trash2 size={16} strokeWidth={1.75} />}
-        onClick={onDelete}
-        title="حذف"
-        variant="ghost"
-      />
+      {file.source !== "uploaded" ? (
+        <IconButton
+          aria-label="بازسازی PDF"
+          className={styles.pdfIconAction}
+          data-testid="pdf-regenerate"
+          disabled={busy}
+          icon={<RefreshCcw size={16} strokeWidth={1.75} />}
+          onClick={onRegenerate}
+          title="بازسازی"
+          variant="ghost"
+        />
+      ) : null}
+      {file.source !== "uploaded" ? (
+        <IconButton
+          aria-label="حذف PDF"
+          className={`${styles.pdfIconAction} ${styles.pdfIconActionDanger}`}
+          data-testid="pdf-delete"
+          disabled={busy}
+          icon={<Trash2 size={16} strokeWidth={1.75} />}
+          onClick={onDelete}
+          title="حذف"
+          variant="ghost"
+        />
+      ) : null}
     </div>
   );
 }

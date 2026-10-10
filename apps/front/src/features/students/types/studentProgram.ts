@@ -5,6 +5,7 @@ export type StudentProgramType = "complete" | "nutrition" | "supplement" | "work
 export interface StudentProgramSummary {
   createdAt: string;
   dateRange: string;
+  deliverySource?: "generated" | "uploaded_pdf";
   generatedAt: string;
   id: string;
   isCurrent: boolean;

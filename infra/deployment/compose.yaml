@@ -90,7 +90,7 @@ services:
   visit-photo-pruner:
     image: athlore-backend
     entrypoint: ["/bin/sh", "-c"]
-    command: ["while true; do python manage.py prune_staged_visit_photos || exit 1; sleep 3600; done"]
+    command: ["while true; do python manage.py prune_staged_visit_photos || exit 1; python manage.py prune_staged_program_pdfs || exit 1; sleep 3600; done"]
     user: "10001:10001"
     environment:
       DB_ENGINE: postgresql

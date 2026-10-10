@@ -1,4 +1,4 @@
-import { apiRequest } from "./client";
+import { apiDownload, apiRequest, apiUploadFormData } from "./client";
 import {
   coachRulesFromApi,
   coachRulesToApi,
@@ -23,7 +23,8 @@ import type { DashboardMetrics } from "../../features/dashboard/services/dashboa
 import type {
   GeneratedProgram,
   GenerationEvidence,
-  ProgramGenerationInput
+  ProgramGenerationInput,
+  UploadedProgramDraftInput
 } from "../../features/programs/types/generatedProgram";
 import type { ProgramsRepository } from "../../features/programs/services/programsRepository";
 import type { VisitFormTemplatesRepository } from "../../features/students/services/visitFormTemplatesRepository";
@@ -404,6 +405,51 @@ export function createApiProgramsRepository(): ProgramsRepository & {
         rememberDraftMeta(programDetailFromApi(dto) as GeneratedProgram & Record<string, unknown>)
       );
     },
+    async uploadStagedPdf(studentId, file) {
+      const form = new FormData();
+      form.append("student_id", studentId);
+      form.append("file", file);
+      const dto = await apiUploadFormData<Record<string, unknown>>("/program-pdfs/staging/", form);
+      return {
+        id: String(dto.id),
+        fileName: String(dto.file_name ?? file.name),
+        sizeBytes: Number(dto.size_bytes ?? file.size),
+        expiresAt: String(dto.expires_at ?? "")
+      };
+    },
+    async deleteStagedPdf(id) {
+      await apiRequest(`/program-pdfs/staging/${id}/`, { method: "DELETE" });
+    },
+    async downloadStagedPdf(id) {
+      const response = await apiDownload(`/program-pdfs/staging/${id}/?inline=1`);
+      return response.blob;
+    },
+    async createUploadedDraft(input: UploadedProgramDraftInput) {
+      const dto = await apiRequest<Record<string, unknown>>("/programs/upload-pdf/", {
+        method: "POST",
+        body: {
+          student_id: input.studentId,
+          staged_pdf_id: input.stagedPdfId,
+          title: input.title,
+          program_type: input.programType,
+          date_range_label: input.dateRangeLabel,
+          date_range_start: input.dateRangeStart,
+          date_range_end: input.dateRangeEnd
+        }
+      });
+      return stripMeta(
+        rememberDraftMeta(programDetailFromApi(dto) as GeneratedProgram & Record<string, unknown>)
+      );
+    },
+    async attachStagedPdf(programId, versionId, stagedPdfId) {
+      const dto = await apiRequest<Record<string, unknown>>(
+        `/programs/${programId}/versions/${versionId}/staged-pdf/`,
+        { method: "POST", body: { staged_pdf_id: stagedPdfId } }
+      );
+      return stripMeta(
+        rememberDraftMeta(programDetailFromApi(dto) as GeneratedProgram & Record<string, unknown>)
+      );
+    },
     async generate(input) {
       const body: Record<string, unknown> = {
         student_id: input.studentId,
@@ -421,6 +467,9 @@ export function createApiProgramsRepository(): ProgramsRepository & {
         apply_muscle_priority_rules: input.applyMusclePriorityRules,
         apply_exercise_bank: input.applyExerciseBank,
         apply_general_rules: input.applyGeneralRules,
+        date_range_label: input.dateRangeLabel,
+        date_range_start: input.dateRangeStart,
+        date_range_end: input.dateRangeEnd,
         engine: "rules_v1"
       };
       if (input.targetMuscle) {
@@ -679,6 +728,7 @@ export function createApiStudentProgramsRepository(
       return {
         createdAt: program.createdAt,
         dateRange: program.dateRange,
+        deliverySource: program.deliverySource,
         generatedAt: program.createdAt,
         id: program.id,
         isCurrent: false,
@@ -696,6 +746,7 @@ export function createApiStudentProgramsRepository(
       return {
         createdAt: program.createdAt,
         dateRange: program.dateRange,
+        deliverySource: program.deliverySource,
         generatedAt: program.createdAt,
         id: program.id,
         isCurrent: program.status === "active",

@@ -4,7 +4,6 @@ import { useNavigate, useParams } from "react-router";
 import { ContentSection, PageContainer, PageHeader, Stack } from "../../../components/layout";
 import { Button, Card, EmptyState, Skeleton } from "../../../components/ui";
 import { StudentBasicInfoTab } from "../components/StudentBasicInfoTab";
-import { StudentPdfFilesTab } from "../components/StudentPdfFilesTab";
 import { StudentProgramsTab } from "../components/StudentProgramsTab";
 import { StudentProfileHeader } from "../components/StudentProfileHeader";
 import { StudentProfileTabs, type StudentProfileTab } from "../components/StudentProfileTabs";
@@ -136,11 +135,11 @@ export function StudentProfilePage({
 
         {visibleStatus === "loaded" && student ? (
           <Stack gap="20px">
-            <StudentProfileHeader
-              onStudentUpdated={setStudent}
-              student={student}
+            <StudentProfileHeader onStudentUpdated={setStudent} student={student} />
+            <StudentProfileTabs
+              activeTab={tab === "pdf-files" ? "programs" : tab}
+              studentId={student.id}
             />
-            <StudentProfileTabs activeTab={tab} studentId={student.id} />
             <StudentProfileTabContent
               pdfFilesRepository={pdfFilesRepository}
               programsRepository={programsRepository}
@@ -201,12 +200,24 @@ function StudentProfileTabContent({
   }
 
   if (tab === "programs") {
-    return <StudentProgramsTab repository={programsRepository} student={student} />;
+    return (
+      <StudentProgramsTab
+        pdfFilesRepository={pdfFilesRepository}
+        repository={programsRepository}
+        student={student}
+      />
+    );
   }
 
   if (tab === "body-check") {
     return <StudentBodyCheckTab student={student} />;
   }
 
-  return <StudentPdfFilesTab repository={pdfFilesRepository} student={student} />;
+  return (
+    <StudentProgramsTab
+      pdfFilesRepository={pdfFilesRepository}
+      repository={programsRepository}
+      student={student}
+    />
+  );
 }

@@ -62,6 +62,27 @@ class ProgramGenerateView(APIView):
         )
 
 
+class ProgramUploadedPdfDraftView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def post(self, request):
+        coach = get_request_coach(request)
+        program = program_services.create_uploaded_pdf_draft(
+            coach,
+            student_id=request.data.get("student_id"),
+            staged_pdf_id=request.data.get("staged_pdf_id"),
+            title=request.data.get("title") or "",
+            program_type=request.data.get("program_type") or "complete",
+            date_range_label=request.data.get("date_range_label") or "",
+            date_range_start=request.data.get("date_range_start"),
+            date_range_end=request.data.get("date_range_end"),
+        )
+        return Response(
+            program_services.serialize_program_detail(program),
+            status=status.HTTP_201_CREATED,
+        )
+
+
 class ProgramDetailView(APIView):
     permission_classes = [IsAuthenticatedCoach]
 
@@ -140,6 +161,20 @@ class ProgramVersionDetailView(APIView):
         version = program_services.get_version_for_coach(coach, program, version_id)
         version = program_services.update_draft_version(version, request.data)
         return Response(program_services.serialize_version_detail(version))
+
+
+class ProgramVersionStagedPdfView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def post(self, request, program_id, version_id):
+        coach = get_request_coach(request)
+        program = program_services.get_program_for_coach(coach, program_id)
+        version = program_services.get_version_for_coach(coach, program, version_id)
+        version = program_services.attach_staged_pdf_to_version(
+            coach, version, request.data.get("staged_pdf_id")
+        )
+        program.refresh_from_db()
+        return Response(program_services.serialize_program_detail(program))
 
 
 class ProgramVersionFinalizeView(APIView):

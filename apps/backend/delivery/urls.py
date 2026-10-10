@@ -1,19 +1,27 @@
 from django.urls import path
 
 from delivery.views import (
+    MyPdfDownloadView,
+    MyProgramPdfListCreateView,
     PdfDetailView,
     PdfDownloadView,
     PdfRegenerateView,
     PdfShareView,
     ProgramPdfListCreateView,
+    ProgramPdfStagingView,
     ProgramVersionPdfCreateView,
     PublicSharedPdfDownloadView,
+    StagedProgramPdfDetailView,
     StudentPdfListView,
-    MyPdfDownloadView,
-    MyProgramPdfListCreateView,
 )
 
 urlpatterns = [
+    path("program-pdfs/staging/", ProgramPdfStagingView.as_view(), name="program-pdf-staging"),
+    path(
+        "program-pdfs/staging/<uuid:staged_pdf_id>/",
+        StagedProgramPdfDetailView.as_view(),
+        name="program-pdf-staging-detail",
+    ),
     path(
         "me/programs/<uuid:program_id>/pdf-files/",
         MyProgramPdfListCreateView.as_view(),

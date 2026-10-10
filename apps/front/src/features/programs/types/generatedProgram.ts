@@ -182,6 +182,7 @@ export interface GenerationEvidence {
 export interface GeneratedProgram {
   createdAt: string;
   dateRange: string;
+  deliverySource?: "generated" | "uploaded_pdf";
   /** Present when the Backend attached generation provenance to this program/version. */
   evidence?: GenerationEvidence;
   /** Convenience shortcut mirroring evidence.generationRunId — used to lazily fetch full evidence. */
@@ -192,6 +193,12 @@ export interface GeneratedProgram {
   programType: StudentProgramType;
   status: GeneratedProgramStatus;
   studentId: string;
+  stagedPdf?: {
+    expiresAt: string;
+    fileName: string;
+    id: string;
+    sizeBytes: number;
+  } | null;
   supplements?: SupplementPlan;
   title: string;
   training?: TrainingProgram;
@@ -207,6 +214,9 @@ export interface ProgramGenerationInput {
   applyMusclePriorityRules: boolean;
   customInstructions: string;
   daysPerWeek: number;
+  dateRangeEnd?: string;
+  dateRangeLabel?: string;
+  dateRangeStart?: string;
   durationWeeks: number;
   goal: string;
   level: string;
@@ -218,5 +228,22 @@ export interface ProgramGenerationInput {
   targetRegion?: string;
   supplementSelection?: import("../../coach-rules/services/supplementCatalogRepository").SupplementSelection;
   templateId: string;
+  title: string;
+}
+
+export interface StagedProgramPdf {
+  expiresAt: string;
+  fileName: string;
+  id: string;
+  sizeBytes: number;
+}
+
+export interface UploadedProgramDraftInput {
+  dateRangeEnd: string;
+  dateRangeLabel: string;
+  dateRangeStart: string;
+  programType: StudentProgramType;
+  stagedPdfId: string;
+  studentId: string;
   title: string;
 }

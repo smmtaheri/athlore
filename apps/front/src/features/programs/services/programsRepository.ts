@@ -2,7 +2,12 @@ import { appConfig } from "../../../app/config/appConfig";
 import { createApiProgramsRepository } from "../../../shared/api/repositories";
 import { studentProgramFixtures } from "../../students/fixtures/studentPrograms";
 import type { StudentProgramSummary } from "../../students/types/studentProgram";
-import type { GeneratedProgram, ProgramGenerationInput } from "../types/generatedProgram";
+import type {
+  GeneratedProgram,
+  ProgramGenerationInput,
+  StagedProgramPdf,
+  UploadedProgramDraftInput
+} from "../types/generatedProgram";
 
 export const GENERATED_PROGRAMS_STORAGE_KEY = "coach-assistant.generated-programs.v1";
 
@@ -15,9 +20,18 @@ export interface ProgramsRepository {
   generate?(
     input: ProgramGenerationInput
   ): Promise<{ program: GeneratedProgram; warnings: string[]; generatorVersion?: string }>;
+  attachStagedPdf?(
+    programId: string,
+    versionId: string,
+    stagedPdfId: string
+  ): Promise<GeneratedProgram>;
+  createUploadedDraft?(input: UploadedProgramDraftInput): Promise<GeneratedProgram>;
+  deleteStagedPdf?(id: string): Promise<void>;
+  downloadStagedPdf?(id: string): Promise<Blob>;
   getById(id: string): Promise<GeneratedProgram | null>;
   list(): Promise<GeneratedProgram[]>;
   listByStudent(studentId: string): Promise<GeneratedProgram[]>;
+  uploadStagedPdf?(studentId: string, file: File): Promise<StagedProgramPdf>;
   reset(): Promise<GeneratedProgram[]>;
   update(id: string, program: GeneratedProgram): Promise<GeneratedProgram>;
 }
@@ -71,6 +85,7 @@ export function createProgramSummary(program: GeneratedProgram): StudentProgramS
   return {
     createdAt: program.createdAt,
     dateRange: program.dateRange,
+    deliverySource: program.deliverySource,
     generatedAt: program.createdAt,
     id: program.id,
     isCurrent: program.status === "active",
@@ -267,6 +282,7 @@ export function createGeneratedProgramFromSummary(
       style: "modern"
     },
     programType: summary.programType,
+    deliverySource: summary.deliverySource,
     status: summary.status === "expired" ? "archived" : summary.status,
     studentId: summary.studentId,
     supplements: includesSupplements
