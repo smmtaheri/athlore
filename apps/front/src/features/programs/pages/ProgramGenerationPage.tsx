@@ -949,8 +949,8 @@ function formatFileSize(size: number): string {
 }
 
 function isErrorFeedback(message: string): boolean {
-  return ["خطا", "لطفا", "نشد", "الزامی", "نامعتبر", "در دسترس نیست", "باید"].some((phrase) =>
-    message.includes(phrase)
+  return ["خطا", "لطفا", "نشد", "الزامی", "نامعتبر", "در دسترس نیست", "باید", "پاسخ سرور"].some(
+    (phrase) => message.includes(phrase)
   );
 }
 

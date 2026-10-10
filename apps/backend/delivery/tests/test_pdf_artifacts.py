@@ -7,6 +7,8 @@ from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
@@ -15,12 +17,12 @@ from rest_framework.test import APITestCase
 from accounts.models import CoachProfile
 from accounts.rules_services import replace_coach_rules
 from common.testing import auth_header, register
-from delivery.models import PdfArtifact
+from delivery.models import PdfArtifact, StagedProgramPdf
 from delivery.services import artifacts as artifact_services
 from delivery.services import share as share_services
 from delivery.services.render import RENDER_TEMPLATE_VERSION, build_pdf_context
 from programming.models import Program, ProgramVersion
-from students.models import Student
+from students.models import Student, StudentProfile
 
 MIN_RULES = {
     "templates": [
@@ -356,6 +358,141 @@ class PdfArtifactServiceTests(PdfTestMixin, APITestCase):
 @override_settings(MEDIA_ROOT="/tmp/should-be-overridden")
 @override_settings(PUBLIC_REGISTRATION_ENABLED=True)
 class PdfApiTests(PdfTestMixin, APITestCase):
+    def test_stage_preview_and_delete_uploaded_program_pdf(self):
+        pdf = (
+            b"%PDF-1.4\n"
+            b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            b"2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            b"trailer\n<< /Root 1 0 R >>\n%%EOF\n"
+        )
+        uploaded = SimpleUploadedFile("coach-program.pdf", pdf, content_type="application/pdf")
+        response = self.client.post(
+            "/api/v1/program-pdfs/staging/",
+            {"student_id": str(self.student.id), "file": uploaded},
+            format="multipart",
+            **self.ha,
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        staged_id = response.data["id"]
+        staged = StagedProgramPdf.objects.get(pk=staged_id)
+        staged_path = staged.file.path
+        self.assertEqual(staged.original_filename, "coach-program.pdf")
+
+        preview = self.client.get(f"/api/v1/program-pdfs/staging/{staged_id}/?inline=1", **self.ha)
+        self.assertEqual(preview.status_code, status.HTTP_200_OK)
+        self.assertEqual(preview["Content-Type"], "application/pdf")
+        self.assertEqual(b"".join(preview.streaming_content), pdf)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            deleted = self.client.delete(f"/api/v1/program-pdfs/staging/{staged_id}/", **self.ha)
+        self.assertEqual(deleted.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(StagedProgramPdf.objects.filter(pk=staged_id).exists())
+        self.assertFalse(Path(staged_path).exists())
+
+    def test_uploaded_program_is_delivered_and_downloadable_by_student(self):
+        pdf = (
+            b"%PDF-1.4\n"
+            b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            b"2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            b"trailer\n<< /Root 1 0 R >>\n%%EOF\n"
+        )
+        staged_response = self.client.post(
+            "/api/v1/program-pdfs/staging/",
+            {
+                "student_id": str(self.student.id),
+                "file": SimpleUploadedFile(
+                    "mohammad-program.pdf", pdf, content_type="application/pdf"
+                ),
+            },
+            format="multipart",
+            **self.ha,
+        )
+        self.assertEqual(staged_response.status_code, status.HTTP_201_CREATED, staged_response.data)
+
+        draft_response = self.client.post(
+            "/api/v1/programs/upload-pdf/",
+            {
+                "student_id": str(self.student.id),
+                "staged_pdf_id": staged_response.data["id"],
+                "title": "برنامه آزمایشی آپلودی محمد",
+                "program_type": "complete",
+                "date_range_label": "آزمون مهر ۱۴۰۵",
+                "date_range_start": "2026-10-10",
+                "date_range_end": "2026-11-06",
+            },
+            format="json",
+            **self.ha,
+        )
+        self.assertEqual(draft_response.status_code, status.HTTP_201_CREATED, draft_response.data)
+        program_id = draft_response.data["id"]
+        version_id = draft_response.data["current_draft"]["id"]
+        self.assertEqual(draft_response.data["delivery_source"], "uploaded_pdf")
+
+        with self.captureOnCommitCallbacks(execute=True):
+            finalized = self.client.post(
+                f"/api/v1/programs/{program_id}/versions/{version_id}/finalize/",
+                {},
+                format="json",
+                **self.ha,
+            )
+        self.assertEqual(finalized.status_code, status.HTTP_200_OK, finalized.data)
+        self.assertEqual(finalized.data["status"], "finalized")
+        activated = self.client.post(
+            f"/api/v1/programs/{program_id}/activate/",
+            {"version_id": version_id},
+            format="json",
+            **self.ha,
+        )
+        self.assertEqual(activated.status_code, status.HTTP_200_OK, activated.data)
+
+        coach_files = self.client.get(f"/api/v1/students/{self.student.id}/pdf-files/", **self.ha)
+        self.assertEqual(coach_files.status_code, status.HTTP_200_OK)
+        artifact = next(
+            item for item in coach_files.data["results"] if item["program_id"] == program_id
+        )
+        self.assertEqual(artifact["source"], "uploaded")
+        self.assertEqual(artifact["status"], "ready")
+
+        user_model = get_user_model()
+        student_user = user_model.objects.create_user(
+            username="uploaded-pdf-student", password="StudentPass123!"
+        )
+        StudentProfile.objects.create(
+            user=student_user,
+            student=self.student,
+            portal_enabled=True,
+            account_activated_at=timezone.now(),
+            must_change_password=False,
+        )
+        student_login = self.client.post(
+            "/api/v1/auth/login/",
+            {"username": student_user.username, "password": "StudentPass123!"},
+            format="json",
+        )
+        self.assertEqual(student_login.status_code, status.HTTP_200_OK, student_login.data)
+        student_auth = auth_header(student_login.data["tokens"])
+
+        programs = self.client.get("/api/v1/me/programs/", **student_auth)
+        self.assertEqual(programs.status_code, status.HTTP_200_OK)
+        student_program = next(
+            item for item in programs.data["results"] if item["id"] == program_id
+        )
+        self.assertEqual(student_program["delivery_source"], "uploaded_pdf")
+        self.assertEqual(student_program["title"], "برنامه آزمایشی آپلودی محمد")
+
+        student_files = self.client.get(
+            f"/api/v1/me/programs/{program_id}/pdf-files/", **student_auth
+        )
+        self.assertEqual(student_files.status_code, status.HTTP_200_OK)
+        student_artifact = student_files.data["results"][0]
+        self.assertEqual(student_artifact["id"], artifact["id"])
+        download = self.client.get(
+            f"/api/v1/me/pdf-files/{student_artifact['id']}/download/", **student_auth
+        )
+        self.assertEqual(download.status_code, status.HTTP_200_OK)
+        self.assertEqual(download["Content-Type"], "application/pdf")
+        self.assertEqual(b"".join(download.streaming_content), pdf)
+
     def test_create_from_finalized_and_download(self):
         res = self.client.post(
             f"/api/v1/programs/{self.program.id}/pdf-files/",

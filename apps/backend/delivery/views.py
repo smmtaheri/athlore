@@ -4,6 +4,7 @@ from urllib.parse import quote
 
 from django.http import FileResponse
 from rest_framework import status
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -53,6 +54,7 @@ class StudentPdfListView(APIView):
 
 class ProgramPdfStagingView(APIView):
     permission_classes = [IsAuthenticatedCoach]
+    parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
         coach = get_request_coach(request)
