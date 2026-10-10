@@ -5,6 +5,7 @@ import type { StudentProgramSummary } from "../../students/types/studentProgram"
 import type {
   GeneratedProgram,
   ProgramGenerationInput,
+  ProgramPdfSection,
   StagedProgramPdf,
   UploadedProgramDraftInput
 } from "../types/generatedProgram";
@@ -23,7 +24,8 @@ export interface ProgramsRepository {
   attachStagedPdf?(
     programId: string,
     versionId: string,
-    stagedPdfId: string
+    stagedPdfId: string,
+    section?: ProgramPdfSection
   ): Promise<GeneratedProgram>;
   createUploadedDraft?(input: UploadedProgramDraftInput): Promise<GeneratedProgram>;
   deleteStagedPdf?(id: string): Promise<void>;
@@ -31,7 +33,11 @@ export interface ProgramsRepository {
   getById(id: string): Promise<GeneratedProgram | null>;
   list(): Promise<GeneratedProgram[]>;
   listByStudent(studentId: string): Promise<GeneratedProgram[]>;
-  uploadStagedPdf?(studentId: string, file: File): Promise<StagedProgramPdf>;
+  uploadStagedPdf?(
+    studentId: string,
+    file: File,
+    section?: ProgramPdfSection
+  ): Promise<StagedProgramPdf>;
   reset(): Promise<GeneratedProgram[]>;
   update(id: string, program: GeneratedProgram): Promise<GeneratedProgram>;
 }

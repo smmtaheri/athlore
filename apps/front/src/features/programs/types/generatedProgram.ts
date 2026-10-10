@@ -6,6 +6,9 @@ export type GeneratedProgramStatus = Extract<
 >;
 
 export type ProgramPreviewTab = "training" | "nutrition" | "supplements" | "pdf";
+export type ProgramPdfSection = "workout" | "nutrition" | "supplement";
+export type ProgramPdfSectionMethod = "generated" | "uploaded";
+export type ProgramPdfSectionMethods = Partial<Record<ProgramPdfSection, ProgramPdfSectionMethod>>;
 
 export interface TrainingExercise {
   id: string;
@@ -101,6 +104,7 @@ export interface ProgramPdfSettings {
   includeTraining: boolean;
   pageSize: "A4";
   style: "simple" | "modern" | "colorful";
+  deliverySections?: ProgramPdfSectionMethods;
 }
 
 /**
@@ -182,12 +186,15 @@ export interface GenerationEvidence {
 export interface GeneratedProgram {
   createdAt: string;
   dateRange: string;
+  /** Backend version IDs used while attaching uploaded PDFs or retrying PDF delivery. */
+  draftId?: string;
   deliverySource?: "generated" | "uploaded_pdf";
   /** Present when the Backend attached generation provenance to this program/version. */
   evidence?: GenerationEvidence;
   /** Convenience shortcut mirroring evidence.generationRunId — used to lazily fetch full evidence. */
   generationRunId?: string;
   id: string;
+  finalizedVersionId?: string;
   nutrition?: NutritionProgram;
   pdfSettings: ProgramPdfSettings;
   programType: StudentProgramType;
@@ -199,6 +206,7 @@ export interface GeneratedProgram {
     id: string;
     sizeBytes: number;
   } | null;
+  stagedPdfs?: Partial<Record<ProgramPdfSection, StagedProgramPdf>>;
   supplements?: SupplementPlan;
   title: string;
   training?: TrainingProgram;
@@ -236,6 +244,7 @@ export interface StagedProgramPdf {
   fileName: string;
   id: string;
   sizeBytes: number;
+  section?: ProgramPdfSection;
 }
 
 export interface UploadedProgramDraftInput {

@@ -3,6 +3,8 @@ import {
   coachRulesFromApi,
   coachRulesToApi,
   dashboardFromApi,
+  pdfFileFromApi,
+  programDetailFromApi,
   programSummaryFromApi,
   studentFromApi,
   studentInputToApi
@@ -151,5 +153,44 @@ describe("api adapters", () => {
       updated_at: "2026-08-01T00:00:00Z"
     });
     expect(summary.version).toBe("v2");
+  });
+
+  it("preserves PDF section and program range metadata for coach and student views", () => {
+    const file = pdfFileFromApi({
+      id: "pdf-1",
+      student_id: "student-1",
+      program_id: "program-1",
+      program_title: "برنامه مهر",
+      program_type: "complete",
+      section: "supplement",
+      source: "uploaded",
+      program_date_range: "مهر ۱۴۰۵",
+      status: "ready",
+      file_name: "supplements.pdf",
+      version_label: "v1",
+      size_bytes: 1200,
+      created_at: "2026-10-10T00:00:00Z"
+    });
+
+    expect(file.section).toBe("supplement");
+    expect(file.programDateRange).toBe("مهر ۱۴۰۵");
+    expect(file.source).toBe("uploaded");
+  });
+
+  it("retains draft and latest finalized IDs needed for safe upload and delivery retries", () => {
+    const program = programDetailFromApi({
+      id: "program-1",
+      student_id: "student-1",
+      title: "برنامه مهر",
+      program_type: "complete",
+      status: "draft",
+      current_draft: { id: "draft-v2", version_number: 2, status: "draft" },
+      latest_finalized_version: { id: "final-v1", version_number: 1, status: "finalized" },
+      pdf_settings: { deliverySections: { workout: "uploaded" } }
+    });
+
+    expect(program.draftId).toBe("draft-v2");
+    expect(program.finalizedVersionId).toBe("final-v1");
+    expect(program.pdfSettings.deliverySections?.workout).toBe("uploaded");
   });
 });

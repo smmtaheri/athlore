@@ -3,6 +3,7 @@ import { publicAbsoluteUrl } from "../../../app/config/appOrigin";
 import { createApiStudentPdfFilesRepository } from "../../../shared/api/pdfRepository";
 import { studentPdfFileFixtures } from "../fixtures/studentPdfFiles";
 import type { StudentPdfFile } from "../types/pdfFile";
+import type { ProgramPdfSection } from "../../programs/types/generatedProgram";
 
 /**
  * Retired from active API mode (P3).
@@ -23,9 +24,12 @@ export interface StudentPdfFilesRepository {
   createForProgram?(
     programId: string,
     options?: {
-      deliveryOutputs?: "pair" | "single";
+      deliveryOutputs?: "pair" | "section" | "single";
       fileName?: string;
       programVersionId?: string;
+      programType?: StudentPdfFile["contentType"];
+      section?: ProgramPdfSection;
+      pdfSettingsOverride?: Record<string, unknown>;
     }
   ): Promise<StudentPdfFile | { artifacts: StudentPdfFile[]; count: number }>;
   createShare?(fileId: string, options?: { expiresInDays?: number }): Promise<PdfShareCreateResult>;
@@ -116,6 +120,24 @@ export function createStudentPdfFilesRepository(storage = getStorage()): Student
       return cloneFiles([nextFile])[0];
     },
     async createForProgram(programId, options = {}) {
+      if (options.deliveryOutputs === "section") {
+        const section: ProgramPdfSection = options.section ?? "workout";
+        const file: StudentPdfFile = {
+          contentType: options.programType ?? section,
+          fileName: options.fileName || `mock_${section}_v1.pdf`,
+          generatedAt: new Date().toISOString(),
+          id: `pdf-mock-${section}-${programId}-${Date.now()}`,
+          programId,
+          programTitle: "Mock program",
+          programVersionId: options.programVersionId,
+          section,
+          size: "mock",
+          status: "ready",
+          studentId: "mock-student",
+          version: "v1"
+        };
+        return this.create(file);
+      }
       if ((options.deliveryOutputs ?? "pair") === "pair") {
         const training: StudentPdfFile = {
           contentType: "workout",
@@ -125,6 +147,7 @@ export function createStudentPdfFilesRepository(storage = getStorage()): Student
           programId,
           programTitle: "Mock program",
           programVersionId: options.programVersionId,
+          section: "workout",
           size: "mock",
           status: "ready",
           studentId: "mock-student",
@@ -138,6 +161,7 @@ export function createStudentPdfFilesRepository(storage = getStorage()): Student
           programId,
           programTitle: "Mock program",
           programVersionId: options.programVersionId,
+          section: null,
           size: "mock",
           status: "ready",
           studentId: "mock-student",

@@ -49,6 +49,8 @@ import type {
   GeneratedProgram,
   NutritionFood,
   NutritionMeal,
+  ProgramPdfSection,
+  StagedProgramPdf,
   ProgramPreviewTab,
   SupplementItem,
   TrainingDay,
@@ -86,9 +88,7 @@ export function ProgramPreviewPage({
   const [student, setStudent] = useState<Student>();
   const [feedback, setFeedback] = useState("");
   const [isDirty, setIsDirty] = useState(false);
-  const [stagedPdfPreview, setStagedPdfPreview] = useState<{ id: string; url: string } | null>(
-    null
-  );
+  const [stagedPdfPreviews, setStagedPdfPreviews] = useState<Record<string, string>>({});
   const [uploadingReplacement, setUploadingReplacement] = useState(false);
   const [uploadKey, setUploadKey] = useState(0);
   const [status, setStatus] = useState<"error" | "loaded" | "loading" | "notFound" | "saving">(
@@ -134,44 +134,71 @@ export function ProgramPreviewPage({
       return [];
     }
     const available: ProgramPreviewTab[] = [];
-    if (program.training) {
+    const deliverySections = program.pdfSettings.deliverySections;
+    if (program.training && (!deliverySections || deliverySections.workout === "generated")) {
       available.push("training");
     }
-    if (program.nutrition) {
+    if (program.nutrition && (!deliverySections || deliverySections.nutrition === "generated")) {
       available.push("nutrition");
     }
-    if (program.supplements) {
+    if (program.supplements && (!deliverySections || deliverySections.supplement === "generated")) {
       available.push("supplements");
     }
-    if (program.deliverySource !== "uploaded_pdf") available.push("pdf");
+    const hasGeneratedDelivery = deliverySections
+      ? Object.values(deliverySections).includes("generated")
+      : program.deliverySource !== "uploaded_pdf";
+    if (hasGeneratedDelivery) available.push("pdf");
     return available;
   }, [program]);
 
+  const stagedUploads = useMemo(() => getStagedUploads(program), [program]);
+
   useEffect(() => {
-    const stagedPdfId = program?.stagedPdf?.id;
-    if (!stagedPdfId || !programsRepo.downloadStagedPdf) return;
-    let objectUrl = "";
+    if (!stagedUploads.length || !programsRepo.downloadStagedPdf) {
+      return;
+    }
     let mounted = true;
-    programsRepo
-      .downloadStagedPdf(stagedPdfId)
-      .then((blob) => {
-        if (!mounted) return;
-        objectUrl = URL.createObjectURL(blob);
-        setStagedPdfPreview({ id: stagedPdfId, url: objectUrl });
+    const objectUrls: string[] = [];
+    Promise.all(
+      stagedUploads.map(async (staged) => {
+        try {
+          const blob = await programsRepo.downloadStagedPdf!(staged.id);
+          if (!mounted) return null;
+          const url = URL.createObjectURL(blob);
+          objectUrls.push(url);
+          return [staged.id, url] as const;
+        } catch {
+          return null;
+        }
       })
-      .catch(() => {
-        if (mounted)
-          setFeedback("پیش‌نمایش فایل PDF بارگذاری نشد؛ می‌توانید فایل را جایگزین کنید.");
-      });
+    ).then((entries) => {
+      if (!mounted) return;
+      const previews = Object.fromEntries(
+        entries.filter((entry): entry is readonly [string, string] => entry !== null)
+      );
+      setStagedPdfPreviews(previews);
+      if (Object.keys(previews).length < stagedUploads.length) {
+        setFeedback("پیش‌نمایش بعضی PDFها بارگذاری نشد؛ می‌توانید فایل مربوط را جایگزین کنید.");
+      }
+    });
     return () => {
       mounted = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [program?.stagedPdf?.id, programsRepo]);
+  }, [programsRepo, stagedUploads]);
 
   const activeTab = getPreviewTab(searchParams.get("tab"), tabs);
-  const stagedPdfUrl =
-    stagedPdfPreview?.id === program?.stagedPdf?.id ? stagedPdfPreview?.url ?? "" : "";
+  const deliverySections = program?.pdfSettings.deliverySections;
+  const uploadSectionIds: Array<ProgramPdfSection | undefined> = deliverySections
+    ? (Object.entries(deliverySections)
+        .filter(([, method]) => method === "uploaded")
+        .map(([section]) => section) as ProgramPdfSection[])
+    : program?.deliverySource === "uploaded_pdf"
+      ? [undefined]
+      : [];
+  const hasGeneratedSections = deliverySections
+    ? Object.values(deliverySections).includes("generated")
+    : program?.deliverySource !== "uploaded_pdf";
 
   const updateProgram = (updater: (program: GeneratedProgram) => GeneratedProgram) => {
     setProgram((current) => (current ? updater(structuredClone(current)) : current));
@@ -205,10 +232,63 @@ export function ProgramPreviewPage({
     try {
       let next = program;
       if (isDirty) next = await programsRepo.update(program.id, program);
+      const versionId = next.draftId ?? next.finalizedVersionId ?? "";
       if (next.status === "draft" && programsRepo.finalize) {
         next = await programsRepo.finalize(program.id);
       }
-      if (next.deliverySource !== "uploaded_pdf") {
+      const sectionMethods = next.pdfSettings.deliverySections;
+      if (sectionMethods) {
+        const existing = await pdfFilesRepo.listByProgram?.(program.id);
+        const expectedVersion = `v${next.version}`;
+        for (const section of Object.entries(sectionMethods)) {
+          const [sectionId, method] = section as [ProgramPdfSection, string];
+          if (method === "uploaded") {
+            const uploaded = existing?.find(
+              (file) =>
+                file.status === "ready" &&
+                file.version === expectedVersion &&
+                file.section === sectionId
+            );
+            if (!uploaded) {
+              throw new Error(`فایل ${programSectionLabel(sectionId)} آماده نشد.`);
+            }
+            continue;
+          }
+          if (method !== "generated") continue;
+          const generated = existing?.find(
+            (file) =>
+              file.status === "ready" &&
+              file.version === expectedVersion &&
+              file.section === sectionId
+          );
+          if (generated) continue;
+          if (!pdfFilesRepo.createForProgram) {
+            throw new Error("ساخت فایل PDF در دسترس نیست.");
+          }
+          const result = await pdfFilesRepo.createForProgram(program.id, {
+            deliveryOutputs: "section",
+            fileName: `${next.title}_${programSectionLabel(sectionId)}_${expectedVersion}.pdf`,
+            programType: next.programType,
+            programVersionId: versionId,
+            section: sectionId,
+            pdfSettingsOverride: {
+              includeNutrition: sectionId === "nutrition",
+              includeSupplements: sectionId === "supplement",
+              includeTraining: sectionId === "workout",
+              fileTitle: `${next.title} — ${programSectionLabel(sectionId)}`
+            }
+          });
+          const artifacts =
+            result && typeof result === "object" && "artifacts" in result
+              ? result.artifacts
+              : [result as { status?: string }];
+          if (artifacts.some((artifact) => artifact.status !== "ready")) {
+            throw new Error(
+              `ساخت PDF ${programSectionLabel(sectionId)} ناموفق بود؛ دوباره تلاش کنید.`
+            );
+          }
+        }
+      } else if (next.deliverySource !== "uploaded_pdf") {
         const existing = await pdfFilesRepo.listByProgram?.(program.id);
         const expectedVersion = `v${next.version}`;
         if (
@@ -218,7 +298,8 @@ export function ProgramPreviewPage({
             throw new Error("ساخت فایل PDF در دسترس نیست.");
           }
           const result = await pdfFilesRepo.createForProgram(program.id, {
-            deliveryOutputs: "pair"
+            deliveryOutputs: "pair",
+            programVersionId: versionId
           });
           const artifacts =
             result && typeof result === "object" && "artifacts" in result
@@ -245,23 +326,28 @@ export function ProgramPreviewPage({
     }
   };
 
-  const replaceUploadedPdf = async (file?: File) => {
+  const replaceUploadedPdf = async (section: ProgramPdfSection | undefined, file?: File) => {
     if (!file || !student || !program || !programsRepo.uploadStagedPdf) return;
     if (file.size > 25 * 1024 * 1024 || !file.name.toLowerCase().endsWith(".pdf")) {
       setFeedback("فقط PDF معتبر تا سقف ۲۵ مگابایت پذیرفته می‌شود.");
       setUploadKey((current) => current + 1);
       return;
     }
-    const versionId = String((program as GeneratedProgram & { draftId?: string }).draftId ?? "");
+    const versionId = program.draftId ?? "";
     if (!versionId || !programsRepo.attachStagedPdf) {
       setFeedback("نسخهٔ پیش‌نویس برای جایگزینی فایل پیدا نشد.");
       return;
     }
     setUploadingReplacement(true);
     try {
-      const staged = await programsRepo.uploadStagedPdf(student.id, file);
+      const staged = await programsRepo.uploadStagedPdf(student.id, file, section);
       try {
-        const updated = await programsRepo.attachStagedPdf(program.id, versionId, staged.id);
+        const updated = await programsRepo.attachStagedPdf(
+          program.id,
+          versionId,
+          staged.id,
+          section
+        );
         setProgram(updated);
         setFeedback("PDF جایگزین شد؛ فایل قبلی از فضای موقت پاک می‌شود.");
       } catch (error) {
@@ -280,13 +366,13 @@ export function ProgramPreviewPage({
     }
   };
 
-  const removeUploadedPdf = async () => {
-    if (!program?.stagedPdf?.id || !programsRepo.deleteStagedPdf) return;
+  const removeUploadedPdf = async (stagedPdfId: string) => {
+    if (!program || !programsRepo.deleteStagedPdf) return;
     try {
-      await programsRepo.deleteStagedPdf(program.stagedPdf.id);
+      await programsRepo.deleteStagedPdf(stagedPdfId);
       const updated = await programsRepo.getById(program.id);
       if (updated) setProgram(updated);
-      setFeedback("PDF موقت حذف شد؛ پیش از نهایی‌سازی باید فایل دیگری بارگذاری کنید.");
+      setFeedback("PDF موقت حذف شد؛ پیش از نهایی‌سازی می‌توانید فایل دیگری بارگذاری کنید.");
     } catch {
       setFeedback("حذف PDF انجام نشد؛ دوباره تلاش کنید.");
     }
@@ -368,11 +454,7 @@ export function ProgramPreviewPage({
           </div>
         }
         breadcrumb={["داشبورد", "برنامه ها", "پیش نمایش"]}
-        description={
-          program.deliverySource === "uploaded_pdf"
-            ? "PDF را بازبینی کنید؛ در صورت نیاز جایگزین یا حذفش کنید، سپس از همین‌جا نهایی و برای شاگرد ارسال کنید."
-            : "برنامه را بازبینی و ویرایش کنید؛ PDFهای لازم هنگام نهایی‌سازی آماده و به شاگرد تحویل می‌شوند."
-        }
+        description="بخش‌های برنامه و فایل‌هایشان را همین‌جا بازبینی کنید؛ پس از نهایی‌سازی همهٔ فایل‌ها در پروندهٔ همین برنامه برای شاگرد قرار می‌گیرند."
         title="پیش نمایش برنامه"
       />
       <ContentSection>
@@ -394,75 +476,89 @@ export function ProgramPreviewPage({
           ) : null}
 
           <ProgramHeader program={program} student={student} />
-          {program.deliverySource === "uploaded_pdf" ? (
+          {uploadSectionIds.length ? (
             <Card className={styles.pageStack}>
               <SectionHeader
-                description="فایل تا نهایی‌سازی و ارسال فقط برای مربی قابل دسترسی است. می‌توانید همین‌جا آن را بازبینی، جایگزین یا حذف کنید."
-                title="PDF برنامهٔ شاگرد"
+                description="فایل‌ها تا نهایی‌سازی خصوصی هستند. هر بخش را جداگانه بازبینی، جایگزین یا حذف کنید."
+                title="فایل‌های بارگذاری‌شدهٔ برنامه"
               />
-              {program.stagedPdf ? (
-                <>
-                  <div className={styles.pdfPreview}>
-                    {stagedPdfUrl ? (
-                      <iframe
-                        className={styles.uploadedPdfFrame}
-                        src={stagedPdfUrl}
-                        title={`پیش‌نمایش ${program.stagedPdf.fileName}`}
-                      />
-                    ) : (
-                      <div className={styles.alert} role="status">
-                        در حال آماده‌کردن پیش‌نمایش PDF…
-                      </div>
-                    )}
-                  </div>
-                  <div className={styles.stagedPdfRow}>
-                    <div>
-                      <strong>{program.stagedPdf.fileName}</strong>
-                      <span>
-                        {formatProgramFileSize(program.stagedPdf.sizeBytes)} · فقط تا ۷ روز در فضای
-                        موقت می‌ماند
-                      </span>
+              <div className={styles.deliverySectionGrid}>
+                {uploadSectionIds.map((section) => {
+                  const staged = section
+                    ? stagedUploads.find((item) => item.section === section)
+                    : stagedUploads[0];
+                  const previewUrl = staged ? stagedPdfPreviews[staged.id] : "";
+                  const sectionLabel = section ? programSectionLabel(section) : "PDF برنامه";
+                  return (
+                    <div className={styles.deliverySectionCard} key={section ?? "legacy"}>
+                      <h3>{sectionLabel}</h3>
+                      {staged ? (
+                        <>
+                          <div className={styles.pdfPreview}>
+                            {previewUrl ? (
+                              <iframe
+                                className={styles.uploadedPdfFrame}
+                                src={previewUrl}
+                                title={`پیش‌نمایش ${sectionLabel}`}
+                              />
+                            ) : (
+                              <div className={styles.alert} role="status">
+                                در حال آماده‌کردن پیش‌نمایش PDF…
+                              </div>
+                            )}
+                          </div>
+                          <div className={styles.stagedPdfRow}>
+                            <div>
+                              <strong>{staged.fileName}</strong>
+                              <span>
+                                {formatProgramFileSize(staged.sizeBytes)} · خصوصی تا نهایی‌سازی
+                              </span>
+                            </div>
+                            <div className={styles.toolbarActions}>
+                              <Button
+                                disabled={!previewUrl}
+                                iconStart={<FileDown size={17} />}
+                                onClick={() =>
+                                  previewUrl &&
+                                  window.open(previewUrl, "_blank", "noopener,noreferrer")
+                                }
+                                variant="secondary"
+                              >
+                                مشاهده
+                              </Button>
+                              <Button
+                                iconStart={<Trash2 size={17} />}
+                                onClick={() => void removeUploadedPdf(staged.id)}
+                                variant="danger"
+                              >
+                                حذف فایل
+                              </Button>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className={`${styles.alert} ${styles.alertWarning}`} role="alert">
+                          فایل موقت موجود نیست یا منقضی شده؛ پیش از ارسال دوباره بارگذاری کنید.
+                        </div>
+                      )}
+                      <FormField label={`جایگزینی ${sectionLabel}`} hint="PDF، حداکثر ۲۵ مگابایت">
+                        <Input
+                          key={`${section ?? "legacy"}-${uploadKey}`}
+                          accept="application/pdf,.pdf"
+                          disabled={uploadingReplacement || program.status !== "draft"}
+                          type="file"
+                          onChange={(event) =>
+                            void replaceUploadedPdf(section, event.currentTarget.files?.[0])
+                          }
+                        />
+                      </FormField>
                     </div>
-                    <div className={styles.toolbarActions}>
-                      <Button
-                        disabled={!stagedPdfUrl}
-                        iconStart={<FileDown size={17} />}
-                        onClick={() =>
-                          stagedPdfUrl && window.open(stagedPdfUrl, "_blank", "noopener,noreferrer")
-                        }
-                        variant="secondary"
-                      >
-                        مشاهده
-                      </Button>
-                      <Button
-                        iconStart={<Trash2 size={17} />}
-                        onClick={() => void removeUploadedPdf()}
-                        variant="danger"
-                      >
-                        حذف فایل
-                      </Button>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className={`${styles.alert} ${styles.alertWarning}`} role="alert">
-                  فایل پیش‌نویس موجود نیست یا مهلت موقت آن تمام شده؛ قبل از ارسال PDF جدیدی بارگذاری
-                  کنید.
-                </div>
-              )}
-              <FormField label="جایگزینی PDF" hint="PDF، حداکثر ۲۵ مگابایت">
-                <Input
-                  key={uploadKey}
-                  accept="application/pdf,.pdf"
-                  disabled={uploadingReplacement || program.status !== "draft"}
-                  type="file"
-                  onChange={(event) => void replaceUploadedPdf(event.currentTarget.files?.[0])}
-                />
-              </FormField>
+                  );
+                })}
+              </div>
             </Card>
-          ) : (
-            <GenerationEvidencePanel program={program} />
-          )}
+          ) : null}
+          {hasGeneratedSections ? <GenerationEvidencePanel program={program} /> : null}
           {tabs.length > 0 ? (
             <Card>
               <Tabs
@@ -1343,6 +1439,26 @@ function getPreviewTab(value: string | null, tabs: ProgramPreviewTab[]) {
     return value as ProgramPreviewTab;
   }
   return tabs[0] ?? "pdf";
+}
+
+function getStagedUploads(program?: GeneratedProgram): StagedProgramPdf[] {
+  if (!program) return [];
+  const sectionFiles = Object.values(program.stagedPdfs ?? {}).filter(
+    (file): file is StagedProgramPdf => Boolean(file)
+  );
+  if (sectionFiles.length) return sectionFiles;
+  return program.stagedPdf ? [program.stagedPdf] : [];
+}
+
+function programSectionLabel(section: ProgramPdfSection): string {
+  switch (section) {
+    case "workout":
+      return "برنامه تمرینی";
+    case "nutrition":
+      return "برنامه غذایی";
+    case "supplement":
+      return "برنامه مکمل";
+  }
 }
 
 function formatProgramFileSize(size: number): string {

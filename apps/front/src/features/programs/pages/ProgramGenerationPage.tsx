@@ -47,7 +47,14 @@ import {
   programsRepository,
   type ProgramsRepository
 } from "../services/programsRepository";
-import type { ProgramGenerationInput } from "../types/generatedProgram";
+import type {
+  GeneratedProgram,
+  ProgramGenerationInput,
+  ProgramPdfSection,
+  ProgramPdfSectionMethod,
+  ProgramPdfSectionMethods,
+  StagedProgramPdf
+} from "../types/generatedProgram";
 import styles from "../components/programFlow.module.css";
 import { SupplementSelectionFields } from "../../coach-rules/components/SupplementSelectionFields";
 import { emptySupplementSelection } from "../../coach-rules/services/supplementCatalogRepository";
@@ -63,6 +70,12 @@ const programTypeOptions = [
   { label: "تمرینی", value: "workout" },
   { label: "غذایی", value: "nutrition" },
   { label: "مکمل", value: "supplement" }
+];
+
+const programSections: Array<{ id: ProgramPdfSection; label: string }> = [
+  { id: "workout", label: "برنامه تمرینی" },
+  { id: "nutrition", label: "برنامه غذایی" },
+  { id: "supplement", label: "برنامه مکمل" }
 ];
 
 const levelOptions = [
@@ -110,13 +123,14 @@ export function ProgramGenerationPage({
     () => (location.state as { visitSaved?: string } | null)?.visitSaved ?? ""
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [creationMode, setCreationMode] = useState<"generated" | "uploaded_pdf">("generated");
-  const [stagedPdf, setStagedPdf] = useState<{
-    expiresAt: string;
-    fileName: string;
-    id: string;
-    sizeBytes: number;
-  } | null>(null);
+  const [deliverySections, setDeliverySections] = useState<ProgramPdfSectionMethods>({
+    workout: "generated",
+    nutrition: "generated",
+    supplement: "generated"
+  });
+  const [stagedPdfs, setStagedPdfs] = useState<
+    Partial<Record<ProgramPdfSection, StagedProgramPdf>>
+  >({});
   const [startDate, setStartDate] = useState(todayCalendarInput());
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [creatingUploadedDraft, setCreatingUploadedDraft] = useState(false);
@@ -168,7 +182,11 @@ export function ProgramGenerationPage({
         setStudents(studentItems);
         setRules(coachRules);
         if (!coachRules) {
-          setCreationMode("uploaded_pdf");
+          setDeliverySections({
+            workout: "uploaded",
+            nutrition: "uploaded",
+            supplement: "uploaded"
+          });
           setFeedback("قوانین تولید برنامه در دسترس نیست؛ می‌توانید PDF آماده بارگذاری کنید.");
         }
         setForm((current) => ({
@@ -235,6 +253,22 @@ export function ProgramGenerationPage({
       label: `${template.name} - ${template.daysPerWeek} روز`,
       value: template.id
     })) ?? [];
+  const includedSections =
+    form.programType === "complete"
+      ? programSections
+      : programSections.filter((section) => section.id === form.programType);
+  const generatedSections = includedSections.filter(
+    (section) => deliverySections[section.id] === "generated"
+  );
+  const uploadedSections = includedSections.filter(
+    (section) => deliverySections[section.id] === "uploaded"
+  );
+  const stepMode =
+    generatedSections.length && uploadedSections.length
+      ? "mixed"
+      : generatedSections.length
+        ? "generated"
+        : "uploaded_pdf";
 
   const updateForm = <Key extends keyof ProgramGenerationInput>(
     field: Key,
@@ -257,7 +291,7 @@ export function ProgramGenerationPage({
     };
   };
 
-  const handleStagePdf = async (file?: File) => {
+  const handleStagePdf = async (section: ProgramPdfSection, file?: File) => {
     if (!file || !form.studentId) return;
     if (file.size > 25 * 1024 * 1024) {
       setFeedback("حجم PDF باید حداکثر ۲۵ مگابایت باشد.");
@@ -276,9 +310,9 @@ export function ProgramGenerationPage({
     setUploadingPdf(true);
     setFeedback("");
     try {
-      const next = await programsRepo.uploadStagedPdf(form.studentId, file);
-      const previous = stagedPdf;
-      setStagedPdf(next);
+      const next = await programsRepo.uploadStagedPdf(form.studentId, file, section);
+      const previous = stagedPdfs[section];
+      setStagedPdfs((current) => ({ ...current, [section]: next }));
       if (previous && programsRepo.deleteStagedPdf) {
         void programsRepo.deleteStagedPdf(previous.id).catch(() => undefined);
       }
@@ -295,11 +329,16 @@ export function ProgramGenerationPage({
     }
   };
 
-  const handleRemoveStagedPdf = async () => {
+  const handleRemoveStagedPdf = async (section: ProgramPdfSection) => {
+    const stagedPdf = stagedPdfs[section];
     if (!stagedPdf) return;
     try {
       await programsRepo.deleteStagedPdf?.(stagedPdf.id);
-      setStagedPdf(null);
+      setStagedPdfs((current) => {
+        const next = { ...current };
+        delete next[section];
+        return next;
+      });
       setFeedback("فایل موقت حذف شد.");
     } catch {
       setFeedback("حذف فایل موقت انجام نشد؛ دوباره تلاش کنید.");
@@ -307,9 +346,11 @@ export function ProgramGenerationPage({
   };
 
   const handleStudentChange = (studentId: string) => {
-    if (stagedPdf && programsRepo.deleteStagedPdf) {
-      void programsRepo.deleteStagedPdf(stagedPdf.id).catch(() => undefined);
-      setStagedPdf(null);
+    if (programsRepo.deleteStagedPdf) {
+      Object.values(stagedPdfs).forEach((staged) => {
+        if (staged) void programsRepo.deleteStagedPdf?.(staged.id).catch(() => undefined);
+      });
+      setStagedPdfs({});
     }
     const student = students.find((item) => item.id === studentId);
     const studentDays = student?.trainingConditions.trainingDaysPerWeek;
@@ -335,13 +376,48 @@ export function ProgramGenerationPage({
     setErrors({});
   };
 
+  const setSectionMethod = (section: ProgramPdfSection, method: ProgramPdfSectionMethod) => {
+    setDeliverySections((current) => ({ ...current, [section]: method }));
+    if (method === "generated" && stagedPdfs[section]) {
+      void handleRemoveStagedPdf(section);
+    }
+  };
+
+  const handleProgramTypeChange = (programType: StudentProgramType) => {
+    const nextSections =
+      programType === "complete"
+        ? programSections
+        : programSections.filter((section) => section.id === programType);
+    const retained = new Set(nextSections.map((section) => section.id));
+    Object.entries(stagedPdfs).forEach(([section, staged]) => {
+      if (staged && !retained.has(section as ProgramPdfSection)) {
+        void programsRepo.deleteStagedPdf?.(staged.id).catch(() => undefined);
+      }
+    });
+    setStagedPdfs((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([section]) => retained.has(section as ProgramPdfSection))
+      )
+    );
+    updateForm("programType", programType);
+  };
+
   const handleGenerate = async () => {
     if (!selectedStudent || !rules) {
       return;
     }
 
     const period = getProgramPeriod();
-    const nextErrors = validateForm(form, selectedTemplate);
+    const nextErrors = validateForm(
+      form,
+      selectedTemplate,
+      generatedSections.map((section) => section.id)
+    );
+    uploadedSections.forEach((section) => {
+      if (!stagedPdfs[section.id]) {
+        nextErrors[section.id] = `PDF ${section.label} را بارگذاری کنید.`;
+      }
+    });
     if (!period) nextErrors.startDate = "تاریخ شروع و مدت برنامه را بررسی کنید.";
     setErrors(nextErrors);
 
@@ -360,7 +436,7 @@ export function ProgramGenerationPage({
         dateRangeLabel: period!.label,
         dateRangeStart: period!.startIso
       };
-      let savedProgram;
+      let savedProgram: GeneratedProgram;
       let warnings: string[] = [];
       if (programsRepo.generate) {
         const result = await programsRepo.generate(generationInput);
@@ -377,7 +453,29 @@ export function ProgramGenerationPage({
           })
         );
       }
+      const versionId = savedProgram.draftId ?? "";
+      if (uploadedSections.length && (!versionId || !programsRepo.attachStagedPdf)) {
+        throw new Error("اتصال فایل‌ها به نسخهٔ برنامه در دسترس نیست.");
+      }
+      for (const section of uploadedSections) {
+        const staged = stagedPdfs[section.id];
+        if (!staged) continue;
+        savedProgram = await programsRepo.attachStagedPdf!(
+          savedProgram.id,
+          versionId,
+          staged.id,
+          section.id
+        );
+      }
+      const methods = Object.fromEntries(
+        includedSections.map((section) => [section.id, deliverySections[section.id]])
+      ) as ProgramPdfSectionMethods;
+      savedProgram = await programsRepo.update(savedProgram.id, {
+        ...savedProgram,
+        pdfSettings: { ...savedProgram.pdfSettings, deliverySections: methods }
+      });
       await studentProgramsRepo.upsert?.(createProgramSummary(savedProgram));
+      setStagedPdfs({});
       if (warnings.length > 0) {
         sessionStorage.setItem(
           `coach-assistant.program-warnings.${savedProgram.id}`,
@@ -401,36 +499,68 @@ export function ProgramGenerationPage({
     if (!form.studentId) nextErrors.studentId = "انتخاب شاگرد الزامی است.";
     if (!form.title.trim()) nextErrors.title = "عنوان برنامه الزامی است.";
     if (!period) nextErrors.startDate = "تاریخ شروع و مدت برنامه را بررسی کنید.";
-    if (!stagedPdf) nextErrors.file = "ابتدا PDF برنامه را بارگذاری کنید.";
+    uploadedSections.forEach((section) => {
+      if (!stagedPdfs[section.id]) {
+        nextErrors[section.id] = `PDF ${section.label} را بارگذاری کنید.`;
+      }
+    });
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) {
       setFeedback(Object.values(nextErrors)[0]);
       return;
     }
-    if (!stagedPdf || !period || !programsRepo.createUploadedDraft) {
+    if (!period || !programsRepo.createUploadedDraft) {
       setFeedback("ساخت پیش‌نویس PDF در این محیط در دسترس نیست.");
       return;
     }
     setCreatingUploadedDraft(true);
     setFeedback("");
     try {
-      const savedProgram = await programsRepo.createUploadedDraft({
+      const firstSection = uploadedSections[0];
+      const firstStaged = firstSection ? stagedPdfs[firstSection.id] : undefined;
+      if (!firstSection || !firstStaged) {
+        throw new Error("فایل PDF یکی از بخش‌های انتخاب‌شده را بارگذاری کنید.");
+      }
+      let savedProgram = await programsRepo.createUploadedDraft({
         dateRangeEnd: period.endIso,
         dateRangeLabel: period.label,
         dateRangeStart: period.startIso,
         programType: form.programType,
-        stagedPdfId: stagedPdf.id,
+        stagedPdfId: firstStaged.id,
         studentId: form.studentId,
         title: form.title
       });
+      const versionId = savedProgram.draftId ?? "";
+      if (!versionId || !programsRepo.attachStagedPdf) {
+        throw new Error("اتصال فایل‌های برنامه در دسترس نیست.");
+      }
+      for (const section of uploadedSections.slice(1)) {
+        const staged = stagedPdfs[section.id];
+        if (!staged) continue;
+        savedProgram = await programsRepo.attachStagedPdf(
+          savedProgram.id,
+          versionId,
+          staged.id,
+          section.id
+        );
+      }
+      const methods = Object.fromEntries(
+        includedSections.map((section) => [section.id, deliverySections[section.id]])
+      ) as ProgramPdfSectionMethods;
+      savedProgram = await programsRepo.update(savedProgram.id, {
+        ...savedProgram,
+        pdfSettings: { ...savedProgram.pdfSettings, deliverySections: methods }
+      });
       await studentProgramsRepo.upsert?.(createProgramSummary(savedProgram));
-      setStagedPdf(null);
+      setStagedPdfs({});
       navigate(`/programs/${savedProgram.id}`);
     } catch (error) {
       setFeedback(
         error instanceof ApiError
           ? persianMessageForApiError(error)
-          : "ساخت پیش‌نویس انجام نشد؛ فایل موقت را می‌توانید دوباره ارسال کنید."
+          : error instanceof Error
+            ? error.message
+            : "ساخت پیش‌نویس انجام نشد؛ فایل موقت را می‌توانید دوباره ارسال کنید."
       );
     } finally {
       setCreatingUploadedDraft(false);
@@ -502,7 +632,7 @@ export function ProgramGenerationPage({
       />
       <ContentSection>
         <div className={styles.pageStack}>
-          <GenerationStepper mode={creationMode} />
+          <GenerationStepper mode={stepMode} />
           {feedback ? (
             <div
               className={`${styles.alert} ${
@@ -518,41 +648,6 @@ export function ProgramGenerationPage({
               {validationErrors[0]}
             </div>
           ) : null}
-
-          <Card>
-            <div className={styles.sectionHeader}>
-              <div>
-                <h2 className={styles.sectionTitle}>روش آماده‌کردن برنامه</h2>
-                <p className={styles.sectionDescription}>
-                  یا برنامه را با اطلاعات شاگرد تولید کنید، یا PDF آمادهٔ خودتان را بارگذاری کنید؛
-                  بازبینی و ارسال در هر دو روش یکسان است.
-                </p>
-              </div>
-            </div>
-            <div className={styles.creationModeGrid}>
-              <button
-                aria-pressed={creationMode === "generated"}
-                className={`${styles.creationModeCard} ${creationMode === "generated" ? styles.creationModeCardActive : ""}`}
-                disabled={!rules}
-                onClick={() => setCreationMode("generated")}
-                type="button"
-              >
-                <WandSparkles aria-hidden size={22} />
-                <strong>تولید برنامه با Athlore</strong>
-                <span>برنامه با قوانین، سابقه و اطلاعات شاگرد ساخته می‌شود.</span>
-              </button>
-              <button
-                aria-pressed={creationMode === "uploaded_pdf"}
-                className={`${styles.creationModeCard} ${creationMode === "uploaded_pdf" ? styles.creationModeCardActive : ""}`}
-                onClick={() => setCreationMode("uploaded_pdf")}
-                type="button"
-              >
-                <FileUp aria-hidden size={22} />
-                <strong>بارگذاری PDF آماده</strong>
-                <span>فایل خودتان را موقتاً بارگذاری و پیش از ارسال بازبینی کنید.</span>
-              </button>
-            </div>
-          </Card>
 
           <Card className={styles.pageStack}>
             <div className={styles.sectionHeader}>
@@ -591,7 +686,7 @@ export function ProgramGenerationPage({
                   options={programTypeOptions}
                   value={form.programType}
                   onChange={(event) =>
-                    updateForm("programType", event.target.value as StudentProgramType)
+                    handleProgramTypeChange(event.target.value as StudentProgramType)
                   }
                 />
               </FormField>
@@ -628,7 +723,89 @@ export function ProgramGenerationPage({
             ) : null}
           </Card>
 
-          {creationMode === "generated" ? (
+          <Card className={styles.pageStack}>
+            <div className={styles.sectionHeader}>
+              <div>
+                <h2 className={styles.sectionTitle}>بخش‌های برنامه</h2>
+                <p className={styles.sectionDescription}>
+                  برای هر بخش جداگانه تولید با Athlore یا بارگذاری PDF را انتخاب کنید. همه فایل‌ها
+                  در همین برنامه و یک تاریخ مشترک ثبت می‌شوند.
+                </p>
+              </div>
+            </div>
+            <div className={styles.deliverySectionGrid}>
+              {includedSections.map((section) => {
+                const method = deliverySections[section.id] ?? "generated";
+                const staged = stagedPdfs[section.id];
+                return (
+                  <div className={styles.deliverySectionCard} key={section.id}>
+                    <h3>{section.label}</h3>
+                    <div className={styles.deliveryMethodChoices}>
+                      <Button
+                        aria-pressed={method === "generated"}
+                        disabled={!rules}
+                        onClick={() => setSectionMethod(section.id, "generated")}
+                        size="sm"
+                        variant={method === "generated" ? "primary" : "secondary"}
+                      >
+                        <WandSparkles aria-hidden size={16} /> تولید با Athlore
+                      </Button>
+                      <Button
+                        aria-pressed={method === "uploaded"}
+                        onClick={() => setSectionMethod(section.id, "uploaded")}
+                        size="sm"
+                        variant={method === "uploaded" ? "primary" : "secondary"}
+                      >
+                        <FileUp aria-hidden size={16} /> بارگذاری PDF
+                      </Button>
+                    </div>
+                    {method === "uploaded" ? (
+                      <>
+                        <FormField
+                          error={errors[section.id]}
+                          hint="PDF، حداکثر ۲۵ مگابایت؛ تا نهایی‌سازی خصوصی می‌ماند."
+                          label={`فایل ${section.label}`}
+                        >
+                          <Input
+                            key={`${section.id}-${uploadInputKey}`}
+                            accept="application/pdf,.pdf"
+                            aria-label={`بارگذاری PDF ${section.label}`}
+                            disabled={uploadingPdf || !form.studentId}
+                            type="file"
+                            onChange={(event) =>
+                              void handleStagePdf(section.id, event.currentTarget.files?.[0])
+                            }
+                          />
+                        </FormField>
+                        {staged ? (
+                          <div className={styles.stagedPdfRow}>
+                            <div>
+                              <strong>{staged.fileName}</strong>
+                              <span>{formatFileSize(staged.sizeBytes)} · آمادهٔ بازبینی</span>
+                            </div>
+                            <Button
+                              iconStart={<Trash2 size={16} />}
+                              onClick={() => void handleRemoveStagedPdf(section.id)}
+                              size="sm"
+                              variant="danger"
+                            >
+                              حذف
+                            </Button>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <p className={styles.sectionDescription}>
+                        این بخش با اطلاعات برنامه ساخته می‌شود و پیش از ارسال قابل بازبینی است.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          {generatedSections.length > 0 ? (
             <Card className={styles.pageStack}>
               <div className={styles.sectionHeader}>
                 <div>
@@ -755,7 +932,7 @@ export function ProgramGenerationPage({
             </Card>
           ) : null}
 
-          {creationMode === "generated" ? (
+          {generatedSections.length > 0 ? (
             <Card className={styles.pageStack}>
               <div className={styles.sectionHeader}>
                 <div>
@@ -795,8 +972,7 @@ export function ProgramGenerationPage({
             </Card>
           ) : null}
 
-          {creationMode === "generated" &&
-          (form.programType === "complete" || form.programType === "supplement") ? (
+          {generatedSections.some((section) => section.id === "supplement") ? (
             <Card className={styles.pageStack}>
               <h2>مکمل‌های شاگرد</h2>
               <SupplementSelectionFields
@@ -809,88 +985,46 @@ export function ProgramGenerationPage({
               />
             </Card>
           ) : null}
-          {creationMode === "uploaded_pdf" ? (
-            <Card className={styles.uploadProgramCard}>
-              <div className={styles.sectionHeader}>
-                <div>
-                  <h2 className={styles.sectionTitle}>فایل برنامه</h2>
-                  <p className={styles.sectionDescription}>
-                    فایل تا وقتی در صفحهٔ بازبینی «نهایی‌سازی و ارسال» نزنید، برای شاگرد قابل مشاهده
-                    نیست. می‌توانید قبل از ادامه آن را عوض یا حذف کنید.
-                  </p>
-                </div>
-              </div>
-              <FormField
-                error={errors.file}
-                hint="PDF، حداکثر ۲۵ مگابایت"
-                label="PDF برنامه"
-                required
-              >
-                <Input
-                  key={uploadInputKey}
-                  accept="application/pdf,.pdf"
-                  aria-label="بارگذاری PDF برنامه"
-                  disabled={uploadingPdf || !form.studentId}
-                  type="file"
-                  onChange={(event) => void handleStagePdf(event.currentTarget.files?.[0])}
-                />
-              </FormField>
-              {stagedPdf ? (
-                <div className={styles.stagedPdfRow}>
-                  <div>
-                    <strong>{stagedPdf.fileName}</strong>
-                    <span>{formatFileSize(stagedPdf.sizeBytes)} · خصوصی تا نهایی‌سازی</span>
-                  </div>
-                  <Button
-                    iconStart={<Trash2 size={17} />}
-                    onClick={() => void handleRemoveStagedPdf()}
-                    variant="danger"
-                  >
-                    حذف فایل
-                  </Button>
-                </div>
-              ) : null}
-              <Button
-                iconStart={<Eye size={18} />}
-                disabled={uploadingPdf || creatingUploadedDraft}
-                isLoading={creatingUploadedDraft}
-                onClick={() => void handleCreateUploadedDraft()}
-                size="lg"
-              >
-                ادامه به بازبینی
-              </Button>
-            </Card>
-          ) : null}
-          {creationMode === "generated" ? (
-            <Card className={styles.toolbar}>
-              <span className={styles.sectionDescription}>
-                برنامه ابتدا به‌صورت پیش‌نویس ساخته می‌شود و بعد از بازبینی، از همان مسیر نهایی و
-                ارسال می‌شود.
-              </span>
-              <Button
-                disabled={!rules}
-                iconStart={
-                  status === "generating" ? <RefreshCcw size={18} /> : <WandSparkles size={18} />
-                }
-                isLoading={status === "generating"}
-                onClick={handleGenerate}
-                size="lg"
-              >
-                تولید برنامه
-              </Button>
-            </Card>
-          ) : null}
+          <Card className={styles.toolbar}>
+            <span className={styles.sectionDescription}>
+              هر سه بخش زیر یک برنامه ثبت می‌شوند؛ فایل‌ها پس از نهایی‌سازی برای شاگرد در دسترس قرار
+              می‌گیرند.
+            </span>
+            <Button
+              disabled={uploadingPdf || (!generatedSections.length && !uploadedSections.length)}
+              iconStart={
+                status === "generating" || creatingUploadedDraft ? (
+                  <RefreshCcw size={18} />
+                ) : generatedSections.length ? (
+                  <WandSparkles size={18} />
+                ) : (
+                  <Eye size={18} />
+                )
+              }
+              isLoading={status === "generating" || creatingUploadedDraft}
+              onClick={() =>
+                generatedSections.length ? void handleGenerate() : void handleCreateUploadedDraft()
+              }
+              size="lg"
+            >
+              {generatedSections.length ? "ساخت پیش‌نویس و بازبینی" : "ادامه به بازبینی"}
+            </Button>
+          </Card>
         </div>
       </ContentSection>
     </PageContainer>
   );
 }
 
-function GenerationStepper({ mode }: { mode: "generated" | "uploaded_pdf" }) {
+function GenerationStepper({ mode }: { mode: "generated" | "uploaded_pdf" | "mixed" }) {
   const steps = [
     "انتخاب شاگرد",
     "عنوان و بازهٔ برنامه",
-    mode === "generated" ? "تنظیمات تولید" : "بارگذاری PDF",
+    mode === "generated"
+      ? "تنظیمات و تولید بخش‌ها"
+      : mode === "uploaded_pdf"
+        ? "بارگذاری بخش‌ها"
+        : "انتخاب روش هر بخش",
     "بازبینی و ارسال"
   ];
 
@@ -956,7 +1090,8 @@ function isErrorFeedback(message: string): boolean {
 
 function validateForm(
   form: ProgramGenerationInput,
-  selectedTemplate?: { daysPerWeek: number; name: string } | null
+  selectedTemplate?: { daysPerWeek: number; name: string } | null,
+  generatedSections: ProgramPdfSection[] = ["workout", "nutrition", "supplement"]
 ) {
   const errors: Record<string, string> = {};
 
@@ -972,10 +1107,7 @@ function validateForm(
   if (!form.templateId) {
     errors.templateId = "قالب برنامه باید انتخاب شود.";
   }
-  if (
-    (form.programType === "complete" || form.programType === "supplement") &&
-    form.supplementSelection?.items.length
-  ) {
+  if (generatedSections.includes("supplement") && form.supplementSelection?.items.length) {
     if (!form.supplementSelection.confirmed || !form.supplementSelection.safety_reviewed) {
       errors.supplementSelection =
         "وضعیت فردی، مقدارها و زمان مصرف مکمل‌های شاگرد را بررسی و تأیید کنید.";
@@ -996,7 +1128,7 @@ function validateForm(
   if (form.durationWeeks < 1) {
     errors.durationWeeks = "مدت برنامه باید معتبر باشد.";
   }
-  if ((form.programType === "workout" || form.programType === "complete") && form.daysPerWeek < 1) {
+  if (generatedSections.includes("workout") && form.daysPerWeek < 1) {
     errors.daysPerWeek = "تعداد روز تمرین باید معتبر باشد.";
   }
   if (selectedTemplate && form.daysPerWeek && selectedTemplate.daysPerWeek !== form.daysPerWeek) {

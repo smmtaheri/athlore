@@ -397,11 +397,16 @@ function PdfFilesTable({
     {
       cell: (file) => (
         <StatusBadge variant={file.contentType === "complete" ? "purple" : "info"}>
-          {programTypeLabels[file.contentType]}
+          {pdfSectionLabel(file)}
         </StatusBadge>
       ),
-      header: "نوع برنامه",
+      header: "بخش برنامه",
       id: "contentType"
+    },
+    {
+      cell: (file) => file.programDateRange || "—",
+      header: "بازهٔ برنامه",
+      id: "programDateRange"
     },
     {
       cell: (file) => (
@@ -500,7 +505,7 @@ function PdfFileCard({
       </div>
       <div className={styles.badgeGroup}>
         <StatusBadge variant={file.contentType === "complete" ? "purple" : "info"}>
-          {programTypeLabels[file.contentType]}
+          {pdfSectionLabel(file)}
         </StatusBadge>
         <StatusBadge variant={file.source === "uploaded" ? "neutral" : "info"}>
           {file.source === "uploaded" ? "PDF مربی" : "Athlore"}
@@ -513,6 +518,7 @@ function PdfFileCard({
         <PdfMetric label="نسخه" value={file.version} />
         <PdfMetric label="حجم فایل" value={file.size} />
         <PdfMetric label="تاریخ تولید" value={formatCalendarDateTime(file.generatedAt)} />
+        <PdfMetric label="بازهٔ برنامه" value={file.programDateRange || "ثبت نشده"} />
       </div>
     </Card>
   );
@@ -663,4 +669,19 @@ function parseSizeToMb(size: string): number {
   }
 
   return parsed;
+}
+
+function pdfSectionLabel(file: StudentPdfFile): string {
+  if (file.section) {
+    switch (file.section) {
+      case "workout":
+        return "برنامه تمرینی";
+      case "nutrition":
+        return "برنامه غذایی";
+      case "supplement":
+        return "برنامه مکمل";
+    }
+  }
+  if (file.contentType === "nutrition") return "برنامه غذایی و مکمل";
+  return programTypeLabels[file.contentType];
 }

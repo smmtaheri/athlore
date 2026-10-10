@@ -7,7 +7,8 @@ import type {
 } from "../../features/coach-rules/types/coachRules";
 import type {
   GeneratedProgram,
-  GenerationEvidence
+  GenerationEvidence,
+  ProgramPdfSection
 } from "../../features/programs/types/generatedProgram";
 import type {
   StudentActivateLoginResult,
@@ -948,6 +949,9 @@ export function programDetailFromApi(dto: Record<string, unknown>): GeneratedPro
     createdAt: String(dto.created_at ?? ""),
     dateRange: String(dto.date_range ?? dto.date_range_label ?? ""),
     deliverySource: dto.delivery_source === "uploaded_pdf" ? "uploaded_pdf" : "generated",
+    finalizedVersionId: (dto.latest_finalized_version as Record<string, unknown> | null)?.id
+      ? str((dto.latest_finalized_version as Record<string, unknown>).id)
+      : undefined,
     id: String(dto.id),
     nutrition: nutrition as GeneratedProgram["nutrition"],
     pdfSettings: {
@@ -971,9 +975,27 @@ export function programDetailFromApi(dto: Record<string, unknown>): GeneratedPro
           id: str((dto.staged_pdf as Record<string, unknown>).id),
           fileName: str((dto.staged_pdf as Record<string, unknown>).file_name),
           sizeBytes: num((dto.staged_pdf as Record<string, unknown>).size_bytes),
-          expiresAt: str((dto.staged_pdf as Record<string, unknown>).expires_at)
+          expiresAt: str((dto.staged_pdf as Record<string, unknown>).expires_at),
+          section: (str((dto.staged_pdf as Record<string, unknown>).section) || undefined) as
+            ProgramPdfSection | undefined
         }
       : null,
+    stagedPdfs: Array.isArray(dto.staged_pdfs)
+      ? (Object.fromEntries(
+          (dto.staged_pdfs as Record<string, unknown>[])
+            .filter((item) => ["workout", "nutrition", "supplement"].includes(str(item.section)))
+            .map((item) => [
+              str(item.section),
+              {
+                id: str(item.id),
+                section: str(item.section) as "workout" | "nutrition" | "supplement",
+                fileName: str(item.file_name),
+                sizeBytes: num(item.size_bytes),
+                expiresAt: str(item.expires_at)
+              }
+            ])
+        ) as GeneratedProgram["stagedPdfs"])
+      : undefined,
     supplements,
     title: String(dto.title ?? ""),
     training: (dto.training as GeneratedProgram["training"]) ?? undefined,
@@ -1196,7 +1218,11 @@ export function pdfFileFromApi(dto: Record<string, unknown>): StudentPdfFile {
     id: str(dto.id),
     studentId: str(dto.student_id),
     programId: str(dto.program_id),
+    programDateRange: str(dto.program_date_range || ""),
     programVersionId: dto.program_version_id ? str(dto.program_version_id) : undefined,
+    section: ["workout", "nutrition", "supplement"].includes(str(dto.section))
+      ? (str(dto.section) as ProgramPdfSection)
+      : null,
     source: dto.source === "uploaded" ? "uploaded" : "generated",
     programTitle: str(dto.program_title || ""),
     contentType: str(dto.program_type || "complete") as StudentProgramType,

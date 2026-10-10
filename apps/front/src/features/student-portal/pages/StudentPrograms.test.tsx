@@ -98,19 +98,7 @@ describe("student program portal", () => {
     );
   });
 
-  it("renders the program content and asks for PDF preparation when no file exists", async () => {
-    const pdf: StudentPdfFile = {
-      contentType: "workout",
-      fileName: "program.pdf",
-      generatedAt: "",
-      id: "pdf-1",
-      programId: program.id,
-      programTitle: program.title,
-      size: "1 KB",
-      status: "ready",
-      studentId: program.studentId,
-      version: "v1"
-    };
+  it("renders program content and a clear empty state when no PDF exists", async () => {
     render(
       <MemoryRouter initialEntries={["/programs/program-1"]}>
         <Routes>
@@ -118,7 +106,6 @@ describe("student program portal", () => {
             element={
               <StudentProgramDetailPage
                 repository={repository({
-                  createPdfFiles: async () => [pdf],
                   getById: async () => program,
                   listPdfFiles: async () => []
                 })}
@@ -131,6 +118,59 @@ describe("student program portal", () => {
     );
 
     expect(await screen.findByText(/پرس سینه هالتر/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "آماده‌سازی فایل PDF" })).toBeInTheDocument();
+    expect(screen.getByText(/هنوز فایل آماده‌ای برای این برنامه ثبت نشده است/)).toBeInTheDocument();
+  });
+
+  it("shows separate download actions for training, nutrition, and supplement PDFs", async () => {
+    const files = [
+      { section: "workout", contentType: "workout", fileName: "workout.pdf", id: "pdf-workout" },
+      {
+        section: "nutrition",
+        contentType: "nutrition",
+        fileName: "nutrition.pdf",
+        id: "pdf-nutrition"
+      },
+      {
+        section: "supplement",
+        contentType: "supplement",
+        fileName: "supplement.pdf",
+        id: "pdf-supplement"
+      }
+    ] as const satisfies Array<Pick<StudentPdfFile, "section" | "contentType" | "fileName" | "id">>;
+    const pdfFiles: StudentPdfFile[] = files.map((file) => ({
+      generatedAt: "2026-10-10T00:00:00.000Z",
+      programDateRange: "مهر ۱۴۰۵",
+      programId: program.id,
+      programTitle: program.title,
+      size: "1 KB",
+      status: "ready",
+      studentId: program.studentId,
+      version: "v1",
+      ...file
+    }));
+    render(
+      <MemoryRouter initialEntries={["/programs/program-1"]}>
+        <Routes>
+          <Route
+            element={
+              <StudentProgramDetailPage
+                repository={repository({
+                  getById: async () => program,
+                  listPdfFiles: async () => pdfFiles
+                })}
+              />
+            }
+            path="/programs/:programId"
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole("button", { name: "دانلود برنامه تمرینی" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "دانلود برنامه غذایی" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "دانلود برنامه مکمل" })).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: /^دانلود برنامه/ }).map((button) => button.textContent)
+    ).toEqual(["دانلود برنامه تمرینی", "دانلود برنامه غذایی", "دانلود برنامه مکمل"]);
   });
 });

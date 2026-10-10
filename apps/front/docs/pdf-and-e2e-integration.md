@@ -19,6 +19,8 @@
 
 - **Student PDF tab:** list/status/rename/regenerate/share/revoke/delete/download (ready only)
 - **Program PDF settings:** save settings via draft API; Create PDF requires explicit finalization confirmation when draft
+- **Unified program delivery:** one Program Version may contain separate training, nutrition, and supplement PDFs. The coach chooses Athlore generation or a private staged upload per included section; uploaded files are replaceable/removable before finalization. The student sees ready files under the same program, in training → nutrition → supplement order.
+- **Legacy compatibility:** artifacts without section metadata remain listed and downloadable using their existing program type; no migration rewrites or removes their files.
 - **Share:** raw URL shown/copied only at create; after refresh show active-link messaging
 - **Dashboard:** real `readyPdfFiles` + capability hint when available
 

@@ -24,6 +24,7 @@ import type {
   GeneratedProgram,
   GenerationEvidence,
   ProgramGenerationInput,
+  ProgramPdfSection,
   UploadedProgramDraftInput
 } from "../../features/programs/types/generatedProgram";
 import type { ProgramsRepository } from "../../features/programs/services/programsRepository";
@@ -62,7 +63,6 @@ function rememberDraftMeta(program: GeneratedProgram & Record<string, unknown>) 
 
 function stripMeta(program: GeneratedProgram): GeneratedProgram {
   const copy = { ...(program as GeneratedProgram & Record<string, unknown>) };
-  delete copy.draftId;
   delete copy.versions;
   delete copy.provenance;
   delete copy.latestFinalizedVersion;
@@ -405,16 +405,18 @@ export function createApiProgramsRepository(): ProgramsRepository & {
         rememberDraftMeta(programDetailFromApi(dto) as GeneratedProgram & Record<string, unknown>)
       );
     },
-    async uploadStagedPdf(studentId, file) {
+    async uploadStagedPdf(studentId, file, section) {
       const form = new FormData();
       form.append("student_id", studentId);
+      if (section) form.append("section", section);
       form.append("file", file);
       const dto = await apiUploadFormData<Record<string, unknown>>("/program-pdfs/staging/", form);
       return {
         id: String(dto.id),
         fileName: String(dto.file_name ?? file.name),
         sizeBytes: Number(dto.size_bytes ?? file.size),
-        expiresAt: String(dto.expires_at ?? "")
+        expiresAt: String(dto.expires_at ?? ""),
+        section: (dto.section as ProgramPdfSection | undefined) ?? section
       };
     },
     async deleteStagedPdf(id) {
@@ -441,10 +443,10 @@ export function createApiProgramsRepository(): ProgramsRepository & {
         rememberDraftMeta(programDetailFromApi(dto) as GeneratedProgram & Record<string, unknown>)
       );
     },
-    async attachStagedPdf(programId, versionId, stagedPdfId) {
+    async attachStagedPdf(programId, versionId, stagedPdfId, section) {
       const dto = await apiRequest<Record<string, unknown>>(
         `/programs/${programId}/versions/${versionId}/staged-pdf/`,
-        { method: "POST", body: { staged_pdf_id: stagedPdfId } }
+        { method: "POST", body: { staged_pdf_id: stagedPdfId, section } }
       );
       return stripMeta(
         rememberDraftMeta(programDetailFromApi(dto) as GeneratedProgram & Record<string, unknown>)

@@ -39,6 +39,34 @@
   box-shadow: 0 0 0 2px rgb(91 33 182 / 10%);
 }
 
+.deliverySectionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.deliverySectionCard {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  padding: var(--space-4);
+}
+
+.deliverySectionCard h3 {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
+.deliveryMethodChoices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .uploadProgramCard {
   display: grid;
   gap: var(--space-4);
@@ -77,8 +105,12 @@
 }
 
 @media (max-width: 640px) {
-  .creationModeGrid {
+  .deliverySectionGrid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .deliveryMethodChoices > button {
+    flex: 1 1 140px;
   }
 
   .stagedPdfRow {

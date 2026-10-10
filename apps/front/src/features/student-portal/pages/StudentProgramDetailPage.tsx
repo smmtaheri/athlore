@@ -6,6 +6,7 @@ import { Button, Card, EmptyState, Skeleton, StatusBadge } from "../../../compon
 import { studentPaths } from "../../../app/config/appOrigin";
 import type {
   GeneratedProgram,
+  ProgramPdfSection,
   TrainingExercise,
   TrainingDay
 } from "../../programs/types/generatedProgram";
@@ -26,6 +27,41 @@ function programStatusLabel(program: GeneratedProgram): string {
 
 function dayExercises(day: TrainingDay): TrainingExercise[] {
   return Array.isArray(day.exercises) ? day.exercises : [];
+}
+
+function pdfSectionLabel(file: StudentPdfFile): string {
+  if (file.section) {
+    switch (file.section) {
+      case "workout":
+        return "برنامه تمرینی";
+      case "nutrition":
+        return "برنامه غذایی";
+      case "supplement":
+        return "برنامه مکمل";
+    }
+  }
+
+  switch (file.contentType) {
+    case "workout":
+      return "برنامه تمرینی";
+    case "nutrition":
+      return "برنامه غذایی و مکمل";
+    case "supplement":
+      return "برنامه مکمل";
+    default:
+      return "برنامه کامل";
+  }
+}
+
+function deliverySourceLabel(
+  files: StudentPdfFile[],
+  fallback: GeneratedProgram["deliverySource"]
+): string {
+  const sources = new Set(files.map((file) => file.source).filter(Boolean));
+  if (sources.size > 1) return "ترکیبی از فایل مربی و فایل‌های ساخته‌شده با Athlore";
+  if (sources.has("uploaded")) return "فایل بارگذاری‌شده توسط مربی";
+  if (sources.has("generated")) return "تولیدشده با Athlore";
+  return fallback === "uploaded_pdf" ? "فایل بارگذاری‌شده توسط مربی" : "تولیدشده با Athlore";
 }
 
 export function StudentProgramDetailPage({
@@ -82,7 +118,15 @@ export function StudentProgramDetailPage({
   const visibleStatus = loadedProgramId === programId ? status : "loading";
 
   const days = useMemo(() => program?.training?.days ?? [], [program]);
-  const readyFiles = pdfFiles.filter((file) => file.status === "ready");
+  const sectionOrder: ProgramPdfSection[] = ["workout", "nutrition", "supplement"];
+  const readyFiles = pdfFiles
+    .filter((file) => file.status === "ready")
+    .sort((left, right) => {
+      const leftIndex = left.section ? sectionOrder.indexOf(left.section) : sectionOrder.length;
+      const rightIndex = right.section ? sectionOrder.indexOf(right.section) : sectionOrder.length;
+      return leftIndex - rightIndex;
+    });
+  const deliveryLabel = deliverySourceLabel(readyFiles, program?.deliverySource ?? "generated");
 
   const download = async (file: StudentPdfFile) => {
     setDownloadingId(file.id);
@@ -146,11 +190,7 @@ export function StudentProgramDetailPage({
           </div>
           <div className={styles.programDetailMeta}>
             <span>نسخه {program.version}</span>
-            <span>
-              {program.deliverySource === "uploaded_pdf"
-                ? "فایل بارگذاری‌شده توسط مربی"
-                : "تولیدشده با Athlore"}
-            </span>
+            <span>{deliveryLabel}</span>
             {program.dateRange ? <span>{formatCalendarText(program.dateRange)}</span> : null}
             <span>
               <CalendarDays aria-hidden size={15} /> به‌روزرسانی {formatDate(program.updatedAt)}
@@ -165,9 +205,8 @@ export function StudentProgramDetailPage({
           <div className={styles.programDownloadBody}>
             <h2 className={styles.sectionTitle}>نسخه قابل دانلود</h2>
             <p className={styles.muted}>
-              {program.deliverySource === "uploaded_pdf"
-                ? "PDF برنامه‌ای که مربی برای این دوره بارگذاری کرده است."
-                : "فایل‌های تمرین و در صورت وجود، تغذیه و مکمل که مربی هنگام ارسال برنامه آماده کرده است."}
+              فایل‌های تمرینی، غذایی و مکمل این برنامه جداگانه نگهداری می‌شوند؛ هر فایلی که مربی
+              آماده کرده باشد همین‌جا برای دریافت نمایش داده می‌شود.
             </p>
             {pdfError ? <p className={styles.errorAlert}>{pdfError}</p> : null}
           </div>
@@ -181,9 +220,7 @@ export function StudentProgramDetailPage({
                 size="sm"
                 variant="secondary"
               >
-                {program.deliverySource === "uploaded_pdf"
-                  ? "دانلود برنامه"
-                  : `دانلود ${file.contentType === "workout" ? "تمرین" : "تغذیه و مکمل"}`}
+                دانلود {pdfSectionLabel(file)}
               </Button>
             ))}
             {pdfStatus !== "loading" && readyFiles.length === 0 ? (

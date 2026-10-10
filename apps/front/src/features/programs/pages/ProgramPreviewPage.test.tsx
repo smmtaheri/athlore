@@ -101,7 +101,35 @@ function renderPreview(
     studentId: "mohammad-taheri",
     version: "v1"
   }));
-  const createForProgram = vi.fn(async () => createPdf());
+  const createForProgram = vi.fn(
+    async (
+      programId: string,
+      options?: {
+        deliveryOutputs?: "pair" | "section" | "single";
+        fileName?: string;
+        programVersionId?: string;
+        programType?: "complete" | "workout" | "nutrition" | "supplement";
+        section?: "workout" | "nutrition" | "supplement";
+        pdfSettingsOverride?: Record<string, unknown>;
+      }
+    ) => {
+      const file = await createPdf();
+      return { ...file, programId, section: options?.section ?? null };
+    }
+  );
+  const activate = vi.fn(async () => ({
+    createdAt: "",
+    dateRange: "",
+    generatedAt: "",
+    id: "program-test",
+    isCurrent: true,
+    programType: "complete" as const,
+    status: "active" as const,
+    studentId: "mohammad-taheri",
+    title: "برنامه تست",
+    updatedAt: "",
+    version: "v1"
+  }));
 
   render(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -112,6 +140,7 @@ function renderPreview(
               pdfFilesRepo={{
                 create: createPdf,
                 createForProgram,
+                listByProgram: async () => [],
                 listByStudent: async () => [],
                 regenerate: async () => {
                   throw new Error("unused");
@@ -135,9 +164,7 @@ function renderPreview(
                 update
               }}
               studentProgramsRepo={{
-                activate: async () => {
-                  throw new Error("unused");
-                },
+                activate,
                 duplicate: async () => {
                   throw new Error("unused");
                 },
@@ -171,11 +198,12 @@ function renderPreview(
           path="/programs/:programId"
         />
         <Route element={<div>pdf files tab</div>} path="/students/:studentId/pdf-files" />
+        <Route element={<div>programs list</div>} path="/students/:studentId/programs" />
       </Routes>
     </MemoryRouter>
   );
 
-  return { createForProgram, createPdf, finalize, update };
+  return { activate, createForProgram, createPdf, finalize, update };
 }
 
 describe("ProgramPreviewPage", () => {
@@ -186,7 +214,7 @@ describe("ProgramPreviewPage", () => {
     const exerciseInput = await screen.findByDisplayValue("پرس سینه هالتر");
     await user.clear(exerciseInput);
     await user.type(exerciseInput, "پرس بالا سینه دمبل");
-    await user.click(screen.getByRole("button", { name: "ذخیره تغییرات" }));
+    await user.click(screen.getAllByRole("button", { name: "ذخیره پیش‌نویس" })[0]);
 
     await waitFor(() => expect(update).toHaveBeenCalled());
   });
@@ -200,35 +228,76 @@ describe("ProgramPreviewPage", () => {
     expect(await screen.findByDisplayValue("کراتین")).toBeInTheDocument();
   });
 
-  it("requires finalization before creating PDF from draft", async () => {
+  it("creates separately categorized PDFs for each generated section in one program", async () => {
     const user = userEvent.setup();
-    const { createForProgram, createPdf, finalize } = renderPreview(
-      "/programs/program-test?tab=pdf"
+    const deliverySections = {
+      workout: "generated" as const,
+      nutrition: "generated" as const,
+      supplement: "generated" as const
+    };
+    const { activate, createForProgram, finalize } = renderPreview(
+      "/programs/program-test?tab=pdf",
+      { draftId: "version-1", pdfSettings: { ...program.pdfSettings, deliverySections } }
     );
 
     expect(await screen.findByDisplayValue("برنامه تست")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "ساخت PDF" }));
-    expect(createPdf).not.toHaveBeenCalled();
-    expect(createForProgram).not.toHaveBeenCalled();
-    expect(await screen.findByText(/نهایی‌سازی برای PDF/)).toBeInTheDocument();
-
-    await user.click(screen.getByTestId("confirm-finalize-for-pdf"));
-    await waitFor(() => expect(finalize).toHaveBeenCalled());
-    await waitFor(() => expect(createForProgram).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText("pdf files tab")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "نهایی‌سازی و ارسال به شاگرد" })[0]);
+    await waitFor(() => expect(finalize).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(createForProgram).toHaveBeenCalledTimes(3));
+    expect(createForProgram.mock.calls.map(([id, options]) => [id, options?.section])).toEqual([
+      ["program-test", "workout"],
+      ["program-test", "nutrition"],
+      ["program-test", "supplement"]
+    ]);
+    expect(createForProgram).toHaveBeenCalledWith(
+      "program-test",
+      expect.objectContaining({
+        deliveryOutputs: "section",
+        programVersionId: "version-1",
+        section: "workout"
+      })
+    );
+    expect(activate).toHaveBeenCalledWith("program-test");
+    expect(await screen.findByText("programs list")).toBeInTheDocument();
   });
 
-  it("creates real PDF from finalized program without silent finalize", async () => {
+  it("retries delivery against the latest finalized version without finalizing again", async () => {
     const user = userEvent.setup();
     const { createForProgram, finalize } = renderPreview("/programs/program-test?tab=pdf", {
+      finalizedVersionId: "final-version-2",
+      pdfSettings: {
+        ...program.pdfSettings,
+        deliverySections: {
+          workout: "generated",
+          nutrition: "generated",
+          supplement: "generated"
+        }
+      },
       status: "ready"
     });
 
     expect(await screen.findByDisplayValue("برنامه تست")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "ساخت PDF" }));
-    await waitFor(() => expect(createForProgram).toHaveBeenCalledTimes(1));
+    await user.click(screen.getAllByRole("button", { name: "نهایی‌سازی و ارسال به شاگرد" })[0]);
+    await waitFor(() => expect(createForProgram).toHaveBeenCalledTimes(3));
     expect(finalize).not.toHaveBeenCalled();
-    expect(await screen.findByText("pdf files tab")).toBeInTheDocument();
+    expect(createForProgram).toHaveBeenCalledWith(
+      "program-test",
+      expect.objectContaining({ programVersionId: "final-version-2" })
+    );
+  });
+
+  it("preserves legacy pair delivery for programs without section settings", async () => {
+    const user = userEvent.setup();
+    const { createForProgram, finalize } = renderPreview("/programs/program-test?tab=pdf");
+
+    expect(await screen.findByDisplayValue("برنامه تست")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "نهایی‌سازی و ارسال به شاگرد" })[0]);
+    await waitFor(() => expect(createForProgram).toHaveBeenCalledTimes(1));
+    expect(finalize).toHaveBeenCalledTimes(1);
+    expect(createForProgram).toHaveBeenCalledWith(
+      "program-test",
+      expect.objectContaining({ deliveryOutputs: "pair" })
+    );
   });
 
   it("renders program not found state", async () => {

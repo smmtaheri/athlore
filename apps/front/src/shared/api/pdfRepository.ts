@@ -24,6 +24,9 @@ export function createApiStudentPdfFilesRepository(): StudentPdfFilesRepository 
       };
       if (options.fileName) body.file_name = options.fileName;
       if (options.programVersionId) body.program_version_id = options.programVersionId;
+      if (options.programType) body.program_type = options.programType;
+      if (options.section) body.section = options.section;
+      if (options.pdfSettingsOverride) body.pdf_settings_override = options.pdfSettingsOverride;
       const dto = await apiRequest<Record<string, unknown>>(`/programs/${programId}/pdf-files/`, {
         method: "POST",
         body
