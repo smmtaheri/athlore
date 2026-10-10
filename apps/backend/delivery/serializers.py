@@ -5,10 +5,11 @@ class PdfCreateSerializer(serializers.Serializer):
     program_version_id = serializers.UUIDField(required=False)
     file_name = serializers.CharField(required=False, allow_blank=False, max_length=200)
     display_name = serializers.CharField(required=False, allow_blank=False, max_length=200)
-    # "pair" = student delivery: training PDF + nutrition/supplements PDF.
+    # "pair" = legacy student delivery: training PDF + nutrition/supplements PDF.
     # "single" = one PDF using the version's saved pdf_settings (default / legacy).
+    # "section" = one explicitly categorized PDF in the unified program flow.
     delivery_outputs = serializers.ChoiceField(
-        choices=["pair", "single"],
+        choices=["pair", "single", "section"],
         required=False,
         default="single",
     )
@@ -17,6 +18,15 @@ class PdfCreateSerializer(serializers.Serializer):
         choices=["complete", "workout", "nutrition", "supplement"],
         required=False,
     )
+    section = serializers.ChoiceField(
+        choices=["workout", "nutrition", "supplement"],
+        required=False,
+    )
+
+    def validate(self, attrs):
+        if attrs.get("delivery_outputs") == "section" and not attrs.get("section"):
+            raise serializers.ValidationError({"section": ["نوع بخش PDF الزامی است."]})
+        return attrs
 
 
 class PdfRenameSerializer(serializers.Serializer):

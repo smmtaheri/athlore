@@ -171,7 +171,10 @@ class ProgramVersionStagedPdfView(APIView):
         program = program_services.get_program_for_coach(coach, program_id)
         version = program_services.get_version_for_coach(coach, program, version_id)
         version = program_services.attach_staged_pdf_to_version(
-            coach, version, request.data.get("staged_pdf_id")
+            coach,
+            version,
+            request.data.get("staged_pdf_id"),
+            section=request.data.get("section"),
         )
         program.refresh_from_db()
         return Response(program_services.serialize_program_detail(program))

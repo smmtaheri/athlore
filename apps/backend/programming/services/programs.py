@@ -223,24 +223,24 @@ def serialize_program_detail(program: Program) -> dict:
         pass
 
     content_source = draft or latest_final
-    staged_pdf = None
-    if (
-        content_source
-        and content_source.delivery_source == ProgramVersion.DeliverySource.UPLOADED_PDF
-    ):
-        from delivery.models import StagedProgramPdf
+    from delivery.models import StagedProgramPdf
 
-        staged = StagedProgramPdf.objects.filter(
-            program_version=content_source,
-            expires_at__gt=timezone.now(),
-        ).first()
-        if staged:
-            staged_pdf = {
+    staged_pdfs = []
+    if content_source:
+        staged_pdfs = [
+            {
                 "id": str(staged.id),
+                "section": staged.section,
                 "file_name": staged.original_filename,
                 "size_bytes": staged.size_bytes,
                 "expires_at": staged.expires_at.isoformat().replace("+00:00", "Z"),
             }
+            for staged in StagedProgramPdf.objects.filter(
+                program_version=content_source,
+                expires_at__gt=timezone.now(),
+            ).order_by("section", "created_at")
+        ]
+    staged_pdf = staged_pdfs[0] if staged_pdfs else None
     return {
         **summary,
         "date_range_start": program.date_range_start.isoformat()
@@ -264,6 +264,7 @@ def serialize_program_detail(program: Program) -> dict:
             else ProgramVersion.DeliverySource.GENERATED
         ),
         "staged_pdf": staged_pdf,
+        "staged_pdfs": staged_pdfs,
         "generator": generator_meta,
         "provenance": {
             "copied_from_program_id": (
@@ -424,7 +425,7 @@ def create_uploaded_pdf_draft(
 
 @transaction.atomic
 def attach_staged_pdf_to_version(
-    coach: CoachProfile, version: ProgramVersion, staged_pdf_id
+    coach: CoachProfile, version: ProgramVersion, staged_pdf_id, *, section: str | None = None
 ) -> ProgramVersion:
     from delivery.models import StagedProgramPdf
 
@@ -435,8 +436,8 @@ def attach_staged_pdf_to_version(
         raise NotFound(detail="Not found.")
     if version.status != ProgramVersion.Status.DRAFT:
         raise InvalidStateError(detail="فقط پیش‌نویس برنامه قابل تغییر است.")
-    if version.delivery_source != ProgramVersion.DeliverySource.UPLOADED_PDF:
-        raise InvalidStateError(detail="این برنامه از نوع PDF آپلودی نیست.")
+    if section not in (None, "", "workout", "nutrition", "supplement"):
+        raise ValidationError({"section": ["نوع بخش برنامه معتبر نیست."]})
     try:
         staged = StagedProgramPdf.objects.select_for_update().get(
             pk=staged_pdf_id,
@@ -450,15 +451,27 @@ def attach_staged_pdf_to_version(
             {"staged_pdf_id": ["فایل موقت معتبر نیست یا منقضی شده است."]}
         ) from exc
 
-    previous = StagedProgramPdf.objects.select_for_update().filter(program_version=version).first()
+    resolved_section = section if section is not None else staged.section
+    if not resolved_section and version.program.program_type in {
+        "workout",
+        "nutrition",
+        "supplement",
+    }:
+        resolved_section = version.program.program_type
+    previous = (
+        StagedProgramPdf.objects.select_for_update()
+        .filter(program_version=version, section=resolved_section)
+        .exclude(pk=staged.pk)
+    )
     staged.program_version = version
+    staged.section = resolved_section
     staged.expires_at = timezone.now() + timedelta(days=7)
-    staged.save(update_fields=["program_version", "expires_at"])
-    if previous:
-        filename = previous.file.name
-        storage = previous.file.storage
-        previous.delete()
-        transaction.on_commit(lambda: storage.delete(filename))
+    staged.save(update_fields=["program_version", "section", "expires_at"])
+    for old in previous:
+        filename = old.file.name
+        storage = old.file.storage
+        old.delete()
+        transaction.on_commit(lambda storage=storage, filename=filename: storage.delete(filename))
     return version
 
 
@@ -717,10 +730,12 @@ def finalize_version(version: ProgramVersion, *, actor) -> ProgramVersion:
         return version  # idempotent
     if version.status != ProgramVersion.Status.DRAFT:
         raise InvalidStateError(detail="Only draft versions can be finalized.")
-    if version.delivery_source == ProgramVersion.DeliverySource.UPLOADED_PDF:
-        from delivery.services.staged_program_pdfs import promote_staged_pdf
+    from delivery.models import StagedProgramPdf
+    from delivery.services.staged_program_pdfs import promote_staged_pdfs
 
-        promote_staged_pdf(version, actor=actor)
+    has_staged_uploads = StagedProgramPdf.objects.filter(program_version=version).exists()
+    if version.delivery_source == ProgramVersion.DeliverySource.UPLOADED_PDF or has_staged_uploads:
+        promote_staged_pdfs(version, actor=actor)
     version.status = ProgramVersion.Status.FINALIZED
     version.finalized_at = timezone.now()
     version.finalized_by = actor

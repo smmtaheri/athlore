@@ -671,11 +671,21 @@ Paginated PDF metadata list.
 
 List program PDF history, or create from a finalized version (`program_version_id` optional when exactly one finalized/active version applies).
 
+For one categorized output, POST accepts `delivery_outputs: "section"` and required `section: "workout" | "nutrition" | "supplement"`. The server applies the matching content flags and returns the artifact with `section` and `program_date_range` metadata. Existing artifacts may have no section and remain valid.
+
 ### POST `/api/v1/programs/{program_id}/versions/{version_id}/pdf-files/`
 
 Create PDF from a specific **finalized** version (draft → `version_not_finalized`).
 
 **201:** artifact metadata (`status` typically `ready` for synchronous MVP).
+
+### POST `/api/v1/program-pdfs/staging/`
+
+Multipart coach upload before finalization: `file` and optional `section` (`workout|nutrition|supplement`). Returns a private staged-file ID; it is not visible to the student until the associated version is finalized.
+
+### POST `/api/v1/programs/{program_id}/versions/{version_id}/staged-pdf/`
+
+Associate a staged upload with a draft using `staged_pdf_id` and optional `section`. One staged file per categorized section is retained; replacing a section discards its previous staged file. A finalized version promotes the selected uploads as individual PDF artifacts. Missing/expired uploads configured for delivery prevent finalization.
 
 ### GET|PATCH|DELETE `/api/v1/pdf-files/{pdf_id}/`
 

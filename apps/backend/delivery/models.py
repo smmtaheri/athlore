@@ -11,6 +11,12 @@ from accounts.models import CoachProfile
 from programming.models import Program, ProgramVersion
 from students.models import Student
 
+PDF_SECTION_CHOICES = [
+    ("workout", "Workout"),
+    ("nutrition", "Nutrition"),
+    ("supplement", "Supplements"),
+]
+
 
 def pdf_artifact_upload_to(instance: PdfArtifact, filename: str) -> str:
     safe_name = (filename or "program.pdf").replace("/", "_").replace("\\", "_")
@@ -40,13 +46,14 @@ class StagedProgramPdf(models.Model):
         on_delete=models.CASCADE,
         related_name="staged_program_pdfs",
     )
-    program_version = models.OneToOneField(
+    program_version = models.ForeignKey(
         ProgramVersion,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="staged_pdf_upload",
+        related_name="staged_pdf_uploads",
     )
+    section = models.CharField(max_length=20, choices=PDF_SECTION_CHOICES, blank=True, default="")
     file = models.FileField(upload_to=staged_program_pdf_upload_to, max_length=512)
     original_filename = models.CharField(max_length=255)
     size_bytes = models.PositiveIntegerField()
@@ -56,6 +63,13 @@ class StagedProgramPdf(models.Model):
     class Meta:
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["coach", "expires_at"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["program_version", "section"],
+                condition=models.Q(program_version__isnull=False) & ~models.Q(section=""),
+                name="uniq_staged_pdf_version_section",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"StagedProgramPdf({self.id})"
@@ -113,6 +127,7 @@ class PdfArtifact(models.Model):
     render_engine_version = models.CharField(max_length=64, blank=True, default="")
     template_version = models.CharField(max_length=32, blank=True, default="")
     program_type = models.CharField(max_length=20, blank=True, default="")
+    section = models.CharField(max_length=20, choices=PDF_SECTION_CHOICES, blank=True, default="")
     version_label = models.CharField(max_length=32, blank=True, default="")
     error_code = models.CharField(max_length=64, blank=True, default="")
     error_summary = models.CharField(max_length=300, blank=True, default="")

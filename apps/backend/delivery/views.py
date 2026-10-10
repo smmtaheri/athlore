@@ -69,11 +69,13 @@ class ProgramPdfStagingView(APIView):
             student=student,
             actor=request.user,
             uploaded_file=request.FILES.get("file"),
+            section=request.data.get("section", ""),
         )
         return Response(
             {
                 "id": str(staged.id),
                 "file_name": staged.original_filename,
+                "section": staged.section,
                 "size_bytes": staged.size_bytes,
                 "expires_at": staged.expires_at.isoformat().replace("+00:00", "Z"),
             },
@@ -255,6 +257,7 @@ class ProgramPdfListCreateView(APIView):
             user=request.user,
             pdf_settings_override=data.get("pdf_settings_override"),
             program_type=data.get("program_type"),
+            section=data.get("section"),
         )
         return Response(
             artifact_services.serialize_artifact(artifact),
@@ -295,6 +298,7 @@ class ProgramVersionPdfCreateView(APIView):
             user=request.user,
             pdf_settings_override=data.get("pdf_settings_override"),
             program_type=data.get("program_type"),
+            section=data.get("section"),
         )
         return Response(
             artifact_services.serialize_artifact(artifact),

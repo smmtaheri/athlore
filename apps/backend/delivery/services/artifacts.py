@@ -91,7 +91,9 @@ def serialize_artifact(artifact: PdfArtifact, *, include_share_meta: bool = True
         "program_id": str(artifact.program_id),
         "program_version_id": str(artifact.program_version_id),
         "program_title": artifact.program.title,
+        "program_date_range": artifact.program.date_range_label,
         "program_type": artifact.program_type or artifact.program.program_type,
+        "section": artifact.section or None,
         "source": artifact.source,
         "file_name": artifact.display_name,
         "display_name": artifact.display_name,
@@ -234,6 +236,7 @@ def create_artifact_from_version(
     user=None,
     regenerated_from: PdfArtifact | None = None,
     program_type: str | None = None,
+    section: str | None = None,
 ) -> PdfArtifact:
     if program.coach_id != coach.id:
         raise NotFound(detail="Not found.")
@@ -259,6 +262,7 @@ def create_artifact_from_version(
         original_filename=name,
         status=PdfArtifact.Status.PENDING,
         program_type=program_type or program.program_type,
+        section=section or "",
         version_label=f"v{version.version_number}",
         template_version=RENDER_TEMPLATE_VERSION,
         render_engine_version=str(RENDER_ENGINE_VERSION),
@@ -280,7 +284,15 @@ def create_and_render(
     regenerated_from: PdfArtifact | None = None,
     pdf_settings_override: dict | None = None,
     program_type: str | None = None,
+    section: str | None = None,
 ) -> PdfArtifact:
+    if section in {"workout", "nutrition", "supplement"}:
+        pdf_settings_override = {
+            **(pdf_settings_override or {}),
+            "includeTraining": section == "workout",
+            "includeNutrition": section == "nutrition",
+            "includeSupplements": section == "supplement",
+        }
     artifact = create_artifact_from_version(
         coach,
         program,
@@ -289,6 +301,7 @@ def create_and_render(
         user=user,
         regenerated_from=regenerated_from,
         program_type=program_type,
+        section=section,
     )
     return _render_into_artifact(artifact, pdf_settings_override=pdf_settings_override)
 
@@ -389,6 +402,8 @@ def regenerate_artifact(coach, artifact: PdfArtifact, *, user=None) -> PdfArtifa
         display_name=artifact.display_name,
         user=user,
         regenerated_from=artifact,
+        program_type=artifact.program_type or artifact.program.program_type,
+        section=artifact.section or None,
     )
 
 

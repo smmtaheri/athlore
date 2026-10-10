@@ -2,16 +2,17 @@
 
 ## Summary
 
-Persistent PDF artifacts are generated synchronously from **finalized** `ProgramVersion` snapshots using WeasyPrint + Django HTML templates. Authenticated downloads and hashed public share links are ownership-scoped. Dashboard PDF counts are real.
+Persistent PDF artifacts can be generated synchronously from **finalized** `ProgramVersion` snapshots using WeasyPrint + Django HTML templates, or uploaded by a coach before finalization. A single Program/Version may deliver separate training, nutrition, and supplement PDFs. Authenticated downloads and hashed public share links are ownership-scoped. Dashboard PDF counts are real.
 
 ## Models
 
 App: `delivery`
 
-- **PdfArtifact** — UUID PK; coach/student/program/`ProgramVersion` FKs; display name; `FileField`; status `pending|rendering|ready|failed`; MIME; size; SHA-256; template/engine versions; error code/summary; soft-delete via `deleted_at`; optional `regenerated_from`.
+- **PdfArtifact** — UUID PK; coach/student/program/`ProgramVersion` FKs; optional `section` (`workout|nutrition|supplement`); display name; `FileField`; status `pending|rendering|ready|failed`; MIME; size; SHA-256; template/engine versions; error code/summary; soft-delete via `deleted_at`; optional `regenerated_from`.
 - **PdfShareLink** — UUID PK; artifact + coach; **token_hash only** (SHA-256 of raw bearer); expires/revoked/last_accessed; download_count.
+- **StagedProgramPdf** — private, expiring coach upload; optional section and draft-version association. Section uploads are promoted together when their Program Version is finalized.
 
-Migration: `delivery/migrations/0001_p3_pdf_artifacts.py` (additive).
+Migrations: `delivery/migrations/0001_p3_pdf_artifacts.py` and later additive delivery migrations.
 
 ## Storage
 
@@ -41,6 +42,15 @@ Migration: `delivery/migrations/0001_p3_pdf_artifacts.py` (additive).
 
 Draft / non-finalized versions are rejected with `version_not_finalized` / `program_not_finalized`. Frontend must finalize explicitly before PDF create.
 
+## Section-based delivery
+
+- `pdf_settings.deliverySections` maps each included section to `generated` or `uploaded`.
+- `POST /api/v1/program-pdfs/staging/` accepts multipart `file` and optional `section` (`workout|nutrition|supplement`). Staging is private and does not make a file visible to the student.
+- `POST /api/v1/programs/{id}/versions/{version_id}/staged-pdf/` accepts `staged_pdf_id` and optional `section` to associate/replace that section on a draft.
+- Finalizing the draft promotes the selected staged PDFs as categorized artifacts. A missing/expired selected upload prevents finalization; generated sections are rendered separately after finalization.
+- `POST /api/v1/programs/{id}/versions/{version_id}/pdf-files/` accepts `delivery_outputs: "section"` and a required `section` to render one categorized PDF. The section determines which content is included, even if the client omits section include flags.
+- Existing artifacts without a section remain valid and visible; they are not rewritten or deleted.
+
 ## Endpoints (`/api/v1/`)
 
 | Method | Path |
@@ -69,6 +79,7 @@ Share create returns raw `token` + `share_url` **once**. Lists expose `share.has
 ## Tests & smoke
 
 - `delivery/tests/test_pdf_artifacts.py` — models, render, API, share, ownership, dashboard
+- Section upload/finalize/list/download and category-specific rendering are covered by API tests in the same module.
 - `scripts/p3_pdf_fullstack_smoke.py` → prints `PDF FULL-STACK SMOKE OK`
 
 ## Local setup
