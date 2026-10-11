@@ -168,8 +168,11 @@ export function ProgramGenerationPage({
         if (!isMounted) {
           return;
         }
+        const activeStudentItems = studentItems.filter((student) => student.status === "active");
+        const requestedStudent = studentItems.find((student) => student.id === initialStudentId);
         const selectedStudent =
-          studentItems.find((student) => student.id === initialStudentId) ?? studentItems[0];
+          activeStudentItems.find((student) => student.id === initialStudentId) ??
+          (requestedStudent ? undefined : activeStudentItems[0]);
         const studentDays = selectedStudent?.trainingConditions.trainingDaysPerWeek;
         const preferredName = "۴ روزه حجم متوسط";
         const matchingTemplates = studentDays
@@ -179,8 +182,15 @@ export function ProgramGenerationPage({
           matchingTemplates?.find((item) => item.name === preferredName) ??
           matchingTemplates?.find((item) => item.daysPerWeek === 4) ??
           matchingTemplates?.[0];
-        setStudents(studentItems);
+        setStudents(activeStudentItems);
         setRules(coachRules);
+        if (requestedStudent && requestedStudent.status !== "active") {
+          setFeedback(
+            `شاگرد «${requestedStudent.fullName}» غیرفعال یا بایگانی شده است؛ برای او نمی‌توانید برنامهٔ جدید بسازید.`
+          );
+        } else if (activeStudentItems.length === 0) {
+          setFeedback("شاگرد فعالی برای ساخت برنامه وجود ندارد. ابتدا وضعیت شاگرد را فعال کنید.");
+        }
         if (!coachRules) {
           setDeliverySections({
             workout: "uploaded",
@@ -198,9 +208,9 @@ export function ProgramGenerationPage({
             current.goal,
           level: selectedStudent?.trainingBackground.level ?? current.level,
           musclePriorities: selectedStudent?.goals.musclePriorities ?? current.musclePriorities,
-          studentId: selectedStudent?.id ?? current.studentId,
+          studentId: selectedStudent?.id ?? "",
           templateId: template?.id ?? "",
-          title: selectedStudent ? `برنامه کامل ${selectedStudent.fullName}` : current.title
+          title: selectedStudent ? `برنامه کامل ${selectedStudent.fullName}` : "برنامه جدید"
         }));
         setStatus("loaded");
       })
@@ -292,7 +302,7 @@ export function ProgramGenerationPage({
   };
 
   const handleStagePdf = async (section: ProgramPdfSection, file?: File) => {
-    if (!file || !form.studentId) return;
+    if (!file || !form.studentId || !selectedStudent) return;
     if (file.size > 25 * 1024 * 1024) {
       setFeedback("حجم PDF باید حداکثر ۲۵ مگابایت باشد.");
       setUploadInputKey((current) => current + 1);
@@ -374,6 +384,7 @@ export function ProgramGenerationPage({
       title: student ? `برنامه کامل ${student.fullName}` : current.title
     }));
     setErrors({});
+    setFeedback("");
   };
 
   const setSectionMethod = (section: ProgramPdfSection, method: ProgramPdfSectionMethod) => {
@@ -667,8 +678,10 @@ export function ProgramGenerationPage({
             </div>
 
             <ResponsiveGrid columns={2}>
-              <FormField error={errors.studentId} label="شاگرد" required>
+              <FormField error={errors.studentId} htmlFor="program-student-select" label="شاگرد" required>
                 <Select
+                  placeholder="انتخاب شاگرد فعال"
+                  id="program-student-select"
                   options={studentOptions}
                   value={form.studentId}
                   onChange={(event) => handleStudentChange(event.target.value)}
@@ -991,7 +1004,11 @@ export function ProgramGenerationPage({
               می‌گیرند.
             </span>
             <Button
-              disabled={uploadingPdf || (!generatedSections.length && !uploadedSections.length)}
+              disabled={
+                !selectedStudent ||
+                uploadingPdf ||
+                (!generatedSections.length && !uploadedSections.length)
+              }
               iconStart={
                 status === "generating" || creatingUploadedDraft ? (
                   <RefreshCcw size={18} />
@@ -1083,9 +1100,18 @@ function formatFileSize(size: number): string {
 }
 
 function isErrorFeedback(message: string): boolean {
-  return ["خطا", "لطفا", "نشد", "الزامی", "نامعتبر", "در دسترس نیست", "باید", "پاسخ سرور"].some(
-    (phrase) => message.includes(phrase)
-  );
+  return [
+    "خطا",
+    "لطفا",
+    "نشد",
+    "الزامی",
+    "نامعتبر",
+    "در دسترس نیست",
+    "باید",
+    "پاسخ سرور",
+    "غیرفعال",
+    "بایگانی"
+  ].some((phrase) => message.includes(phrase));
 }
 
 function validateForm(

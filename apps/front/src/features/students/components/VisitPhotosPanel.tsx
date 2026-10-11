@@ -193,17 +193,20 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
       }));
       setMessage("عکس آپلود شد؛ پس از ثبت عکس‌ها یا ذخیرهٔ ویزیت به این پوز متصل می‌شود.");
     } catch (uploadError) {
-      setPoseErrors((current) => ({
-        ...current,
-        [pose]:
-          uploadError instanceof ApiError
-            ? (uploadError.fieldErrors.file?.[0] ??
-              (uploadError.status >= 500
+      const uploadMessage =
+        uploadError instanceof ApiError
+          ? (uploadError.fieldErrors.file?.[0] ??
+            (uploadError.status === 400 && uploadError.code === "malformed_response"
+              ? "فایل انتخاب‌شده تصویر معتبر یا قابل پردازش نیست؛ یک عکس JPG، PNG یا WebP سالم انتخاب کنید."
+              : uploadError.status >= 500
                 ? "سرور نتوانست عکس را پردازش کند؛ یک فایل JPG، PNG یا WebP معتبر انتخاب کنید و دوباره تلاش کنید."
                 : uploadError.message))
-            : uploadError instanceof Error && uploadError.message
-              ? uploadError.message
-              : "آپلود این عکس انجام نشد؛ دوباره تلاش کنید."
+          : uploadError instanceof Error && uploadError.message
+            ? uploadError.message
+            : "آپلود این عکس انجام نشد؛ دوباره تلاش کنید.";
+      setPoseErrors((current) => ({
+        ...current,
+        [pose]: uploadMessage
       }));
       if (previous?.stagedId) {
         URL.revokeObjectURL(selection.previewUrl);

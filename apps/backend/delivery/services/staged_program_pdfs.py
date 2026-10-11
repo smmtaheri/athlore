@@ -13,6 +13,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from delivery.models import PdfArtifact, StagedProgramPdf
 from delivery.services.artifacts import normalize_display_name
 from programming.models import ProgramVersion
+from students.services import ensure_student_active
 
 MAX_PROGRAM_PDF_BYTES = 25 * 1024 * 1024
 MAX_STAGED_BYTES_PER_COACH = 500 * 1024 * 1024
@@ -46,6 +47,7 @@ def validate_program_pdf(uploaded_file) -> tuple[str, int]:
 def stage_program_pdf(*, coach, student, actor, uploaded_file, section="") -> StagedProgramPdf:
     if student.coach_id != coach.id:
         raise NotFound(detail="Not found.")
+    ensure_student_active(student)
     if section not in {"", "workout", "nutrition", "supplement"}:
         raise ValidationError({"section": ["نوع بخش برنامه معتبر نیست."]})
     # Serialize quota checks for simultaneous uploads by the same coach.

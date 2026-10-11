@@ -86,7 +86,9 @@ export function persianMessageForApiError(error: ApiError): string {
     case "immutable_version":
       return "نسخه نهایی‌شده قابل ویرایش نیست.";
     case "archived_student":
-      return "شاگرد بایگانی شده است و امکان این عملیات وجود ندارد.";
+      return "شاگرد غیرفعال یا بایگانی شده است و امکان ساخت یا تغییر برنامه برای او وجود ندارد.";
+    case "permission_denied":
+      return error.message || "اجازه انجام این عملیات داده نشد؛ وضعیت دسترسی و فعال بودن حساب را بررسی کنید.";
     case "archived_template":
       return "قالب برنامه بایگانی یا غیرفعال است.";
     case "generation_failed":

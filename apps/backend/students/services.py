@@ -9,7 +9,7 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from accounts.models import CoachProfile
-from common.exceptions import ConflictError
+from common.exceptions import ConflictError, InvalidStateError
 from common.permissions import get_owned_object
 from common.phone import (
     InvalidPhoneError,
@@ -52,6 +52,15 @@ TRAINING_LEVELS = {"beginner", "intermediate", "advanced"}
 
 def students_for_coach(coach):
     return Student.objects.filter(coach=coach)
+
+
+def ensure_student_active(student: Student) -> None:
+    """Reject new coach-side work for paused or archived students."""
+    if student.status != Student.Status.ACTIVE or student.archived_at is not None:
+        raise InvalidStateError(
+            detail="شاگرد غیرفعال یا بایگانی شده است و برنامهٔ جدید نمی‌پذیرد.",
+            code="archived_student",
+        )
 
 
 def get_student_for_coach(coach, student_id) -> Student:

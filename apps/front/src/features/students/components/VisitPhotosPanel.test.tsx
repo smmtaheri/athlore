@@ -112,4 +112,23 @@ describe("VisitPhotosPanel", () => {
     expect(await screen.findByText("فایل انتخاب‌شده یک تصویر معتبر نیست.")).toBeTruthy();
     expect(screen.getByText("آپلود ناموفق")).toBeTruthy();
   });
+
+  it("explains an HTML 400 upload response as an invalid image", async () => {
+    vi.mocked(apiUploadFormData).mockRejectedValueOnce(
+      new ApiError({
+        code: "malformed_response",
+        message: "پاسخ خطا قابل خواندن نبود.",
+        status: 400
+      })
+    );
+
+    render(<VisitPhotosPanel audience="coach" canUpload studentId="student-1" visitId={null} />);
+    fireEvent.change(screen.getByLabelText("انتخاب عکس برای پوز جلو"), {
+      target: { files: [new File(["broken"], "broken.png", { type: "image/png" })] }
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "فایل انتخاب‌شده تصویر معتبر یا قابل پردازش نیست"
+    );
+  });
 });

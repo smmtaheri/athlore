@@ -112,6 +112,26 @@ describe("apiRequest", () => {
     });
   });
 
+  it("explains HTML permission-denied responses from the edge", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: async () => {
+          throw new SyntaxError("HTML error page");
+        }
+      })
+    );
+
+    await expect(apiRequest("/me/visits/visit-1/", { method: "PATCH", body: {} })).rejects.toMatchObject({
+      code: "permission_denied",
+      message:
+        "درخواست از سمت سرور رد شد؛ وضعیت فعال بودن شاگرد، مربی و دوره و دسترسی شبکه را بررسی کنید.",
+      status: 403
+    });
+  });
+
   it("shares one refresh for concurrent 401s and retries once", async () => {
     let refreshCalls = 0;
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {

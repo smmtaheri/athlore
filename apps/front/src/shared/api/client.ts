@@ -68,6 +68,14 @@ async function parseError(response: Response): Promise<ApiError> {
   try {
     payload = await response.json();
   } catch {
+    if (response.status === 403) {
+      return new ApiError({
+        code: "permission_denied",
+        message:
+          "درخواست از سمت سرور رد شد؛ وضعیت فعال بودن شاگرد، مربی و دوره و دسترسی شبکه را بررسی کنید.",
+        status: response.status
+      });
+    }
     return new ApiError({
       code: response.status >= 500 ? "server_error" : "malformed_response",
       message: "پاسخ خطا قابل خواندن نبود.",

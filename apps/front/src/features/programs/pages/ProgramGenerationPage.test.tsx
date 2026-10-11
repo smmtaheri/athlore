@@ -113,6 +113,40 @@ describe("ProgramGenerationPage", () => {
     expect(await screen.findAllByText("عنوان برنامه الزامی است.")).not.toHaveLength(0);
   });
 
+  it("does not offer or preselect an archived student for a new program", async () => {
+    const archivedStudent = {
+      ...studentFixtures[0],
+      fullName: "شاگرد بایگانی‌شده QA",
+      id: "archived-qa-student",
+      status: "inactive" as const
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/programs/new?studentId=archived-qa-student"]}>
+        <ProgramGenerationPage
+          coachRulesRepo={{
+            get: async () => coachRulesFixture,
+            reset: async () => coachRulesFixture,
+            save: async () => coachRulesFixture
+          }}
+          studentsRepo={{
+            create: async () => archivedStudent,
+            getById: async () => archivedStudent,
+            list: async () => [archivedStudent, studentFixtures[0]],
+            reset: async () => [archivedStudent, studentFixtures[0]],
+            update: async () => archivedStudent
+          }}
+        />
+      </MemoryRouter>
+    );
+
+    const studentSelect = await screen.findByLabelText(/شاگرد/);
+    expect(studentSelect).toHaveValue("");
+    expect(screen.queryByRole("option", { name: "شاگرد بایگانی‌شده QA" })).not.toBeInTheDocument();
+    expect(await screen.findByText(/غیرفعال یا بایگانی شده است/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ساخت پیش‌نویس و بازبینی" })).toBeDisabled();
+  });
+
   it("keeps uploaded and generated sections in the same program draft", async () => {
     const user = userEvent.setup();
     const draft: GeneratedProgram = {

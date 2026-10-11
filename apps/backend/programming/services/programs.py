@@ -22,6 +22,7 @@ from programming.services.generator import (
     generate_document,
 )
 from students.models import Student, Visit
+from students.services import ensure_student_active
 
 
 def programs_for_coach(coach: CoachProfile):
@@ -312,8 +313,7 @@ def create_empty_draft(
     date_range_end=None,
 ) -> Program:
     student = _get_owned_student(coach, student_id)
-    if student.archived_at:
-        raise InvalidStateError(detail="Student is archived.", code="archived_student")
+    ensure_student_active(student)
     if program_type not in Program.ProgramType.values:
         raise ValidationError({"program_type": ["Invalid program_type."]})
     title = (title or "").strip()
@@ -368,8 +368,7 @@ def create_uploaded_pdf_draft(
     from delivery.models import StagedProgramPdf
 
     student = _get_owned_student(coach, student_id)
-    if student.archived_at:
-        raise InvalidStateError(detail="Student is archived.", code="archived_student")
+    ensure_student_active(student)
     if program_type not in Program.ProgramType.values:
         raise ValidationError({"program_type": ["Invalid program_type."]})
     title = (title or "").strip()
@@ -434,6 +433,7 @@ def attach_staged_pdf_to_version(
     )
     if version.coach_id != coach.id or version.program.coach_id != coach.id:
         raise NotFound(detail="Not found.")
+    ensure_student_active(version.program.student)
     if version.status != ProgramVersion.Status.DRAFT:
         raise InvalidStateError(detail="فقط پیش‌نویس برنامه قابل تغییر است.")
     if section not in (None, "", "workout", "nutrition", "supplement"):
@@ -489,8 +489,7 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
         raise ValidationError({"student_id": ["student_id and template_id are required."]})
 
     student = _get_owned_student(coach, student_id)
-    if student.archived_at:
-        raise InvalidStateError(detail="Student is archived.", code="archived_student")
+    ensure_student_active(student)
 
     try:
         template = ProgramTemplate.objects.get(pk=template_id, coach=coach)
@@ -619,6 +618,7 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
 def update_program_lineage(program: Program, payload: dict) -> Program:
     if program.archived_at:
         raise InvalidStateError(detail="Archived program cannot be updated.")
+    ensure_student_active(program.student)
     if "title" in payload:
         title = str(payload["title"] or "").strip()
         if not title:
@@ -643,6 +643,7 @@ def update_draft_version(version: ProgramVersion, payload: dict) -> ProgramVersi
     coaches can regenerate PDFs without opening a new draft.
     """
     version = ProgramVersion.objects.select_for_update().get(pk=version.pk)
+    ensure_student_active(version.program.student)
     if version.status == ProgramVersion.Status.ARCHIVED:
         raise InvalidStateError(
             detail="Archived versions cannot be mutated.",
@@ -726,6 +727,7 @@ def update_draft_version(version: ProgramVersion, payload: dict) -> ProgramVersi
 @transaction.atomic
 def finalize_version(version: ProgramVersion, *, actor) -> ProgramVersion:
     version = ProgramVersion.objects.select_for_update().get(pk=version.pk)
+    ensure_student_active(version.program.student)
     if version.status == ProgramVersion.Status.FINALIZED:
         return version  # idempotent
     if version.status != ProgramVersion.Status.DRAFT:
@@ -748,6 +750,7 @@ def finalize_version(version: ProgramVersion, *, actor) -> ProgramVersion:
 @transaction.atomic
 def activate_version(program: Program, version_id) -> Program:
     program = Program.objects.select_for_update().get(pk=program.pk)
+    ensure_student_active(program.student)
     version = get_version_for_coach(program.coach, program, version_id)
     if version.status != ProgramVersion.Status.FINALIZED:
         raise InvalidStateError(detail="Only finalized versions can be activated.")
@@ -765,6 +768,7 @@ def create_new_version(source: ProgramVersion) -> ProgramVersion:
     program = Program.objects.select_for_update().get(pk=source.program_id)
     if program.archived_at:
         raise InvalidStateError(detail="Archived program cannot receive new versions.")
+    ensure_student_active(program.student)
     # Close existing draft if any by archiving it (preserve history of abandoned drafts)
     existing_drafts = ProgramVersion.objects.select_for_update().filter(
         program=program, status=ProgramVersion.Status.DRAFT
@@ -809,8 +813,7 @@ def duplicate_program(
     student = target_student or source_program.student
     if student.coach_id != coach.id:
         raise NotFound(detail="Not found.")
-    if student.archived_at:
-        raise InvalidStateError(detail="Student is archived.", code="archived_student")
+    ensure_student_active(student)
 
     new_program = Program.objects.create(
         coach=coach,

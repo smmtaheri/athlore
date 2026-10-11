@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from uuid import uuid4
+
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from rest_framework.test import APITestCase
 
@@ -560,6 +563,47 @@ class ProgramAndGeneratorTests(APITestCase):
         )
         self.assertEqual(res2.status_code, 400)
         self.assertEqual(res2.data["error"]["code"], "archived_template")
+
+    def test_inactive_student_cannot_receive_new_program_or_staged_pdf(self):
+        Student.objects.filter(pk=self.student_id).update(status=Student.Status.INACTIVE)
+        headers = {
+            "student_id": self.student_id,
+            "title": "برنامه جدید",
+            "program_type": "complete",
+        }
+
+        draft = self.client.post("/api/v1/programs/", headers, format="json", **self.h)
+        self.assertEqual(draft.status_code, 400)
+        self.assertEqual(draft.data["error"]["code"], "archived_student")
+
+        uploaded_draft = self.client.post(
+            "/api/v1/programs/upload-pdf/",
+            {
+                **headers,
+                "staged_pdf_id": str(uuid4()),
+                "date_range_start": "2026-10-01",
+                "date_range_end": "2026-10-28",
+            },
+            format="json",
+            **self.h,
+        )
+        self.assertEqual(uploaded_draft.status_code, 400)
+        self.assertEqual(uploaded_draft.data["error"]["code"], "archived_student")
+
+        staged_pdf = self.client.post(
+            "/api/v1/program-pdfs/staging/",
+            {
+                "student_id": self.student_id,
+                "section": "workout",
+                "file": SimpleUploadedFile(
+                    "program.pdf", b"not a pdf", content_type="application/pdf"
+                ),
+            },
+            format="multipart",
+            **self.h,
+        )
+        self.assertEqual(staged_pdf.status_code, 400)
+        self.assertEqual(staged_pdf.data["error"]["code"], "archived_student")
 
     def test_incompatible_template_and_missing_visit_warning(self):
         # Create student without visit
