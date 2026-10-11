@@ -40,6 +40,16 @@ type DayFormState = {
   wakeTime: string;
 };
 
+function normalizeClockInput(value: string): string {
+  return value
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
+}
+
+function isValidClockInput(value: string): boolean {
+  return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
 function emptyForm(day: BodyCheckDay | null): DayFormState {
   return {
     actualWeightKg: day?.actualWeightKg != null ? String(day.actualWeightKg) : "",
@@ -124,6 +134,15 @@ export function StudentBodyCheckPage({
 
   const save = async () => {
     if (!editable || !selectedDate) return;
+    if (
+      [form.sleepStartTime, form.wakeTime].some(
+        (value) => value !== "" && !isValidClockInput(value)
+      )
+    ) {
+      setError("ساعت خواب و بیداری را به شکل ۲۴ساعته ساعت:دقیقه وارد کنید؛ مثلاً ۲۲:۰۰.");
+      setFeedback("");
+      return;
+    }
     setSaving(true);
     setError("");
     setFeedback("");
@@ -210,8 +229,9 @@ export function StudentBodyCheckPage({
     );
   }
 
+  const hasSleepTimeInput = Boolean(form.sleepStartTime || form.wakeTime);
   const sleepMinutes =
-    form.sleepStartTime && form.wakeTime
+    isValidClockInput(form.sleepStartTime) && isValidClockInput(form.wakeTime)
       ? (() => {
           const [sh, sm] = form.sleepStartTime.split(":").map(Number);
           const [wh, wm] = form.wakeTime.split(":").map(Number);
@@ -219,7 +239,9 @@ export function StudentBodyCheckPage({
           if (mins <= 0) mins += 24 * 60;
           return mins;
         })()
-      : (selectedDay?.sleepDurationMinutes ?? null);
+      : hasSleepTimeInput
+        ? null
+        : (selectedDay?.sleepDurationMinutes ?? null);
 
   const weekPhotos = (cycle.photos || []).filter((p) => p.weekNumber === selectedDay?.weekNumber);
 
@@ -234,7 +256,11 @@ export function StudentBodyCheckPage({
           </p>
         </header>
 
-        {error ? <div className={styles.alertErr}>{error}</div> : null}
+        {error ? (
+          <div className={styles.alertErr} role="alert">
+            {error}
+          </div>
+        ) : null}
         {feedback ? <div className={styles.alertOk}>{feedback}</div> : null}
 
         <Card>
@@ -303,26 +329,43 @@ export function StudentBodyCheckPage({
         <Card>
           <div className={styles.stackTight}>
             <strong>خواب</strong>
-            <p className={styles.muted}>
-              ساعت‌ها ۲۴ساعته هستند و AM/PM جدا ندارند؛ خواب ۱۰ شب = ۲۲:۰۰ و بیداری ۷ صبح = ۰۷:۰۰.
+            <p className={styles.muted} id="bc-time-help">
+              ساعت را مستقیم با قالب ساعت:دقیقه وارد کنید؛ مثلاً ۲۲:۰۰ برای ۱۰ شب و ۰۷:۰۰ برای ۷
+              صبح. این ورودی AM/PM ندارد.
             </p>
             <div className={styles.formGrid}>
               <FormField htmlFor="bc-sleep-start" label="ساعت خواب">
                 <Input
+                  autoComplete="off"
                   disabled={!editable}
+                  dir="ltr"
                   id="bc-sleep-start"
-                  onChange={(e) => setForm((f) => ({ ...f, sleepStartTime: e.target.value }))}
-                  type="time"
+                  inputMode="text"
+                  maxLength={5}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, sleepStartTime: normalizeClockInput(e.target.value) }))
+                  }
+                  placeholder="مثلاً ۲۲:۰۰"
+                  type="text"
                   value={form.sleepStartTime}
+                  aria-describedby="bc-time-help"
                 />
               </FormField>
               <FormField htmlFor="bc-wake" label="ساعت بیداری">
                 <Input
+                  autoComplete="off"
                   disabled={!editable}
+                  dir="ltr"
                   id="bc-wake"
-                  onChange={(e) => setForm((f) => ({ ...f, wakeTime: e.target.value }))}
-                  type="time"
+                  inputMode="text"
+                  maxLength={5}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, wakeTime: normalizeClockInput(e.target.value) }))
+                  }
+                  placeholder="مثلاً ۰۷:۰۰"
+                  type="text"
                   value={form.wakeTime}
+                  aria-describedby="bc-time-help"
                 />
               </FormField>
               <div>

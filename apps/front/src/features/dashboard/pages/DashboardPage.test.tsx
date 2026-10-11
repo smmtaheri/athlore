@@ -67,13 +67,10 @@ describe("Coach body-check dashboard", () => {
 
     expect(screen.getByText("نیاز به پیگیری")).toBeInTheDocument();
     expect(screen.getByText("ثبت کامل امروز")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "از 3 شاگرد دارای دوره فعال، 2 نفر امروز بادی‌چک را ثبت کرده‌اند و 1 نفر هنوز ثبت نکرده‌اند."
-      )
-    ).toBeInTheDocument();
+    expect(screen.getByText("3 شاگرد")).toBeInTheDocument();
+    expect(screen.getByText("1 ثبت‌نشده")).toBeInTheDocument();
     expect(screen.getByText("3 کل")).toBeInTheDocument();
-    expect(screen.getByText("2 ثبت‌شده")).toBeInTheDocument();
+    expect(screen.getAllByText("2 ثبت‌شده").length).toBeGreaterThan(0);
     expect(screen.getByText("1 ثبت نشده")).toBeInTheDocument();
     expect(screen.getByText("1 ناقص")).toBeInTheDocument();
     expect(screen.getByText("1 کامل")).toBeInTheDocument();
@@ -200,8 +197,8 @@ describe("Coach monthly visit dashboard", () => {
 
     expect(screen.getByText("پیگیری ویزیت ماهانه")).toBeInTheDocument();
     expect(screen.getByText("1 نزدیک موعد")).toBeInTheDocument();
-    expect(screen.getByText("2 ارسال‌شده")).toBeInTheDocument();
-    expect(screen.getByText("1 پاسخ‌داده")).toBeInTheDocument();
+    expect(screen.getAllByText("2 ارسال‌شده").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("1 پاسخ‌داده").length).toBeGreaterThan(0);
     expect(screen.getByText("شاگرد ارسال‌نشده")).toBeInTheDocument();
     expect(screen.getByText("شاگرد ارسال‌شده")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /شاگرد ارسال‌نشده/ })).toHaveAttribute(
@@ -287,9 +284,9 @@ describe("Coach dashboard layout", () => {
       </MemoryRouter>
     );
 
-    const metricsCard = screen.getByText("کل شاگردها");
+    const metricsCard = screen.getByText("شاگردها", { selector: "strong" });
     const quickAction = screen.getByRole("button", { name: "افزودن شاگرد" });
-    const followUps = screen.getByText("کارهای امروز");
+    const followUps = screen.getByText("نیازمند اقدام");
     const monthlyVisits = screen.getByText("پیگیری ویزیت ماهانه");
     const bodyCheckToday = screen.getByText("پیگیری بادی‌چک امروز");
     const cycleStatus = screen.getByText("وضعیت دوره‌های بادی‌چک");

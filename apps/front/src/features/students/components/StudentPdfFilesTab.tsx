@@ -239,7 +239,7 @@ export function StudentPdfFilesTab({
   }
 
   return (
-    <div className={styles.tabContentStack}>
+    <div className={styles.tabContentStack} data-testid="student-pdf-files-tab">
       {feedback ? (
         <div className={`${styles.alert} ${styles.alertSuccess}`} role="status">
           {feedback}

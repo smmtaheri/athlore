@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router";
@@ -126,10 +126,10 @@ describe("StudentProfilePage", () => {
       "true"
     );
 
-    await user.click(screen.getByRole("tab", { name: "برنامه ها" }));
+    await user.click(screen.getByRole("tab", { name: "برنامه‌ها و فایل‌ها" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("tab", { name: "برنامه ها" })).toHaveAttribute(
+      expect(screen.getByRole("tab", { name: "برنامه‌ها و فایل‌ها" })).toHaveAttribute(
         "aria-selected",
         "true"
       );
@@ -367,12 +367,14 @@ describe("StudentProfilePage", () => {
   it("renders PDF files with compact icon actions", async () => {
     renderProfile("/students/mohammad-taheri/pdf-files");
 
-    expect(await screen.findAllByText("فایل های PDF")).not.toHaveLength(0);
+    expect(await screen.findAllByText("فایل‌های تحویل‌شده")).not.toHaveLength(0);
     expect(await screen.findAllByText("برنامه_کامل_v1.2_محمد_طاهری.pdf")).not.toHaveLength(0);
     expect(await screen.findAllByText("در حال ساخت")).not.toHaveLength(0);
     expect(await screen.findAllByText("خطا")).not.toHaveLength(0);
 
-    expect(screen.queryByRole("button", { name: "عملیات" })).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("student-pdf-files-tab")).queryByRole("button", { name: "عملیات" })
+    ).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "مشاهده PDF" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "دانلود PDF" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "حذف PDF" }).length).toBeGreaterThan(0);
@@ -394,11 +396,12 @@ describe("StudentProfilePage", () => {
 
     await screen.findAllByText("برنامه_کامل_v1.3_محمد_طاهری.pdf");
 
-    const viewButtons = screen.getAllByRole("button", { name: "مشاهده PDF" });
-    const downloadButtons = screen.getAllByRole("button", { name: "دانلود PDF" });
+    const pdfFilesTab = within(screen.getByTestId("student-pdf-files-tab"));
+    const viewButtons = pdfFilesTab.getAllByRole("button", { name: "مشاهده PDF" });
+    const downloadButtons = pdfFilesTab.getAllByRole("button", { name: "دانلود PDF" });
 
     expect(viewButtons.some((button) => button.hasAttribute("disabled"))).toBe(true);
     expect(downloadButtons.some((button) => button.hasAttribute("disabled"))).toBe(true);
-    expect(screen.queryByRole("button", { name: "عملیات" })).not.toBeInTheDocument();
+    expect(pdfFilesTab.queryByRole("button", { name: "عملیات" })).not.toBeInTheDocument();
   });
 });

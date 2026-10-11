@@ -184,7 +184,9 @@ describe("Body Check UI", () => {
     await user.type(screen.getByLabelText("تاریخ شروع"), "۱۴۰۵/۱۳/۴۰");
     await user.click(screen.getByRole("button", { name: "ایجاد دوره" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("تاریخ شروع را به شکل شمسی");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "تاریخ شروع شمسی را به شکل سال/ماه/روز"
+    );
     expect(createCycle).not.toHaveBeenCalled();
   });
 
@@ -281,15 +283,33 @@ describe("Body Check UI", () => {
 
     expect(await screen.findByText(/مربی هنوز ثبت ریز وعده‌ها را/)).toBeInTheDocument();
     expect(
-      screen.getByText(/ساعت‌ها ۲۴ساعته هستند.*خواب ۱۰ شب = ۲۲:۰۰ و بیداری ۷ صبح = ۰۷:۰۰/)
+      screen.getByText(/قالب ساعت:دقیقه.*۲۲:۰۰ برای ۱۰ شب و ۰۷:۰۰ برای ۷ صبح/)
     ).toBeInTheDocument();
     const futureChip = screen.getByRole("button", { name: "30" });
     expect(futureChip).toBeDisabled();
 
     await user.clear(screen.getByLabelText(/وزن واقعی/));
     await user.type(screen.getByLabelText(/وزن واقعی/), "84.2");
+    const sleepStart = screen.getByLabelText("ساعت خواب");
+    const wakeTime = screen.getByLabelText("ساعت بیداری");
+    expect(sleepStart).toHaveAttribute("type", "text");
+    expect(sleepStart).toHaveAttribute("inputmode", "text");
+
+    await user.type(sleepStart, "۲۵:۰۰");
+    await user.type(wakeTime, "۰۷:۰۰");
     await user.click(screen.getByRole("button", { name: "ذخیره این روز" }));
-    expect(saved).toMatchObject({ actualWeightKg: 84.2 });
+    expect(await screen.findByRole("alert")).toHaveTextContent("به شکل ۲۴ساعته");
+    expect(saved).toBeNull();
+
+    await user.clear(sleepStart);
+    await user.type(sleepStart, "۲۲:۰۰");
+    expect(screen.getByText("9 ساعت")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "ذخیره این روز" }));
+    expect(saved).toMatchObject({
+      actualWeightKg: 84.2,
+      sleepStartTime: "22:00:00",
+      wakeTime: "07:00:00"
+    });
   });
 
   it("renders coach report with missing-day denominator", async () => {
