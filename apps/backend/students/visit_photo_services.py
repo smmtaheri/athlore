@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Sum
 from django.utils import timezone
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
 from common.exceptions import ConflictError
 from students.models import StagedVisitPhoto, Visit, VisitPhoto
@@ -95,7 +95,10 @@ def validate_visit_photo_file(uploaded_file):
         image.verify()
     except ValidationError:
         raise
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
+    except Image.DecompressionBombError as exc:
+        raise ValidationError({"file": ["ابعاد عکس بیش از حد مجاز است."]}) from exc
+    except Exception as exc:
+        # Pillow raises different parser exceptions for malformed/truncated files.
         raise ValidationError({"file": ["فایل انتخاب‌شده یک تصویر معتبر نیست."]}) from exc
 
     image_type = ALLOWED_IMAGE_TYPES.get(image_format or "")

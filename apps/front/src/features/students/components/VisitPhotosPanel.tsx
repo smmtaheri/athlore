@@ -197,7 +197,10 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
         ...current,
         [pose]:
           uploadError instanceof ApiError
-            ? uploadError.message
+            ? (uploadError.fieldErrors.file?.[0] ??
+              (uploadError.status >= 500
+                ? "سرور نتوانست عکس را پردازش کند؛ یک فایل JPG، PNG یا WebP معتبر انتخاب کنید و دوباره تلاش کنید."
+                : uploadError.message))
             : uploadError instanceof Error && uploadError.message
               ? uploadError.message
               : "آپلود این عکس انجام نشد؛ دوباره تلاش کنید."

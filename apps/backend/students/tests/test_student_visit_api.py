@@ -544,6 +544,26 @@ class StudentVisitApiTests(TestCase):
             self.assertTrue(Path(photo.file.path).exists())
             self.assertEqual(StagedVisitPhoto.objects.filter(session_id=session_id).count(), 0)
 
+    def test_corrupt_staged_photo_returns_validation_error_instead_of_server_error(self):
+        session_id = str(uuid4())
+        staging_path = f"/api/v1/students/{self.student.id}/visits/photo-staging/"
+        valid_png = self._visit_photo().read()
+        corrupt_png = SimpleUploadedFile("corrupt.png", valid_png[:52], content_type="image/png")
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.coach_client.post(
+                staging_path,
+                {"file": corrupt_png, "pose": "front", "session_id": session_id},
+                format="multipart",
+            )
+
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertEqual(
+            response.data["error"]["details"]["file"],
+            ["فایل انتخاب‌شده یک تصویر معتبر نیست."],
+        )
+        self.assertFalse(StagedVisitPhoto.objects.filter(session_id=session_id).exists())
+
     def test_staged_photo_is_owned_and_loses_pose_race_without_blocking_visit(self):
         session_id = str(uuid4())
         with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):

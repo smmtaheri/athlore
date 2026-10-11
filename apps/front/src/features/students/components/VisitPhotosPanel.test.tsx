@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiDownload, apiRequest, apiUploadFormData } from "../../../shared/api/client";
+import { ApiError } from "../../../shared/api/errors";
 import { VisitPhotosPanel } from "./VisitPhotosPanel";
 
 vi.mock("../../../shared/api/client", () => ({
@@ -91,5 +92,24 @@ describe("VisitPhotosPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "تلاش دوباره برای آپلود" }));
     await waitFor(() => expect(apiUploadFormData).toHaveBeenCalledTimes(2));
     expect(await screen.findByText("آماده ثبت")).toBeTruthy();
+  });
+
+  it("shows the file-specific validation message for an invalid image", async () => {
+    vi.mocked(apiUploadFormData).mockRejectedValueOnce(
+      new ApiError({
+        code: "validation_error",
+        message: "ورودی نامعتبر است.",
+        status: 400,
+        details: { file: ["فایل انتخاب‌شده یک تصویر معتبر نیست."] }
+      })
+    );
+
+    render(<VisitPhotosPanel audience="coach" canUpload studentId="student-1" visitId={null} />);
+    fireEvent.change(screen.getByLabelText("انتخاب عکس برای پوز جلو"), {
+      target: { files: [new File(["broken"], "broken.png", { type: "image/png" })] }
+    });
+
+    expect(await screen.findByText("فایل انتخاب‌شده یک تصویر معتبر نیست.")).toBeTruthy();
+    expect(screen.getByText("آپلود ناموفق")).toBeTruthy();
   });
 });
