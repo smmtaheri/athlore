@@ -280,6 +280,9 @@ describe("Body Check UI", () => {
     );
 
     expect(await screen.findByText(/مربی هنوز ثبت ریز وعده‌ها را/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/ساعت‌ها ۲۴ساعته هستند.*خواب ۱۰ شب = ۲۲:۰۰ و بیداری ۷ صبح = ۰۷:۰۰/)
+    ).toBeInTheDocument();
     const futureChip = screen.getByRole("button", { name: "30" });
     expect(futureChip).toBeDisabled();
 

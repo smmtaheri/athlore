@@ -303,6 +303,9 @@ export function StudentBodyCheckPage({
         <Card>
           <div className={styles.stackTight}>
             <strong>خواب</strong>
+            <p className={styles.muted}>
+              ساعت‌ها ۲۴ساعته هستند و AM/PM جدا ندارند؛ خواب ۱۰ شب = ۲۲:۰۰ و بیداری ۷ صبح = ۰۷:۰۰.
+            </p>
             <div className={styles.formGrid}>
               <FormField htmlFor="bc-sleep-start" label="ساعت خواب">
                 <Input
