@@ -16,7 +16,7 @@ DEFAULT_SUPPLEMENT_DISCLAIMER = (
 
 
 class ExerciseAlias(models.Model):
-    """Alternative name(s) a coach uses for a canonical exercise bank entry."""
+    """Alternative name(s) a coach uses for a canonical catalog exercise."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     coach = models.ForeignKey(
@@ -35,7 +35,7 @@ class ExerciseAlias(models.Model):
     class Meta:
         ordering = ["alias"]
         constraints = [
-            # Aliases are unique per coach across the whole exercise bank, not just
+            # Aliases are unique per coach across the whole exercise catalog, not just
             # within a single exercise, so two different exercises can never share
             # the same alias for one coach.
             models.UniqueConstraint(

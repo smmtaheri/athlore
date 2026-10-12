@@ -78,40 +78,6 @@ MIN_RULES = {
             "sort_order": 0,
         }
     ],
-    "exercise_bank": [
-        {
-            "group": "سینه",
-            "favorite_exercises": ["پرس سینه هالتر", "پرس بالا سینه دمبل", "کراس اور"],
-            "beginner_friendly": ["پرس سینه دستگاه"],
-            "professional_friendly": ["پرس سینه هالتر"],
-            "forbidden_exercises": [],
-            "sort_order": 0,
-        },
-        {
-            "group": "زیربغل",
-            "favorite_exercises": ["لت سیم کش", "روئینگ هالتر"],
-            "beginner_friendly": ["لت سیم کش"],
-            "professional_friendly": ["بارفیکس"],
-            "forbidden_exercises": ["شراگ سنگین برای گردن درد"],
-            "sort_order": 1,
-        },
-        {
-            "group": "پا",
-            "favorite_exercises": ["اسکوات", "پرس پا"],
-            "beginner_friendly": ["پرس پا"],
-            "professional_friendly": ["اسکوات"],
-            "forbidden_exercises": [],
-            "sort_order": 2,
-        },
-        {
-            "group": "سرشانه",
-            "favorite_exercises": ["نشر جانب دمبل", "پرس سرشانه دستگاه"],
-            "beginner_friendly": ["نشر جانب دمبل"],
-            "professional_friendly": ["پرس سرشانه دستگاه"],
-            "forbidden_exercises": [],
-            "sort_order": 3,
-        },
-    ],
     "general_rules": {
         "extra_notes": "یادداشت عمومی",
         "items": [
@@ -151,6 +117,7 @@ class CoachRulesApiTests(APITestCase):
         self.assertEqual(res.data["templates"], [])
         self.assertEqual(res.data["levels"], [])
         self.assertIn("general_rules", res.data)
+        self.assertNotIn("exercise_bank", res.data)
 
     def test_put_aggregate_idempotent(self):
         h = auth_header(self.tokens_a)

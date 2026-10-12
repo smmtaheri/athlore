@@ -9,7 +9,6 @@ from django.test import TestCase
 from accounts.demo_fixtures import ARMAN_RULES
 from accounts.models import (
     CoachProfile,
-    ExerciseBankGroup,
     GeneralRule,
     InjuryRule,
     LevelRule,
@@ -70,16 +69,6 @@ PARTIAL_RULES = {
             "sort_order": 0,
         }
     ],
-    "exercise_bank": [
-        {
-            "group": "سینه",
-            "favorite_exercises": ["edited-favorite"],
-            "beginner_friendly": [],
-            "professional_friendly": [],
-            "forbidden_exercises": [],
-            "sort_order": 0,
-        }
-    ],
     "general_rules": {
         "extra_notes": "edited extra notes",
         "items": [
@@ -133,8 +122,6 @@ class SeedMissingRuleRowsTests(TestCase):
         chest_mp = MusclePriority.objects.get(coach=coach, muscle="سینه")
         self.assertEqual(chest_mp.notes, "edited muscle notes")
         self.assertEqual(chest_mp.extra_exercises, 9)
-        bank = ExerciseBankGroup.objects.get(coach=coach, group_name="سینه")
-        self.assertEqual(bank.favorite_exercises, ["edited-favorite"])
         general = GeneralRule.objects.get(coach=coach, title="Compound اول جلسه")
         self.assertEqual(general.description, "edited description")
         rule_set.refresh_from_db()
@@ -166,14 +153,6 @@ class SeedMissingRuleRowsTests(TestCase):
         self.assertTrue(expected_muscles.issubset(actual_muscles))
         self.assertIn("زیربغل", actual_muscles)
         self.assertIn("پا", actual_muscles)
-
-        expected_bank = {
-            g.get("group") or g.get("group_name") for g in ARMAN_RULES["exercise_bank"]
-        }
-        actual_bank = set(
-            ExerciseBankGroup.objects.filter(coach=coach).values_list("group_name", flat=True)
-        )
-        self.assertTrue(expected_bank.issubset(actual_bank))
 
         expected_general = {i["title"] for i in ARMAN_RULES["general_rules"]["items"]}
         actual_general = set(
@@ -217,7 +196,6 @@ class SeedMissingRuleRowsTests(TestCase):
             "levels": LevelRule.objects.filter(coach=coach).count(),
             "injuries": InjuryRule.objects.filter(coach=coach).count(),
             "muscles": MusclePriority.objects.filter(coach=coach).count(),
-            "bank": ExerciseBankGroup.objects.filter(coach=coach).count(),
             "general": GeneralRule.objects.filter(coach=coach).count(),
             "assessment": CoachVisitFormTemplate.objects.filter(coach=coach).count(),
         }
@@ -228,7 +206,6 @@ class SeedMissingRuleRowsTests(TestCase):
         self.assertEqual(LevelRule.objects.filter(coach=coach).count(), counts["levels"])
         self.assertEqual(InjuryRule.objects.filter(coach=coach).count(), counts["injuries"])
         self.assertEqual(MusclePriority.objects.filter(coach=coach).count(), counts["muscles"])
-        self.assertEqual(ExerciseBankGroup.objects.filter(coach=coach).count(), counts["bank"])
         self.assertEqual(GeneralRule.objects.filter(coach=coach).count(), counts["general"])
         self.assertEqual(
             CoachVisitFormTemplate.objects.filter(coach=coach).count(), counts["assessment"]
@@ -251,7 +228,6 @@ class SeedMissingRuleRowsTests(TestCase):
                 "levels": PARTIAL_RULES["levels"],
                 "injuries": [],
                 "muscle_priorities": [],
-                "exercise_bank": [],
                 "general_rules": {"extra_notes": "", "items": []},
             },
             partial=False,

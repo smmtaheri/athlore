@@ -34,7 +34,7 @@ describe("API programs repository", () => {
 
   it("sends structured target region and exercise count to the generator", async () => {
     const input: ProgramGenerationInput = {
-      applyExerciseBank: true,
+      applyExerciseCatalog: true,
       applyGeneralRules: true,
       applyInjuryRules: true,
       applyLevelRules: true,

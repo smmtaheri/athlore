@@ -183,6 +183,20 @@ describe("StructuredCatalogSection", () => {
     expect(screen.getByDisplayValue("پرس بالاسینه دمبل")).toBeInTheDocument();
   });
 
+  it("shows a clear success message after saving a movement", async () => {
+    const user = userEvent.setup();
+    render(<StructuredCatalogSection />);
+
+    const exerciseRow = (await screen.findAllByText("پرس بالاسینه دمبل"))
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    expect(exerciseRow).not.toBeNull();
+    await user.click(within(exerciseRow as HTMLElement).getByRole("button", { name: "ویرایش" }));
+    await user.click(screen.getByRole("button", { name: "ذخیره حرکت" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("حرکت ذخیره شد.");
+  });
+
   it("shows the shared muscle and region taxonomy as distinct, parent-linked lists", async () => {
     const user = userEvent.setup();
     render(<StructuredCatalogSection />);

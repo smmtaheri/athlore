@@ -74,7 +74,6 @@ MIN_RULES = {
         }
     ],
     "muscle_priorities": [],
-    "exercise_bank": [],
     "general_rules": {"extra_notes": "", "items": []},
 }
 

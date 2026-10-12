@@ -55,15 +55,6 @@ export interface MusclePriorityRule {
   orderChange: string;
 }
 
-export interface ExerciseBankGroup {
-  beginnerFriendly: string[];
-  favoriteExercises: string[];
-  forbiddenExercises: string[];
-  group: string;
-  id: string;
-  professionalFriendly: string[];
-}
-
 export interface StructuredExerciseTarget {
   muscle: string;
   muscleKey: string;
@@ -146,7 +137,6 @@ export interface SupplementTemplateSummary {
 }
 
 export interface CoachRules {
-  exerciseBank: ExerciseBankGroup[];
   exerciseCatalog?: StructuredExercise[];
   generalRules: GeneralCoachRules;
   injuries: InjuryRule[];

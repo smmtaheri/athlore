@@ -104,7 +104,14 @@ function createTrainingDays(
     const secondMuscle = muscles[(index + 1) % muscles.length] ?? "زیربغل";
     const targetMuscles = unique([mainMuscle, secondMuscle]);
     return {
-      exercises: createExercises(targetMuscles, rules, student, input.level, index),
+      exercises: createExercises(
+        targetMuscles,
+        rules,
+        student,
+        input.level,
+        input.applyExerciseCatalog,
+        index
+      ),
       id: `day-${index + 1}`,
       notes:
         index === 0
@@ -122,6 +129,7 @@ function createExercises(
   rules: CoachRules,
   student: Student,
   level: string,
+  applyExerciseCatalog: boolean,
   dayIndex: number
 ): TrainingExercise[] {
   const forbidden = new Set([
@@ -136,12 +144,22 @@ function createExercises(
   const levelRule = rules.levels.find((item) => item.id === level);
   const baseSetCount = level === "advanced" ? 4 : level === "intermediate" ? 3 : 2;
   const exercises = muscles.flatMap((muscle) => {
-    const bank = rules.exerciseBank.find((item) => muscle.includes(item.group));
-    const names = [
-      ...(bank?.favoriteExercises ?? fallbackMainExercises[muscle] ?? []),
-      ...(bank?.beginnerFriendly ?? []),
-      ...(fallbackMainExercises[muscle] ?? [])
-    ];
+    const catalogNames = applyExerciseCatalog
+      ? (rules.exerciseCatalog ?? [])
+          .filter(
+            (exercise) =>
+              exercise.isActive &&
+              !exercise.isArchived &&
+              !exercise.isProhibited &&
+              (!exercise.levels.length || exercise.levels.includes(level)) &&
+              exercise.targets.some(
+                (target) => target.role === "primary" && target.muscle === muscle
+              )
+          )
+          .sort((left, right) => right.priority - left.priority)
+          .map((exercise) => exercise.name)
+      : [];
+    const names = catalogNames.length ? catalogNames : fallbackMainExercises[muscle] ?? [];
     return unique(names)
       .filter((name) => !forbidden.has(name))
       .slice(0, muscle === muscles[0] ? 3 : 2)

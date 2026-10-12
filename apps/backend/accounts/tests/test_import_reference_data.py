@@ -11,24 +11,12 @@ from accounts.models import (
     CoachSupplementTemplate,
     Exercise,
     ExerciseAlias,
-    ExerciseBankGroup,
     ExerciseHistoricalUsage,
 )
 from accounts.services import create_coach_account
 
 DATASET = "arman"
 COACH_EMAIL = "arman-import@example.com"
-
-EXPECTED_CATEGORIES = {
-    "سرشانه و کتف",
-    "سینه",
-    "زیربغل",
-    "جلوبازو",
-    "پشت‌بازو",
-    "پا",
-    "شکم و اصلاحی",
-}
-
 
 def _create_coach(email: str, phone: str) -> CoachProfile:
     _, coach = create_coach_account(
@@ -78,14 +66,12 @@ class ImportReferenceDataCommandTests(TestCase):
         output = self._run(dry_run=True)
         self.assertIn("Exercises: created=76", output)
         self.assertIn("Aliases: created=117", output)
-        self.assertIn("Exercise bank groups: created=7", output)
         self.assertIn("Nutrition templates: created=3", output)
         self.assertIn("Supplement templates: created=1", output)
         self.assertIn("Dry-run: no changes were written.", output)
 
         self.assertEqual(Exercise.objects.filter(coach=self.coach).count(), 0)
         self.assertEqual(ExerciseAlias.objects.filter(coach=self.coach).count(), 0)
-        self.assertEqual(ExerciseBankGroup.objects.filter(coach=self.coach).count(), 0)
         self.assertEqual(ExerciseHistoricalUsage.objects.filter(coach=self.coach).count(), 0)
         self.assertEqual(CoachNutritionTemplate.objects.filter(coach=self.coach).count(), 0)
         self.assertEqual(CoachSupplementTemplate.objects.filter(coach=self.coach).count(), 0)
@@ -100,7 +86,6 @@ class ImportReferenceDataCommandTests(TestCase):
         exercise_count = Exercise.objects.filter(coach=self.coach).count()
         alias_count = ExerciseAlias.objects.filter(coach=self.coach).count()
         historical_count = ExerciseHistoricalUsage.objects.filter(coach=self.coach).count()
-        bank_group_count = ExerciseBankGroup.objects.filter(coach=self.coach).count()
         self.assertGreater(exercise_count, 0)
         self.assertGreater(alias_count, 0)
         self.assertGreater(historical_count, 0)
@@ -127,9 +112,6 @@ class ImportReferenceDataCommandTests(TestCase):
         self.assertEqual(ExerciseAlias.objects.filter(coach=self.coach).count(), alias_count)
         self.assertEqual(
             ExerciseHistoricalUsage.objects.filter(coach=self.coach).count(), historical_count
-        )
-        self.assertEqual(
-            ExerciseBankGroup.objects.filter(coach=self.coach).count(), bank_group_count
         )
         self.assertEqual(CoachNutritionTemplate.objects.filter(coach=self.coach).count(), 3)
         self.assertEqual(CoachSupplementTemplate.objects.filter(coach=self.coach).count(), 1)
@@ -174,21 +156,9 @@ class ImportReferenceDataCommandTests(TestCase):
         self.assertGreater(Exercise.objects.filter(coach=self.coach).count(), 0)
         self.assertEqual(Exercise.objects.filter(coach=other_coach).count(), 0)
         self.assertEqual(ExerciseAlias.objects.filter(coach=other_coach).count(), 0)
-        self.assertEqual(ExerciseBankGroup.objects.filter(coach=other_coach).count(), 0)
         self.assertEqual(ExerciseHistoricalUsage.objects.filter(coach=other_coach).count(), 0)
         self.assertEqual(CoachNutritionTemplate.objects.filter(coach=other_coach).count(), 0)
         self.assertEqual(CoachSupplementTemplate.objects.filter(coach=other_coach).count(), 0)
-
-    # -- bank groups --------------------------------------------------------------------
-
-    def test_bank_groups_created_for_every_category(self):
-        self._run()
-        actual = set(
-            ExerciseBankGroup.objects.filter(coach=self.coach).values_list("group_name", flat=True)
-        )
-        self.assertEqual(actual, EXPECTED_CATEGORIES)
-        chest = ExerciseBankGroup.objects.get(coach=self.coach, group_name="سینه")
-        self.assertIn("پرس سینه تخت با هالتر", chest.favorite_exercises)
 
     # -- replace flag --------------------------------------------------------------------
 

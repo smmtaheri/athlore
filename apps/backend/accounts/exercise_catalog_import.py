@@ -21,7 +21,6 @@ from accounts.models import (
     CoachProfile,
     EquipmentTaxonomy,
     Exercise,
-    ExerciseBankGroup,
     ExerciseEquipment,
     ExerciseMuscleTarget,
     ExerciseSuitableLevel,
@@ -35,14 +34,6 @@ SCHEMA_VERSION = 1
 EXTERNAL_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,159}$")
 LEVELS = {"beginner", "intermediate", "advanced"}
 TARGET_ROLES = {ExerciseMuscleTarget.Role.PRIMARY, ExerciseMuscleTarget.Role.SECONDARY}
-GROUP_LIST_FIELDS = (
-    "favorite_exercises",
-    "beginner_friendly",
-    "professional_friendly",
-    "forbidden_exercises",
-)
-
-
 class CatalogImportError(ValueError):
     """A validation or safety error that must prevent all writes."""
 
@@ -285,7 +276,6 @@ def prepare_import(
             if row is not None
         }
         candidate_deletions = [row for row in candidates if row.id not in keep_ids]
-        errors.extend(_validate_group_cleanup(coach, candidate_deletions))
 
     if errors:
         raise CatalogImportError(errors)
@@ -360,14 +350,6 @@ def prepare_import(
             for row in candidate_deletions
         ],
     }
-    if replacement_muscle is not None:
-        report["bank_group_cleanup"] = _preview_bank_group_cleanup(
-            coach,
-            replacement_muscle,
-            {item["name_fa"] for item in items},
-        )
-    else:
-        report["bank_group_cleanup"] = []
     return ImportPlan(
         coach,
         document,
@@ -380,17 +362,6 @@ def prepare_import(
 
 def apply_import(plan: ImportPlan) -> dict[str, Any]:
     with transaction.atomic():
-        _remove_deleted_exercises_from_groups(plan.coach, plan.deletions)
-        if plan.replace_primary_muscle_key:
-            replacement_muscle = MuscleTaxonomy.objects.get(
-                key=plan.replace_primary_muscle_key,
-                is_active=True,
-            )
-            _apply_bank_group_cleanup(
-                plan.coach,
-                replacement_muscle,
-                {item["name_fa"] for item in plan.items},
-            )
         for exercise in plan.deletions:
             exercise.delete()
 
@@ -556,81 +527,6 @@ def _legacy_and_structured_primary_exercises(
     )
 
 
-def _validate_group_cleanup(coach: CoachProfile, deletions: list[Exercise]) -> list[str]:
-    names = {row.name for row in deletions}
-    if not names:
-        return []
-    deletion_ids = {row.id for row in deletions}
-    errors = []
-    for group in ExerciseBankGroup.objects.filter(coach=coach):
-        for field in GROUP_LIST_FIELDS:
-            referenced = set(getattr(group, field) or []) & names
-            for name in referenced:
-                if Exercise.objects.filter(coach=coach, name=name).exclude(id__in=deletion_ids).exists():
-                    errors.append(
-                        f"Cannot safely remove {name!r} from bank group {group.group_name!r}: "
-                        "the same name belongs to another exercise."
-                    )
-    return errors
-
-
-def _groups_for_muscle(
-    coach: CoachProfile,
-    muscle: MuscleTaxonomy,
-) -> list[ExerciseBankGroup]:
-    """Return only the coach-owned legacy bank groups for one exact muscle."""
-    return list(
-        ExerciseBankGroup.objects.filter(
-            coach=coach,
-            group_name=muscle.name,
-        )
-    )
-
-
-def _preview_bank_group_cleanup(
-    coach: CoachProfile,
-    muscle: MuscleTaxonomy,
-    allowed_names: set[str],
-) -> list[dict[str, Any]]:
-    cleanup: list[dict[str, Any]] = []
-    for group in _groups_for_muscle(coach, muscle):
-        fields: dict[str, dict[str, list[str]]] = {}
-        for field in GROUP_LIST_FIELDS:
-            values = list(getattr(group, field) or [])
-            removed = [value for value in values if value not in allowed_names]
-            if removed:
-                fields[field] = {
-                    "removed": removed,
-                    "retained": [value for value in values if value in allowed_names],
-                }
-        if fields:
-            cleanup.append(
-                {
-                    "id": str(group.id),
-                    "group": group.group_name,
-                    "fields": fields,
-                }
-            )
-    return cleanup
-
-
-def _apply_bank_group_cleanup(
-    coach: CoachProfile,
-    muscle: MuscleTaxonomy,
-    allowed_names: set[str],
-) -> None:
-    for group in _groups_for_muscle(coach, muscle):
-        changed = False
-        for field in GROUP_LIST_FIELDS:
-            values = list(getattr(group, field) or [])
-            filtered = [value for value in values if value in allowed_names]
-            if filtered != values:
-                setattr(group, field, filtered)
-                changed = True
-        if changed:
-            group.save(update_fields=[*GROUP_LIST_FIELDS, "updated_at"])
-
-
 def _exercise_matches(exercise: Exercise, item: dict[str, Any]) -> bool:
     if any(
         getattr(exercise, field) != expected
@@ -756,24 +652,6 @@ def _write_exercise(exercise: Exercise, item: dict[str, Any], source: dict[str, 
     preference.suitable_levels = list(item["levels"])
     preference.notes = item["coach_notes"]
     preference.save()
-
-
-def _remove_deleted_exercises_from_groups(
-    coach: CoachProfile, deletions: list[Exercise]
-) -> None:
-    names = {row.name for row in deletions}
-    if not names:
-        return
-    for group in ExerciseBankGroup.objects.filter(coach=coach):
-        changed = False
-        for field in GROUP_LIST_FIELDS:
-            values = list(getattr(group, field) or [])
-            filtered = [value for value in values if value not in names]
-            if filtered != values:
-                setattr(group, field, filtered)
-                changed = True
-        if changed:
-            group.save(update_fields=[*GROUP_LIST_FIELDS, "updated_at"])
 
 
 def _verify_apply(plan: ImportPlan) -> None:

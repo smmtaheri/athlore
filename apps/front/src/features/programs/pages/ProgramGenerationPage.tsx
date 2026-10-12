@@ -140,7 +140,7 @@ export function ProgramGenerationPage({
   const navigate = useNavigate();
   const initialStudentId = searchParams.get("studentId") ?? "";
   const [form, setForm] = useState<ProgramGenerationInput>({
-    applyExerciseBank: true,
+    applyExerciseCatalog: true,
     applyGeneralRules: true,
     applyInjuryRules: true,
     applyLevelRules: true,
@@ -972,9 +972,9 @@ export function ProgramGenerationPage({
                   onChange={(event) => updateForm("applyMusclePriorityRules", event.target.checked)}
                 />
                 <Checkbox
-                  checked={form.applyExerciseBank}
-                  label="بانک حرکات"
-                  onChange={(event) => updateForm("applyExerciseBank", event.target.checked)}
+                  checked={form.applyExerciseCatalog}
+                  label="کاتالوگ حرکات"
+                  onChange={(event) => updateForm("applyExerciseCatalog", event.target.checked)}
                 />
                 <Checkbox
                   checked={form.applyGeneralRules}

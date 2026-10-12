@@ -38,16 +38,6 @@ MIN_RULES = {
     "levels": [],
     "injuries": [],
     "muscle_priorities": [],
-    "exercise_bank": [
-        {
-            "group": "سینه",
-            "favorite_exercises": ["پرس سینه هالتر"],
-            "beginner_friendly": [],
-            "professional_friendly": [],
-            "forbidden_exercises": [],
-            "sort_order": 0,
-        }
-    ],
     "general_rules": {"extra_notes": "", "items": []},
 }
 
@@ -122,6 +112,7 @@ class DashboardApiTests(APITestCase):
             sleep_quality=Visit.Level.MEDIUM,
             stress_level=Visit.Level.MEDIUM,
             next_cycle_goal="ادامه حجم",
+            status=Visit.Status.FINALIZED,
         )
         # Other coach noise
         other = Student.objects.create(

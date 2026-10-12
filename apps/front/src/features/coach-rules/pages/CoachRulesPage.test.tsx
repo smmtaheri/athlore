@@ -30,7 +30,7 @@ describe("CoachRulesPage", () => {
     expect((await repository.get()).templates[0].name).toBe("فول بادی تست");
   });
 
-  it("edits injury rules and exercise bank", async () => {
+  it("edits injury rules and shows only the structured exercise catalog", async () => {
     const user = userEvent.setup();
     const repository = createCoachRulesRepository(window.localStorage);
     await repository.reset();
@@ -42,9 +42,9 @@ describe("CoachRulesPage", () => {
     );
 
     expect(await screen.findByDisplayValue("گردن درد")).toBeInTheDocument();
-    await user.click(screen.getByRole("tab", { name: "بانک حرکات" }));
-    expect(await screen.findAllByText("بانک حرکات")).not.toHaveLength(0);
-    expect(screen.getAllByDisplayValue(/پرس سینه هالتر/)).not.toHaveLength(0);
+    await user.click(screen.getByRole("tab", { name: "کاتالوگ حرکات" }));
+    expect((await screen.findAllByText("کاتالوگ حرکات")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("بانک حرکات متنی")).not.toBeInTheDocument();
   });
 
   it("shows read-only empty state when no nutrition/supplement templates are returned", async () => {

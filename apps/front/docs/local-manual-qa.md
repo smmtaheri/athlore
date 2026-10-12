@@ -167,7 +167,7 @@ Login: http://127.0.0.1:5173/login
 
 Seeded Coach A includes:
 
-- rules / templates / exercise bank
+- rules / templates / structured exercise catalog
 - student **محمد طاهری**
 - one monthly visit
 - a draft demo program titled **برنامه دمو محمد** (when generation succeeds)
@@ -215,7 +215,7 @@ Expected browser: Desktop Chrome/Chromium. Keep DevTools Console open.
 ### 5. Configure coach rules
 
 - Open `/coach-rules`
-- If empty, seed or add at least one active template + exercise bank group
+- If empty, seed or add at least one active template and structured exercise entry
 - Save
 - **Expected:** success feedback; reload keeps data
 - **Failure:** save error banner; Network 400

@@ -17,7 +17,7 @@ This repository is the Django / DRF API for Athlore.
 
 | App | Role |
 |---|---|
-| `accounts` | Coach profile, rules, templates, exercise bank, nutrition/supplement templates |
+| `accounts` | Coach profile, rules, templates, structured exercise catalog, nutrition/supplement templates |
 | `students` | Students, visits, measurements |
 | `programming` | Program aggregate, generation (`rules_v1`), versions |
 | `delivery` | PDF artifacts, share links, render |

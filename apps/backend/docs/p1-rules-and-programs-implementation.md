@@ -9,7 +9,7 @@
 
 ## Summary
 
-P1 moves coach rules, exercise bank, and the program aggregate (draft / finalize / new-version / duplicate / generate) out of Frontend-only localStorage into the Django backend under `/api/v1/`.
+P1 moves coach rules, the structured movement catalog, and the program aggregate (draft / finalize / new-version / duplicate / generate) out of Frontend-only localStorage into the Django backend under `/api/v1/`.
 
 No AI providers, no real PDF files, no dashboard aggregation, no Frontend wiring.
 
@@ -41,9 +41,8 @@ No AI providers, no real PDF files, no dashboard aggregation, no Frontend wiring
   - `LevelRule`
   - `InjuryRule`
   - `MusclePriority`
-  - `ExerciseBankGroup`
   - `GeneralRule`
-- `Exercise` (coach-owned bank)
+- `Exercise` (coach-owned structured movement catalog)
 - `CoachExercisePreference` (preferred / prohibited / suitable levels)
 
 ### `programming` (new app, migration `0001_p1_rules_and_programs`)
@@ -77,7 +76,7 @@ Legacy prototype models in `programs` are **not** used by `/api/v1/`.
 
 - Same normalized input → same exercise name selection / day split structure
 - Injury rules applied; neck injury excludes **پرس سرشانه سنگین** and **شراگ سنگین**
-- Preferred bank exercises favored; prohibited / bank-forbidden excluded
+- Preferred catalog exercises favored; prohibited exercises excluded
 - Weak / priority muscles receive extra sets (and optional extra exercises from muscle priority rules)
 - Template `split` titles respected; main compounds sorted early; abs late when general rule says so
 - Stores `GenerationRun.input_snapshot`, `output_snapshot`, `warnings`, `engine=rules_v1`

@@ -33,7 +33,6 @@ from accounts.models import (
     CoachSupplementTemplate,
     Exercise,
     ExerciseAlias,
-    ExerciseBankGroup,
     GeneralRule,
     InjuryRule,
     LevelRule,
@@ -261,7 +260,6 @@ class Command(BaseCommand):
             or rule_set.level_rules.exists()
             or rule_set.injury_rules.exists()
             or rule_set.muscle_priorities.exists()
-            or rule_set.exercise_bank_groups.exists()
             or rule_set.general_rules.exists()
         )
 
@@ -348,25 +346,6 @@ class Command(BaseCommand):
                 extra_sets=max(0, int(item.get("extra_sets") or 0)),
                 order_change=str(item.get("order_change") or ""),
                 notes=str(item.get("notes") or ""),
-                sort_order=int(item.get("sort_order") or 0),
-            )
-
-        # ExerciseBankGroup natural key: (coach, group_name)
-        existing_bank = set(
-            ExerciseBankGroup.objects.filter(coach=coach).values_list("group_name", flat=True)
-        )
-        for item in ARMAN_RULES.get("exercise_bank") or []:
-            group_name = str(item.get("group") or item.get("group_name") or "").strip()
-            if not group_name or group_name in existing_bank:
-                continue
-            ExerciseBankGroup.objects.create(
-                rule_set=rule_set,
-                coach=coach,
-                group_name=group_name,
-                favorite_exercises=list(item.get("favorite_exercises") or []),
-                beginner_friendly=list(item.get("beginner_friendly") or []),
-                professional_friendly=list(item.get("professional_friendly") or []),
-                forbidden_exercises=list(item.get("forbidden_exercises") or []),
                 sort_order=int(item.get("sort_order") or 0),
             )
 
@@ -753,7 +732,7 @@ class Command(BaseCommand):
                 "level": "intermediate",
                 "days_per_week": 4,
                 "duration_weeks": 4,
-                "apply_exercise_bank": True,
+                "apply_exercise_catalog": True,
                 "apply_injury_rules": True,
                 "apply_general_rules": True,
                 "apply_level_rules": True,

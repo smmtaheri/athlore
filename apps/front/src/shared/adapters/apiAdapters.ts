@@ -562,14 +562,6 @@ export function coachRulesFromApi(dto: Record<string, unknown>): CoachRules {
   const nutritionTemplates = dto.nutrition_templates as Record<string, unknown>[] | undefined;
   const supplementTemplates = dto.supplement_templates as Record<string, unknown>[] | undefined;
   return {
-    exerciseBank: ((dto.exercise_bank as Record<string, unknown>[]) || []).map((item) => ({
-      beginnerFriendly: asStringArray(item.beginner_friendly),
-      favoriteExercises: asStringArray(item.favorite_exercises),
-      forbiddenExercises: asStringArray(item.forbidden_exercises),
-      group: String(item.group ?? item.group_name ?? ""),
-      id: String(item.id ?? ""),
-      professionalFriendly: asStringArray(item.professional_friendly)
-    })),
     generalRules: {
       extraNotes: String(general.extra_notes ?? ""),
       items: ((general.items as Record<string, unknown>[]) || []).map((item) => ({
@@ -634,14 +626,6 @@ export function coachRulesFromApi(dto: Record<string, unknown>): CoachRules {
 
 export function coachRulesToApi(rules: CoachRules): Record<string, unknown> {
   return {
-    exercise_bank: rules.exerciseBank.map((item, index) => ({
-      beginner_friendly: item.beginnerFriendly,
-      favorite_exercises: item.favoriteExercises,
-      forbidden_exercises: item.forbiddenExercises,
-      group: item.group,
-      professional_friendly: item.professionalFriendly,
-      sort_order: index
-    })),
     general_rules: {
       extra_notes: rules.generalRules.extraNotes,
       items: rules.generalRules.items.map((item) => ({

@@ -234,6 +234,7 @@ export function StructuredCatalogSection() {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({ equipment: "", level: "", muscle: "", region: "" });
   const [feedback, setFeedback] = useState("");
+  const [isSavingExercise, setIsSavingExercise] = useState(false);
 
   const load = async () => {
     return Promise.all([
@@ -328,6 +329,8 @@ export function StructuredCatalogSection() {
   };
 
   const saveExercise = async () => {
+    setFeedback("");
+    setIsSavingExercise(true);
     try {
       const dto = await apiRequest<CatalogExercise>(
         editingId ? `/exercises/${editingId}/` : "/exercises/",
@@ -345,6 +348,8 @@ export function StructuredCatalogSection() {
       setFeedback("حرکت ذخیره شد.");
     } catch {
       setFeedback("ذخیره حرکت انجام نشد؛ اطلاعات ساختاریافته را بررسی کنید.");
+    } finally {
+      setIsSavingExercise(false);
     }
   };
 
@@ -456,6 +461,14 @@ export function StructuredCatalogSection() {
 
   return (
     <StackLike>
+      {feedback ? (
+        <div
+          className={feedback.includes("نشد") ? styles.alertError : styles.alertSuccess}
+          role="status"
+        >
+          {feedback}
+        </div>
+      ) : null}
       <Card className={styles.pageStack}>
         <div className={styles.ruleCardHeader}>
           <div>
@@ -628,7 +641,11 @@ export function StructuredCatalogSection() {
       <EditorDrawer
         footer={(requestClose) => (
           <>
-            <Button iconStart={<Save size={17} />} onClick={() => void saveExercise()}>
+            <Button
+              iconStart={<Save size={17} />}
+              isLoading={isSavingExercise}
+              onClick={() => void saveExercise()}
+            >
               ذخیره حرکت
             </Button>
             <Button onClick={requestClose} variant="secondary">
@@ -806,7 +823,6 @@ export function StructuredCatalogSection() {
           />
         </EditorDrawer>
       ) : null}
-      {feedback ? <div role="status">{feedback}</div> : null}
     </StackLike>
   );
 }

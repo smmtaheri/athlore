@@ -18,7 +18,6 @@ from accounts.models import (
     CoachSupplementTemplate,
     Exercise,
     ExerciseAlias,
-    ExerciseBankGroup,
     ExerciseHistoricalUsage,
     InjuryRule,
     LevelRule,
@@ -557,7 +556,7 @@ def _generate_document_body(
     apply_injury = bool(request.get("apply_injury_rules", True))
     apply_level = bool(request.get("apply_level_rules", True))
     apply_muscle = bool(request.get("apply_muscle_priority_rules", True))
-    apply_bank = bool(request.get("apply_exercise_bank", True))
+    apply_catalog = bool(request.get("apply_exercise_catalog", True))
     apply_general = bool(request.get("apply_general_rules", True))
 
     title = str(request.get("title") or f"برنامه {template.name}").strip()
@@ -576,7 +575,7 @@ def _generate_document_body(
             apply_injury=apply_injury,
             apply_level=apply_level,
             apply_muscle=apply_muscle,
-            apply_bank=apply_bank,
+            apply_catalog=apply_catalog,
             apply_general=apply_general,
             muscle_priorities_override=_as_str_list(request.get("muscle_priorities")),
             goals_override=str(request.get("goals") or ""),
@@ -714,7 +713,6 @@ def _generate_document_body(
         "excluded_due_to_equipment": training_evidence.get(
             "excluded_due_to_equipment", training_evidence.get("equipment_filters", [])
         ),
-        "selected_from_coach_bank": training_evidence.get("selected_from_coach_bank", []),
         "selected_due_to_preference": training_evidence.get("selected_due_to_preference", []),
         "selected_due_to_historical_signal": training_evidence.get(
             "selected_due_to_historical_signal", []
@@ -840,7 +838,7 @@ def _build_training(
     apply_injury: bool,
     apply_level: bool,
     apply_muscle: bool,
-    apply_bank: bool,
+    apply_catalog: bool,
     apply_general: bool,
     muscle_priorities_override: list[str],
     goals_override: str,
@@ -932,26 +930,13 @@ def _build_training(
             neck_set |= _alias_expand(coach, neck_set)
             _add_injury_forbidden(neck_set, "neck_injury_safety_default", None, "neck_default", [])
 
-    # Priority #3 — coach forbidden (prefs prohibited + bank forbidden).
+    # Priority #3 — coach-prohibited exercise preferences.
     for pref in pref_by_exercise_id.values():
         if pref.is_prohibited:
             name = pref.exercise.name
             if name not in forbidden:
                 excluded_forbidden.append({"name": name, "reason": "coach_prohibited_preference"})
             forbidden.add(name)
-
-    bank_groups = list(
-        ExerciseBankGroup.objects.filter(rule_set=rule_set).order_by("sort_order", "group_name")
-    )
-    for group in bank_groups:
-        for nm in group.forbidden_exercises or []:
-            if not nm:
-                continue
-            if nm not in forbidden:
-                excluded_forbidden.append(
-                    {"name": nm, "reason": f"bank_forbidden:{group.group_name}"}
-                )
-            forbidden.add(nm)
 
     # Priority #4 — level suitability (global LevelRule forbidden list).
     if apply_level:
@@ -976,9 +961,8 @@ def _build_training(
         days_per_week=days_per_week,
         apply_level=apply_level,
         apply_muscle=apply_muscle,
-        apply_bank=apply_bank,
+        apply_catalog=apply_catalog,
         apply_general=apply_general,
-        bank_groups=bank_groups if apply_bank else [],
         catalog=catalog,
         catalog_by_name=catalog_by_name,
         structured_catalog_by_name=structured_catalog_by_name,
@@ -1006,7 +990,6 @@ def _build_training(
         "excluded_due_to_injury": excluded_injury,
         "excluded_due_to_forbidden": excluded_forbidden,
         "excluded_due_to_equipment": selection_evidence.get("equipment_filters", []),
-        "selected_from_coach_bank": selection_evidence.get("selected_from_coach_bank", []),
         "selected_due_to_preference": selection_evidence.get("selected_due_to_preference", []),
         "selected_due_to_historical_signal": selection_evidence.get(
             "selected_due_to_historical_signal", []

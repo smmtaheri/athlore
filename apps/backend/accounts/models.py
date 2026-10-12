@@ -213,34 +213,6 @@ class MusclePriority(models.Model):
         return self.muscle
 
 
-class ExerciseBankGroup(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    rule_set = models.ForeignKey(
-        CoachRuleSet,
-        on_delete=models.CASCADE,
-        related_name="exercise_bank_groups",
-    )
-    coach = models.ForeignKey(
-        CoachProfile,
-        on_delete=models.CASCADE,
-        related_name="exercise_bank_groups",
-    )
-    group_name = models.CharField(max_length=80)
-    favorite_exercises = models.JSONField(default=list, blank=True)
-    beginner_friendly = models.JSONField(default=list, blank=True)
-    professional_friendly = models.JSONField(default=list, blank=True)
-    forbidden_exercises = models.JSONField(default=list, blank=True)
-    sort_order = models.IntegerField(default=0)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["sort_order", "group_name"]
-
-    def __str__(self) -> str:
-        return self.group_name
-
-
 class GeneralRule(models.Model):
     class Importance(models.TextChoices):
         HIGH = "high", "High"
@@ -341,7 +313,7 @@ class EquipmentTaxonomy(models.Model):
 
 
 class Exercise(models.Model):
-    """Coach-owned exercise bank entry (reusable catalog)."""
+    """Coach-owned structured movement catalog entry."""
 
     class Level(models.TextChoices):
         BEGINNER = "beginner", "Beginner"

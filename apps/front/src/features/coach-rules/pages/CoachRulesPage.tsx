@@ -36,7 +36,6 @@ import {
 import type {
   CoachRuleSection,
   CoachRules,
-  ExerciseBankGroup,
   GeneralCoachRule,
   InjuryRule,
   LevelRule,
@@ -46,7 +45,7 @@ import type {
 
 const sectionLabels: Record<CoachRuleSection, string> = {
   visitForms: "فرم‌های ویزیت",
-  exercises: "بانک حرکات",
+  exercises: "کاتالوگ حرکات",
   general: "قوانین عمومی",
   injuries: "آسیب ها و محدودیت ها",
   levels: "قوانین سطح تمرین",
@@ -215,7 +214,7 @@ export function CoachRulesPage({
           </div>
         }
         breadcrumb={["داشبورد", "قوانین مربی"]}
-        description="مدیریت سبک برنامه نویسی، قالب ها، آسیب ها و بانک حرکات مربی"
+        description="مدیریت قالب‌ها، آسیب‌ها، اولویت عضلات و کاتالوگ حرکات مربی"
         title="قوانین و سبک برنامه نویسی مربی"
       />
 
@@ -345,12 +344,7 @@ function RulesSection({ rules, section, templatesRepository, updateRules }: Rule
     return <MuscleRules rules={rules} updateRules={updateRules} />;
   }
   if (section === "exercises") {
-    return (
-      <>
-        <StructuredCatalogSection />
-        <ExerciseBank rules={rules} updateRules={updateRules} />
-      </>
-    );
+    return <StructuredCatalogSection />;
   }
   if (section === "nutritionTemplates") {
     return (
@@ -816,79 +810,6 @@ function EditableMuscleRule({
         <Textarea
           value={rule.notes}
           onChange={(event) => onChange({ ...rule, notes: event.target.value })}
-        />
-      </FormField>
-    </Card>
-  );
-}
-
-function ExerciseBank({ rules, updateRules }: RulesEditorProps) {
-  return (
-    <Card className={styles.pageStack}>
-      <SectionHeader
-        description="این بخش legacy برای داده‌های قدیمی حفظ شده است؛ کاتالوگ ساختاریافته بالای صفحه منبع اصلی generator است."
-        title="بانک متنی قدیمی"
-      />
-      <div className={styles.cardGrid}>
-        {rules.exerciseBank.map((group) => (
-          <EditableExerciseGroup
-            group={group}
-            key={group.id}
-            onChange={(nextGroup) =>
-              updateRules((next) => ({
-                ...next,
-                exerciseBank: next.exerciseBank.map((item) =>
-                  item.id === nextGroup.id ? nextGroup : item
-                )
-              }))
-            }
-          />
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function EditableExerciseGroup({
-  group,
-  onChange
-}: {
-  group: ExerciseBankGroup;
-  onChange: (group: ExerciseBankGroup) => void;
-}) {
-  return (
-    <Card className={styles.editableCard} padding="sm">
-      <h3 className={styles.ruleCardTitle}>{group.group}</h3>
-      <FormField label="حرکات مورد علاقه">
-        <Textarea
-          value={group.favoriteExercises.join("\n")}
-          onChange={(event) =>
-            onChange({ ...group, favoriteExercises: splitLines(event.target.value) })
-          }
-        />
-      </FormField>
-      <FormField label="حرکات ممنوع">
-        <Textarea
-          value={group.forbiddenExercises.join("\n")}
-          onChange={(event) =>
-            onChange({ ...group, forbiddenExercises: splitLines(event.target.value) })
-          }
-        />
-      </FormField>
-      <FormField label="مناسب مبتدی">
-        <Textarea
-          value={group.beginnerFriendly.join("\n")}
-          onChange={(event) =>
-            onChange({ ...group, beginnerFriendly: splitLines(event.target.value) })
-          }
-        />
-      </FormField>
-      <FormField label="مناسب حرفه ای">
-        <Textarea
-          value={group.professionalFriendly.join("\n")}
-          onChange={(event) =>
-            onChange({ ...group, professionalFriendly: splitLines(event.target.value) })
-          }
         />
       </FormField>
     </Card>

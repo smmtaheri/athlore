@@ -98,19 +98,6 @@
     </table>
   {% else %}<p class="muted">— (خالی)</p>{% endif %}
 
-  <h2>بانک حرکات</h2>
-  {% if exercise_bank %}
-    {% for g in exercise_bank %}
-    <div class="section">
-      <strong>{{ g.group }}</strong>
-      <div class="meta">ترجیحی:</div><ul>{% for x in g.favorite_exercises %}<li>{{ x }}</li>{% endfor %}</ul>
-      <div class="meta">مبتدی:</div><ul>{% for x in g.beginner_friendly %}<li>{{ x }}</li>{% endfor %}</ul>
-      <div class="meta">حرفه‌ای:</div><ul>{% for x in g.professional_friendly %}<li>{{ x }}</li>{% endfor %}</ul>
-      <div class="meta">ممنوع:</div><ul>{% for x in g.forbidden_exercises %}<li>{{ x }}</li>{% endfor %}</ul>
-    </div>
-    {% endfor %}
-  {% else %}<p class="muted">— (خالی)</p>{% endif %}
-
   <h2>ترجیحات حرکت مربی</h2>
   <div class="meta">ترجیحی:</div><ul>{% for x in preferred_exercises %}<li>{{ x }}</li>{% endfor %}</ul>
   <div class="meta">ممنوع:</div><ul>{% for x in forbidden_preference_exercises %}<li>{{ x }}</li>{% endfor %}</ul>

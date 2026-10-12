@@ -215,7 +215,7 @@ export interface GeneratedProgram {
 }
 
 export interface ProgramGenerationInput {
-  applyExerciseBank: boolean;
+  applyExerciseCatalog: boolean;
   applyGeneralRules: boolean;
   applyInjuryRules: boolean;
   applyLevelRules: boolean;

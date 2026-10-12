@@ -1,4 +1,4 @@
-"""Idempotent importer for coach reference-bank datasets (exercises, historical
+"""Idempotent importer for coach reference datasets (exercises, historical
 program usage, nutrition & supplement templates) stored as static JSON under
 `reference_data/<dataset>/`.
 
@@ -23,7 +23,6 @@ from accounts.models import (
     CoachSupplementTemplate,
     Exercise,
     ExerciseAlias,
-    ExerciseBankGroup,
     ExerciseHistoricalUsage,
     InjuryRule,
     NutritionMealOption,
@@ -71,7 +70,7 @@ class Counters:
 
 class Command(BaseCommand):
     help = (
-        "Import a coach reference dataset (exercise bank, aliases, historical "
+        "Import a coach reference dataset (structured exercises, aliases, historical "
         "program usage, nutrition templates, supplement templates) from "
         "reference_data/<dataset>/. Idempotent: safe to re-run."
     )
@@ -145,10 +144,9 @@ class Command(BaseCommand):
         nutrition_data = self._load_json(dataset_dir, "nutrition_templates.json", default=[])
         supplement_data = self._load_json(dataset_dir, "supplement_templates.json", default=[])
 
-        exercise_counters, alias_counters, canonical_to_exercise, category_map = (
+        exercise_counters, alias_counters, canonical_to_exercise = (
             self._import_exercises(coach, exercises_data, extra_aliases_data)
         )
-        bank_counters = self._upsert_bank_groups(coach, rule_set, category_map)
         historical_counters = self._import_historical_usage(
             coach, historical_data, canonical_to_exercise
         )
@@ -164,7 +162,6 @@ class Command(BaseCommand):
         return {
             "exercises": exercise_counters.as_dict(),
             "aliases": alias_counters.as_dict(),
-            "exercise_bank_groups": bank_counters.as_dict(),
             "historical_usage": historical_counters.as_dict(),
             "nutrition_templates": nutrition_counters.as_dict(),
             "supplement_templates": supplement_counters.as_dict(),
@@ -195,11 +192,10 @@ class Command(BaseCommand):
         coach: CoachProfile,
         exercises_data: list[dict],
         extra_aliases_data: list[dict],
-    ) -> tuple[Counters, Counters, dict[str, Exercise], dict[str, set[str]]]:
+    ) -> tuple[Counters, Counters, dict[str, Exercise]]:
         exercise_counters = Counters()
         alias_counters = Counters()
         canonical_to_exercise: dict[str, Exercise] = {}
-        category_map: dict[str, set[str]] = {}
 
         for entry in exercises_data:
             canonical_name = str(entry["canonical_name"]).strip()
@@ -235,8 +231,6 @@ class Command(BaseCommand):
                 exercise = existing
 
             canonical_to_exercise[canonical_name] = exercise
-            if category:
-                category_map.setdefault(category, set()).add(canonical_name)
 
             for alias in aliases:
                 self._upsert_alias(coach, exercise, alias, alias_counters)
@@ -255,7 +249,7 @@ class Command(BaseCommand):
                 continue
             self._upsert_alias(coach, exercise, alias, alias_counters)
 
-        return exercise_counters, alias_counters, canonical_to_exercise, category_map
+        return exercise_counters, alias_counters, canonical_to_exercise
 
     def _upsert_alias(
         self, coach: CoachProfile, exercise: Exercise, alias: str, counters: Counters
@@ -272,29 +266,6 @@ class Command(BaseCommand):
         else:
             # Same coach already uses this alias for a different exercise; do not overwrite.
             counters.conflicts += 1
-
-    # -- exercise bank groups -----------------------------------------------------
-
-    def _upsert_bank_groups(
-        self, coach: CoachProfile, rule_set, category_map: dict[str, set[str]]
-    ) -> Counters:
-        counters = Counters()
-        for category, names in category_map.items():
-            group = ExerciseBankGroup.objects.filter(
-                coach=coach, rule_set=rule_set, group_name=category
-            ).first()
-            if group is None:
-                ExerciseBankGroup.objects.create(
-                    coach=coach,
-                    rule_set=rule_set,
-                    group_name=category,
-                    favorite_exercises=sorted(names),
-                )
-                counters.created += 1
-                continue
-            # Create-only: do not merge/overwrite an existing coach bank group.
-            counters.skipped += 1
-        return counters
 
     # -- historical usage ----------------------------------------------------------
 
@@ -528,7 +499,6 @@ class Command(BaseCommand):
         labels = {
             "exercises": "Exercises",
             "aliases": "Aliases",
-            "exercise_bank_groups": "Exercise bank groups",
             "historical_usage": "Historical usage rows",
             "nutrition_templates": "Nutrition templates",
             "supplement_templates": "Supplement templates",

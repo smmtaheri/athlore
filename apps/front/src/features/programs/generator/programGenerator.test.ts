@@ -6,7 +6,7 @@ import { generateProgram } from "./programGenerator";
 const student = studentFixtures.find((item) => item.id === "mohammad-taheri")!;
 
 const input = {
-  applyExerciseBank: true,
+  applyExerciseCatalog: true,
   applyGeneralRules: true,
   applyInjuryRules: true,
   applyLevelRules: true,

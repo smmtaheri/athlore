@@ -106,19 +106,6 @@ def build_coach_rules_pdf(*, coach: CoachProfile) -> tuple[bytes, str]:
                 "notes": _esc(item.get("notes")),
             }
         )
-    exercise_bank = []
-    for item in aggregate.get("exercise_bank") or []:
-        exercise_bank.append(
-            {
-                "group": _esc(item.get("group") or item.get("group_name")),
-                "favorite_exercises": _list_or_empty(_as_list(item.get("favorite_exercises"))),
-                "beginner_friendly": _list_or_empty(_as_list(item.get("beginner_friendly"))),
-                "professional_friendly": _list_or_empty(
-                    _as_list(item.get("professional_friendly"))
-                ),
-                "forbidden_exercises": _list_or_empty(_as_list(item.get("forbidden_exercises"))),
-            }
-        )
     general = _as_dict(aggregate.get("general_rules"))
     general_items = []
     for item in general.get("items") or []:
@@ -157,7 +144,6 @@ def build_coach_rules_pdf(*, coach: CoachProfile) -> tuple[bytes, str]:
         "levels": levels or None,
         "injuries": injuries or None,
         "muscle_priorities": muscle_priorities or None,
-        "exercise_bank": exercise_bank or None,
         "general_extra_notes": _esc(general.get("extra_notes") or "— (خالی)"),
         "general_items": general_items or None,
         "preferred_exercises": preferred or ["— (خالی)"],

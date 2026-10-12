@@ -21,7 +21,6 @@ from accounts.models import (
     CoachTechnique,
     EquipmentTaxonomy,
     Exercise,
-    ExerciseBankGroup,
     ExerciseEquipment,
     ExerciseMuscleTarget,
     ExerciseSuitableLevel,
@@ -131,19 +130,6 @@ def serialize_muscle_priority(r: MusclePriority) -> dict:
         "order_change": r.order_change,
         "notes": r.notes,
         "sort_order": r.sort_order,
-    }
-
-
-def serialize_bank_group(g: ExerciseBankGroup) -> dict:
-    return {
-        "id": str(g.id),
-        "group": g.group_name,
-        "group_name": g.group_name,
-        "favorite_exercises": list(g.favorite_exercises or []),
-        "beginner_friendly": list(g.beginner_friendly or []),
-        "professional_friendly": list(g.professional_friendly or []),
-        "forbidden_exercises": list(g.forbidden_exercises or []),
-        "sort_order": g.sort_order,
     }
 
 
@@ -722,10 +708,6 @@ def get_coach_rules_aggregate(coach: CoachProfile) -> dict:
         serialize_muscle_priority(r)
         for r in rule_set.muscle_priorities.order_by("sort_order", "muscle")
     ]
-    exercise_bank = [
-        serialize_bank_group(g)
-        for g in rule_set.exercise_bank_groups.order_by("sort_order", "group_name")
-    ]
     exercises = [
         serialize_exercise(
             ex,
@@ -764,7 +746,6 @@ def get_coach_rules_aggregate(coach: CoachProfile) -> dict:
         "levels": levels,
         "injuries": injuries,
         "muscle_priorities": muscle_priorities,
-        "exercise_bank": exercise_bank,
         "exercise_catalog": exercises,
         "exercise_taxonomy": serialize_taxonomy(),
         "training_techniques": get_coach_techniques(coach),
@@ -834,7 +815,6 @@ def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = F
         "levels",
         "injuries",
         "muscle_priorities",
-        "exercise_bank",
         "general_rules",
     }
     if not partial and not known.issubset(sections | known):
@@ -925,34 +905,6 @@ def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = F
                 extra_sets=max(0, int(raw.get("extra_sets") or 0)),
                 order_change=str(raw.get("order_change") or ""),
                 notes=str(raw.get("notes") or ""),
-                sort_order=int(raw.get("sort_order") or idx),
-            )
-
-    if replace_all or "exercise_bank" in payload:
-        bank = _as_list(payload.get("exercise_bank", []))
-        rule_set.exercise_bank_groups.all().delete()
-        for idx, raw in enumerate(bank):
-            if not isinstance(raw, dict):
-                raise ValidationError({"exercise_bank": ["Each bank group must be an object."]})
-            group_name = str(raw.get("group") or raw.get("group_name") or "").strip()
-            if not group_name:
-                raise ValidationError({"exercise_bank": ["group is required."]})
-            ExerciseBankGroup.objects.create(
-                rule_set=rule_set,
-                coach=coach,
-                group_name=group_name,
-                favorite_exercises=_as_str_list(
-                    raw.get("favorite_exercises", []), "favorite_exercises"
-                ),
-                beginner_friendly=_as_str_list(
-                    raw.get("beginner_friendly", []), "beginner_friendly"
-                ),
-                professional_friendly=_as_str_list(
-                    raw.get("professional_friendly", []), "professional_friendly"
-                ),
-                forbidden_exercises=_as_str_list(
-                    raw.get("forbidden_exercises", []), "forbidden_exercises"
-                ),
                 sort_order=int(raw.get("sort_order") or idx),
             )
 

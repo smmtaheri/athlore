@@ -18,7 +18,7 @@ These terms are **authoritative** across all design documents. Do not invent syn
 | **Student** | A trainee managed by exactly one Coach. Aggregate root for profile data. |
 | **Visit** | A monthly check-in for a Student (weight, measurements, adherence, notes). |
 | **BodyMeasurement** | Circumference / composition values recorded on a Visit (value object, not a separate aggregate). |
-| **CoachRuleSet** | The Coach’s programming system: templates, level rules, injury rules, muscle priorities, exercise bank, general rules. |
+| **CoachRuleSet** | The Coach’s programming system: templates, level rules, injury rules, muscle priorities, structured exercise catalog, general rules. |
 | **ProgramTemplate** | Reusable split/volume template inside a CoachRuleSet. |
 | **Program** | A **lineage** of related versions for one Student and one coaching intent (title/type). Aggregate root. |
 | **Program Version** (`ProgramVersion`) | A numbered snapshot of program content under a Program. |
@@ -72,7 +72,7 @@ Frontend legacy names mapped to this model:
 | **CoachProfile** | Display/style settings; owns all tenant data by FK | Created at registration |
 | **Student** | Goals, injuries, equipment, lifestyle, preferences, training background/conditions, summary denorms | Never shared across Coaches |
 | **Visit** | Measurements, adherence, visit notes | Belongs to one Student (and thus one Coach) |
-| **CoachRuleSet** | Templates, level/injury/muscle rules, exercise bank, general rules | Exactly one per Coach |
+| **CoachRuleSet** | Templates, level/injury/muscle rules, structured exercise catalog, general rules | Exactly one per Coach |
 | **Program** | Lineage metadata; pointers to active/draft versions; ordered Versions | Belongs to one Student + Coach |
 | **Generation Run** | Input snapshot, engine metadata, output linkage | Belongs to Coach; may attach to a Version |
 | **PDF File** | File metadata, status, share token, storage key | Belongs to Coach; references Program Version |
@@ -264,7 +264,7 @@ Value object on Visit: waist/chest/arm/thigh/hip cm (optional decimals). Not a s
 |---|---|
 | **Purpose** | Coach’s programming system (Frontend `/coach-rules`) |
 | **Ownership** | CoachProfile (1:1) |
-| **Contains** | ProgramTemplate[], LevelRule[], InjuryRule[], MusclePriority[], ExerciseBankGroup[], GeneralRules |
+| **Contains** | ProgramTemplate[], LevelRule[], InjuryRule[], MusclePriority[], Exercise[], GeneralRules |
 | **Invariants** | One active rule set per Coach; section schemas validated on save |
 | **Lifecycle** | Auto-created empty/default on register; full replace or section updates |
 | **Mutable** | Yes (whole document / sections) |
@@ -292,7 +292,7 @@ Value object on Visit: waist/chest/arm/thigh/hip cm (optional decimals). Not a s
 |---|---|
 | **Purpose** | Canonical exercise identity for generator safety tags |
 | **Ownership** | Platform global catalog **or** coach-private entries |
-| **MVP stance** | Prefer **coach-scoped exercise bank** matching FE; optional global seed later |
+| **MVP stance** | Use one coach-scoped structured movement catalog |
 | **Priority** | P1 |
 | **Prototype** | Global `Exercise` → **change** (add coach_id nullable for global vs private) |
 
@@ -382,7 +382,7 @@ Services own transitions; API adapters must not embed business rules in serializ
 | `StudentProfile` | Replace with Student aggregate |
 | `CoachTemplate` | Evolve fields → ProgramTemplate under CoachRuleSet |
 | `CoachRule` | Replace with typed rule entities / sections |
-| `CoachExercisePreference` / `Exercise` | Re-home into coach exercise bank design |
+| `CoachExercisePreference` / `Exercise` | Structured coach catalog and movement preferences |
 | `GeneratedProgram` | Replace with Program + ProgramVersion + GenerationRun |
 | `planner.py` | Reuse as `rules_v1` engine behind Generation Run |
 

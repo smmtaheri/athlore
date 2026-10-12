@@ -17,7 +17,6 @@ from accounts.models import (
     CoachTechnique,
     Exercise,
     ExerciseAlias,
-    ExerciseBankGroup,
     ExerciseHistoricalUsage,
     LevelRule,
     MusclePriority,
@@ -302,43 +301,22 @@ def _historical_usage_map(coach, names: list[str]) -> dict[str, dict]:
     return out
 
 
-def _bank_for_muscle(bank_groups: list[ExerciseBankGroup], muscle: str) -> ExerciseBankGroup | None:
-    for group in bank_groups:
-        g = group.group_name or ""
-        if muscle in g or g in muscle:
-            return group
-        # Legacy bank groups may use compact Persian muscle labels.
-        if muscle == "جلو بازو" and ("جلو" in g and "بازو" in g):
-            return group
-        if muscle == "پشت بازو" and ("پشت" in g and "بازو" in g):
-            return group
-        if muscle == "سرشانه" and "سرشانه" in g:
-            return group
-        if muscle == "شکم" and ("شکم" in g or "اصلاحی" in g):
-            return group
-        if muscle == "زیربغل" and ("زیربغل" in g or "پشت" == g):
-            return group
-    return None
-
-
 def _candidate_names(
     *,
     muscle: str,
-    bank_groups: list[ExerciseBankGroup],
     catalog: dict[tuple[str, str], Exercise],
     structured_catalog_by_name: dict[str, dict],
     preferred_names: set[str],
     level: str,
-    apply_bank: bool,
+    apply_catalog: bool,
     region_keys: set[str] | None = None,
-) -> tuple[list[str], set[str], set[str]]:
-    """Return (ordered candidates, legacy-bank names, structured-catalog names)."""
+) -> tuple[list[str], set[str]]:
+    """Return ordered candidates and names sourced from the structured catalog."""
     strict_region = _has_structured_region_data(structured_catalog_by_name, muscle, region_keys)
     raw: list[str] = []
-    from_bank: set[str] = set()
     from_structured: set[str] = set()
     structured = []
-    if apply_bank:
+    if apply_catalog:
         structured = [
             (name, metadata)
             for name, metadata in structured_catalog_by_name.items()
@@ -357,41 +335,6 @@ def _candidate_names(
     )
     raw.extend(name for name, _metadata in structured)
     from_structured.update(name for name, _metadata in structured)
-    bank = _bank_for_muscle(bank_groups, muscle) if apply_bank else None
-    if bank:
-        favorites = list(bank.favorite_exercises or [])
-        if strict_region:
-            favorites = [
-                name
-                for name in favorites
-                if name in structured_catalog_by_name
-                and bool(
-                    set(structured_catalog_by_name[name].get("region_keys") or []).intersection(
-                        region_keys
-                    )
-                )
-            ]
-        raw.extend(favorites)
-        from_bank.update(favorites)
-        if level == "beginner":
-            extra = list(bank.beginner_friendly or [])
-        elif level == "advanced":
-            extra = list(bank.professional_friendly or [])
-        else:
-            extra = list(bank.beginner_friendly or []) + list(bank.professional_friendly or [])
-        if strict_region:
-            extra = [
-                name
-                for name in extra
-                if name in structured_catalog_by_name
-                and bool(
-                    set(structured_catalog_by_name[name].get("region_keys") or []).intersection(
-                        region_keys
-                    )
-                )
-            ]
-        raw.extend(extra)
-        from_bank.update(extra)
     for (pm, name), _ex in sorted(catalog.items(), key=lambda x: x[0][1]):
         if (
             normalize_muscle(pm) == muscle
@@ -410,7 +353,7 @@ def _candidate_names(
             raw.insert(0, name)
     if not strict_region:
         raw.extend(_FALLBACK.get(muscle, []))
-    return _unique(raw), from_bank, from_structured
+    return _unique(raw), from_structured
 
 
 def _has_structured_region_data(
@@ -866,9 +809,8 @@ def build_training_days(
     days_per_week: int,
     apply_level: bool,
     apply_muscle: bool,
-    apply_bank: bool,
+    apply_catalog: bool,
     apply_general: bool,
-    bank_groups: list[ExerciseBankGroup],
     catalog: dict[tuple[str, str], Exercise],
     catalog_by_name: dict[str, Exercise],
     structured_catalog_by_name: dict[str, dict],
@@ -957,13 +899,6 @@ def build_training_days(
     strong = {normalize_muscle(m) for m in (goals.get("strong_muscles") or [])}
 
     preferred_names: set[str] = set()
-    bank_name_set: set[str] = set()
-    if apply_bank:
-        for group in bank_groups:
-            preferred_names.update(group.favorite_exercises or [])
-            bank_name_set.update(group.favorite_exercises or [])
-            bank_name_set.update(group.beginner_friendly or [])
-            bank_name_set.update(group.professional_friendly or [])
     for pref in pref_by_exercise_id.values():
         if pref.is_preferred or int(pref.priority or 0) > 0:
             preferred_names.add(pref.exercise.name)
@@ -1010,7 +945,6 @@ def build_training_days(
         "weak_muscles": sorted(weak),
         "priority_muscles": sorted(priority),
         "strong_muscles": sorted(strong),
-        "selected_from_coach_bank": [],
         "selected_due_to_preference": [],
         "selected_due_to_historical_signal": [],
         "excluded_due_to_injury": [],
@@ -1082,14 +1016,13 @@ def build_training_days(
                     roles = roles + [roles[-1]]
                     roles = roles[:hi]
 
-            candidates, from_bank, from_structured = _candidate_names(
+            candidates, from_structured = _candidate_names(
                 muscle=muscle,
-                bank_groups=bank_groups,
                 catalog=catalog,
                 structured_catalog_by_name=structured_catalog_by_name,
                 preferred_names=preferred_names,
                 level=level,
-                apply_bank=apply_bank,
+                apply_catalog=apply_catalog,
                 region_keys=(structured_region_filters or {}).get(muscle),
             )
             excluded_catalog_reasons: list[dict] = []
@@ -1193,10 +1126,6 @@ def build_training_days(
                             "levels": list(metadata.get("levels") or []),
                         }
                     )
-                if name in from_bank:
-                    if selection_source == "fallback":
-                        selection_source = "coach_bank"
-                    evidence["selected_from_coach_bank"].append(name)
                 if name in preferred_names:
                     evidence["selected_due_to_preference"].append(name)
                     evidence["preferred_selected"].append(name)
@@ -1318,7 +1247,6 @@ def build_training_days(
         days[0]["notes"] = f"{days[0]['notes']} اهداف: {goals_override}"
 
     # Deduplicate evidence lists
-    evidence["selected_from_coach_bank"] = _unique(evidence["selected_from_coach_bank"])
     evidence["selected_due_to_preference"] = _unique(evidence["selected_due_to_preference"])
     evidence["preferred_selected"] = _unique(evidence["preferred_selected"])
     selected_seen: set[str] = set()

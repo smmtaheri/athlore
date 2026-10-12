@@ -3,32 +3,6 @@ import type { CoachRules } from "../types/coachRules";
 const now = "2026-07-31T00:00:00.000Z";
 
 export const coachRulesFixture: CoachRules = {
-  exerciseBank: [
-    {
-      beginnerFriendly: ["پرس سینه دستگاه", "فلای دستگاه"],
-      favoriteExercises: ["پرس سینه هالتر", "پرس بالا سینه دمبل", "کراس اور"],
-      forbiddenExercises: ["دیپ سنگین برای درد شانه"],
-      group: "سینه",
-      id: "chest",
-      professionalFriendly: ["پرس سینه هالتر", "دیپ کنترل شده", "پرس بالا سینه هالتر"]
-    },
-    {
-      beginnerFriendly: ["لت سیم کش", "قایقی دستگاه"],
-      favoriteExercises: ["لت دست باز", "بارفیکس کمکی", "روئینگ هالتر"],
-      forbiddenExercises: ["شراگ سنگین برای گردن درد"],
-      group: "زیربغل",
-      id: "back",
-      professionalFriendly: ["بارفیکس", "روئینگ هالتر", "ددلیفت سبک کنترل شده"]
-    },
-    {
-      beginnerFriendly: ["پرس پا", "جلوپا دستگاه"],
-      favoriteExercises: ["اسکوات", "پرس پا", "لانج"],
-      forbiddenExercises: ["اسکوات پرشی برای زانو درد"],
-      group: "پا",
-      id: "legs",
-      professionalFriendly: ["اسکوات", "ددلیفت رومانیایی", "لانج راه رفتنی"]
-    }
-  ],
   generalRules: {
     extraNotes: "تنوع برنامه حفظ شود، اما حرکات اصلی و قابل اندازه گیری ستون اصلی برنامه بمانند.",
     items: [

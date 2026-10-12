@@ -20,7 +20,6 @@ from accounts.models import (
     CoachNutritionTemplate,
     CoachProfile,
     Exercise,
-    ExerciseBankGroup,
     InjuryRule,
     NutritionMealOption,
     NutritionMealSlot,
@@ -53,40 +52,6 @@ BASE_RULES = {
     "levels": [],
     "injuries": [],
     "muscle_priorities": [],
-    "exercise_bank": [
-        {
-            "group": "سینه",
-            "favorite_exercises": ["پرس سینه هالتر", "پرس بالا سینه دمبل"],
-            "beginner_friendly": ["پرس سینه دستگاه"],
-            "professional_friendly": ["پرس سینه هالتر"],
-            "forbidden_exercises": [],
-            "sort_order": 0,
-        },
-        {
-            "group": "زیربغل",
-            "favorite_exercises": ["لت سیم کش", "روئینگ هالتر"],
-            "beginner_friendly": ["لت سیم کش"],
-            "professional_friendly": ["بارفیکس"],
-            "forbidden_exercises": [],
-            "sort_order": 1,
-        },
-        {
-            "group": "پا",
-            "favorite_exercises": ["اسکوات", "پرس پا"],
-            "beginner_friendly": ["پرس پا"],
-            "professional_friendly": ["اسکوات"],
-            "forbidden_exercises": [],
-            "sort_order": 2,
-        },
-        {
-            "group": "سرشانه",
-            "favorite_exercises": ["نشر جانب دمبل", "پرس سرشانه دستگاه"],
-            "beginner_friendly": ["نشر جانب دمبل"],
-            "professional_friendly": ["پرس سرشانه دستگاه"],
-            "forbidden_exercises": [],
-            "sort_order": 3,
-        },
-    ],
     "general_rules": {"extra_notes": "", "items": []},
 }
 
@@ -173,9 +138,6 @@ class GenerationPriorityTests(APITestCase):
 
     # 3. neck restriction beats historical shoulder/shrug ------------------
     def test_neck_restriction_beats_historical_shoulder_shrug(self):
-        ExerciseBankGroup.objects.filter(rule_set=self.rule_set, group_name="سرشانه").update(
-            favorite_exercises=["پرس سرشانه هالتر", "شراگز", "نشر جانب دمبل"]
-        )
         student = self._make_student(injuries={"has_injury": True, "injury_type": "mild_neck"})
         document, warnings = self._generate(student)
         names = self._all_names(document)

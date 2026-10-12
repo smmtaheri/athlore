@@ -467,7 +467,7 @@ export function createApiProgramsRepository(): ProgramsRepository & {
         apply_injury_rules: input.applyInjuryRules,
         apply_level_rules: input.applyLevelRules,
         apply_muscle_priority_rules: input.applyMusclePriorityRules,
-        apply_exercise_bank: input.applyExerciseBank,
+        apply_exercise_catalog: input.applyExerciseCatalog,
         apply_general_rules: input.applyGeneralRules,
         date_range_label: input.dateRangeLabel,
         date_range_start: input.dateRangeStart,

@@ -162,8 +162,10 @@ for day in document["training"]["days"]:
     print(f"  superset pairs: {pairs or '—'}")
     rest_dist = Counter(e.get("rest") for e in exercises)
     print(f"  rest distribution: {dict(rest_dist)}")
-    bank = [e["name"] for e in exercises if e.get("selection_source") == "coach_bank"]
-    print(f"  selected_from_coach_bank: {', '.join(bank) or '—'}")
+    catalog = [
+        e["name"] for e in exercises if e.get("selection_source") == "coach_structured_catalog"
+    ]
+    print(f"  selected_from_exercise_catalog: {', '.join(catalog) or '—'}")
     print(
         "  injury exclusions (global):",
         [x.get("name") for x in evidence.get("excluded_injury") or []],
@@ -199,7 +201,7 @@ for day in document["training"]["days"]:
 print()
 print("=" * 72)
 print("Evidence summary")
-print("  selected_from_coach_bank:", evidence.get("selected_from_coach_bank"))
+print("  structured_catalog_selected:", evidence.get("structured_catalog_selected"))
 print(
     "  excluded_injury:",
     [x.get("name") for x in evidence.get("excluded_injury") or []],

@@ -30,7 +30,6 @@ MIN_RULES = {
     "levels": [],
     "injuries": [],
     "muscle_priorities": [],
-    "exercise_bank": [],
     "general_rules": {"extra_notes": "یادداشت", "items": []},
 }
 

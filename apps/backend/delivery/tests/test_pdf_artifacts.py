@@ -45,16 +45,6 @@ MIN_RULES = {
     "levels": [],
     "injuries": [],
     "muscle_priorities": [],
-    "exercise_bank": [
-        {
-            "group": "سینه",
-            "favorite_exercises": ["پرس سینه هالتر", "Deadlift"],
-            "beginner_friendly": [],
-            "professional_friendly": [],
-            "forbidden_exercises": [],
-            "sort_order": 0,
-        }
-    ],
     "general_rules": {"extra_notes": "", "items": []},
 }
 

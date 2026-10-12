@@ -79,7 +79,6 @@ erDiagram
   COACH_RULE_SET ||--o{ LEVEL_RULE : contains
   COACH_RULE_SET ||--o{ INJURY_RULE : contains
   COACH_RULE_SET ||--o{ MUSCLE_PRIORITY : contains
-  COACH_RULE_SET ||--o{ EXERCISE_BANK_GROUP : contains
   COACH_RULE_SET ||--o{ GENERAL_RULE : contains
 
   PROGRAM ||--o{ PROGRAM_VERSION : versions
@@ -323,20 +322,7 @@ Django app layout **recommendation** (implementation later): `accounts`, `studen
 | order_change | varchar(120) | no | `''` |
 | notes | text | no | `''` |
 
-### 5.10 `exercise_bank_groups`
-
-| Column | Type | Null | Default |
-|---|---|---|---|
-| id | UUID PK | no | |
-| rule_set_id / coach_id | UUID FK | no | |
-| group_name | varchar(80) | no | |
-| favorite_exercises | jsonb | no | `[]` |
-| beginner_friendly | jsonb | no | `[]` |
-| professional_friendly | jsonb | no | `[]` |
-| forbidden_exercises | jsonb | no | `[]` |
-| sort_order | int | no | 0 |
-
-### 5.11 `general_rules`
+### 5.10 `general_rules`
 
 | Column | Type | Null | Default |
 |---|---|---|---|
@@ -349,7 +335,7 @@ Django app layout **recommendation** (implementation later): `accounts`, `studen
 | is_active | bool | no | true |
 | sort_order | int | no | 0 |
 
-### 5.12 `exercises` (coach bank / optional global)
+### 5.11 `exercises` (structured coach catalog)
 
 | Column | Type | Null | Default | Notes |
 |---|---|---|---|---|
@@ -367,7 +353,7 @@ Django app layout **recommendation** (implementation later): `accounts`, `studen
 **Unique:** `(coach_id, name, primary_muscle)` with care for NULL coach_id (use sentinel or partial unique)  
 **Prototype:** evolve global `Exercise`
 
-### 5.13 `programs`
+### 5.12 `programs`
 
 | Column | Type | Null | Default | Notes |
 |---|---|---|---|---|
@@ -386,7 +372,7 @@ Django app layout **recommendation** (implementation later): `accounts`, `studen
 **Indexes:** `(coach_id, updated_at DESC)`, `(student_id, updated_at DESC)`, `(coach_id, program_type)`, `(coach_id, archived_at)`  
 **Ownership:** `coach_id`; must match student  
 
-### 5.14 `program_versions`
+### 5.13 `program_versions`
 
 | Column | Type | Null | Default | Notes |
 |---|---|---|---|---|
@@ -444,7 +430,7 @@ Django app layout **recommendation** (implementation later): `accounts`, `studen
 }
 ```
 
-### 5.15 `generation_runs`
+### 5.14 `generation_runs`
 
 | Column | Type | Null | Default | Notes |
 |---|---|---|---|---|
@@ -465,7 +451,7 @@ Django app layout **recommendation** (implementation later): `accounts`, `studen
 **Indexes:** `(coach_id, created_at DESC)`, `(student_id, created_at DESC)`  
 **Prototype:** supersedes storing only `GeneratedProgram.payload`
 
-### 5.16 `pdf_files`
+### 5.15 `pdf_files`
 
 | Column | Type | Null | Default | Notes |
 |---|---|---|---|---|
@@ -494,7 +480,7 @@ Django app layout **recommendation** (implementation later): `accounts`, `studen
 **Soft-delete:** `archived_at`  
 **Ownership:** `coach_id`
 
-### 5.17 Auth token tables (implementation choice)
+### 5.16 Auth token tables (implementation choice)
 
 If SimpleJWT + blacklist / rotating refresh:
 

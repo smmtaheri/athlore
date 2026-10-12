@@ -13,7 +13,6 @@ from accounts.models import (
     CoachProfile,
     EquipmentTaxonomy,
     Exercise,
-    ExerciseBankGroup,
     ExerciseEquipment,
     ExerciseMuscleTarget,
     ExerciseSuitableLevel,
@@ -107,81 +106,6 @@ ARMAN_4DAY_RULES = {
             "notes": "",
             "sort_order": 0,
         }
-    ],
-    "exercise_bank": [
-        {
-            "group": "سینه",
-            "favorite_exercises": [
-                "پرس سینه هالتر",
-                "پرس بالا سینه دمبل",
-                "کراس اور",
-                "قفسه سینه دستگاه",
-            ],
-            "beginner_friendly": ["پرس سینه دستگاه"],
-            "professional_friendly": ["پرس سینه هالتر"],
-            "forbidden_exercises": [],
-            "sort_order": 0,
-        },
-        {
-            "group": "زیربغل",
-            "favorite_exercises": ["لت سیم کش", "روئینگ هالتر", "بارفیکس کمکی", "پول اور"],
-            "beginner_friendly": ["لت سیم کش"],
-            "professional_friendly": ["روئینگ هالتر"],
-            "forbidden_exercises": [],
-            "sort_order": 1,
-        },
-        {
-            "group": "پا",
-            "favorite_exercises": [
-                "اسکوات",
-                "پرس پا",
-                "ددلیفت رومانیایی",
-                "جلوپا دستگاه",
-                "ساق ایستاده",
-            ],
-            "beginner_friendly": ["پرس پا"],
-            "professional_friendly": ["اسکوات"],
-            "forbidden_exercises": [],
-            "sort_order": 2,
-        },
-        {
-            "group": "سرشانه",
-            "favorite_exercises": [
-                "پرس سرشانه سنگین",
-                "شراگ سنگین",
-                "پرس سرشانه دستگاه",
-                "نشر جانب دمبل",
-                "فیس پول",
-            ],
-            "beginner_friendly": ["نشر جانب دمبل"],
-            "professional_friendly": ["پرس سرشانه دستگاه"],
-            "forbidden_exercises": [],
-            "sort_order": 3,
-        },
-        {
-            "group": "پشت بازو",
-            "favorite_exercises": ["پشت بازو سیم‌کش", "دیپ نیمکت", "پشت بازو دمبل"],
-            "beginner_friendly": ["پشت بازو سیم‌کش"],
-            "professional_friendly": ["دیپ نیمکت"],
-            "forbidden_exercises": [],
-            "sort_order": 4,
-        },
-        {
-            "group": "جلو بازو",
-            "favorite_exercises": ["جلو بازو دمبل", "جلو بازو هالتر", "چکش دمبل"],
-            "beginner_friendly": ["جلو بازو دمبل"],
-            "professional_friendly": ["جلو بازو هالتر"],
-            "forbidden_exercises": [],
-            "sort_order": 5,
-        },
-        {
-            "group": "شکم و اصلاحی",
-            "favorite_exercises": ["کرانچ", "پلانک", "زیرشکم پا آویزان"],
-            "beginner_friendly": ["کرانچ"],
-            "professional_friendly": ["پلانک"],
-            "forbidden_exercises": [],
-            "sort_order": 6,
-        },
     ],
     "general_rules": {
         "extra_notes": "",
@@ -423,7 +347,7 @@ class GeneratorQualityTests(APITestCase):
         self.assertLessEqual(len(chest), 4)
         self.assertTrue(any("بالا" in e["name"] for e in chest))
 
-    def test_structured_inner_region_excludes_legacy_bank_and_fallback_names(self):
+    def test_structured_inner_region_excludes_fallback_names(self):
         chest = MuscleTaxonomy.objects.get(key="chest")
         inner_upper = MuscleRegion.objects.get(muscle=chest, key="inner_upper_chest")
         dumbbell = EquipmentTaxonomy.objects.get(key="dumbbell")
@@ -447,13 +371,6 @@ class GeneratorQualityTests(APITestCase):
                 level="intermediate",
             )
             ExerciseEquipment.objects.create(exercise=exercise, equipment=dumbbell)
-        ExerciseBankGroup.objects.create(
-            coach=self.coach,
-            rule_set=self.rule_set,
-            group_name="سینه",
-            favorite_exercises=["پرس سینه هالتر"],
-        )
-
         student = self._mohammad()
         document, _warnings = self._generate(
             student,
@@ -604,12 +521,6 @@ class GeneratorQualityTests(APITestCase):
             or any(w.startswith("missing_exercise_candidates") for w in warnings)
         )
 
-    def test_exercise_bank_usage(self):
-        student = self._mohammad()
-        document, _ = self._generate(student)
-        evidence = document["generator"]["evidence"]
-        self.assertGreater(len(evidence["selected_from_coach_bank"]), 0)
-
     def test_prescription_variation_and_rest_time(self):
         student = self._mohammad()
         document, _ = self._generate(student)
@@ -681,8 +592,6 @@ class GeneratorQualityTests(APITestCase):
         day_sets = [sum(int(e["sets"]) for e in d["exercises"]) for d in days]
         self.assertTrue(all(12 <= s <= 22 for s in day_sets), day_sets)
         self.assertLessEqual(max(day_sets) - min(day_sets), 8, day_sets)
-        evidence = document["generator"]["evidence"]
-        self.assertGreater(len(evidence["selected_from_coach_bank"]), 0)
         self.assertEqual(days[3]["exercises"][-1]["targetMuscle"], "شکم")
 
     def test_acceptance_matrix_beginner_3day_no_injury(self):

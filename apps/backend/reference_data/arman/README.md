@@ -1,6 +1,6 @@
 # Reference dataset: Arman
 
-Static JSON fixtures for seeding a single coach's exercise bank, historical program
+Static JSON fixtures for seeding a single coach's structured exercise catalog, historical program
 usage, nutrition templates and supplement template from real-world coaching material
 ("Arman"'s programs). This directory is only ever read by
 `python manage.py import_coach_reference_data --dataset arman --coach-email <email>`;
@@ -8,15 +8,12 @@ nothing here is loaded automatically on app startup.
 
 ## Files
 
-- `exercises.json` — canonical exercise bank entries. Each entry:
+- `exercises.json` — canonical structured exercise catalog entries. Each entry:
   `{canonical_name, name_en, category, primary_muscle, secondary_muscles, equipment,
   laterality, movement_pattern, aliases: [...], source_document}`.
-  `category` maps 1:1 to an `ExerciseBankGroup.group_name` (one of the seven groups
-  below); `primary_muscle` is the finer-grained muscle used on the `Exercise` row
-  itself. Aliases are already deduplicated (e.g. "فلای"/"فالی" variants collapsed
+  `category` is source metadata; `primary_muscle` is stored on the `Exercise` row.
+  Aliases are already deduplicated (e.g. "فلای"/"فالی" variants collapsed
   into a single canonical exercise with alternate spellings recorded as aliases).
-
-  Categories used: سرشانه و کتف، سینه، زیربغل، جلوبازو، پشت‌بازو، پا، شکم و اصلاحی.
 
   Counts: 76 canonical exercises, 117 aliases → 193 raw exercise-name variants.
 

@@ -151,40 +151,6 @@ def main() -> int:
             "levels": [],
             "injuries": [],
             "muscle_priorities": [],
-            "exercise_bank": [
-                {
-                    "group": "سینه",
-                    "favorite_exercises": ["پرس سینه هالتر", "Deadlift"],
-                    "beginner_friendly": [],
-                    "professional_friendly": [],
-                    "forbidden_exercises": [],
-                    "sort_order": 0,
-                },
-                {
-                    "group": "زیربغل",
-                    "favorite_exercises": ["لت سیم کش"],
-                    "beginner_friendly": [],
-                    "professional_friendly": [],
-                    "forbidden_exercises": [],
-                    "sort_order": 1,
-                },
-                {
-                    "group": "پا",
-                    "favorite_exercises": ["پرس پا"],
-                    "beginner_friendly": [],
-                    "professional_friendly": [],
-                    "forbidden_exercises": [],
-                    "sort_order": 2,
-                },
-                {
-                    "group": "سرشانه",
-                    "favorite_exercises": ["نشر جانب"],
-                    "beginner_friendly": [],
-                    "professional_friendly": [],
-                    "forbidden_exercises": [],
-                    "sort_order": 3,
-                },
-            ],
             "general_rules": {"extra_notes": "", "items": []},
         }
         status, saved_rules, _ = req("PUT", "/coach-rules/", rules, token=token_a)

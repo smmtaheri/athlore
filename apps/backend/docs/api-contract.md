@@ -423,7 +423,6 @@ Side effect: update Student `summary_last_visit_date`
   "levels": [ /* LevelRule; id = level key */ ],
   "injuries": [ /* InjuryRule */ ],
   "muscle_priorities": [ /* MusclePriority */ ],
-  "exercise_bank": [ /* ExerciseBankGroup */ ],
   "general_rules": {
     "extra_notes": "...",
     "items": [ /* GeneralCoachRule */ ]
@@ -590,7 +589,7 @@ Full historical version document (content immutable if `finalized` / `archived`)
   "apply_injury_rules": true,
   "apply_level_rules": true,
   "apply_muscle_priority_rules": true,
-  "apply_exercise_bank": true,
+  "apply_exercise_catalog": true,
   "apply_general_rules": true,
   "engine": "rules_v1",
   "seed": null
