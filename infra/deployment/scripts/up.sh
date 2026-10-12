@@ -57,10 +57,34 @@ fi
 
 ./scripts/validate-env.sh
 "$ROOT/scripts/render-nginx.sh"
-docker compose up -d --build
+docker compose config --quiet
+
+# Stop the Athlore stack before building so Docker gets the host resources
+# currently used by the running application containers. Do not pass -v:
+# PostgreSQL and uploaded-media volumes must survive every deployment.
+_restore_stack_on_failure() {
+  local status=$?
+  trap - EXIT
+  if [[ "$status" -ne 0 ]]; then
+    echo "Deployment failed; attempting to restart the existing Compose images." >&2
+    if ! docker compose up -d --no-build; then
+      echo "ERROR: automatic restart failed; inspect 'docker compose ps' and logs." >&2
+    fi
+  fi
+  exit "$status"
+}
+trap _restore_stack_on_failure EXIT
+
+echo "==> Stopping the Athlore stack to free build resources"
+docker compose down
+echo "==> Building images sequentially"
+docker compose --parallel 1 build
+echo "==> Starting the Athlore stack"
+docker compose up -d
 # nginx.conf is a bind-mounted generated file; recreate only Nginx so the
 # running process loads the freshly rendered CDN-origin configuration.
 docker compose up -d --force-recreate nginx
+trap - EXIT
 
 echo "Public:  https://${PUBLIC_DOMAIN}/"
 echo "Coach:   https://${COACH_DOMAIN}/login"

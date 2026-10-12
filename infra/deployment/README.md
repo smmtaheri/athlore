@@ -61,9 +61,13 @@ cd /root/athlore/infra/deployment
 ```
 
 The deploy script synchronizes the monorepo, preserves the existing runtime
-`.env` and data volumes, validates the environment, builds the
-frontend/backend images, and starts the Compose stack. It does not create demo
-users unless explicitly enabled through the production environment.
+`.env` and data volumes, validates the environment, stops the Compose stack,
+builds the frontend/backend images sequentially, and starts the stack again.
+The site is unavailable during the build. `docker compose down` is run without
+`--volumes`, so PostgreSQL data and uploaded media are preserved. If a build or
+startup command fails, the script attempts to restart the existing Compose
+images without rebuilding. It does not create demo users unless explicitly
+enabled through the production environment.
 
 For a Compose update without repository synchronization:
 
