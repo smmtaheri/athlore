@@ -41,6 +41,41 @@ describe("VisitDynamicForm guidance visibility", () => {
     expect(screen.getByText(/یادداشت مربی: این توضیح فقط برای مربی است/)).toBeInTheDocument();
   });
 
+  it("uses athlete wording for coach-configured labels only in the athlete view", () => {
+    const athleteSections = [
+      {
+        ...sections[0],
+        label: "اطلاعات شاگرد",
+        fields: [
+          {
+            ...sections[0].fields[0],
+            helpText: "این راهنمای شاگرد است.",
+            label: "یادداشت شاگرد"
+          }
+        ]
+      }
+    ];
+
+    const { rerender } = render(
+      <VisitDynamicForm
+        answers={{}}
+        audience="athlete"
+        onAnswersChange={() => undefined}
+        sections={athleteSections}
+      />
+    );
+
+    expect(screen.getByText("اطلاعات ورزشکار")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "یادداشت ورزشکار" })).toBeInTheDocument();
+    expect(screen.getByText("این راهنمای ورزشکار است.")).toBeInTheDocument();
+
+    rerender(
+      <VisitDynamicForm answers={{}} onAnswersChange={() => undefined} sections={athleteSections} />
+    );
+    expect(screen.getByText("اطلاعات شاگرد")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "یادداشت شاگرد" })).toBeInTheDocument();
+  });
+
   it("keeps fields marked coach-uneditable disabled in the coach form", () => {
     const coachRestrictedSections = [
       {

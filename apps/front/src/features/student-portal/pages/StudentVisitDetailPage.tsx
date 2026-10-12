@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { Button, Card, EmptyState, Skeleton, StatusBadge } from "../../../components/ui";
 import { studentPaths } from "../../../app/config/appOrigin";
 import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
+import { athleteFacingText } from "../../../shared/athleteWording";
 import { VisitDynamicForm } from "../../students/components/VisitDynamicForm";
 import { VisitPhotosPanel } from "../../students/components/VisitPhotosPanel";
 import { enabledSectionsFromTemplate } from "../../students/components/visitFormUtils";
@@ -124,7 +125,11 @@ export function StudentVisitDetailPage({
         `پاسخ‌ها ذخیره شد.${next.photoIssues?.length ? ` ${next.photoIssues.join(" ")}` : ""}`
       );
     } catch (err) {
-      setError(err instanceof ApiError ? persianMessageForApiError(err) : "ذخیره انجام نشد.");
+      setError(
+        err instanceof ApiError
+          ? athleteFacingText(persianMessageForApiError(err))
+          : "ذخیره انجام نشد."
+      );
     } finally {
       setSaving(false);
     }
@@ -150,7 +155,11 @@ export function StudentVisitDetailPage({
       );
       if (!updated.photoIssues?.length) navigate(studentPaths.visits);
     } catch (err) {
-      setError(err instanceof ApiError ? persianMessageForApiError(err) : "ارسال انجام نشد.");
+      setError(
+        err instanceof ApiError
+          ? athleteFacingText(persianMessageForApiError(err))
+          : "ارسال انجام نشد."
+      );
     } finally {
       setSaving(false);
     }
@@ -250,6 +259,7 @@ export function StudentVisitDetailPage({
         {sections.length > 0 ? (
           <Card>
             <VisitDynamicForm
+              audience="athlete"
               answers={answers}
               disabled={!open}
               onAnswersChange={setAnswers}

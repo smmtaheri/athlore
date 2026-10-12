@@ -15,13 +15,16 @@ export function PublicHomePage() {
             <span>{appConfig.displayName}</span>
           </div>
           <p className={styles.eyebrow}>مربیگری منظم، مسیر روشن‌تر</p>
-          <h1>همراه حرفه‌ای مربی و شاگرد برای پیشرفت واقعی</h1>
+          <h1>همراه حرفه‌ای مربی و ورزشکار برای پیشرفت واقعی</h1>
           <p className={styles.lead}>
-            Athlore ابزار ساده‌ای برای مدیریت شاگردها، پیگیری روزانه و ادامه‌دادن مسیر تمرین در یک
+            Athlore ابزار ساده‌ای برای همراهی ورزشکاران، پیگیری روزانه و ادامه‌دادن مسیر تمرین در یک
             فضای مشترک است.
           </p>
           <div className={styles.actions}>
-            <a className={styles.primaryAction} href={absoluteSurfaceUrl("coach", coachPaths.login)}>
+            <a
+              className={styles.primaryAction}
+              href={absoluteSurfaceUrl("coach", coachPaths.login)}
+            >
               ورود مربی
               <ArrowLeft aria-hidden size={18} />
             </a>
@@ -29,7 +32,7 @@ export function PublicHomePage() {
               className={styles.secondaryAction}
               href={absoluteSurfaceUrl("student", studentPaths.login)}
             >
-              ورود شاگرد
+              ورود ورزشکار
             </a>
           </div>
         </div>
@@ -41,8 +44,8 @@ export function PublicHomePage() {
       <section className={styles.features} aria-label="ویژگی‌های Athlore">
         <article>
           <UsersRound aria-hidden size={22} />
-          <h2>رابطه مربی و شاگرد</h2>
-          <p>اطلاعات و ارتباط کاری هر شاگرد در فضای اختصاصی خودش دنبال می‌شود.</p>
+          <h2>همراهی مربی و ورزشکار</h2>
+          <p>اطلاعات و روند پیشرفت هر ورزشکار در فضای اختصاصی خودش دنبال می‌شود.</p>
         </article>
         <article>
           <LineChart aria-hidden size={22} />
@@ -52,7 +55,7 @@ export function PublicHomePage() {
         <article>
           <Dumbbell aria-hidden size={22} />
           <h2>تمرکز روی تمرین</h2>
-          <p>مربی زمان بیشتری برای همراهی شاگرد و طراحی مسیر مناسب در اختیار دارد.</p>
+          <p>مربی زمان بیشتری برای همراهی ورزشکار و طراحی مسیر مناسب در اختیار دارد.</p>
         </article>
       </section>
     </main>

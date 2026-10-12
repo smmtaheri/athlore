@@ -11,9 +11,11 @@ import { formatAnswerDisplay } from "./visitFormUtils";
 import { StudentFormSection } from "./StudentFormSection";
 import { formatCalendarDate } from "../../../shared/dates/calendar";
 import { CalendarDateInput } from "../../../shared/dates/CalendarDateInput";
+import { athleteFacingText } from "../../../shared/athleteWording";
 import styles from "./students.module.css";
 
 export interface VisitDynamicFormProps {
+  audience?: "athlete" | "coach";
   answers: VisitFormAnswers;
   coachNotes?: string;
   disabled?: boolean;
@@ -32,6 +34,7 @@ export interface VisitDynamicFormProps {
 }
 
 export function VisitDynamicForm({
+  audience = "coach",
   answers,
   coachNotes = "",
   disabled = false,
@@ -61,10 +64,22 @@ export function VisitDynamicForm({
           icon={ClipboardList}
           key={section.key}
           theme={theme}
-          title={section.label}
+          title={audience === "athlete" ? athleteFacingText(section.label) : section.label}
         >
           <div className={styles.formGrid}>
             {section.fields.map((field) => {
+              const displayedField =
+                audience === "athlete"
+                  ? {
+                      ...field,
+                      helpText: athleteFacingText(field.helpText),
+                      label: athleteFacingText(field.label),
+                      options: field.options.map((option) => ({
+                        ...option,
+                        label: athleteFacingText(option.label)
+                      }))
+                    }
+                  : field;
               const fieldDisabled =
                 disabled ||
                 (respectStudentEditable && field.studentEditable !== true) ||
@@ -72,7 +87,7 @@ export function VisitDynamicForm({
               return (
                 <VisitFormFieldControl
                   disabled={fieldDisabled}
-                  field={field}
+                  field={displayedField}
                   key={field.key}
                   onChange={(value) => setAnswer(field.key, value)}
                   showCoachHelpText={showCoachHelpText}

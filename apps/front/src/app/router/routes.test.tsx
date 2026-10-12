@@ -80,7 +80,7 @@ describe("AppRoutes", () => {
     await renderRoute("/login", anonymousRepo(), "coach");
 
     expect(await screen.findByText("ورود مربی")).toBeInTheDocument();
-    expect(screen.queryByText("ورود شاگرد")).not.toBeInTheDocument();
+    expect(screen.queryByText("ورود ورزشکار")).not.toBeInTheDocument();
   });
 
   it("renders 404 for a panel route on the public surface", async () => {
@@ -97,7 +97,7 @@ describe("AppRoutes", () => {
 
   it("renders student login on the student surface", async () => {
     await renderRoute("/login", anonymousRepo(), "student");
-    expect(await screen.findByText("ورود شاگرد")).toBeInTheDocument();
+    expect(await screen.findByText("ورود ورزشکار")).toBeInTheDocument();
     expect(screen.getByLabelText(/نام کاربری/)).toBeInTheDocument();
   });
 
@@ -121,6 +121,8 @@ describe("AppRoutes", () => {
     await renderRoute("/dashboard", studentRepo(studentSession()), "student");
 
     expect(await screen.findByText(/سلام/)).toBeInTheDocument();
+    expect(screen.getByText("پنل ورزشکار")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "منوی اصلی ورزشکار" })).toBeInTheDocument();
     expect(screen.queryByText("صفحه پیدا نشد")).not.toBeInTheDocument();
   });
 

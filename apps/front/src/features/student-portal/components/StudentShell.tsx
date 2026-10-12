@@ -40,7 +40,7 @@ export function StudentShell() {
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const name = auth.session?.student?.fullName || auth.session?.user.fullName || "شاگرد";
+  const name = auth.session?.student?.fullName || auth.session?.user.fullName || "ورزشکار";
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
@@ -70,13 +70,13 @@ export function StudentShell() {
 
   return (
     <div className={styles.shell}>
-      <aside aria-label="ناوبری پنل شاگرد" className={styles.sidebar}>
+      <aside aria-label="ناوبری پنل ورزشکار" className={styles.sidebar}>
         <StudentBrand />
         <StudentNav />
         <div className={styles.sidebarFooter}>
           <div className={styles.userBlock}>
             <span className={styles.userName}>{name}</span>
-            <span>شاگرد</span>
+            <span>ورزشکار</span>
           </div>
           <Button
             fullWidth
@@ -108,7 +108,7 @@ export function StudentShell() {
         <>
           <div aria-hidden className={styles.drawerBackdrop} onClick={closeDrawer} />
           <aside
-            aria-label="منوی موبایل شاگرد"
+            aria-label="منوی موبایل ورزشکار"
             aria-modal="true"
             className={styles.drawerPanel}
             role="dialog"
@@ -126,7 +126,7 @@ export function StudentShell() {
             <div className={styles.sidebarFooter}>
               <div className={styles.userBlock}>
                 <span className={styles.userName}>{name}</span>
-                <span>شاگرد</span>
+                <span>ورزشکار</span>
               </div>
               <Button
                 fullWidth
@@ -149,13 +149,16 @@ export function StudentShell() {
 
 function StudentBrand({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={styles.brand} style={compact ? { borderBlockEnd: "none", minHeight: 0 } : undefined}>
+    <div
+      className={styles.brand}
+      style={compact ? { borderBlockEnd: "none", minHeight: 0 } : undefined}
+    >
       <span aria-hidden className={styles.brandMark}>
         <Dumbbell size={22} />
       </span>
       <span className={styles.brandText}>
         <span className={styles.brandTitle}>{appConfig.displayName}</span>
-        <span className={styles.brandSubtitle}>پنل شاگرد</span>
+        <span className={styles.brandSubtitle}>پنل ورزشکار</span>
       </span>
     </div>
   );
@@ -163,7 +166,7 @@ function StudentBrand({ compact = false }: { compact?: boolean }) {
 
 function StudentNav({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <nav aria-label="منوی اصلی شاگرد" className={styles.nav}>
+    <nav aria-label="منوی اصلی ورزشکار" className={styles.nav}>
       {studentNavItems.map((item) => {
         const Icon = item.icon;
         return (

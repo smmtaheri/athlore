@@ -5,6 +5,7 @@ import { Button, Card, FormField, Input, PageTitle } from "../../../components/u
 import { appConfig } from "../../../app/config/appConfig";
 import { studentPaths } from "../../../app/config/appOrigin";
 import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
+import { athleteFacingText } from "../../../shared/athleteWording";
 import { useAuth } from "../../auth";
 import authStyles from "../../auth/pages/auth.module.css";
 import styles from "../components/studentPortal.module.css";
@@ -43,10 +44,10 @@ export function StudentLoginPage() {
 
   const loginErrorMessage = (err: unknown) => {
     if (err instanceof ApiError && err.message) {
-      return err.message;
+      return athleteFacingText(err.message);
     }
     if (err instanceof ApiError) {
-      return persianMessageForApiError(err);
+      return athleteFacingText(persianMessageForApiError(err));
     }
     return "نام کاربری یا رمز عبور نادرست است.";
   };
@@ -102,7 +103,7 @@ export function StudentLoginPage() {
     } catch (err) {
       setError(
         err instanceof ApiError
-          ? err.message || persianMessageForApiError(err)
+          ? athleteFacingText(err.message || persianMessageForApiError(err))
           : "ثبت رمز جدید انجام نشد."
       );
     } finally {
@@ -121,9 +122,7 @@ export function StudentLoginPage() {
             <p className={authStyles.brandName}>{appConfig.displayName}</p>
             <PageTitle>تغییر رمز عبور</PageTitle>
             <p>برای ادامه، رمز عبور خود را تغییر دهید.</p>
-            {lockedUsername ? (
-              <p className={styles.muted}>نام کاربری: {lockedUsername}</p>
-            ) : null}
+            {lockedUsername ? <p className={styles.muted}>نام کاربری: {lockedUsername}</p> : null}
           </div>
           <form className={styles.form} onSubmit={submitForcedPasswordChange}>
             {error ? <div className={styles.errorAlert}>{error}</div> : null}
@@ -162,8 +161,10 @@ export function StudentLoginPage() {
         </span>
         <div className={authStyles.header}>
           <p className={authStyles.brandName}>{appConfig.displayName}</p>
-          <PageTitle>ورود شاگرد</PageTitle>
-          <p>با نام کاربری و رمز عبوری که مربی در اختیار شما گذاشته وارد شوید.</p>
+          <PageTitle>ورود ورزشکار</PageTitle>
+          <p>
+            با نام کاربری و رمزی که مربی برای ورود به پنل ورزشکار در اختیارتان گذاشته وارد شوید.
+          </p>
         </div>
         <form className={styles.form} onSubmit={submitNormalLogin}>
           {error ? <div className={styles.errorAlert}>{error}</div> : null}

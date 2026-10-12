@@ -552,6 +552,7 @@ export function VisitFormTemplatesSection({
             </Button>
           </div>
           <VisitDynamicForm
+            audience={previewMode === "student" ? "athlete" : "coach"}
             answers={{}}
             disabled
             onAnswersChange={() => undefined}

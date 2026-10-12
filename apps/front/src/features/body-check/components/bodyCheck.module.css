@@ -294,9 +294,9 @@
 
   :global(aside),
   :global([aria-label="ناوبری اصلی"]),
-  :global([aria-label="ناوبری پنل شاگرد"]),
+  :global([aria-label="ناوبری پنل ورزشکار"]),
   :global([aria-label="منوی موبایل"]),
-  :global([aria-label="منوی موبایل شاگرد"]) {
+  :global([aria-label="منوی موبایل ورزشکار"]) {
     display: none !important;
   }
 

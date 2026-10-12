@@ -25,6 +25,8 @@ describe("VisitPhotosPanel", () => {
   it("lets the student upload visit photos through the student-scoped endpoint", async () => {
     render(<VisitPhotosPanel audience="student" canUpload visitId="visit-1" />);
     expect(await screen.findByText("هنوز عکسی برای این ویزیت ثبت نشده است.")).toBeTruthy();
+    expect(screen.getByText(/سمت راست و چپ از دید شماست/)).toBeInTheDocument();
+    expect(screen.queryByText(/شاگرد/)).not.toBeInTheDocument();
 
     const file = new File(["jpeg"], "front.jpg", { type: "image/jpeg" });
     fireEvent.change(screen.getByLabelText("انتخاب عکس برای پوز جلو"), {
@@ -42,6 +44,7 @@ describe("VisitPhotosPanel", () => {
   it("uses the coach-owned visit endpoint for coach uploads", async () => {
     render(<VisitPhotosPanel audience="coach" canUpload studentId="student-1" visitId="visit-1" />);
     expect(await screen.findByText("هنوز عکسی برای این ویزیت ثبت نشده است.")).toBeTruthy();
+    expect(screen.getByText(/سمت راست و چپ از دید شاگرد است/)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("انتخاب عکس برای پوز پشت"), {
       target: { files: [new File(["jpeg"], "front.jpg", { type: "image/jpeg" })] }

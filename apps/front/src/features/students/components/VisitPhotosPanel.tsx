@@ -4,6 +4,7 @@ import { Card } from "../../../components/ui";
 import { ApiError } from "../../../shared/api/errors";
 import { apiDownload, apiRequest } from "../../../shared/api/client";
 import { formatCalendarDateTime } from "../../../shared/dates/calendar";
+import { athleteFacingText } from "../../../shared/athleteWording";
 import {
   coachVisitPhotosPath,
   commitStagedVisitPhotos,
@@ -70,8 +71,12 @@ function photoFromApi(value: Record<string, unknown>): VisitPhoto {
   };
 }
 
-function photoUploaderLabel(role: VisitPhoto["uploaderRole"]): string {
-  return role === "student" ? "ارسال شاگرد" : "ارسال مربی";
+function photoUploaderLabel(
+  role: VisitPhoto["uploaderRole"],
+  audience: VisitPhotosPanelProps["audience"]
+): string {
+  if (role === "coach") return "ارسال مربی";
+  return audience === "student" ? "ارسال ورزشکار" : "ارسال شاگرد";
 }
 
 export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
@@ -206,7 +211,7 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
             : "آپلود این عکس انجام نشد؛ دوباره تلاش کنید.";
       setPoseErrors((current) => ({
         ...current,
-        [pose]: uploadMessage
+        [pose]: audience === "student" ? athleteFacingText(uploadMessage) : uploadMessage
       }));
       if (previous?.stagedId) {
         URL.revokeObjectURL(selection.previewUrl);
@@ -274,13 +279,17 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
       setLocalSelections({});
       setMessage(
         result.photo_issues?.length
-          ? `عکس‌های قابل ثبت ذخیره شدند. ${result.photo_issues.join(" ")}`
+          ? `عکس‌های قابل ثبت ذخیره شدند. ${result.photo_issues
+              .map((issue) => (audience === "student" ? athleteFacingText(issue) : issue))
+              .join(" ")}`
           : "عکس‌ها در ویزیت ثبت شدند."
       );
     } catch (commitError) {
       setError(
         commitError instanceof ApiError
-          ? commitError.message
+          ? audience === "student"
+            ? athleteFacingText(commitError.message)
+            : commitError.message
           : "ثبت عکس‌ها انجام نشد؛ دوباره تلاش کنید."
       );
     } finally {
@@ -308,9 +317,10 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
             </span>
           </div>
           <p className={styles.intro}>
-            برای هر پوز یک عکس ثبت می‌شود؛ عکس را در کادر همان پوز انتخاب کنید. سمت راست و چپ از دید
-            شاگرد است. عکس همان‌جا نمایش داده و موقتاً آپلود می‌شود. تا قبل از ثبت، می‌توانید آن را
-            حذف یا عوض کنید؛ عکس‌های ناموفق مانع ثبت ویزیت نیستند.
+            برای هر پوز یک عکس ثبت می‌شود؛ عکس را در کادر همان پوز انتخاب کنید. سمت راست و چپ
+            {audience === "student" ? " از دید شماست. " : " از دید شاگرد است. "}عکس همان‌جا نمایش
+            داده و موقتاً آپلود می‌شود. تا قبل از ثبت، می‌توانید آن را حذف یا عوض کنید؛ عکس‌های
+            ناموفق مانع ثبت ویزیت نیستند.
           </p>
         </div>
         {error ? (
@@ -380,7 +390,7 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
                     )}
                     <figcaption>
                       <span>{photo.originalFilename || `پوز ${label}`}</span>
-                      <small>{photoUploaderLabel(photo.uploaderRole)}</small>
+                      <small>{photoUploaderLabel(photo.uploaderRole, audience)}</small>
                       <small>{formatCalendarDateTime(photo.uploadedAt)}</small>
                     </figcaption>
                   </figure>
@@ -492,7 +502,7 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
                   )}
                   <figcaption>
                     <span>{photo.originalFilename || "عکس"}</span>
-                    <small>{photoUploaderLabel(photo.uploaderRole)}</small>
+                    <small>{photoUploaderLabel(photo.uploaderRole, audience)}</small>
                     <small>{formatCalendarDateTime(photo.uploadedAt)}</small>
                   </figcaption>
                 </figure>
@@ -501,8 +511,8 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
           </div>
         ) : null}
         <p className={styles.muted}>
-          JPG، PNG یا WebP؛ حداکثر ۱۰ مگابایت برای هر عکس. هر پوز فقط یک بار و توسط مربی یا شاگرد
-          ثبت می‌شود.
+          JPG، PNG یا WebP؛ حداکثر ۱۰ مگابایت برای هر عکس. هر پوز فقط یک بار ثبت می‌شود و عکس هر پوز
+          به همان ویزیت تعلق دارد.
         </p>
       </section>
     </Card>

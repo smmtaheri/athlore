@@ -101,7 +101,7 @@ describe("Student portal routes", () => {
         <PublicHomePage />
       </MemoryRouter>
     );
-    expect(screen.getByRole("link", { name: "ورود شاگرد" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ورود ورزشکار" })).toBeInTheDocument();
   });
 
   it("guards student dashboard and redirects anonymous users to login", async () => {
@@ -183,7 +183,7 @@ describe("Student portal routes", () => {
 
     expect(await screen.findByText("برای ادامه، رمز عبور خود را تغییر دهید.")).toBeInTheDocument();
     expect(document.getElementById("setup-password")).toBeTruthy();
-    expect(screen.queryByLabelText(/نام کاربری شاگرد/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/نام کاربری ورزشکار/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ثبت رمز جدید" })).toBeInTheDocument();
   });
 
