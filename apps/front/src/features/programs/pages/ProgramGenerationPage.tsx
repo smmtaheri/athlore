@@ -389,7 +389,8 @@ export function ProgramGenerationPage({
 
   const setSectionMethod = (section: ProgramPdfSection, method: ProgramPdfSectionMethod) => {
     setDeliverySections((current) => ({ ...current, [section]: method }));
-    if (method === "generated" && stagedPdfs[section]) {
+    setErrors((current) => ({ ...current, [section]: "" }));
+    if (method !== "uploaded" && stagedPdfs[section]) {
       void handleRemoveStagedPdf(section);
     }
   };
@@ -678,7 +679,12 @@ export function ProgramGenerationPage({
             </div>
 
             <ResponsiveGrid columns={2}>
-              <FormField error={errors.studentId} htmlFor="program-student-select" label="شاگرد" required>
+              <FormField
+                error={errors.studentId}
+                htmlFor="program-student-select"
+                label="شاگرد"
+                required
+              >
                 <Select
                   placeholder="انتخاب شاگرد فعال"
                   id="program-student-select"
@@ -741,8 +747,8 @@ export function ProgramGenerationPage({
               <div>
                 <h2 className={styles.sectionTitle}>بخش‌های برنامه</h2>
                 <p className={styles.sectionDescription}>
-                  برای هر بخش جداگانه تولید با Athlore یا بارگذاری PDF را انتخاب کنید. همه فایل‌ها
-                  در همین برنامه و یک تاریخ مشترک ثبت می‌شوند.
+                  برای هر بخش تولید، بارگذاری PDF یا عدم ارسال را انتخاب کنید. لازم نیست هر سه بخش
+                  را پر کنید؛ فقط بخش‌های انتخاب‌شده در همین برنامه ثبت می‌شوند.
                 </p>
               </div>
             </div>
@@ -764,12 +770,22 @@ export function ProgramGenerationPage({
                         <WandSparkles aria-hidden size={16} /> تولید با Athlore
                       </Button>
                       <Button
+                        aria-label={`بارگذاری PDF برای ${section.label}`}
                         aria-pressed={method === "uploaded"}
                         onClick={() => setSectionMethod(section.id, "uploaded")}
                         size="sm"
                         variant={method === "uploaded" ? "primary" : "secondary"}
                       >
                         <FileUp aria-hidden size={16} /> بارگذاری PDF
+                      </Button>
+                      <Button
+                        aria-label={`عدم ارسال بخش ${section.label}`}
+                        aria-pressed={method === "omitted"}
+                        onClick={() => setSectionMethod(section.id, "omitted")}
+                        size="sm"
+                        variant={method === "omitted" ? "primary" : "secondary"}
+                      >
+                        عدم ارسال
                       </Button>
                     </div>
                     {method === "uploaded" ? (
@@ -809,7 +825,9 @@ export function ProgramGenerationPage({
                       </>
                     ) : (
                       <p className={styles.sectionDescription}>
-                        این بخش با اطلاعات برنامه ساخته می‌شود و پیش از ارسال قابل بازبینی است.
+                        {method === "omitted"
+                          ? "این بخش در این برنامه برای ورزشکار ارسال نمی‌شود."
+                          : "این بخش با اطلاعات برنامه ساخته می‌شود و پیش از ارسال قابل بازبینی است."}
                       </p>
                     )}
                   </div>
@@ -1000,9 +1018,14 @@ export function ProgramGenerationPage({
           ) : null}
           <Card className={styles.toolbar}>
             <span className={styles.sectionDescription}>
-              هر سه بخش زیر یک برنامه ثبت می‌شوند؛ فایل‌ها پس از نهایی‌سازی برای شاگرد در دسترس قرار
-              می‌گیرند.
+              فقط بخش‌هایی که برایشان تولید یا PDF انتخاب کرده‌اید پس از نهایی‌سازی برای ورزشکار در
+              دسترس قرار می‌گیرند.
             </span>
+            {!generatedSections.length && !uploadedSections.length ? (
+              <span className={styles.sectionDescription} role="status">
+                برای ادامه، حداقل یک بخش را برای تولید یا بارگذاری انتخاب کنید.
+              </span>
+            ) : null}
             <Button
               disabled={
                 !selectedStudent ||

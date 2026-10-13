@@ -686,6 +686,8 @@ Multipart coach upload before finalization: `file` and optional `section` (`work
 
 Associate a staged upload with a draft using `staged_pdf_id` and optional `section`. One staged file per categorized section is retained; replacing a section discards its previous staged file. A finalized version promotes the selected uploads as individual PDF artifacts. Missing/expired uploads configured for delivery prevent finalization.
 
+`pdf_settings.deliverySections` may set each section to `generated`, `uploaded`, or `omitted`. Omitted sections are not delivered; a complete program can therefore deliver any non-empty subset of its three sections.
+
 ### GET|PATCH|DELETE `/api/v1/pdf-files/{pdf_id}/`
 
 Detail · rename (`file_name`) · soft-delete.

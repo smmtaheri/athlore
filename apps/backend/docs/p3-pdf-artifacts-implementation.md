@@ -44,7 +44,7 @@ Draft / non-finalized versions are rejected with `version_not_finalized` / `prog
 
 ## Section-based delivery
 
-- `pdf_settings.deliverySections` maps each included section to `generated` or `uploaded`.
+- `pdf_settings.deliverySections` maps each section to `generated`, `uploaded`, or `omitted`. Omitted sections are not shown for the athlete and do not require a PDF.
 - `POST /api/v1/program-pdfs/staging/` accepts multipart `file` and optional `section` (`workout|nutrition|supplement`). Staging is private and does not make a file visible to the student.
 - `POST /api/v1/programs/{id}/versions/{version_id}/staged-pdf/` accepts `staged_pdf_id` and optional `section` to associate/replace that section on a draft.
 - Finalizing the draft promotes the selected staged PDFs as categorized artifacts. A missing/expired selected upload prevents finalization; generated sections are rendered separately after finalization.

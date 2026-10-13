@@ -7,7 +7,7 @@ export type GeneratedProgramStatus = Extract<
 
 export type ProgramPreviewTab = "training" | "nutrition" | "supplements" | "pdf";
 export type ProgramPdfSection = "workout" | "nutrition" | "supplement";
-export type ProgramPdfSectionMethod = "generated" | "uploaded";
+export type ProgramPdfSectionMethod = "generated" | "uploaded" | "omitted";
 export type ProgramPdfSectionMethods = Partial<Record<ProgramPdfSection, ProgramPdfSectionMethod>>;
 
 export interface TrainingExercise {

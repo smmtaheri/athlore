@@ -628,6 +628,108 @@ class PdfApiTests(PdfTestMixin, APITestCase):
             self.assertEqual(download["Content-Type"], "application/pdf")
             self.assertEqual(b"".join(download.streaming_content), pdf)
 
+    def test_complete_program_can_finalize_with_only_one_uploaded_section(self):
+        pdf = (
+            b"%PDF-1.4\n"
+            b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            b"2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            b"trailer\n<< /Root 1 0 R >>\n%%EOF\n"
+        )
+        staged = self.client.post(
+            "/api/v1/program-pdfs/staging/",
+            {
+                "student_id": str(self.student.id),
+                "section": "nutrition",
+                "file": SimpleUploadedFile(
+                    "nutrition.pdf", pdf, content_type="application/pdf"
+                ),
+            },
+            format="multipart",
+            **self.ha,
+        )
+        self.assertEqual(staged.status_code, status.HTTP_201_CREATED, staged.data)
+
+        draft_response = self.client.post(
+            "/api/v1/programs/upload-pdf/",
+            {
+                "student_id": str(self.student.id),
+                "staged_pdf_id": staged.data["id"],
+                "title": "برنامه کامل محمد",
+                "program_type": "complete",
+                "date_range_label": "مهر ۱۴۰۵",
+                "date_range_start": "2026-10-10",
+                "date_range_end": "2026-11-06",
+            },
+            format="json",
+            **self.ha,
+        )
+        self.assertEqual(draft_response.status_code, status.HTTP_201_CREATED, draft_response.data)
+        program_id = draft_response.data["id"]
+        version_id = draft_response.data["current_draft"]["id"]
+        methods = {
+            "workout": "omitted",
+            "nutrition": "uploaded",
+            "supplement": "omitted",
+        }
+        configured = self.client.patch(
+            f"/api/v1/programs/{program_id}/versions/{version_id}/",
+            {"pdf_settings": {"deliverySections": methods}},
+            format="json",
+            **self.ha,
+        )
+        self.assertEqual(configured.status_code, status.HTTP_200_OK, configured.data)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            finalized = self.client.post(
+                f"/api/v1/programs/{program_id}/versions/{version_id}/finalize/",
+                {},
+                format="json",
+                **self.ha,
+            )
+        self.assertEqual(finalized.status_code, status.HTTP_200_OK, finalized.data)
+        artifacts = list(
+            PdfArtifact.objects.filter(program_id=program_id, deleted_at__isnull=True)
+        )
+        self.assertEqual(len(artifacts), 1)
+        self.assertEqual(artifacts[0].section, "nutrition")
+
+        activated = self.client.post(
+            f"/api/v1/programs/{program_id}/activate/",
+            {"version_id": version_id},
+            format="json",
+            **self.ha,
+        )
+        self.assertEqual(activated.status_code, status.HTTP_200_OK, activated.data)
+
+        student_user = get_user_model().objects.create_user(
+            username="nutrition-only-student", password="StudentPass123!"
+        )
+        StudentProfile.objects.create(
+            user=student_user,
+            student=self.student,
+            portal_enabled=True,
+            account_activated_at=timezone.now(),
+            must_change_password=False,
+        )
+        login = self.client.post(
+            "/api/v1/auth/login/",
+            {"username": student_user.username, "password": "StudentPass123!"},
+            format="json",
+        )
+        self.assertEqual(login.status_code, status.HTTP_200_OK, login.data)
+        student_auth = auth_header(login.data["tokens"])
+        student_files = self.client.get(
+            f"/api/v1/me/programs/{program_id}/pdf-files/", **student_auth
+        )
+        self.assertEqual(student_files.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(student_files.data["results"]), 1)
+        self.assertEqual(student_files.data["results"][0]["section"], "nutrition")
+        download = self.client.get(
+            f"/api/v1/me/pdf-files/{artifacts[0].id}/download/", **student_auth
+        )
+        self.assertEqual(download.status_code, status.HTTP_200_OK)
+        self.assertEqual(b"".join(download.streaming_content), pdf)
+
     def test_create_from_finalized_and_download(self):
         res = self.client.post(
             f"/api/v1/programs/{self.program.id}/pdf-files/",

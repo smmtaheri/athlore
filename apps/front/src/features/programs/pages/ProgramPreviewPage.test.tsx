@@ -261,6 +261,38 @@ describe("ProgramPreviewPage", () => {
     expect(await screen.findByText("programs list")).toBeInTheDocument();
   });
 
+  it("does not generate or send sections marked omitted", async () => {
+    const user = userEvent.setup();
+    const { activate, createForProgram, finalize } = renderPreview(
+      "/programs/program-test?tab=pdf",
+      {
+        draftId: "version-1",
+        pdfSettings: {
+          ...program.pdfSettings,
+          deliverySections: {
+            workout: "omitted",
+            nutrition: "generated",
+            supplement: "omitted"
+          }
+        }
+      }
+    );
+
+    expect(await screen.findByDisplayValue("برنامه تست")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "نهایی‌سازی و ارسال به شاگرد" })[0]);
+    await waitFor(() => expect(finalize).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(createForProgram).toHaveBeenCalledTimes(1));
+    expect(createForProgram).toHaveBeenCalledWith(
+      "program-test",
+      expect.objectContaining({
+        deliveryOutputs: "section",
+        section: "nutrition"
+      })
+    );
+    expect(activate).toHaveBeenCalledWith("program-test");
+    expect(await screen.findByText("programs list")).toBeInTheDocument();
+  });
+
   it("retries delivery against the latest finalized version without finalizing again", async () => {
     const user = userEvent.setup();
     const { createForProgram, finalize } = renderPreview("/programs/program-test?tab=pdf", {
