@@ -20,12 +20,18 @@ function resolvePublicRegistrationEnabled(): boolean {
   return false;
 }
 
+function resolveLoginOtpEnabled(): boolean {
+  const raw = (import.meta.env.VITE_LOGIN_OTP_ENABLED as string | undefined)?.trim().toLowerCase();
+  return raw === "true" || raw === "1" || raw === "yes";
+}
+
 export const appConfig = {
   displayName: "Athlore",
   panelLabel: "پنل مربی",
   tagline: "مربیگری تو، هوشمندتر.",
   apiBaseUrl: resolveApiBaseUrl(),
   publicRegistrationEnabled: resolvePublicRegistrationEnabled(),
+  loginOtpEnabled: resolveLoginOtpEnabled(),
   /**
    * Unit tests keep localStorage repositories.
    * Production/dev runtime uses Backend APIs unless VITE_USE_MOCK_API=true.

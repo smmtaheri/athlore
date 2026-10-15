@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hmac
+
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -16,6 +18,9 @@ from common.phone import InvalidPhoneError, normalize_iran_mobile
 
 User = get_user_model()
 REFRESH_SESSION_STARTED_AT_CLAIM = "session_started_at"
+_OTP_DIGIT_TRANSLATION = str.maketrans(
+    "۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"
+)
 
 
 def normalize_email(email: str) -> str:
@@ -271,6 +276,73 @@ def login_user(*, email: str | None = None, username: str | None = None, passwor
             # Force phone + initial-password step on the student login page.
             raise PermissionError("Invalid credentials.")
         return session_payload(user, student=student_profile.student, must_change_password=False)
+
+    raise PermissionError("Invalid credentials.")
+
+
+def login_by_phone(
+    *,
+    phone_number: str,
+    role: str,
+    method: str,
+    password: str = "",
+    code: str = "",
+) -> dict:
+    """Authenticate a coach or active student portal using a phone credential."""
+    if method == "code":
+        expected_code = str(getattr(settings, "LOGIN_OTP_STATIC_CODE", "") or "")
+        supplied_code = str(code).translate(_OTP_DIGIT_TRANSLATION).strip()
+        if (
+            not getattr(settings, "LOGIN_OTP_ENABLED", False)
+            or not expected_code
+            or not hmac.compare_digest(supplied_code, expected_code)
+        ):
+            raise PermissionError("Invalid credentials.")
+    elif method != "password" or not password:
+        raise PermissionError("Invalid credentials.")
+
+    phone_canon = normalize_iran_mobile(phone_number, required=True)
+    if role == "coach":
+        coach = (
+            CoachProfile.objects.select_related("user")
+            .filter(phone_number=phone_canon)
+            .first()
+        )
+        if coach is None or not coach.user.is_active:
+            raise PermissionError("Invalid credentials.")
+        if method == "password" and not coach.user.check_password(password):
+            raise PermissionError("Invalid credentials.")
+        return session_payload(coach.user, coach=coach)
+
+    if role == "student":
+        from students.models import Student
+
+        student = (
+            Student.objects.select_related("coach", "auth_profile__user")
+            .filter(phone_number=phone_canon)
+            .first()
+        )
+        profile = getattr(student, "auth_profile", None) if student else None
+        user = getattr(profile, "user", None)
+        if (
+            profile is None
+            or user is None
+            or not profile.portal_enabled
+            or not user.is_active
+        ):
+            raise PermissionError("Invalid credentials.")
+        if method == "password" and not user.check_password(password):
+            raise PermissionError("Invalid credentials.")
+        if method == "code" and (profile.must_change_password or not profile.account_activated_at):
+            raise PermissionError("Invalid credentials.")
+        must_change_password = bool(profile.must_change_password or not profile.account_activated_at)
+        if must_change_password and (method != "password" or not user.has_usable_password()):
+            raise PermissionError("Invalid credentials.")
+        payload = session_payload(
+            user, student=student, must_change_password=must_change_password
+        )
+        payload["username"] = user.username
+        return payload
 
     raise PermissionError("Invalid credentials.")
 

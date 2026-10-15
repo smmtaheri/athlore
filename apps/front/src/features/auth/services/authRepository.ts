@@ -28,8 +28,12 @@ export interface RegisterInput {
 }
 
 export interface LoginInput {
+  code?: string;
   email?: string;
-  password: string;
+  method?: "password" | "code";
+  password?: string;
+  phoneNumber?: string;
+  role?: "coach" | "student";
   username?: string;
 }
 
@@ -129,11 +133,38 @@ export function createAuthRepository(storage = getStorage()): AuthRepository {
       return read();
     },
     async login(input) {
-      if ((!input.email?.trim() && !input.username?.trim()) || !input.password) {
+      if (!input.phoneNumber?.trim() && !input.email?.trim() && !input.username?.trim()) {
         throw new Error("Credentials are required.");
       }
 
+      if (input.phoneNumber?.trim() && input.role === "student") {
+        const session: AuthSession = {
+          mustChangePassword: false,
+          role: "student",
+          student: {
+            coachId: "coach-1",
+            fullName: "ورزشکار آزمایشی",
+            id: "student-mock-1",
+            phoneNumber: input.phoneNumber.trim()
+          },
+          token: "mock-student-token",
+          user: {
+            createdAt: new Date().toISOString(),
+            email: "",
+            fullName: "ورزشکار آزمایشی",
+            id: input.phoneNumber.trim()
+          },
+          username: input.phoneNumber.trim()
+        };
+        if (input.password === "must-change") {
+          session.mustChangePassword = true;
+        }
+        write(session);
+        return session;
+      }
+
       if (input.username?.trim()) {
+        if (!input.password) throw new Error("Credentials are required.");
         const session: AuthSession = {
           mustChangePassword: false,
           role: "student",
@@ -161,11 +192,11 @@ export function createAuthRepository(storage = getStorage()): AuthRepository {
       }
 
       const user =
-        input.email!.trim().toLowerCase() === sampleUser.email
+        input.phoneNumber?.trim() || input.email!.trim().toLowerCase() === sampleUser.email
           ? sampleUser
           : {
               ...sampleUser,
-              email: input.email!.trim().toLowerCase(),
+              email: input.email?.trim().toLowerCase() || "coach@example.com",
               fullName: "مربی"
             };
       const session = createSession(user);

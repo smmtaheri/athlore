@@ -11,6 +11,7 @@ from accounts.serializers import (
     CoachProfileSerializer,
     LoginSerializer,
     LogoutSerializer,
+    PhoneLoginSerializer,
     RefreshSerializer,
     RegisterSerializer,
 )
@@ -74,6 +75,35 @@ class LoginView(APIView):
             )
         refresh = payload.get("tokens", {}).get("refresh")
         # Prefer HttpOnly cookie for refresh; still return body for backward-compatible clients.
+        response = Response(payload, status=status.HTTP_200_OK)
+        if refresh:
+            set_refresh_cookie(response, refresh)
+        return response
+
+
+class PhoneLoginView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        from accounts.auth_cookies import set_refresh_cookie
+
+        serializer = PhoneLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            payload = services.login_by_phone(**serializer.validated_data)
+        except PermissionError:
+            return Response(
+                {
+                    "error": {
+                        "code": "authentication_required",
+                        "message": "شماره موبایل یا اطلاعات ورود نادرست است.",
+                        "details": {},
+                    }
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        refresh = payload.get("tokens", {}).get("refresh")
         response = Response(payload, status=status.HTTP_200_OK)
         if refresh:
             set_refresh_cookie(response, refresh)

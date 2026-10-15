@@ -181,6 +181,21 @@ export function createApiAuthRepository(): ApiAuthRepository {
       return this.getSession();
     },
     async login(input: LoginInput) {
+      if (input.phoneNumber?.trim()) {
+        const payload = await apiRequest<AuthPayload>("/auth/phone-login/", {
+          method: "POST",
+          auth: false,
+          skipRefresh: true,
+          body: {
+            code: input.code,
+            method: input.method || "password",
+            password: input.password,
+            phone_number: input.phoneNumber.trim(),
+            role: input.role || "coach"
+          }
+        });
+        return persistPayload(payload);
+      }
       if (input.username?.trim()) {
         const payload = await apiRequest<AuthPayload>("/student/login/", {
           method: "POST",

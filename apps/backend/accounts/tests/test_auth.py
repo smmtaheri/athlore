@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from django.contrib.auth import get_user_model
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -52,6 +52,68 @@ class AuthTests(APITestCase):
             format="json",
         )
         self.assertEqual(bad.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_phone_login_for_coach_with_password_and_stage_code(self):
+        register(
+            self.client,
+            "phone-login@example.com",
+            password="SecurePass123!",
+            phone_number="09121112222",
+        )
+        password_login = self.client.post(
+            "/api/v1/auth/phone-login/",
+            {
+                "phone_number": "+989121112222",
+                "role": "coach",
+                "method": "password",
+                "password": "SecurePass123!",
+            },
+            format="json",
+        )
+        self.assertEqual(password_login.status_code, status.HTTP_200_OK, password_login.data)
+        self.assertEqual(password_login.data["role"], "coach")
+
+        with override_settings(LOGIN_OTP_ENABLED=True, LOGIN_OTP_STATIC_CODE="1111"):
+            code_login = self.client.post(
+                "/api/v1/auth/phone-login/",
+                {
+                    "phone_number": "09121112222",
+                    "role": "coach",
+                    "method": "code",
+                    "code": "۱۱۱۱",
+                },
+                format="json",
+            )
+            bad_code = self.client.post(
+                "/api/v1/auth/phone-login/",
+                {
+                    "phone_number": "09121112222",
+                    "role": "coach",
+                    "method": "code",
+                    "code": "2222",
+                },
+                format="json",
+            )
+        self.assertEqual(code_login.status_code, status.HTTP_200_OK, code_login.data)
+        self.assertEqual(bad_code.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_phone_login_code_is_disabled_by_default(self):
+        register(
+            self.client,
+            "phone-disabled@example.com",
+            phone_number="09121113333",
+        )
+        response = self.client.post(
+            "/api/v1/auth/phone-login/",
+            {
+                "phone_number": "09121113333",
+                "role": "coach",
+                "method": "code",
+                "code": "1111",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_me_authenticated_and_anonymous(self):
         res = register(self.client, "me@example.com", full_name="Me Coach")
