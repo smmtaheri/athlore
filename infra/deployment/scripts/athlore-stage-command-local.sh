@@ -11,10 +11,10 @@ usage() {
   cat <<'USAGE'
 Usage:
   deploy-stage-athlore [--help]
-  stage-up-athlore [--build]
-  stage-down-athlore
-  stage-status-athlore
-  stage-build-athlore
+  up-stage-athlore [--build]
+  down-stage-athlore
+  status-stage-athlore
+  build-stage-athlore
 
 All commands operate on the remote isolated stage checkout over SSH.
 Configuration overrides: ATHLORE_LOCAL_ROOT, ATHLORE_STAGE_SSH_HOST,

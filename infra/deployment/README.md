@@ -153,15 +153,15 @@ against the separate `/root/athlore-stage` checkout:
 deploy-stage-athlore
 
 # Fast on/off controls. Starting does not rebuild images.
-stage-up-athlore
-stage-down-athlore
-stage-status-athlore
+up-stage-athlore
+down-stage-athlore
+status-stage-athlore
 
 # Rebuild from the current remote stage checkout without fetching Git.
-stage-build-athlore
+build-stage-athlore
 
 # Optional: start stage and rebuild its images.
-stage-up-athlore --build
+up-stage-athlore --build
 ```
 
 The commands use `ATHLORE_LOCAL_ROOT` (default
