@@ -157,9 +157,6 @@ up-stage-athlore
 down-stage-athlore
 status-stage-athlore
 
-# Rebuild from the current remote stage checkout without fetching Git.
-build-stage-athlore
-
 # Optional: start stage and rebuild its images.
 up-stage-athlore --build
 ```
@@ -180,7 +177,6 @@ The scripts can also be run directly on the server from the stage checkout's
 ./scripts/stage-up.sh
 ./scripts/stage-down.sh
 ./scripts/stage-status.sh
-./scripts/stage-build.sh
 ```
 
 The first stage command creates a private `.env.stage` with independently

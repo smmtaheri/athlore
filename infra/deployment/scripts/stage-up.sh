@@ -14,7 +14,7 @@ fi
 
 stage_prepare
 if ! stage_compose up -d --no-build; then
-  echo "Stage did not start. If this is the first run, use ./scripts/stage-build.sh first." >&2
+  echo "Stage did not start. For the first start, run deploy-stage-athlore or up-stage-athlore --build." >&2
   exit 1
 fi
 

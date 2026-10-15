@@ -14,7 +14,6 @@ Usage:
   up-stage-athlore [--build]
   down-stage-athlore
   status-stage-athlore
-  build-stage-athlore
 
 All commands operate on the remote isolated stage checkout over SSH.
 Configuration overrides: ATHLORE_LOCAL_ROOT, ATHLORE_STAGE_SSH_HOST,
@@ -40,7 +39,7 @@ case "$ACTION" in
       exit 2
     fi
     ;;
-  down|status|build)
+  down|status)
     if [[ "$#" -gt 1 ]]; then
       usage >&2
       exit 2
@@ -156,7 +155,7 @@ remote_root="$1"
 script_name="$2"
 shift 2
 case "$script_name" in
-  stage-up.sh|stage-down.sh|stage-status.sh|stage-build.sh) ;;
+  stage-up.sh|stage-down.sh|stage-status.sh) ;;
   *) echo "ERROR: invalid stage command." >&2; exit 2 ;;
 esac
 exec bash "$remote_root/infra/deployment/scripts/$script_name" "$@"
