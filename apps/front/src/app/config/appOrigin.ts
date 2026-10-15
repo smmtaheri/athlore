@@ -51,12 +51,15 @@ function isLocalHost(hostname: string): boolean {
 export function resolveAppSurface(
   locationLike: LocationLike | null | undefined = typeof window !== "undefined"
     ? window.location
-    : null
+    : null,
+  domains: typeof appDomains = appDomains
 ): AppSurface {
   const hostname = locationLike?.hostname?.trim().toLowerCase() || "";
-  if (hostname === appDomains.public) return "public";
-  if (hostname === appDomains.coach) return "coach";
-  if (hostname === appDomains.student) return "student";
+  // A stage deployment can use the student hostname for public share links;
+  // the dedicated panel surface must win when those domains intentionally overlap.
+  if (hostname === domains.coach) return "coach";
+  if (hostname === domains.student) return "student";
+  if (hostname === domains.public) return "public";
 
   if (import.meta.env.DEV && isLocalHost(hostname)) {
     const configured = import.meta.env.VITE_DEV_APP_SURFACE?.trim().toLowerCase();

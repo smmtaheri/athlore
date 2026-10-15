@@ -117,3 +117,63 @@ Visit photo uploads use a private staging table and shared media volume. The
 `visit-photo-pruner` service removes expired uploads every hour after the
 backend is healthy. Check `docker compose ps visit-photo-pruner` if temporary
 media usage grows unexpectedly.
+
+## Staging environment
+
+Stage uses the same server and public IP, but runs as an isolated Compose
+project (`athlore-stage`) with a separate PostgreSQL volume, media volume,
+secrets, and uniquely tagged backend/frontend images. It does not copy or
+connect to production data. Demo fixtures are disabled. Keep its source in a
+separate checkout on the `stage` branch (for example `/root/athlore-stage`);
+do not run the production `deploy.sh` from that checkout.
+
+The two stage hostnames are routed by the production Nginx edge proxy over a
+private Docker network. No extra host port or ParsPack Origin Rule is needed.
+The production edge configuration must first be deployed with the stage host
+route and the `athlore-edge` network. Until that one-time gateway change is
+active, the stage hostnames are not ready for browser testing. When the stage
+containers are stopped, the gateway responds with HTTP 503, `Cache-Control:
+no-store`, and a clear plain-text “staging is currently offline” message.
+That gateway-only release must be merged into `main` and applied from the
+production checkout with the normal production deployment workflow; do not
+use `stage-deploy.sh` for it.
+
+ParsPack DNS/CDN must send both `stage.coach.athlore.ir` and
+`stage.student.athlore.ir` to the same origin as production and provide HTTPS
+for both names. The CDN must preserve the `Host` header and forward
+`X-Forwarded-Proto: https`. Do not point these names at a different origin IP.
+
+Create the isolated server checkout once (after `stage` is available on the
+Git remote):
+
+```bash
+git clone --branch stage --single-branch git@github.com:smmtaheri/athlore.git /root/athlore-stage
+cd /root/athlore-stage/infra/deployment
+```
+
+From the stage checkout's `infra/deployment` directory:
+
+```bash
+# First deployment, or update stage to the current stage-branch commit.
+./scripts/stage-deploy.sh
+
+# Fast on/off controls. stage-up does not rebuild images.
+./scripts/stage-up.sh
+./scripts/stage-down.sh
+./scripts/stage-status.sh
+
+# Rebuild from the current checkout without fetching Git.
+./scripts/stage-build.sh
+```
+
+The first stage command creates a private `.env.stage` with independently
+generated secrets. Back it up securely; do not commit or copy it from
+production. `stage-down.sh` runs Compose down without `--volumes`, so its DB
+and uploads persist while the containers release CPU/RAM. Never use `docker
+compose down -v` or `docker volume prune` to switch stage off. The shared edge
+network is private/internal and is retained when either stack is stopped.
+
+`stage-deploy.sh` refuses a non-stage branch, a dirty checkout, or a checkout
+that does not end up exactly at `origin/stage`. Keep the stage checkout in a
+different directory from `/root/athlore`; the production deploy script always
+tracks `main` and must not be used to update Stage.
