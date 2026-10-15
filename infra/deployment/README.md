@@ -143,26 +143,43 @@ ParsPack DNS/CDN must send both `stage.coach.athlore.ir` and
 for both names. The CDN must preserve the `Host` header and forward
 `X-Forwarded-Proto: https`. Do not point these names at a different origin IP.
 
-Create the isolated server checkout once (after `stage` is available on the
-Git remote):
+From the laptop, the following globally installed commands work from any
+directory. They connect through the existing SSH host alias `athlore` and run
+against the separate `/root/athlore-stage` checkout:
 
 ```bash
-git clone --branch stage --single-branch git@github.com:smmtaheri/athlore.git /root/athlore-stage
-cd /root/athlore-stage/infra/deployment
+# Push the local stage branch if needed, create the remote checkout on first
+# use, fast-forward it, and build/restart only the isolated stage stack.
+deploy-stage-athlore
+
+# Fast on/off controls. Starting does not rebuild images.
+stage-up-athlore
+stage-down-athlore
+stage-status-athlore
+
+# Rebuild from the current remote stage checkout without fetching Git.
+stage-build-athlore
+
+# Optional: start stage and rebuild its images.
+stage-up-athlore --build
 ```
 
-From the stage checkout's `infra/deployment` directory:
+The commands use `ATHLORE_LOCAL_ROOT` (default
+`$HOME/Desktop/Tasks/Nobitex/athlore`), `ATHLORE_STAGE_SSH_HOST` (default
+`athlore`), and `ATHLORE_STAGE_REMOTE_ROOT` (default
+`/root/athlore-stage`) if you need to override their locations. The first
+`deploy-stage-athlore` creates the isolated server checkout automatically; SSH
+must be able to access the Git remote from the server. No command changes the
+production checkout or production Compose project.
+
+The scripts can also be run directly on the server from the stage checkout's
+`infra/deployment` directory:
 
 ```bash
-# First deployment, or update stage to the current stage-branch commit.
 ./scripts/stage-deploy.sh
-
-# Fast on/off controls. stage-up does not rebuild images.
 ./scripts/stage-up.sh
 ./scripts/stage-down.sh
 ./scripts/stage-status.sh
-
-# Rebuild from the current checkout without fetching Git.
 ./scripts/stage-build.sh
 ```
 
