@@ -161,6 +161,7 @@ services:
     networks:
       - internal
       - default
+      - edge
 
 networks:
   # postgres/backend/frontend have no route out of this network (no internet,
@@ -169,6 +170,11 @@ networks:
   internal:
     internal: true
   default:
+
+  # Shared only by the production edge proxy and the isolated staging edge.
+  edge:
+    name: athlore-edge
+    external: true
 
 volumes:
   postgres_data:

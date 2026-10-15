@@ -1,0 +1,28 @@
+  # Host-based gateway for the isolated staging stack. The variable in
+  # proxy_pass makes Nginx resolve the target at request time, so production
+  # Nginx remains healthy while staging is stopped and can return a clear 503.
+  server {
+    listen 80;
+    server_name ${STAGE_COACH_DOMAIN} ${STAGE_STUDENT_DOMAIN};
+
+    include /etc/nginx/snippets/security-headers.conf;
+    include /etc/nginx/snippets/hsts.conf;
+
+    location / {
+      resolver 127.0.0.11 valid=5s ipv6=off;
+      set $stage_origin athlore-stage-nginx;
+      proxy_intercept_errors on;
+      error_page 502 503 504 = @stage_offline;
+      include /etc/nginx/snippets/proxy-headers.conf;
+      proxy_pass http://$stage_origin:80;
+    }
+
+    location @stage_offline {
+      include /etc/nginx/snippets/security-headers.conf;
+      include /etc/nginx/snippets/hsts.conf;
+      default_type text/plain;
+      add_header Cache-Control "no-store" always;
+      add_header Retry-After 120 always;
+      return 503 "Athlore staging is currently offline. Please start the staging environment and try again.\n";
+    }
+  }

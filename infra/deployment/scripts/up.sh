@@ -57,6 +57,7 @@ fi
 
 ./scripts/validate-env.sh
 "$ROOT/scripts/render-nginx.sh"
+"$ROOT/scripts/ensure-edge-network.sh"
 docker compose config --quiet
 
 # Stop the Athlore stack before building so Docker gets the host resources
