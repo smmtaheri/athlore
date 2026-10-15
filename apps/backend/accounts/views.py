@@ -12,6 +12,7 @@ from accounts.serializers import (
     CoachProfileSerializer,
     LoginSerializer,
     LogoutSerializer,
+    PhoneLoginSerializer,
     RefreshSerializer,
     RegisterSerializer,
 )
@@ -81,23 +82,23 @@ class LoginView(APIView):
         return response
 
 
-class CoachPhoneLoginView(APIView):
+class PhoneLoginView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
     def post(self, request):
         from accounts.auth_cookies import set_refresh_cookie
 
-        serializer = CoachPhoneLoginSerializer(data=request.data)
+        serializer = PhoneLoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            payload = services.login_coach_by_phone(**serializer.validated_data)
+            payload = services.login_by_phone(**serializer.validated_data)
         except PermissionError:
             return Response(
                 {
                     "error": {
                         "code": "authentication_required",
-                        "message": "شماره موبایل یا رمز عبور نادرست است.",
+                        "message": "شماره موبایل یا اطلاعات ورود نادرست است.",
                         "details": {},
                     }
                 },

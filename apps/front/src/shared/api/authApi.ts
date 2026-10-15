@@ -187,8 +187,11 @@ export function createApiAuthRepository(): ApiAuthRepository {
           auth: false,
           skipRefresh: true,
           body: {
+            code: input.code,
+            method: input.method || "password",
+            password: input.password,
             phone_number: input.phoneNumber.trim(),
-            password: input.password
+            role: input.role || "coach"
           }
         });
         return persistPayload(payload);

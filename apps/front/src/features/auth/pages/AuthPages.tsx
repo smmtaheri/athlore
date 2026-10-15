@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { LogIn, UserPlus } from "lucide-react";
 import { Button, Card, FormField, Input, PageTitle } from "../../../components/ui";
 import { appConfig } from "../../../app/config/appConfig";
+import { LoginMethodSelector, type LoginMethod } from "../components/LoginMethodSelector";
 import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
 import { validateIranMobileInput } from "../../../shared/phone/iranMobile";
 import { useAuth } from "../context/AuthContext";
@@ -19,6 +20,8 @@ interface AuthErrors {
 export function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [method, setMethod] = useState<LoginMethod>("password");
   const [errors, setErrors] = useState<AuthErrors>({});
   const [saving, setSaving] = useState(false);
   const auth = useAuth();
@@ -29,7 +32,9 @@ export function LoginPage() {
     const nextErrors: AuthErrors = {};
     const phoneError = validateIranMobileInput(phoneNumber);
     if (phoneError) nextErrors.phoneNumber = phoneError;
-    if (!password) nextErrors.password = "رمز عبور الزامی است.";
+    if (!appConfig.loginOtpEnabled) setMethod("password");
+    if (method === "password" && !password) nextErrors.password = "رمز عبور الزامی است.";
+    if (method === "code" && !code.trim()) nextErrors.password = "کد یک‌بارمصرف را وارد کنید.";
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -38,7 +43,13 @@ export function LoginPage() {
 
     setSaving(true);
     try {
-      await auth.login({ phoneNumber: phoneNumber.trim(), password });
+      await auth.login({
+        code: method === "code" ? code.trim() : undefined,
+        method: appConfig.loginOtpEnabled ? method : "password",
+        password: method === "password" ? password : undefined,
+        phoneNumber: phoneNumber.trim(),
+        role: "coach"
+      });
       navigate("/dashboard", { replace: true });
     } catch (error) {
       setErrors({ submit: mapAuthError(error, "ورود انجام نشد. اطلاعات را بررسی کنید.") });
@@ -69,23 +80,51 @@ export function LoginPage() {
             id="login-phone"
             inputMode="tel"
             onChange={(event) => setPhoneNumber(event.target.value)}
-            placeholder="989121234567"
+            placeholder="9121234567"
             type="tel"
             value={phoneNumber}
           />
         </FormField>
-        <p className={styles.loginMethodHint}>شماره را با ۹۸ و بدون + وارد کنید.</p>
-        <FormField error={errors.password} htmlFor="login-password" label="رمز عبور" required>
-          <Input
-            autoComplete="current-password"
-            id="login-password"
-            onChange={(event) => setPassword(event.target.value)}
-            type="password"
-            value={password}
+        <p className={styles.loginMethodHint}>
+          شماره را با ۹۱۲…، ۰۹۱۲…، ۹۸۹۱۲… یا +۹۸۹۱۲… وارد کنید؛ سیستم خودش آن را یکسان‌سازی می‌کند.
+        </p>
+        {appConfig.loginOtpEnabled ? (
+          <LoginMethodSelector
+            method={method}
+            onChange={(next) => {
+              setMethod(next);
+              setErrors({});
+            }}
           />
-        </FormField>
+        ) : null}
+        {method === "password" || !appConfig.loginOtpEnabled ? (
+          <FormField error={errors.password} htmlFor="login-password" label="رمز عبور" required>
+            <Input
+              autoComplete="current-password"
+              id="login-password"
+              onChange={(event) => setPassword(event.target.value)}
+              type="password"
+              value={password}
+            />
+          </FormField>
+        ) : (
+          <>
+            <FormField error={errors.password} htmlFor="login-code" label="کد یک‌بارمصرف" required>
+              <Input
+                autoComplete="one-time-code"
+                id="login-code"
+                inputMode="numeric"
+                onChange={(event) => setCode(event.target.value)}
+                value={code}
+              />
+            </FormField>
+            <p className={styles.loginMethodHint}>
+              ورود با پیامک در حال آماده‌سازی است؛ فعلاً در محیط آزمایشی از کد ۱۱۱۱ استفاده کنید.
+            </p>
+          </>
+        )}
         <Button fullWidth iconStart={<LogIn size={18} />} isLoading={saving} type="submit">
-          ورود به داشبورد
+          {method === "code" && appConfig.loginOtpEnabled ? "ورود با کد" : "ورود به داشبورد"}
         </Button>
       </form>
     </AuthShell>

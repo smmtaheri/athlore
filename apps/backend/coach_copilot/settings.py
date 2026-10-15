@@ -155,6 +155,12 @@ PUBLIC_REGISTRATION_ENABLED = os.environ.get("PUBLIC_REGISTRATION_ENABLED", "fal
     "true",
     "yes",
 }
+LOGIN_OTP_ENABLED = os.environ.get("LOGIN_OTP_ENABLED", "false").lower() in {
+    "1",
+    "true",
+    "yes",
+}
+LOGIN_OTP_STATIC_CODE = os.environ.get("LOGIN_OTP_STATIC_CODE", "")
 
 _CANONICAL_HTTPS_ORIGINS = [f"https://{host}" for host in _CANONICAL_HOSTS]
 _LOCAL_DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]

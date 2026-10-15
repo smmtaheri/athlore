@@ -128,6 +128,78 @@ class StudentPortalActivationTests(TestCase):
         self.assertEqual(detail.data["portal_access"]["status"], "active")
         self.assertEqual(detail.data["portal_access"]["username"], "ali_athlete")
 
+    def test_phone_password_login_keeps_first_login_password_setup_flow(self):
+        set_portal_initial_password(
+            self.coach,
+            self.student,
+            username="first_login_athlete",
+            initial_password="123456",
+        )
+        response = self.public.post(
+            "/api/v1/auth/phone-login/",
+            {
+                "phone_number": self.student.phone_number,
+                "role": "student",
+                "method": "password",
+                "password": "123456",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertTrue(response.data["must_change_password"])
+
+    def test_phone_login_for_activated_student_with_password_or_stage_code(self):
+        _provision_and_complete(
+            self.coach,
+            self.student,
+            username="phone_athlete",
+            initial="123456",
+        )
+        password_login = self.public.post(
+            "/api/v1/auth/phone-login/",
+            {
+                "phone_number": self.student.phone_number,
+                "role": "student",
+                "method": "password",
+                "password": "StudentPass123!",
+            },
+            format="json",
+        )
+        self.assertEqual(password_login.status_code, 200, password_login.data)
+        self.assertEqual(password_login.data["role"], "student")
+        self.assertEqual(password_login.data["username"], "phone_athlete")
+
+        from django.test import override_settings
+
+        with override_settings(LOGIN_OTP_ENABLED=True, LOGIN_OTP_STATIC_CODE="1111"):
+            code_login = self.public.post(
+                "/api/v1/auth/phone-login/",
+                {
+                    "phone_number": self.student.phone_number,
+                    "role": "student",
+                    "method": "code",
+                    "code": "1111",
+                },
+                format="json",
+            )
+        self.assertEqual(code_login.status_code, 200, code_login.data)
+
+    def test_phone_login_rejects_student_without_active_portal(self):
+        from django.test import override_settings
+
+        with override_settings(LOGIN_OTP_ENABLED=True, LOGIN_OTP_STATIC_CODE="1111"):
+            response = self.public.post(
+                "/api/v1/auth/phone-login/",
+                {
+                    "phone_number": self.student.phone_number,
+                    "role": "student",
+                    "method": "code",
+                    "code": "1111",
+                },
+                format="json",
+            )
+        self.assertEqual(response.status_code, 401)
+
     def test_denied_vs_wrong_password_messages(self):
         set_portal_initial_password(
             self.coach, self.student, username="ali_ok", initial_password="123456"
