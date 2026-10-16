@@ -19,4 +19,5 @@ if [[ "$(git -C "$REPO_ROOT" rev-parse HEAD)" != "$(git -C "$REPO_ROOT" rev-pars
   echo "Publish the intended stage commit, then retry from the stage checkout." >&2
   exit 1
 fi
-exec "$REPO_ROOT/infra/deployment/scripts/stage-build.sh"
+"$REPO_ROOT/infra/deployment/scripts/stage-build.sh"
+exec "$REPO_ROOT/infra/deployment/scripts/stage-gateway-up.sh"

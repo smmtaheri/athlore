@@ -99,10 +99,61 @@ _push_stage_branch_if_needed() {
   fi
 }
 
+_publish_shared_gateway_support_if_needed() {
+  local gateway_template ahead path
+  gateway_template="infra/deployment/nginx/templates/server-stage-gateway.conf.template"
+
+  echo "==> Checking the shared production gateway support on main (without switching branches)"
+  git -C "$ROOT" fetch origin main
+
+  if git -C "$ROOT" show "origin/main:$gateway_template" 2>/dev/null \
+      | grep -F 'server_name ${STAGE_PUBLIC_DOMAIN}' >/dev/null; then
+    echo "==> origin/main already contains the public stage gateway route"
+    return 0
+  fi
+
+  if ! git -C "$ROOT" show-ref --verify --quiet refs/heads/main; then
+    echo "ERROR: origin/main does not yet contain the stage gateway route and no local main ref is available." >&2
+    exit 1
+  fi
+  if ! git -C "$ROOT" show "main:$gateway_template" 2>/dev/null \
+      | grep -F 'server_name ${STAGE_PUBLIC_DOMAIN}' >/dev/null; then
+    echo "ERROR: local main does not contain the public stage gateway route." >&2
+    exit 1
+  fi
+
+  if ! git -C "$ROOT" merge-base --is-ancestor origin/main main; then
+    if git -C "$ROOT" merge-base --is-ancestor main origin/main; then
+      echo "ERROR: local main is behind origin/main, which still lacks the stage gateway route." >&2
+    else
+      echo "ERROR: local main and origin/main have diverged; refusing to publish gateway support." >&2
+    fi
+    exit 1
+  fi
+
+  ahead="$(git -C "$ROOT" rev-list --count origin/main..main)"
+  if [[ "$ahead" == "0" ]]; then
+    echo "ERROR: origin/main lacks the public stage route, but local main has no commits to publish." >&2
+    exit 1
+  fi
+
+  while IFS= read -r path; do
+    if [[ -n "$path" && "$path" != infra/deployment/* ]]; then
+      echo "ERROR: local main has non-deployment changes; refusing to publish it during a stage deploy." >&2
+      echo "  path: $path" >&2
+      exit 1
+    fi
+  done < <(git -C "$ROOT" diff --name-only origin/main..main)
+
+  echo "==> Publishing $ahead deployment-only main commit(s) needed by the shared gateway"
+  git -C "$ROOT" push origin main:refs/heads/main
+}
+
 if [[ "$ACTION" == "deploy" ]]; then
   REPO_URL="$(git -C "$ROOT" remote get-url origin)"
-  echo "==> deploy-stage-athlore: publish stage if needed, then deploy the isolated stage stack"
+  echo "==> deploy-stage-athlore: publish deployment refs if needed, deploy stage, and sync its shared gateway route"
   _push_stage_branch_if_needed
+  _publish_shared_gateway_support_if_needed
 
   printf -v REMOTE_COMMAND 'bash -s -- %q %q' "$REMOTE_ROOT" "$REPO_URL"
   ssh "$SSH_HOST" "$REMOTE_COMMAND" <<'REMOTE_DEPLOY'

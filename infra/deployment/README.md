@@ -124,7 +124,8 @@ The globally installed `deploy-athlore` command selects the environment from
 the current branch, regardless of the caller's working directory:
 
 - `main` deploys production.
-- `stage` deploys the isolated staging stack.
+- `stage` deploys the isolated staging stack and, when needed, reloads only the
+  shared production Nginx edge so all stage hostnames route correctly.
 - Any other branch or detached `HEAD` is rejected to prevent deploying a
   feature branch to the wrong environment.
 
@@ -144,14 +145,16 @@ do not run the production `deploy.sh` from that checkout.
 
 The three stage hostnames are routed by the production Nginx edge proxy over a
 private Docker network. No extra host port or ParsPack Origin Rule is needed.
-The production edge configuration must first be deployed with the stage host
-route and the `athlore-edge` network. Until that one-time gateway change is
-active, the stage hostnames are not ready for browser testing. When the stage
-containers are stopped, the gateway responds with HTTP 503, `Cache-Control:
-no-store`, and a clear plain-text “staging is currently offline” message.
-That gateway-only release must be merged into `main` and applied from the
-production checkout with the normal production deployment workflow; do not
-use `stage-deploy.sh` for it.
+`deploy-stage-athlore` (and `deploy-athlore` while the local branch is `stage`)
+builds the isolated stage stack, then renders and validates the shared gateway
+configuration and reloads only the production Nginx process if the route
+changed. If `origin/main` lacks the route, the laptop helper publishes the
+available fast-forward deployment-only commits from its local `main` ref
+without checking out that branch; it refuses unrelated or diverged `main`
+changes. Stage deploy does not rebuild or restart the production application,
+database, or media services. When stage is stopped, the gateway responds with
+HTTP 503, `Cache-Control: no-store`, and a clear plain-text staging-offline
+message.
 
 ParsPack DNS/CDN must send `stage.athlore.ir`, `stage.coach.athlore.ir`, and
 `stage.student.athlore.ir` to the same origin as production and provide HTTPS
@@ -164,7 +167,8 @@ against the separate `/root/athlore-stage` checkout:
 
 ```bash
 # Push the local stage branch if needed, create the remote checkout on first
-# use, fast-forward it, and build/restart only the isolated stage stack.
+# use, fast-forward it, build/restart the isolated stage stack, and update the
+# shared Nginx route if needed (without restarting production app services).
 deploy-stage-athlore
 
 # Fast on/off controls. Starting does not rebuild images.
@@ -181,8 +185,9 @@ The commands use `ATHLORE_LOCAL_ROOT` (default
 `athlore`), and `ATHLORE_STAGE_REMOTE_ROOT` (default
 `/root/athlore-stage`) if you need to override their locations. The first
 `deploy-stage-athlore` creates the isolated server checkout automatically; SSH
-must be able to access the Git remote from the server. No command changes the
-production checkout or production Compose project.
+must be able to access the Git remote from the server. Stage deploy changes
+only the generated production Nginx config needed for shared host routing; it
+does not change the production Git checkout or production Compose app services.
 
 The scripts can also be run directly on the server from the stage checkout's
 `infra/deployment` directory:
