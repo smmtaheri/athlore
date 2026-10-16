@@ -80,12 +80,14 @@ export function LoginPage() {
             id="login-phone"
             inputMode="tel"
             onChange={(event) => setPhoneNumber(event.target.value)}
-            placeholder="989121234567"
+            placeholder="9121234567"
             type="tel"
             value={phoneNumber}
           />
         </FormField>
-        <p className={styles.loginMethodHint}>شماره را با ۹۸ و بدون + وارد کنید.</p>
+        <p className={styles.loginMethodHint}>
+          شماره را با ۹۱۲…، ۰۹۱۲…، ۹۸۹۱۲… یا +۹۸۹۱۲… وارد کنید؛ سیستم خودش آن را یکسان‌سازی می‌کند.
+        </p>
         {appConfig.loginOtpEnabled ? (
           <LoginMethodSelector
             method={method}

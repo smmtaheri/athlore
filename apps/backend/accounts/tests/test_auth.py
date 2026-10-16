@@ -63,7 +63,7 @@ class AuthTests(APITestCase):
         phone_login = self.client.post(
             "/api/v1/auth/phone-login/",
             {
-                "phone_number": "989121112222",
+                "phone_number": "9121112222",
                 "role": "coach",
                 "method": "password",
                 "password": "SecurePass123!",

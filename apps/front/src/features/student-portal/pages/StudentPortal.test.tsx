@@ -126,7 +126,7 @@ describe("Student portal routes", () => {
     expect(await screen.findByText("student login")).toBeInTheDocument();
   });
 
-  it("logs in a student via username and reaches dashboard", async () => {
+  it("logs in a student with a 10-digit mobile and reaches dashboard", async () => {
     const user = userEvent.setup();
     window.localStorage.clear();
     const repo = createAuthRepository(window.localStorage);
@@ -149,7 +149,7 @@ describe("Student portal routes", () => {
       </AuthProvider>
     );
 
-    await user.type(await screen.findByLabelText(/نام کاربری/), "ali_student");
+    await user.type(await screen.findByLabelText(/شماره موبایل/), "9121111111");
     await user.type(screen.getByLabelText(/رمز عبور/), "Secret123!");
     await user.click(screen.getByRole("button", { name: "ورود" }));
     expect(await screen.findByText("student dashboard page")).toBeInTheDocument();
@@ -177,7 +177,7 @@ describe("Student portal routes", () => {
       </AuthProvider>
     );
 
-    await user.type(await screen.findByLabelText(/نام کاربری/), "ali_student");
+    await user.type(await screen.findByLabelText(/شماره موبایل/), "9121111111");
     await user.type(screen.getByLabelText(/^رمز عبور/), "must-change");
     await user.click(screen.getByRole("button", { name: "ورود" }));
 

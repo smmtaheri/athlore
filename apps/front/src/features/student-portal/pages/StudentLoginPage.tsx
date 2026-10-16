@@ -193,10 +193,14 @@ export function StudentLoginPage() {
               id="student-login-phone"
               inputMode="tel"
               onChange={(event) => setPhoneNumber(event.target.value)}
+              placeholder="مثلا ۹۱۲۳۱۳۴۲۰۲"
               type="tel"
               value={phoneNumber}
             />
           </FormField>
+          <p className={authStyles.loginMethodHint}>
+            شماره را با ۹۱۲…، ۰۹۱۲…، ۹۸۹۱۲… یا +۹۸۹۱۲… وارد کنید؛ سیستم خودش آن را یکسان‌سازی می‌کند.
+          </p>
           {appConfig.loginOtpEnabled ? (
             <LoginMethodSelector
               method={method}
