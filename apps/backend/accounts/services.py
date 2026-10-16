@@ -261,12 +261,12 @@ def _resolve_login_user(*, email: str | None, username: str | None, password: st
 
 
 def login_user(*, email: str | None = None, username: str | None = None, password: str) -> dict:
-    """Authenticate a coach (via email) or a student (via username) and issue tokens."""
+    """Authenticate a student by username; coaches must use their phone number."""
     user = _resolve_login_user(email=email, username=username, password=password)
 
     coach = getattr(user, "coach_profile", None)
     if coach is not None:
-        return session_payload(user, coach=coach)
+        raise PermissionError("Coach login requires a phone number.")
 
     student_profile = getattr(user, "student_profile", None)
     if student_profile is not None:

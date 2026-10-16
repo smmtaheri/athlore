@@ -80,10 +80,12 @@ export function LoginPage() {
             id="login-phone"
             inputMode="tel"
             onChange={(event) => setPhoneNumber(event.target.value)}
+            placeholder="989121234567"
             type="tel"
             value={phoneNumber}
           />
         </FormField>
+        <p className={styles.loginMethodHint}>شماره را با ۹۸ و بدون + وارد کنید.</p>
         {appConfig.loginOtpEnabled ? (
           <LoginMethodSelector
             method={method}

@@ -133,7 +133,7 @@ export function createAuthRepository(storage = getStorage()): AuthRepository {
       return read();
     },
     async login(input) {
-      if (!input.phoneNumber?.trim() && !input.email?.trim() && !input.username?.trim()) {
+      if (!input.phoneNumber?.trim() && !input.username?.trim()) {
         throw new Error("Credentials are required.");
       }
 
@@ -191,14 +191,11 @@ export function createAuthRepository(storage = getStorage()): AuthRepository {
         return session;
       }
 
-      const user =
-        input.phoneNumber?.trim() || input.email!.trim().toLowerCase() === sampleUser.email
-          ? sampleUser
-          : {
-              ...sampleUser,
-              email: input.email?.trim().toLowerCase() || "coach@example.com",
-              fullName: "مربی"
-            };
+      if (!input.phoneNumber?.trim() || !input.password) {
+        throw new Error("Credentials are required.");
+      }
+
+      const user = sampleUser;
       const session = createSession(user);
       write(session);
       return session;

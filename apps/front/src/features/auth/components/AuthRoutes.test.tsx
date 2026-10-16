@@ -32,7 +32,7 @@ describe("AuthRoutes", () => {
   it("redirects authenticated users away from public auth routes", async () => {
     window.localStorage.clear();
     const repository = createAuthRepository(window.localStorage);
-    await repository.login({ email: "arman@example.com", password: "123456" });
+    await repository.login({ phoneNumber: "989121111111", password: "123456" });
 
     render(
       <AuthProvider repository={repository}>

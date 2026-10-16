@@ -21,11 +21,12 @@ describe("LoginPage", () => {
       </AuthProvider>
     );
 
-    await user.type(await screen.findByLabelText(/ایمیل/), "arman@example.com");
+    await user.type(await screen.findByLabelText(/شماره موبایل/), "989121111111");
     await user.type(screen.getByLabelText(/رمز عبور/), "SecurePass123!");
     await user.click(await screen.findByRole("button", { name: "ورود به داشبورد" }));
 
     expect(await screen.findByText("dashboard page")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/ایمیل/)).not.toBeInTheDocument();
   });
 
   it("shows validation errors", async () => {
@@ -40,6 +41,6 @@ describe("LoginPage", () => {
 
     await user.click(screen.getByRole("button", { name: "ورود به داشبورد" }));
 
-    expect(await screen.findByText("ایمیل معتبر وارد کنید.")).toBeInTheDocument();
+    expect(await screen.findByText("شماره موبایل الزامی است.")).toBeInTheDocument();
   });
 });
