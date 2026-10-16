@@ -34,14 +34,9 @@ class LoginSerializer(serializers.Serializer):
         return attrs
 
 
-class PhoneLoginSerializer(serializers.Serializer):
+class PhoneLoginCodeRequestSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=32)
     role = serializers.ChoiceField(choices=("coach", "student"))
-    method = serializers.ChoiceField(choices=("password", "code"))
-    password = serializers.CharField(
-        write_only=True, trim_whitespace=False, required=False, allow_blank=True
-    )
-    code = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=12)
 
     def validate_phone_number(self, value):
         try:
@@ -49,12 +44,21 @@ class PhoneLoginSerializer(serializers.Serializer):
         except InvalidPhoneError as exc:
             raise serializers.ValidationError(exc.message) from exc
 
+
+class PhoneLoginSerializer(PhoneLoginCodeRequestSerializer):
+    method = serializers.ChoiceField(choices=("password", "code"))
+    password = serializers.CharField(
+        write_only=True, trim_whitespace=False, required=False, allow_blank=True
+    )
+    code = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=12)
+
     def validate(self, attrs):
         credential = attrs.get("password") if attrs["method"] == "password" else attrs.get("code")
         if not credential:
             field = "password" if attrs["method"] == "password" else "code"
             raise serializers.ValidationError({field: ["این فیلد الزامی است."]})
         return attrs
+
 
 class RefreshSerializer(serializers.Serializer):
     # Optional when an HttpOnly refresh cookie is present.

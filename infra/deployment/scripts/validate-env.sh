@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validate the non-secret runtime contract for the three-host deployment.
+# Validate the non-secret runtime contract for an Athlore deployment.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${1:-$ROOT/.env}"
@@ -38,7 +38,21 @@ contains_origin() {
   [[ "$list" == *",${origin},"* ]]
 }
 
+EXPECTED_DOMAINS=()
 for domain in "$PUBLIC_DOMAIN" "$COACH_DOMAIN" "$STUDENT_DOMAIN"; do
+  already_present=0
+  for existing_domain in "${EXPECTED_DOMAINS[@]}"; do
+    if [[ "$existing_domain" == "$domain" ]]; then
+      already_present=1
+      break
+    fi
+  done
+  if [[ "$already_present" == "0" ]]; then
+    EXPECTED_DOMAINS+=("$domain")
+  fi
+done
+
+for domain in "${EXPECTED_DOMAINS[@]}"; do
   if ! contains_csv_value "$DJANGO_ALLOWED_HOSTS" "$domain"; then
     echo "ERROR: ${domain} is missing from DJANGO_ALLOWED_HOSTS" >&2
     exit 1
@@ -53,7 +67,8 @@ else
   ORIGIN_SCHEME="https"
   ORIGIN_SUFFIX=""
 fi
-for domain in "$PUBLIC_DOMAIN" "$COACH_DOMAIN" "$STUDENT_DOMAIN"; do
+EXPECTED_ORIGINS=""
+for domain in "${EXPECTED_DOMAINS[@]}"; do
   origin="${ORIGIN_SCHEME}://${domain}${ORIGIN_SUFFIX}"
   if ! contains_origin "$CSRF_TRUSTED_ORIGINS" "$origin"; then
     echo "ERROR: ${origin} is missing from CSRF_TRUSTED_ORIGINS" >&2
@@ -63,15 +78,16 @@ for domain in "$PUBLIC_DOMAIN" "$COACH_DOMAIN" "$STUDENT_DOMAIN"; do
     echo "ERROR: ${origin} is missing from CORS_ALLOWED_ORIGINS" >&2
     exit 1
   fi
+  if [[ -n "$EXPECTED_ORIGINS" ]]; then EXPECTED_ORIGINS+=","; fi
+  EXPECTED_ORIGINS+="$origin"
 done
 
-EXPECTED_ORIGINS="${ORIGIN_SCHEME}://${PUBLIC_DOMAIN}${ORIGIN_SUFFIX},${ORIGIN_SCHEME}://${COACH_DOMAIN}${ORIGIN_SUFFIX},${ORIGIN_SCHEME}://${STUDENT_DOMAIN}${ORIGIN_SUFFIX}"
 if [[ "$CSRF_TRUSTED_ORIGINS" != "$EXPECTED_ORIGINS" ]]; then
-  echo "ERROR: CSRF_TRUSTED_ORIGINS must contain only the three canonical origins: ${EXPECTED_ORIGINS}" >&2
+  echo "ERROR: CSRF_TRUSTED_ORIGINS must contain only the canonical origins: ${EXPECTED_ORIGINS}" >&2
   exit 1
 fi
 if [[ "$CORS_ALLOWED_ORIGINS" != "$EXPECTED_ORIGINS" ]]; then
-  echo "ERROR: CORS_ALLOWED_ORIGINS must contain only the three canonical origins: ${EXPECTED_ORIGINS}" >&2
+  echo "ERROR: CORS_ALLOWED_ORIGINS must contain only the canonical origins: ${EXPECTED_ORIGINS}" >&2
   exit 1
 fi
 

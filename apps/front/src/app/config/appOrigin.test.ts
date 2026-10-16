@@ -21,6 +21,21 @@ describe("appOrigin", () => {
     expect(resolveAppSurface({ hostname: "46.249.103.94" })).toBe("invalid");
   });
 
+  it("keeps the stage public, coach, and student hostnames on their own surfaces", () => {
+    const stageDomains = {
+      ...appDomains,
+      public: "stage.athlore.ir",
+      coach: "stage.coach.athlore.ir",
+      student: "stage.student.athlore.ir"
+    };
+
+    expect(resolveAppSurface({ hostname: "stage.athlore.ir" }, stageDomains)).toBe("public");
+    expect(resolveAppSurface({ hostname: "stage.coach.athlore.ir" }, stageDomains)).toBe("coach");
+    expect(resolveAppSurface({ hostname: "stage.student.athlore.ir" }, stageDomains)).toBe(
+      "student"
+    );
+  });
+
   it("builds absolute URLs on the requested surface", () => {
     expect(absoluteSurfaceUrl("coach", coachPaths.login, { protocol: "https:" })).toBe(
       "https://coach.athlore.ir/login"

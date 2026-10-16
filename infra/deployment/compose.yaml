@@ -52,8 +52,8 @@ services:
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-athlore.ir,coach.athlore.ir,student.athlore.ir}
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-https://athlore.ir,https://coach.athlore.ir,https://student.athlore.ir}
       PUBLIC_REGISTRATION_ENABLED: ${PUBLIC_REGISTRATION_ENABLED:-false}
-      LOGIN_OTP_ENABLED: ${LOGIN_OTP_ENABLED:-false}
-      LOGIN_OTP_STATIC_CODE: ${LOGIN_OTP_STATIC_CODE:-}
+      LOGIN_OTP_ENABLED: ${LOGIN_OTP_ENABLED:-true}
+      LOGIN_OTP_STATIC_CODE: ${LOGIN_OTP_STATIC_CODE:-1111}
       # When true, entrypoint seeds pilot fixtures and sets the known demo password.
       LOAD_DEMO_FIXTURES: ${LOAD_DEMO_FIXTURES:-false}
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-https://athlore.ir/api/v1}
@@ -126,7 +126,7 @@ services:
         VITE_PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-athlore.ir}
         VITE_COACH_DOMAIN: ${COACH_DOMAIN:-coach.athlore.ir}
         VITE_STUDENT_DOMAIN: ${STUDENT_DOMAIN:-student.athlore.ir}
-        VITE_LOGIN_OTP_ENABLED: ${VITE_LOGIN_OTP_ENABLED:-false}
+        VITE_LOGIN_OTP_ENABLED: ${VITE_LOGIN_OTP_ENABLED:-true}
     depends_on:
       backend:
         condition: service_healthy

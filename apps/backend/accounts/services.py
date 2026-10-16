@@ -292,6 +292,21 @@ def login_coach_by_phone(*, phone_number: str, password: str) -> dict:
         raise PermissionError("Invalid credentials.")
     return session_payload(coach.user, coach=coach)
 
+
+def request_phone_login_code(*, phone_number: str, role: str) -> dict:
+    """Return the configured test-code notice until an SMS provider is connected."""
+    static_code = str(getattr(settings, "LOGIN_OTP_STATIC_CODE", "") or "").strip()
+    if not getattr(settings, "LOGIN_OTP_ENABLED", False) or not static_code:
+        raise PermissionError("Code login is disabled.")
+    normalize_iran_mobile(phone_number, required=True)
+    if role not in {"coach", "student"}:
+        raise PermissionError("Invalid role.")
+    # Do not expose whether a phone belongs to an account or issue a login session here.
+    return {
+        "delivery_mode": "test",
+        "message": f"پیامک واقعی ارسال نمی‌شود؛ کد ورود ثابت {static_code} است.",
+    }
+
 def login_by_phone(
     *,
     phone_number: str,

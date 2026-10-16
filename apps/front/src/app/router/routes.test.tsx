@@ -10,11 +10,16 @@ import {
 import type { AppSurface } from "../config/appOrigin";
 import { AppRoutes } from "./routes";
 
-async function renderRoute(path: string, repository: AuthRepository, surface: AppSurface) {
+async function renderRoute(
+  path: string,
+  repository: AuthRepository,
+  surface: AppSurface,
+  publicPagesOnStudentSurface = false
+) {
   return render(
     <AuthProvider repository={repository}>
       <MemoryRouter initialEntries={[path]}>
-        <AppRoutes surface={surface} />
+        <AppRoutes publicPagesOnStudentSurface={publicPagesOnStudentSurface} surface={surface} />
       </MemoryRouter>
     </AuthProvider>
   );
@@ -98,15 +103,25 @@ describe("AppRoutes", () => {
     expect(screen.queryByText("صفحه پیدا نشد")).not.toBeInTheDocument();
   });
 
-  it.each(["coach", "student"] as const)(
-    "keeps public information routes outside the %s portal",
-    async (surface) => {
-      await renderRoute("/contact", anonymousRepo(), surface);
+  it("keeps public information routes outside the coach portal", async () => {
+    await renderRoute("/contact", anonymousRepo(), "coach");
 
-      expect(await screen.findByText("صفحه پیدا نشد")).toBeInTheDocument();
-      expect(screen.queryByRole("navigation", { name: "منوی سایت" })).not.toBeInTheDocument();
-    }
-  );
+    expect(await screen.findByText("صفحه پیدا نشد")).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "منوی سایت" })).not.toBeInTheDocument();
+  });
+
+  it("shows public pages on the shared stage student host without replacing student login", async () => {
+    await renderRoute("/", anonymousRepo(), "student", true);
+    expect(await screen.findByRole("heading", { name: /ذهنیت مربی/ })).toBeInTheDocument();
+
+    await renderRoute("/contact", anonymousRepo(), "student", true);
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "تماس با ما" })
+    ).toBeInTheDocument();
+
+    await renderRoute("/login", anonymousRepo(), "student", true);
+    expect(await screen.findByRole("heading", { name: "ورود ورزشکار" })).toBeInTheDocument();
+  });
 
   it("renders coach login without the student login link", async () => {
     await renderRoute("/login", anonymousRepo(), "coach");
@@ -130,7 +145,7 @@ describe("AppRoutes", () => {
   it("renders student login on the student surface", async () => {
     await renderRoute("/login", anonymousRepo(), "student");
     expect(await screen.findByText("ورود ورزشکار")).toBeInTheDocument();
-    expect(screen.getByLabelText(/نام کاربری/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/شماره موبایل/)).toBeInTheDocument();
   });
 
   it("does not recognize the removed student URL on the student surface", async () => {

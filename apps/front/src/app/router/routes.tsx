@@ -28,16 +28,24 @@ import { PublicInformationPage } from "../../pages/home/PublicInformationPage";
 import { NotFoundPage } from "../../pages/placeholders/NotFoundPage";
 import { PlaceholderPage } from "../../pages/placeholders/PlaceholderPage";
 import { UiKitPage } from "../../pages/ui-kit/UiKitPage";
-import { resolveAppSurface } from "../config/appOrigin";
+import { appDomains, resolveAppSurface } from "../config/appOrigin";
 import type { AppSurface } from "../config/appOrigin";
 import { SettingsPage } from "../../pages/settings/SettingsPage";
 
 const nextStepMessage = "پیاده سازی این صفحه در مرحله بعد انجام می شود.";
 
-export function AppRoutes({ surface = resolveAppSurface() }: { surface?: AppSurface } = {}) {
+export function AppRoutes({
+  surface = resolveAppSurface(),
+  publicPagesOnStudentSurface = appDomains.public === appDomains.student
+}: {
+  surface?: AppSurface;
+  publicPagesOnStudentSurface?: boolean;
+} = {}) {
   if (surface === "public") return <PublicRoutes />;
   if (surface === "coach") return <CoachRoutes />;
-  if (surface === "student") return <StudentRoutes />;
+  if (surface === "student") {
+    return <StudentRoutes publicPagesOnStudentSurface={publicPagesOnStudentSurface} />;
+  }
   return (
     <Routes>
       <Route element={<NotFoundPage />} path="*" />
@@ -134,9 +142,18 @@ function CoachRoutes() {
   );
 }
 
-function StudentRoutes() {
+function StudentRoutes({ publicPagesOnStudentSurface }: { publicPagesOnStudentSurface: boolean }) {
   return (
     <Routes>
+      {publicPagesOnStudentSurface ? (
+        <>
+          <Route element={<PublicHomePage />} path="/" />
+          <Route element={<PublicInformationPage page="about" />} path="/about" />
+          <Route element={<PublicInformationPage page="contact" />} path="/contact" />
+          <Route element={<PublicInformationPage page="privacy" />} path="/privacy" />
+          <Route element={<PublicInformationPage page="terms" />} path="/terms" />
+        </>
+      ) : null}
       <Route
         element={
           <PublicOnlyRoute role="student">

@@ -124,7 +124,8 @@ The globally installed `deploy-athlore` command selects the environment from
 the current branch, regardless of the caller's working directory:
 
 - `main` deploys production.
-- `stage` deploys the isolated staging stack.
+- `stage` deploys the isolated staging stack and, when needed, reloads only the
+  shared production Nginx edge so all stage hostnames route correctly.
 - Any other branch or detached `HEAD` is rejected to prevent deploying a
   feature branch to the wrong environment.
 
@@ -132,3 +133,95 @@ The checkout must be clean before deployment. The command publishes commits
 from the selected branch when needed; it does not create commits or deploy
 uncommitted files. Dedicated stage controls (`up-stage-athlore`,
 `down-stage-athlore`, and `status-stage-athlore`) remain available.
+
+## Staging environment
+
+Stage uses the same server and public IP, but runs as an isolated Compose
+project (`athlore-stage`) with a separate PostgreSQL volume, media volume,
+secrets, and uniquely tagged backend/frontend images. It does not copy or
+connect to production data. Demo fixtures are disabled. Keep its source in a
+separate checkout on the `stage` branch (for example `/root/athlore-stage`);
+do not run the production `deploy.sh` from that checkout.
+
+The three stage hostnames are routed by the production Nginx edge proxy over a
+private Docker network. No extra host port or ParsPack Origin Rule is needed.
+`deploy-stage-athlore` (and `deploy-athlore` while the local branch is `stage`)
+builds the isolated stage stack, then updates and validates the shared gateway
+configuration and reloads only the production Nginx process if the route
+changed. If `origin/main` lacks the route, the laptop helper publishes the
+available fast-forward deployment-only commits from its local `main` ref
+without checking out that branch; it refuses unrelated or diverged `main`
+changes. Stage deploy does not rebuild or restart the production application,
+database, or media services. When stage is stopped, the gateway responds with
+HTTP 503, `Cache-Control: no-store`, and a clear plain-text staging-offline
+message.
+
+Stage responses use `Cache-Control: no-store` at the shared gateway so a CDN
+cannot retain another environment's HTML or an older stage build. Deployment
+revalidates previously cached HTML, then checks the exact public URLs against
+the bundle in the running stage frontend and verifies each API health endpoint.
+It fails instead of reporting success if the CDN still serves an old bundle
+or omits the no-store policy.
+
+ParsPack DNS/CDN must send `stage.athlore.ir`, `stage.coach.athlore.ir`, and
+`stage.student.athlore.ir` to the same origin as production and provide HTTPS
+for all three names. The CDN must preserve the `Host` header and forward
+`X-Forwarded-Proto: https`. Do not point these names at a different origin IP.
+
+From the laptop, the following globally installed commands work from any
+directory. They connect through the existing SSH host alias `athlore` and run
+against the separate `/root/athlore-stage` checkout:
+
+```bash
+# Push the local stage branch if needed, create the remote checkout on first
+# use, fast-forward it, build/restart the isolated stage stack, and update the
+# shared Nginx route if needed (without restarting production app services).
+deploy-stage-athlore
+
+# Fast on/off controls. Starting does not rebuild images.
+up-stage-athlore
+down-stage-athlore
+status-stage-athlore
+
+# Optional: start stage and rebuild its images.
+up-stage-athlore --build
+```
+
+The commands use `ATHLORE_LOCAL_ROOT` (default
+`$HOME/Desktop/Tasks/Nobitex/athlore`), `ATHLORE_STAGE_SSH_HOST` (default
+`athlore`), and `ATHLORE_STAGE_REMOTE_ROOT` (default
+`/root/athlore-stage`) if you need to override their locations. The first
+`deploy-stage-athlore` creates the isolated server checkout automatically; SSH
+must be able to access the Git remote from the server. Stage deploy changes
+only the generated production Nginx config needed for shared host routing; it
+does not change the production Git checkout or production Compose app services.
+
+The scripts can also be run directly on the server from the stage checkout's
+`infra/deployment` directory:
+
+```bash
+./scripts/stage-deploy.sh
+./scripts/stage-up.sh
+./scripts/stage-down.sh
+./scripts/stage-status.sh
+```
+
+The first stage command creates a private `.env.stage` with independently
+generated secrets. Back it up securely; do not commit or copy it from
+production. `stage-down.sh` runs Compose down without `--volumes`, so its DB
+and uploads persist while the containers release CPU/RAM. Never use `docker
+compose down -v` or `docker volume prune` to switch stage off. The shared edge
+network is private/internal and is retained when either stack is stopped.
+
+`stage-deploy.sh` refuses a non-stage branch, a dirty checkout, or a checkout
+that does not end up exactly at `origin/stage`. Keep the stage checkout in a
+different directory from `/root/athlore`; the production deploy script always
+tracks `main` and must not be used to update Stage.
+
+## Temporary production code login
+
+The production Compose defaults and example enable the same temporary fixed login
+code as stage (`1111`) and display it in the no-SMS delivery notice. This is not
+secure for public use: anyone who knows an active account's phone can sign in.
+Connect a real SMS provider and remove the fixed code before treating OTP as a
+secure production authentication method.

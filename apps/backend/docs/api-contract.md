@@ -175,13 +175,42 @@ Common: `ordering=-updated_at` (prefix `-` for desc). Whitelist per resource.
 
 ### POST `/api/v1/auth/phone-login`
 
-Coach login request: `{ "phone_number", "password" }`. Iranian mobile forms such as `09…`,
-`98…` (without `+`), and `+98…` are normalized to the same stored phone. A successful login
-returns the existing coach's session (`user`, `coach`, `tokens`); it does not create or replace an
-account. Invalid credentials return a generic `401`.
+Coach login resolves the existing coach by `phone_number`; it does not create or replace an account.
+The request uses `{ "phone_number", "role": "coach", "method": "password", "password" }`.
+Iranian mobile forms such as `09…`, `98…` (without `+`), and `+98…` normalize to the same stored
+number. Stage may additionally allow its configured one-time-code method; that test-only behavior
+must not be enabled in production. Invalid credentials return a generic `401`.
 
 Coach email login is rejected. The legacy `/api/v1/auth/login/` route remains for student username
 compatibility; student portal clients should use `/api/v1/student/login/`.
+
+### POST `/api/v1/auth/request-code/` (staging code-login flow)
+
+Anonymous request: `{ "phone_number": "9121234567", "role": "coach" | "student" }`.
+The phone is normalized with the same rules as phone login. Invalid input returns
+400. When `LOGIN_OTP_ENABLED` is false or `LOGIN_OTP_STATIC_CODE` is empty, this
+endpoint returns 403 with code `otp_unavailable` and offers password login.
+
+The current delivery adapter is a temporary fixed-code stub: HTTP 200 returns
+`{ "delivery_mode": "test", "message": "..." }`. The message explicitly states
+that no SMS was sent and shows the configured test code. This request does not
+look up account existence, create users, issue tokens or change the session.
+Replace `request_phone_login_code` with the real delivery provider before public
+use; delivery throttling and expiring, single-use challenges belong there. The
+fixed code is currently enabled on production as well as stage, so anyone who
+knows an active account's phone number can log in with it.
+
+Both login pages use: phone → select code login → request code → successful
+acknowledgement → show code input → verify with `/auth/phone-login/` using
+`{ "phone_number", "role", "method": "code", "code" }`. Resending clears the
+old input only after success. Changing the phone or login method resets the UI
+to the request step. Password login and student first-login password setup are
+unchanged. A failed delivery never opens the code field or signs the user in.
+
+Production currently uses the temporary static code (`1111`) until an SMS
+provider is connected. This is temporary and insecure: anyone who knows an
+active account's phone number can sign in. Replace it with expiring,
+single-use provider challenges before public OTP use.
 
 ### POST `/api/v1/auth/refresh`
 
