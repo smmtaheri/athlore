@@ -8,7 +8,6 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 
 from accounts import services
 from accounts.serializers import (
-    CoachPhoneLoginSerializer,
     CoachProfileSerializer,
     LoginSerializer,
     LogoutSerializer,

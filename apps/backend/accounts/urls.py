@@ -26,7 +26,6 @@ from accounts.supplement_views import (
 )
 from accounts.template_views import NutritionTemplateDetailView, SupplementTemplateDetailView
 from accounts.views import (
-    CoachPhoneLoginView,
     DateSettingsView,
     LoginView,
     LogoutView,
