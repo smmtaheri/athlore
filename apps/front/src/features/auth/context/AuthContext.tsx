@@ -5,6 +5,8 @@ import {
   type AuthRepository,
   type AuthSession,
   type LoginInput,
+  type LoginCodeRequestInput,
+  type LoginCodeRequestResult,
   type RegisterInput,
   type StudentCompleteSetupInput,
   type StudentCompleteSetupResult
@@ -17,6 +19,7 @@ interface AuthContextValue {
   login: (input: LoginInput) => Promise<AuthSession>;
   logout: () => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
+  requestLoginCode: (input: LoginCodeRequestInput) => Promise<LoginCodeRequestResult>;
   session: AuthSession | null;
   status: "loading" | "authenticated" | "anonymous";
 }
@@ -60,6 +63,12 @@ export function AuthProvider({
 
   const value = useMemo<AuthContextValue>(
     () => ({
+      async requestLoginCode(input) {
+        if (!repository.requestLoginCode) {
+          throw new Error("امکان ارسال کد در این محیط وجود ندارد؛ با رمز عبور وارد شوید.");
+        }
+        return repository.requestLoginCode(input);
+      },
       async completeStudentSetup(input) {
         if (!repository.completeStudentSetup) {
           throw new Error("Student setup is not available.");
@@ -100,6 +109,9 @@ export function useAuth() {
 
   if (!value) {
     return {
+      async requestLoginCode(): Promise<LoginCodeRequestResult> {
+        throw new Error("امکان ارسال کد در این محیط وجود ندارد؛ با رمز عبور وارد شوید.");
+      },
       async completeStudentSetup() {
         return { mustLoginAgain: true, setupComplete: true, username: "" };
       },

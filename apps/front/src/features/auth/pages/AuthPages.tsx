@@ -7,6 +7,7 @@ import { LoginMethodSelector, type LoginMethod } from "../components/LoginMethod
 import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
 import { validateIranMobileInput } from "../../../shared/phone/iranMobile";
 import { useAuth } from "../context/AuthContext";
+import type { LoginCodeRequestResult } from "../services/authRepository";
 import styles from "./auth.module.css";
 
 interface AuthErrors {
@@ -21,38 +22,72 @@ export function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
+  const [codeRequest, setCodeRequest] = useState<LoginCodeRequestResult | null>(null);
   const [method, setMethod] = useState<LoginMethod>("password");
   const [errors, setErrors] = useState<AuthErrors>({});
   const [saving, setSaving] = useState(false);
   const auth = useAuth();
   const navigate = useNavigate();
 
+  const requestCode = async () => {
+    const phoneError = validateIranMobileInput(phoneNumber);
+    if (phoneError) {
+      setErrors({ phoneNumber: phoneError });
+      return;
+    }
+    setErrors({});
+    setSaving(true);
+    try {
+      const result = await auth.requestLoginCode({
+        phoneNumber: phoneNumber.trim(),
+        role: "coach"
+      });
+      setCodeRequest(result);
+      setCode("");
+    } catch (error) {
+      setErrors({ submit: mapAuthError(error, "ارسال کد انجام نشد؛ دوباره تلاش کنید.") });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextErrors: AuthErrors = {};
     const phoneError = validateIranMobileInput(phoneNumber);
     if (phoneError) nextErrors.phoneNumber = phoneError;
-    if (!appConfig.loginOtpEnabled) setMethod("password");
-    if (method === "password" && !password) nextErrors.password = "رمز عبور الزامی است.";
-    if (method === "code" && !code.trim()) nextErrors.password = "کد یک‌بارمصرف را وارد کنید.";
+    const loginMethod = appConfig.loginOtpEnabled ? method : "password";
+    if (loginMethod === "password" && !password) nextErrors.password = "رمز عبور الزامی است.";
+    if (loginMethod === "code" && codeRequest && !code.trim()) {
+      nextErrors.password = "کد یک‌بارمصرف را وارد کنید.";
+    }
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+    if (loginMethod === "code" && !codeRequest) {
+      await requestCode();
       return;
     }
 
     setSaving(true);
     try {
       await auth.login({
-        code: method === "code" ? code.trim() : undefined,
-        method: appConfig.loginOtpEnabled ? method : "password",
-        password: method === "password" ? password : undefined,
+        code: loginMethod === "code" ? code.trim() : undefined,
+        method: loginMethod,
+        password: loginMethod === "password" ? password : undefined,
         phoneNumber: phoneNumber.trim(),
         role: "coach"
       });
       navigate("/dashboard", { replace: true });
     } catch (error) {
-      setErrors({ submit: mapAuthError(error, "ورود انجام نشد. اطلاعات را بررسی کنید.") });
+      setErrors({
+        submit:
+          loginMethod === "code" && error instanceof ApiError && error.status === 401
+            ? "کد ورود نادرست است یا ورود با کد برای این حساب مجاز نیست؛ کد را بررسی کنید یا با رمز عبور وارد شوید."
+            : mapAuthError(error, "ورود انجام نشد. اطلاعات را بررسی کنید.")
+      });
     } finally {
       setSaving(false);
     }
@@ -73,13 +108,23 @@ export function LoginPage() {
       title="ورود مربی"
     >
       <form className={styles.form} onSubmit={submit}>
-        {errors.submit ? <div className={styles.errorAlert}>{errors.submit}</div> : null}
+        {errors.submit ? (
+          <div className={styles.errorAlert} role="alert">
+            {errors.submit}
+          </div>
+        ) : null}
         <FormField error={errors.phoneNumber} htmlFor="login-phone" label="شماره موبایل" required>
           <Input
             autoComplete="tel"
+            disabled={saving}
             id="login-phone"
             inputMode="tel"
-            onChange={(event) => setPhoneNumber(event.target.value)}
+            onChange={(event) => {
+              setPhoneNumber(event.target.value);
+              setCodeRequest(null);
+              setCode("");
+              setErrors({});
+            }}
             placeholder="9121234567"
             type="tel"
             value={phoneNumber}
@@ -90,9 +135,12 @@ export function LoginPage() {
         </p>
         {appConfig.loginOtpEnabled ? (
           <LoginMethodSelector
+            disabled={saving}
             method={method}
             onChange={(next) => {
               setMethod(next);
+              setCodeRequest(null);
+              setCode("");
               setErrors({});
             }}
           />
@@ -107,24 +155,40 @@ export function LoginPage() {
               value={password}
             />
           </FormField>
-        ) : (
+        ) : codeRequest ? (
           <>
+            <p className={styles.loginMethodHint} role="status">
+              {codeRequest.message}
+            </p>
             <FormField error={errors.password} htmlFor="login-code" label="کد یک‌بارمصرف" required>
               <Input
                 autoComplete="one-time-code"
+                autoFocus
+                disabled={saving}
                 id="login-code"
                 inputMode="numeric"
                 onChange={(event) => setCode(event.target.value)}
                 value={code}
               />
             </FormField>
-            <p className={styles.loginMethodHint}>
-              ورود با پیامک در حال آماده‌سازی است؛ فعلاً در محیط آزمایشی از کد ۱۱۱۱ استفاده کنید.
-            </p>
+            <Button
+              disabled={saving}
+              onClick={() => void requestCode()}
+              type="button"
+              variant="ghost"
+            >
+              ارسال دوباره کد
+            </Button>
           </>
+        ) : (
+          <p className={styles.loginMethodHint}>برای دریافت کد ورود، «ارسال کد» را بزنید.</p>
         )}
         <Button fullWidth iconStart={<LogIn size={18} />} isLoading={saving} type="submit">
-          {method === "code" && appConfig.loginOtpEnabled ? "ورود با کد" : "ورود به داشبورد"}
+          {method === "code" && appConfig.loginOtpEnabled
+            ? codeRequest
+              ? "ورود با کد"
+              : "ارسال کد"
+            : "ورود به داشبورد"}
         </Button>
       </form>
     </AuthShell>

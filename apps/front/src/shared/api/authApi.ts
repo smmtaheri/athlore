@@ -12,6 +12,8 @@ import type {
   AuthRepository,
   AuthSession,
   LoginInput,
+  LoginCodeRequestInput,
+  LoginCodeRequestResult,
   RegisterInput,
   StudentCompleteSetupInput,
   StudentCompleteSetupResult
@@ -42,6 +44,7 @@ type AuthPayload = {
 type MePayload = Omit<AuthPayload, "tokens">;
 
 export interface ApiAuthRepository extends AuthRepository {
+  requestLoginCode(input: LoginCodeRequestInput): Promise<LoginCodeRequestResult>;
   bootstrapFromMe(): Promise<AuthSession | null>;
   completeStudentSetup(input: StudentCompleteSetupInput): Promise<StudentCompleteSetupResult>;
   getCoach(): Promise<CoachProfileView | null>;
@@ -90,6 +93,18 @@ async function bootstrapSessionFromRefreshCookie(): Promise<AuthSession | null> 
 
 export function createApiAuthRepository(): ApiAuthRepository {
   return {
+    async requestLoginCode(input: LoginCodeRequestInput): Promise<LoginCodeRequestResult> {
+      const response = await apiRequest<{ delivery_mode: "test" | "sms"; message: string }>(
+        "/auth/request-code/",
+        {
+          auth: false,
+          skipRefresh: true,
+          method: "POST",
+          body: { phone_number: input.phoneNumber.trim(), role: input.role }
+        }
+      );
+      return { deliveryMode: response.delivery_mode, message: response.message };
+    },
     async getSession() {
       const stored = readAuthSession();
       if (!stored) {

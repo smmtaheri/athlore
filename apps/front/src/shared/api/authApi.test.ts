@@ -24,6 +24,25 @@ describe("API auth bootstrap", () => {
     vi.restoreAllMocks();
   });
 
+  it.each(["coach", "student"] as const)(
+    "requests a code for %s without authenticating",
+    async (role) => {
+      const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+        expect(url).toContain("/auth/request-code/");
+        expect(init?.method).toBe("POST");
+        expect((init?.headers as Record<string, string>).Authorization).toBeUndefined();
+        expect(JSON.parse(String(init?.body))).toEqual({ phone_number: "9121112222", role });
+        return jsonResponse({ delivery_mode: "test", message: "کد آزمایشی آماده است." });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      expect(
+        await createApiAuthRepository().requestLoginCode({ phoneNumber: " 9121112222 ", role })
+      ).toEqual({ deliveryMode: "test", message: "کد آزمایشی آماده است." });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(window.sessionStorage.getItem("coach-assistant.auth.session.v4")).toBeNull();
+    }
+  );
+
   it("restores a new tab from the HttpOnly refresh cookie", async () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (String(url).includes("/auth/refresh/")) {

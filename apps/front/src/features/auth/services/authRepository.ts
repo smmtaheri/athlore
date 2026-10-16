@@ -37,6 +37,16 @@ export interface LoginInput {
   username?: string;
 }
 
+export interface LoginCodeRequestInput {
+  phoneNumber: string;
+  role: "coach" | "student";
+}
+
+export interface LoginCodeRequestResult {
+  deliveryMode: "test" | "sms";
+  message: string;
+}
+
 export interface StudentCompleteSetupInput {
   password: string;
   passwordConfirm: string;
@@ -54,6 +64,7 @@ export interface AuthRepository {
   login(input: LoginInput): Promise<AuthSession>;
   logout(): Promise<void>;
   register(input: RegisterInput): Promise<AuthSession>;
+  requestLoginCode?(input: LoginCodeRequestInput): Promise<LoginCodeRequestResult>;
 }
 
 const sampleUser: AuthUser = {
@@ -116,6 +127,12 @@ export function createAuthRepository(storage = getStorage()): AuthRepository {
   };
 
   return {
+    async requestLoginCode() {
+      return {
+        deliveryMode: "test",
+        message: "در محیط آزمایشی پیامک واقعی ارسال نمی‌شود؛ کد ورود 1111 است."
+      };
+    },
     async completeStudentSetup(input) {
       if (input.password.length < 8 || input.password !== input.passwordConfirm) {
         throw new Error("Invalid setup input.");
@@ -135,6 +152,9 @@ export function createAuthRepository(storage = getStorage()): AuthRepository {
     async login(input) {
       if (!input.phoneNumber?.trim() && !input.username?.trim()) {
         throw new Error("Credentials are required.");
+      }
+      if (input.method === "code" && input.code !== "1111") {
+        throw new Error("کد ورود نادرست است.");
       }
 
       if (input.phoneNumber?.trim() && input.role === "student") {
@@ -191,7 +211,10 @@ export function createAuthRepository(storage = getStorage()): AuthRepository {
         return session;
       }
 
-      if (!input.phoneNumber?.trim() || !input.password) {
+      if (
+        !input.phoneNumber?.trim() ||
+        (input.method === "code" ? input.code !== "1111" : !input.password)
+      ) {
         throw new Error("Credentials are required.");
       }
 
