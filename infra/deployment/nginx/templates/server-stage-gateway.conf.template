@@ -3,7 +3,7 @@
   # Nginx remains healthy while staging is stopped and can return a clear 503.
   server {
     listen 80;
-    server_name ${STAGE_COACH_DOMAIN} ${STAGE_STUDENT_DOMAIN};
+    server_name ${STAGE_PUBLIC_DOMAIN} ${STAGE_COACH_DOMAIN} ${STAGE_STUDENT_DOMAIN};
 
     include /etc/nginx/snippets/security-headers.conf;
     include /etc/nginx/snippets/hsts.conf;
