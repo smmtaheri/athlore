@@ -24,6 +24,7 @@ import {
   StudentsListPage
 } from "../../features/students";
 import { PublicHomePage } from "../../pages/home/PublicHomePage";
+import { PublicInformationPage } from "../../pages/home/PublicInformationPage";
 import { NotFoundPage } from "../../pages/placeholders/NotFoundPage";
 import { PlaceholderPage } from "../../pages/placeholders/PlaceholderPage";
 import { UiKitPage } from "../../pages/ui-kit/UiKitPage";
@@ -48,6 +49,10 @@ function PublicRoutes() {
   return (
     <Routes>
       <Route element={<PublicHomePage />} path="/" />
+      <Route element={<PublicInformationPage page="about" />} path="/about" />
+      <Route element={<PublicInformationPage page="contact" />} path="/contact" />
+      <Route element={<PublicInformationPage page="privacy" />} path="/privacy" />
+      <Route element={<PublicInformationPage page="terms" />} path="/terms" />
       <Route element={<NotFoundPage />} path="*" />
     </Routes>
   );
