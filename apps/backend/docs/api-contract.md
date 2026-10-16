@@ -100,7 +100,9 @@ Exercise catalog writes (`POST /exercises/`, `PATCH /exercises/<id>/`) return
 `exercise_validation_error` for recognized input errors. Their Persian `message`
 identifies the correction needed; `details` contains localized field messages.
 The duplicate rule includes archived exercises and also covers database uniqueness
-conflicts during editing or concurrent creation. Existing access checks are unchanged.
+conflicts during editing or concurrent creation. Duplicate aliases (within the same
+exercise or another exercise owned by the coach) are localized `aliases` validation
+errors, with failed create/edit changes rolled back. Existing access checks are unchanged.
 
 Unclassified exercise validation failures return HTTP 400 with
 `exercise_save_unknown`; unexpected application/database failures use the same code

@@ -17,6 +17,10 @@ DUPLICATE_MESSAGE = (
     "حرکت موجود را ویرایش کنید یا نام دیگری وارد کنید."
 )
 EXTERNAL_KEY_DUPLICATE_MESSAGE = "شناسه مرجع این حرکت قبلاً استفاده شده است؛ شناسه دیگری وارد کنید."
+ALIAS_DUPLICATE_MESSAGE = (
+    "یکی از نام‌های جایگزین تکراری است یا برای حرکت دیگری ثبت شده است. "
+    "نام تکراری را حذف یا تغییر دهید."
+)
 
 VALIDATION_MESSAGES = {
     "name and a primary muscle are required.": "نام فارسی و عضله اصلی حرکت را وارد کنید.",
@@ -111,6 +115,18 @@ class ExerciseWriteAPIView(APIView):
                     "exercise_validation_error",
                     EXTERNAL_KEY_DUPLICATE_MESSAGE,
                     {"external_key": [EXTERNAL_KEY_DUPLICATE_MESSAGE]},
+                )
+            if constraint in {
+                "uniq_coach_exercise_alias",
+                "uniq_coach_exercise_alias_per_exercise",
+            } or str(exc) in {
+                "UNIQUE constraint failed: accounts_exercisealias.coach_id, accounts_exercisealias.alias",
+                "UNIQUE constraint failed: accounts_exercisealias.coach_id, accounts_exercisealias.exercise_id, accounts_exercisealias.alias",
+            }:
+                return _error_response(
+                    "exercise_validation_error",
+                    ALIAS_DUPLICATE_MESSAGE,
+                    {"aliases": [ALIAS_DUPLICATE_MESSAGE]},
                 )
 
         if isinstance(exc, ParseError):

@@ -117,6 +117,50 @@ class ExerciseSaveErrorTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("شناسه مرجع این حرکت قبلاً", response.data["error"]["message"])
 
+    def test_repeated_aliases_in_a_new_exercise_can_be_corrected(self):
+        response = self.create({**self.payload(), "aliases": ["Same alias", "Same alias"]})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["error"]["code"], "exercise_validation_error")
+        self.assertIn("نام‌های جایگزین تکراری", response.data["error"]["message"])
+        self.assertIn("aliases", response.data["error"]["details"])
+        self.assertFalse(Exercise.objects.exists())
+        corrected = self.create({**self.payload(), "aliases": ["Same alias"]})
+        self.assertEqual(corrected.status_code, 201, corrected.data)
+
+    def test_another_exercise_alias_is_explained_on_create_and_edit(self):
+        first = self.create({**self.payload("First exercise"), "aliases": ["Reserved alias"]})
+        conflict = self.create({**self.payload("Second exercise"), "aliases": ["Reserved alias"]})
+        self.assertEqual(conflict.status_code, 400)
+        self.assertIn("نام‌های جایگزین تکراری", conflict.data["error"]["message"])
+        self.assertFalse(Exercise.objects.filter(name="Second exercise").exists())
+        second = self.create({**self.payload("Second exercise"), "aliases": ["Original alias"]})
+        self.assertEqual(second.status_code, 201)
+        url = f"/api/v1/exercises/{second.data['id']}/"
+        edit = self.client.patch(
+            url, {"name": "Changed name", "aliases": ["Reserved alias"]}, format="json"
+        )
+        self.assertEqual(edit.status_code, 400)
+        exercise = Exercise.objects.get(pk=second.data["id"])
+        self.assertEqual(exercise.name, "Second exercise")
+        self.assertEqual(list(exercise.aliases.values_list("alias", flat=True)), ["Original alias"])
+        original = Exercise.objects.get(pk=first.data["id"])
+        self.assertEqual(list(original.aliases.values_list("alias", flat=True)), ["Reserved alias"])
+        retry = self.client.patch(url, {"aliases": ["Corrected alias"]}, format="json")
+        self.assertEqual(retry.status_code, 200)
+        self.assertEqual(retry.data["aliases"], ["Corrected alias"])
+
+    def test_postgresql_alias_constraints_are_recognized(self):
+        for constraint in ("uniq_coach_exercise_alias", "uniq_coach_exercise_alias_per_exercise"):
+            with self.subTest(constraint=constraint):
+                cause = Exception("database detail")
+                cause.diag = SimpleNamespace(constraint_name=constraint)
+                error = IntegrityError("database detail")
+                error.__cause__ = cause
+                with patch("accounts.rules_services.create_exercise", side_effect=error):
+                    response = self.create(self.payload())
+                self.assertEqual(response.status_code, 400)
+                self.assertIn("نام‌های جایگزین تکراری", response.data["error"]["message"])
+
     def test_postgresql_duplicate_constraint_is_recognized(self):
         cause = Exception("database detail")
         cause.diag = SimpleNamespace(constraint_name="uniq_coach_exercise_name_muscle")
