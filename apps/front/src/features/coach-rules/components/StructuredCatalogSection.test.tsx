@@ -222,12 +222,16 @@ describe("StructuredCatalogSection", () => {
       .map((element) => element.closest("tr"))
       .find(Boolean);
     await user.click(within(exerciseRow as HTMLElement).getByRole("button", { name: "ویرایش" }));
+    const editedName = "پرس بالاسینه دمبل ویرایش‌شده";
+    const nameInput = screen.getByDisplayValue("پرس بالاسینه دمبل");
+    await user.clear(nameInput);
+    await user.type(nameInput, editedName);
     await user.click(screen.getByRole("button", { name: "ذخیره حرکت" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
     expect(screen.getByRole("alert")).toHaveFocus();
     expect(screen.getByRole("heading", { name: "ویرایش حرکت" })).toBeInTheDocument();
-    expect(screen.getByDisplayValue("پرس بالاسینه دمبل")).toBeInTheDocument();
+    expect(screen.getByDisplayValue(editedName)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ذخیره حرکت" })).toBeEnabled();
     if (code === "exercise_save_unknown") {
       expect(screen.getByRole("alert")).toHaveTextContent("0123456789abcdef0123456789abcdef");
@@ -237,6 +241,10 @@ describe("StructuredCatalogSection", () => {
     await user.click(screen.getByRole("button", { name: "ذخیره حرکت" }));
     expect(await screen.findByRole("status")).toHaveTextContent("حرکت ذخیره شد.");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(apiRequestMock).toHaveBeenLastCalledWith("/exercises/exercise-1/", {
+      method: "PATCH",
+      body: expect.objectContaining({ name: editedName })
+    });
   });
 
   it("shows the shared muscle and region taxonomy as distinct, parent-linked lists", async () => {
