@@ -9,6 +9,9 @@ class NormalizeIranMobileTests(SimpleTestCase):
     def test_local_09_format(self):
         self.assertEqual(normalize_iran_mobile("09121234567"), "+989121234567")
 
+    def test_national_format_without_zero_or_country_code(self):
+        self.assertEqual(normalize_iran_mobile("9121234567"), "+989121234567")
+
     def test_e164_and_formatting(self):
         self.assertEqual(normalize_iran_mobile("+98 912 123 4567"), "+989121234567")
         self.assertEqual(normalize_iran_mobile("989121234567"), "+989121234567")

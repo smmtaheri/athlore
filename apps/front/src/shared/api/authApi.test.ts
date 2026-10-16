@@ -82,8 +82,10 @@ describe("API auth bootstrap", () => {
       expect(url).toContain("/auth/phone-login/");
       expect(init?.method).toBe("POST");
       expect(JSON.parse(String(init?.body))).toEqual({
+        method: "password",
         password: "SecurePass123!",
-        phone_number: "989121234567"
+        phone_number: "9121234567",
+        role: "coach"
       });
       return jsonResponse({
         coach: {
@@ -106,8 +108,10 @@ describe("API auth bootstrap", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const session = await createApiAuthRepository().login({
+      method: "password",
       password: "SecurePass123!",
-      phoneNumber: "989121234567"
+      phoneNumber: "9121234567",
+      role: "coach"
     });
 
     expect(session).toMatchObject({ role: "coach", token: "phone-access" });

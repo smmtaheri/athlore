@@ -158,7 +158,7 @@ class StudentPortalActivationTests(TestCase):
         password_login = self.public.post(
             "/api/v1/auth/phone-login/",
             {
-                "phone_number": self.student.phone_number,
+                "phone_number": self.student.phone_number[3:],
                 "role": "student",
                 "method": "password",
                 "password": "StudentPass123!",
