@@ -46,6 +46,7 @@ _stage_upsert_env STAGE_IMAGE_TAG "$NEW_IMAGE_TAG"
 trap - EXIT
 
 echo "Stage is running from revision ${NEW_IMAGE_TAG}:"
+echo "  Public:  https://stage.athlore.ir/"
 echo "  Coach:   https://stage.coach.athlore.ir/"
 echo "  Student: https://stage.student.athlore.ir/"
 echo "Stop it without deleting data: ./scripts/stage-down.sh"

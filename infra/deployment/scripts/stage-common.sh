@@ -59,12 +59,13 @@ stage_load_env() {
 }
 
 stage_validate_env() {
-  if [[ "${PUBLIC_DOMAIN:-}" != "stage.student.athlore.ir" \
+  if [[ "${PUBLIC_DOMAIN:-}" != "stage.athlore.ir" \
     || "${STUDENT_DOMAIN:-}" != "stage.student.athlore.ir" \
     || "${COACH_DOMAIN:-}" != "stage.coach.athlore.ir" \
+    || "${STAGE_PUBLIC_DOMAIN:-}" != "stage.athlore.ir" \
     || "${STAGE_COACH_DOMAIN:-}" != "stage.coach.athlore.ir" \
     || "${STAGE_STUDENT_DOMAIN:-}" != "stage.student.athlore.ir" ]]; then
-    echo "ERROR: .env.stage domains must remain on the two dedicated stage hostnames." >&2
+    echo "ERROR: .env.stage must use the dedicated public, coach, and student stage hostnames." >&2
     exit 1
   fi
   if [[ "${POSTGRES_DB:-}" != "athlore_stage" || "${POSTGRES_USER:-}" != "athlore_stage" ]]; then

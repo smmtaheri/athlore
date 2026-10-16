@@ -19,4 +19,4 @@ if docker network inspect athlore-edge >/dev/null 2>&1; then
 else
   echo "Shared edge network: missing (run stage-up.sh or production up.sh)"
 fi
-echo "URLs: https://stage.coach.athlore.ir/ and https://stage.student.athlore.ir/"
+echo "URLs: https://stage.athlore.ir/, https://stage.coach.athlore.ir/, and https://stage.student.athlore.ir/"

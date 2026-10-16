@@ -142,7 +142,7 @@ connect to production data. Demo fixtures are disabled. Keep its source in a
 separate checkout on the `stage` branch (for example `/root/athlore-stage`);
 do not run the production `deploy.sh` from that checkout.
 
-The two stage hostnames are routed by the production Nginx edge proxy over a
+The three stage hostnames are routed by the production Nginx edge proxy over a
 private Docker network. No extra host port or ParsPack Origin Rule is needed.
 The production edge configuration must first be deployed with the stage host
 route and the `athlore-edge` network. Until that one-time gateway change is
@@ -153,9 +153,9 @@ That gateway-only release must be merged into `main` and applied from the
 production checkout with the normal production deployment workflow; do not
 use `stage-deploy.sh` for it.
 
-ParsPack DNS/CDN must send both `stage.coach.athlore.ir` and
+ParsPack DNS/CDN must send `stage.athlore.ir`, `stage.coach.athlore.ir`, and
 `stage.student.athlore.ir` to the same origin as production and provide HTTPS
-for both names. The CDN must preserve the `Host` header and forward
+for all three names. The CDN must preserve the `Host` header and forward
 `X-Forwarded-Proto: https`. Do not point these names at a different origin IP.
 
 From the laptop, the following globally installed commands work from any

@@ -19,6 +19,7 @@ if ! stage_compose up -d --no-build; then
 fi
 
 echo "Stage is running:"
+echo "  Public:  https://stage.athlore.ir/"
 echo "  Coach:   https://stage.coach.athlore.ir/"
 echo "  Student: https://stage.student.athlore.ir/"
 echo "Stop it without deleting data: ./scripts/stage-down.sh"
