@@ -72,9 +72,41 @@ describe("AppRoutes", () => {
   it("renders the public Home only on the public surface", async () => {
     await renderRoute("/", anonymousRepo(), "public");
 
-    expect(await screen.findByRole("heading", { name: /همراه حرفه‌ای مربی/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /ذهنیت مربی/ })).toBeInTheDocument();
+    expect(screen.queryByText("صفحه پیدا نشد")).not.toBeInTheDocument();
+    const coachLogin = screen.getByRole("link", { name: "ورود مربی" }) as HTMLAnchorElement;
+    const studentLogin = screen.getByRole("link", { name: "ورود ورزشکار" }) as HTMLAnchorElement;
+    expect(new URL(coachLogin.href)).toMatchObject({
+      hostname: "coach.athlore.ir",
+      pathname: "/login"
+    });
+    expect(new URL(studentLogin.href)).toMatchObject({
+      hostname: "student.athlore.ir",
+      pathname: "/login"
+    });
+  });
+
+  it.each([
+    ["/about", "درباره Athlore"],
+    ["/contact", "تماس با ما"],
+    ["/privacy", "حریم خصوصی"],
+    ["/terms", "شرایط استفاده"]
+  ])("renders the public information page at %s", async (path, title) => {
+    await renderRoute(path, anonymousRepo(), "public");
+
+    expect(await screen.findByRole("heading", { level: 1, name: title })).toBeInTheDocument();
     expect(screen.queryByText("صفحه پیدا نشد")).not.toBeInTheDocument();
   });
+
+  it.each(["coach", "student"] as const)(
+    "keeps public information routes outside the %s portal",
+    async (surface) => {
+      await renderRoute("/contact", anonymousRepo(), surface);
+
+      expect(await screen.findByText("صفحه پیدا نشد")).toBeInTheDocument();
+      expect(screen.queryByRole("navigation", { name: "منوی سایت" })).not.toBeInTheDocument();
+    }
+  );
 
   it("renders coach login without the student login link", async () => {
     await renderRoute("/login", anonymousRepo(), "coach");
