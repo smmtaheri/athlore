@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts import rules_services
+from accounts.exercise_errors import ExerciseWriteAPIView
 from accounts.models import CoachTechnique, Exercise, MuscleRegion, MuscleTaxonomy, ProgramTemplate
 from common.pagination import StandardLimitOffsetPagination
 from common.permissions import IsAuthenticatedCoach, get_owned_object, get_request_coach
@@ -82,7 +83,7 @@ class ProgramTemplateDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class ExerciseListCreateView(APIView):
+class ExerciseListCreateView(ExerciseWriteAPIView):
     permission_classes = [IsAuthenticatedCoach]
     pagination_class = StandardLimitOffsetPagination
 
@@ -164,7 +165,7 @@ class ExerciseListCreateView(APIView):
         )
 
 
-class ExerciseDetailView(APIView):
+class ExerciseDetailView(ExerciseWriteAPIView):
     permission_classes = [IsAuthenticatedCoach]
 
     def get(self, request, exercise_id):

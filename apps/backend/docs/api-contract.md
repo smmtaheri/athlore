@@ -95,6 +95,23 @@ Students list may use `limit=5` from FE today — client chooses.
 
 Messages may be Persian for user-facing validation to match FE.
 
+Exercise catalog writes (`POST /exercises/`, `PATCH /exercises/<id>/`) return
+`exercise_duplicate` for an existing coach/name/primary-muscle combination and
+`exercise_validation_error` for recognized input errors. Their Persian `message`
+identifies the correction needed; `details` contains localized field messages.
+The duplicate rule includes archived exercises and also covers database uniqueness
+conflicts during editing or concurrent creation. Existing access checks are unchanged.
+
+Unclassified exercise validation failures return HTTP 400 with
+`exercise_save_unknown`; unexpected application/database failures use the same code
+with HTTP 500. Both include `details.error_id` (32 hexadecimal characters). Search
+backend container logs for that reference under `accounts.exercise_errors`; the log
+records the method, path, user ID, exception and validation details without logging
+the request body. Do not expose internal exception text to the coach. Once a new
+cause is diagnosed, add it to the recognized error mapping and regression tests.
+Network/CDN failures that do not reach the application cannot receive this server
+reference; the UI instead asks for the failure time and retains browser diagnostics.
+
 ### 1.6 Idempotency
 
 | Operation | Expectation |
