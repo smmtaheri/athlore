@@ -76,4 +76,45 @@ describe("API auth bootstrap", () => {
     expect(await createApiAuthRepository().getSession()).toBeNull();
     expect(window.sessionStorage.getItem("coach-assistant.auth.session.v4")).toBeNull();
   });
+
+  it("authenticates coaches through the phone endpoint, not email login", async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toContain("/auth/phone-login/");
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(String(init?.body))).toEqual({
+        method: "password",
+        password: "SecurePass123!",
+        phone_number: "989121234567",
+        role: "coach"
+      });
+      return jsonResponse({
+        coach: {
+          control_mode: "balanced",
+          default_session_minutes: 60,
+          display_name: "Coach",
+          id: "coach-1",
+          style_notes: ""
+        },
+        role: "coach",
+        tokens: { access: "phone-access", refresh: "phone-refresh" },
+        user: {
+          created_at: "2026-08-06T00:00:00Z",
+          email: "coach@example.com",
+          full_name: "Coach",
+          id: "user-1"
+        }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const session = await createApiAuthRepository().login({
+      method: "password",
+      password: "SecurePass123!",
+      phoneNumber: "989121234567",
+      role: "coach"
+    });
+
+    expect(session).toMatchObject({ role: "coach", token: "phone-access" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

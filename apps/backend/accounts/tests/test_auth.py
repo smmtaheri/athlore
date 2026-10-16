@@ -102,6 +102,17 @@ class AuthTests(APITestCase):
         )
         self.assertEqual(password_login.status_code, status.HTTP_200_OK, password_login.data)
         self.assertEqual(password_login.data["role"], "coach")
+        bad_password_login = self.client.post(
+            "/api/v1/auth/phone-login/",
+            {
+                "phone_number": "989121112222",
+                "role": "coach",
+                "method": "password",
+                "password": "WrongPass999!",
+            },
+            format="json",
+        )
+        self.assertEqual(bad_password_login.status_code, status.HTTP_401_UNAUTHORIZED)
 
         with override_settings(LOGIN_OTP_ENABLED=True, LOGIN_OTP_STATIC_CODE="1111"):
             code_login = self.client.post(

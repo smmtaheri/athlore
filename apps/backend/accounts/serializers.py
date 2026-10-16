@@ -23,7 +23,7 @@ class RegisterSerializer(serializers.Serializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    # Coaches log in with email; students log in with the username issued at activation.
+    # Legacy identifier payload; coach accounts are rejected here and use phone login.
     email = serializers.EmailField(required=False, allow_blank=True)
     username = serializers.CharField(required=False, allow_blank=True, max_length=150)
     password = serializers.CharField(write_only=True, trim_whitespace=False)

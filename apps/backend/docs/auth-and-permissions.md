@@ -56,8 +56,10 @@ Never log raw passwords. Never return password hashes in APIs.
 
 ### Login identifier
 
-- **Email + password** (matches Frontend mock)
-- Generic error on failure: do not reveal whether email exists
+- Coach login uses the mobile number on the existing `CoachProfile` plus the account password.
+- The existing `User.email` remains account data but is not an accepted coach login identifier.
+- Student portal login continues to use the student username flow.
+- Generic error on failure: do not reveal whether an identifier exists
 
 ### Password reset
 
