@@ -29,7 +29,8 @@ export interface RegisterInput {
 
 export interface LoginInput {
   email?: string;
-  password: string;
+  password?: string;
+  phoneNumber?: string;
   username?: string;
 }
 
@@ -129,11 +130,12 @@ export function createAuthRepository(storage = getStorage()): AuthRepository {
       return read();
     },
     async login(input) {
-      if ((!input.email?.trim() && !input.username?.trim()) || !input.password) {
+      if (!input.phoneNumber?.trim() && !input.username?.trim()) {
         throw new Error("Credentials are required.");
       }
 
       if (input.username?.trim()) {
+        if (!input.password) throw new Error("Credentials are required.");
         const session: AuthSession = {
           mustChangePassword: false,
           role: "student",
@@ -160,14 +162,11 @@ export function createAuthRepository(storage = getStorage()): AuthRepository {
         return session;
       }
 
-      const user =
-        input.email!.trim().toLowerCase() === sampleUser.email
-          ? sampleUser
-          : {
-              ...sampleUser,
-              email: input.email!.trim().toLowerCase(),
-              fullName: "مربی"
-            };
+      if (!input.phoneNumber?.trim() || !input.password) {
+        throw new Error("Credentials are required.");
+      }
+
+      const user = sampleUser;
       const session = createSession(user);
       write(session);
       return session;

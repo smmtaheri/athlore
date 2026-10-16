@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from django.contrib.auth import get_user_model
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -36,15 +36,47 @@ class AuthTests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(res.data["error"]["code"], "conflict")
 
-    def test_login_success_and_failure(self):
-        register(self.client, "login@example.com", password="SecurePass123!")
-        ok = self.client.post(
+    def test_coach_email_login_is_rejected_and_phone_login_preserves_identity(self):
+        register(
+            self.client,
+            "login@example.com",
+            password="SecurePass123!",
+            phone_number="09121112222",
+        )
+        coach = CoachProfile.objects.get(user__email="login@example.com")
+        users_before = User.objects.count()
+        students_before = Student.objects.count()
+
+        email_login = self.client.post(
             "/api/v1/auth/login/",
             {"email": "login@example.com", "password": "SecurePass123!"},
             format="json",
         )
-        self.assertEqual(ok.status_code, status.HTTP_200_OK)
-        self.assertIn("tokens", ok.data)
+        self.assertEqual(email_login.status_code, status.HTTP_401_UNAUTHORIZED)
+        username_email_login = self.client.post(
+            "/api/v1/auth/login/",
+            {"username": "login@example.com", "password": "SecurePass123!"},
+            format="json",
+        )
+        self.assertEqual(username_email_login.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        phone_login = self.client.post(
+            "/api/v1/auth/phone-login/",
+            {"phone_number": "989121112222", "password": "SecurePass123!"},
+            format="json",
+        )
+        self.assertEqual(phone_login.status_code, status.HTTP_200_OK, phone_login.data)
+        self.assertEqual(phone_login.data["user"]["id"], str(coach.user_id))
+        self.assertEqual(phone_login.data["coach"]["id"], str(coach.id))
+        self.assertEqual(User.objects.count(), users_before)
+        self.assertEqual(Student.objects.count(), students_before)
+
+        bad_phone_password = self.client.post(
+            "/api/v1/auth/phone-login/",
+            {"phone_number": "989121112222", "password": "WrongPass999!"},
+            format="json",
+        )
+        self.assertEqual(bad_phone_password.status_code, status.HTTP_401_UNAUTHORIZED)
 
         bad = self.client.post(
             "/api/v1/auth/login/",
@@ -540,13 +572,16 @@ class ErrorContractTests(APITestCase):
         self.assertIn("message", res.data["error"])
 
     def test_malformed_json(self):
-        register(self.client, "json@example.com")
+        registered = register(self.client, "json@example.com")
         from rest_framework.test import APIClient
 
         client = APIClient()
         login = client.post(
-            "/api/v1/auth/login/",
-            {"email": "json@example.com", "password": "SecurePass123!"},
+            "/api/v1/auth/phone-login/",
+            {
+                "phone_number": registered.data["coach"]["phone_number"],
+                "password": "SecurePass123!",
+            },
             format="json",
         )
         token = login.data["tokens"]["access"]

@@ -256,12 +256,12 @@ def _resolve_login_user(*, email: str | None, username: str | None, password: st
 
 
 def login_user(*, email: str | None = None, username: str | None = None, password: str) -> dict:
-    """Authenticate a coach (via email) or a student (via username) and issue tokens."""
+    """Authenticate students by username; coaches must use their phone number."""
     user = _resolve_login_user(email=email, username=username, password=password)
 
     coach = getattr(user, "coach_profile", None)
     if coach is not None:
-        return session_payload(user, coach=coach)
+        raise PermissionError("Coach login requires a phone number.")
 
     student_profile = getattr(user, "student_profile", None)
     if student_profile is not None:
@@ -275,8 +275,21 @@ def login_user(*, email: str | None = None, username: str | None = None, passwor
     raise PermissionError("Invalid credentials.")
 
 
+def login_coach_by_phone(*, phone_number: str, password: str) -> dict:
+    """Authenticate an existing coach account through its profile phone number."""
+    phone_canon = normalize_iran_mobile(phone_number, required=True)
+    coach = (
+        CoachProfile.objects.select_related("user")
+        .filter(phone_number=phone_canon)
+        .first()
+    )
+    if coach is None or not coach.user.is_active or not coach.user.check_password(password):
+        raise PermissionError("Invalid credentials.")
+    return session_payload(coach.user, coach=coach)
+
+
 def login_coach(*, email: str, password: str) -> dict:
-    """Back-compat alias; coach-only login by email."""
+    """Deprecated email login; coaches must authenticate with their phone number."""
     return login_user(email=email, password=password)
 
 

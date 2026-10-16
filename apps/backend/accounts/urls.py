@@ -26,6 +26,7 @@ from accounts.supplement_views import (
 )
 from accounts.template_views import NutritionTemplateDetailView, SupplementTemplateDetailView
 from accounts.views import (
+    CoachPhoneLoginView,
     DateSettingsView,
     LoginView,
     LogoutView,
@@ -46,6 +47,7 @@ urlpatterns = [
     path("supplement-catalog/<uuid:entry_id>/", SupplementCatalogDetailView.as_view()),
     path("auth/register/", RegisterView.as_view(), name="auth-register"),
     path("auth/login/", LoginView.as_view(), name="auth-login"),
+    path("auth/phone-login/", CoachPhoneLoginView.as_view(), name="auth-phone-login"),
     path("auth/refresh/", RefreshView.as_view(), name="auth-refresh"),
     path("auth/logout/", LogoutView.as_view(), name="auth-logout"),
     path("me/", MeView.as_view(), name="me"),

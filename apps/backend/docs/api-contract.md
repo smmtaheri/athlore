@@ -154,11 +154,15 @@ Common: `ordering=-updated_at` (prefix `-` for desc). Whitelist per resource.
 
 **Errors:** 400 validation; 409 email taken  
 
-### POST `/api/v1/auth/login`
+### POST `/api/v1/auth/phone-login`
 
-**Request:** `{ "email", "password" }`  
-**Response `200`:** same session shape as register (`user`, `coach`, `tokens`)  
-**Errors:** 400; 401 invalid credentials (generic message)
+Coach login request: `{ "phone_number", "password" }`. Iranian mobile forms such as `09…`,
+`98…` (without `+`), and `+98…` are normalized to the same stored phone. A successful login
+returns the existing coach's session (`user`, `coach`, `tokens`); it does not create or replace an
+account. Invalid credentials return a generic `401`.
+
+Coach email login is rejected. The legacy `/api/v1/auth/login/` route remains for student username
+compatibility; student portal clients should use `/api/v1/student/login/`.
 
 ### POST `/api/v1/auth/refresh`
 

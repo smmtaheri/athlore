@@ -23,7 +23,7 @@ class RegisterSerializer(serializers.Serializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    # Coaches log in with email; students log in with the username issued at activation.
+    # Legacy identifier payload; coach accounts are rejected here and use phone login.
     email = serializers.EmailField(required=False, allow_blank=True)
     username = serializers.CharField(required=False, allow_blank=True, max_length=150)
     password = serializers.CharField(write_only=True, trim_whitespace=False)
@@ -32,6 +32,17 @@ class LoginSerializer(serializers.Serializer):
         if not attrs.get("email") and not attrs.get("username"):
             raise serializers.ValidationError({"email": ["Email or username is required."]})
         return attrs
+
+
+class CoachPhoneLoginSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=32)
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_phone_number(self, value):
+        try:
+            return normalize_iran_mobile(value, required=True)
+        except InvalidPhoneError as exc:
+            raise serializers.ValidationError(exc.message) from exc
 
 
 class RefreshSerializer(serializers.Serializer):

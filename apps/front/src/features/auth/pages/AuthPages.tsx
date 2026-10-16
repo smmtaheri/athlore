@@ -17,7 +17,7 @@ interface AuthErrors {
 }
 
 export function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<AuthErrors>({});
   const [saving, setSaving] = useState(false);
@@ -26,7 +26,10 @@ export function LoginPage() {
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const nextErrors = validateAuth({ email, password });
+    const nextErrors: AuthErrors = {};
+    const phoneError = validateIranMobileInput(phoneNumber);
+    if (phoneError) nextErrors.phoneNumber = phoneError;
+    if (!password) nextErrors.password = "رمز عبور الزامی است.";
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -35,7 +38,7 @@ export function LoginPage() {
 
     setSaving(true);
     try {
-      await auth.login({ email, password });
+      await auth.login({ phoneNumber: phoneNumber.trim(), password });
       navigate("/dashboard", { replace: true });
     } catch (error) {
       setErrors({ submit: mapAuthError(error, "ورود انجام نشد. اطلاعات را بررسی کنید.") });
@@ -48,7 +51,9 @@ export function LoginPage() {
     <AuthShell
       footer={
         appConfig.publicRegistrationEnabled ? (
-          <>حساب ندارید؟ <Link to="/register">ثبت نام مربی</Link></>
+          <>
+            حساب ندارید؟ <Link to="/register">ثبت نام مربی</Link>
+          </>
         ) : (
           <>حساب مربی توسط مدیر سامانه ساخته می‌شود. در صورت فراموشی رمز، با مدیر تماس بگیرید.</>
         )
@@ -58,15 +63,18 @@ export function LoginPage() {
     >
       <form className={styles.form} onSubmit={submit}>
         {errors.submit ? <div className={styles.errorAlert}>{errors.submit}</div> : null}
-        <FormField error={errors.email} htmlFor="login-email" label="ایمیل" required>
+        <FormField error={errors.phoneNumber} htmlFor="login-phone" label="شماره موبایل" required>
           <Input
-            autoComplete="email"
-            id="login-email"
-            onChange={(event) => setEmail(event.target.value)}
-            type="email"
-            value={email}
+            autoComplete="tel"
+            id="login-phone"
+            inputMode="tel"
+            onChange={(event) => setPhoneNumber(event.target.value)}
+            placeholder="989121234567"
+            type="tel"
+            value={phoneNumber}
           />
         </FormField>
+        <p className={styles.loginMethodHint}>شماره را با ۹۸ و بدون + وارد کنید.</p>
         <FormField error={errors.password} htmlFor="login-password" label="رمز عبور" required>
           <Input
             autoComplete="current-password"

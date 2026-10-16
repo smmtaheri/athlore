@@ -50,6 +50,13 @@
   gap: var(--space-4);
 }
 
+.loginMethodHint {
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
 .footer {
   text-align: center;
 }

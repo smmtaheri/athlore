@@ -8,7 +8,7 @@ describe("authRepository", () => {
     const repository = createAuthRepository(storage);
 
     const session = await repository.login({
-      email: "arman@example.com",
+      phoneNumber: "989121111111",
       password: "123456"
     });
 
