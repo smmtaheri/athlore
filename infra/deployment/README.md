@@ -117,3 +117,18 @@ Visit photo uploads use a private staging table and shared media volume. The
 `visit-photo-pruner` service removes expired uploads every hour after the
 backend is healthy. Check `docker compose ps visit-photo-pruner` if temporary
 media usage grows unexpectedly.
+
+## Branch-aware deploy command
+
+The globally installed `deploy-athlore` command selects the environment from
+the current branch, regardless of the caller's working directory:
+
+- `main` deploys production.
+- `stage` deploys the isolated staging stack.
+- Any other branch or detached `HEAD` is rejected to prevent deploying a
+  feature branch to the wrong environment.
+
+The checkout must be clean before deployment. The command publishes commits
+from the selected branch when needed; it does not create commits or deploy
+uncommitted files. Dedicated stage controls (`up-stage-athlore`,
+`down-stage-athlore`, and `status-stage-athlore`) remain available.

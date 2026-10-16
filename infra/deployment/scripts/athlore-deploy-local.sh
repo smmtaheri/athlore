@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Laptop-side Athlore deploy entrypoint.
-# 1) Push local monorepo commits ONLY when ahead of origin
-# 2) SSH to production and run scripts/deploy.sh (sync + Compose)
+# Dispatch by the checked-out deployment branch:
+# - main: publish commits if needed, then deploy production
+# - stage: use the isolated staging deployment workflow
 #
 # Invoked by the shell helper `deploy-athlore`. Does not create commits.
 # Skips push when already synced (no pointless git push).
@@ -9,11 +10,37 @@ set -euo pipefail
 
 ROOT="${ATHLORE_LOCAL_ROOT:-$HOME/Desktop/Tasks/Nobitex/athlore}"
 DEPLOY_DIR="${ROOT}/infra/deployment"
+STAGE_COMMAND="${DEPLOY_DIR}/scripts/athlore-stage-command-local.sh"
 DEPLOY_SCRIPT="${DEPLOY_DIR}/scripts/deploy.sh"
+
+if [[ ! -d "${ROOT}/.git" ]]; then
+  echo "ERROR: Athlore checkout not found: ${ROOT}" >&2
+  echo "Set ATHLORE_LOCAL_ROOT to your athlore checkout root." >&2
+  exit 1
+fi
+
+BRANCH="$(git -C "${ROOT}" branch --show-current)"
+case "${BRANCH}" in
+  stage)
+    if [[ ! -f "${STAGE_COMMAND}" ]]; then
+      echo "Missing local stage deploy script: ${STAGE_COMMAND}" >&2
+      exit 1
+    fi
+    echo "==> Detected stage branch; dispatching to the isolated stage deployment"
+    exec bash "${STAGE_COMMAND}" deploy
+    ;;
+  main)
+    ;;
+  *)
+    echo "ERROR: deploy-athlore only deploys from 'main' (production) or 'stage' (staging)." >&2
+    echo "  Current branch: ${BRANCH:-detached HEAD}" >&2
+    echo "  Switch to the intended deployment branch and retry." >&2
+    exit 1
+    ;;
+esac
 
 if [[ ! -f "${DEPLOY_SCRIPT}" ]]; then
   echo "Missing local deploy script: ${DEPLOY_SCRIPT}" >&2
-  echo "Set ATHLORE_LOCAL_ROOT to your athlore checkout root." >&2
   exit 1
 fi
 
@@ -64,7 +91,7 @@ _push_repo_if_needed() {
   echo "==> ${label}: pushed $(git -C "${dir}" rev-parse --short HEAD)"
 }
 
-echo "==> deploy-athlore: push only if needed, then remote deploy"
+echo "==> deploy-athlore: deploying production from main"
 _push_repo_if_needed "${ROOT}" "athlore"
 
 echo "==> Running remote deploy.sh on athlore"
