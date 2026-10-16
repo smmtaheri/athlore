@@ -165,6 +165,28 @@ must not be enabled in production. Invalid credentials return a generic `401`.
 Coach email login is rejected. The legacy `/api/v1/auth/login/` route remains for student username
 compatibility; student portal clients should use `/api/v1/student/login/`.
 
+### POST `/api/v1/auth/request-code/` (staging code-login flow)
+
+Anonymous request: `{ "phone_number": "9121234567", "role": "coach" | "student" }`.
+The phone is normalized with the same rules as phone login. Invalid input returns
+400. When `LOGIN_OTP_ENABLED` is false or `LOGIN_OTP_STATIC_CODE` is empty, this
+endpoint returns 403 with code `otp_unavailable` and offers password login.
+
+The current delivery adapter is a staging-only stub: HTTP 200 returns
+`{ "delivery_mode": "test", "message": "..." }`. The message explicitly states
+that no SMS was sent and shows the configured test code. This request does not
+look up account existence, create users, issue tokens or change the session.
+Replace `request_phone_login_code` with the real delivery provider before enabling
+real SMS; delivery throttling and expiring, single-use challenges belong there.
+The existing static-code verification is intentionally unchanged in this iteration.
+
+Both login pages use: phone → select code login → request code → successful
+acknowledgement → show code input → verify with `/auth/phone-login/` using
+`{ "phone_number", "role", "method": "code", "code" }`. Resending clears the
+old input only after success. Changing the phone or login method resets the UI
+to the request step. Password login and student first-login password setup are
+unchanged. A failed delivery never opens the code field or signs the user in.
+
 ### POST `/api/v1/auth/refresh`
 
 **Request:** `{ "refresh": "<jwt>" }`  

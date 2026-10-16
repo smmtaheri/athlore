@@ -11,6 +11,7 @@ from accounts.serializers import (
     CoachProfileSerializer,
     LoginSerializer,
     LogoutSerializer,
+    PhoneLoginCodeRequestSerializer,
     PhoneLoginSerializer,
     RefreshSerializer,
     RegisterSerializer,
@@ -79,6 +80,29 @@ class LoginView(APIView):
         if refresh:
             set_refresh_cookie(response, refresh)
         return response
+
+
+class PhoneLoginCodeRequestView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        serializer = PhoneLoginCodeRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            payload = services.request_phone_login_code(**serializer.validated_data)
+        except PermissionError:
+            return Response(
+                {
+                    "error": {
+                        "code": "otp_unavailable",
+                        "message": "ورود با کد در این محیط فعال نیست؛ با رمز عبور وارد شوید.",
+                        "details": {},
+                    }
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return Response(payload, status=status.HTTP_200_OK)
 
 
 class PhoneLoginView(APIView):
