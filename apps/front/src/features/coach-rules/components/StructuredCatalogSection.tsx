@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Plus, Save, Trash2 } from "lucide-react";
 import {
@@ -16,6 +16,7 @@ import {
   Textarea
 } from "../../../components/ui";
 import { apiRequest } from "../../../shared/api/client";
+import { exerciseSaveErrorMessage } from "../services/exerciseSaveErrors";
 import { ExerciseTaxonomyManager } from "./ExerciseTaxonomyManager";
 import type { ExerciseTaxonomy } from "./exerciseTaxonomyTypes";
 import styles from "../../programs/components/programFlow.module.css";
@@ -235,6 +236,11 @@ export function StructuredCatalogSection() {
   const [filters, setFilters] = useState({ equipment: "", level: "", muscle: "", region: "" });
   const [feedback, setFeedback] = useState("");
   const [isSavingExercise, setIsSavingExercise] = useState(false);
+  const exerciseErrorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (exerciseEditorOpen && feedback) exerciseErrorRef.current?.focus();
+  }, [exerciseEditorOpen, feedback]);
 
   const load = async () => {
     return Promise.all([
@@ -346,8 +352,8 @@ export function StructuredCatalogSection() {
       setEditingId(undefined);
       setExerciseEditorOpen(false);
       setFeedback("حرکت ذخیره شد.");
-    } catch {
-      setFeedback("ذخیره حرکت انجام نشد؛ اطلاعات ساختاریافته را بررسی کنید.");
+    } catch (error) {
+      setFeedback(exerciseSaveErrorMessage(error));
     } finally {
       setIsSavingExercise(false);
     }
@@ -364,6 +370,7 @@ export function StructuredCatalogSection() {
   };
 
   const startNewExercise = () => {
+    setFeedback("");
     setDraft(emptyDraft);
     setEditingId(undefined);
     setExerciseBaseline(emptyDraft);
@@ -371,6 +378,7 @@ export function StructuredCatalogSection() {
   };
 
   const startEditingExercise = (row: CatalogExercise) => {
+    setFeedback("");
     const nextDraft = exerciseFromRow(row, taxonomy);
     setEditingId(row.id);
     setDraft(nextDraft);
@@ -461,7 +469,7 @@ export function StructuredCatalogSection() {
 
   return (
     <StackLike>
-      {feedback ? (
+      {feedback && !exerciseEditorOpen ? (
         <div
           className={feedback.includes("نشد") ? styles.alertError : styles.alertSuccess}
           role="status"
@@ -659,7 +667,11 @@ export function StructuredCatalogSection() {
         title={editingId ? "ویرایش حرکت" : "حرکت جدید"}
       >
         <div className={styles.pageStack}>
-          {feedback && exerciseEditorOpen ? <div role="status">{feedback}</div> : null}
+          {feedback ? (
+            <div className={styles.alertError} ref={exerciseErrorRef} role="alert" tabIndex={-1}>
+              {feedback}
+            </div>
+          ) : null}
           <div className={styles.formGrid}>
             <FormField label="نام فارسی" required>
               <Input

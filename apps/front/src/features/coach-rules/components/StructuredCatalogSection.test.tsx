@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../../../shared/api/errors";
 import { StructuredCatalogSection } from "./StructuredCatalogSection";
 
 const { apiRequestMock } = vi.hoisted(() => ({ apiRequestMock: vi.fn() }));
@@ -195,6 +196,47 @@ describe("StructuredCatalogSection", () => {
     await user.click(screen.getByRole("button", { name: "ذخیره حرکت" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent("حرکت ذخیره شد.");
+  });
+
+  it.each([
+    ["exercise_duplicate", "حرکتی با این نام برای این عضله قبلاً ثبت شده است."],
+    ["exercise_validation_error", "تجهیزات انتخاب‌شده نامعتبر است؛ دوباره انتخاب کنید."],
+    ["exercise_save_unknown", "خطای ناشناخته‌ای رخ داد. کد پیگیری را برای بررسی لاگ بدهید."]
+  ])("keeps the editor and draft open after %s", async (code, message) => {
+    const user = userEvent.setup();
+    const baseImplementation = apiRequestMock.getMockImplementation()!;
+    apiRequestMock.mockImplementation(async (path: string, options?: { method?: string }) => {
+      if (options?.method === "PATCH") {
+        throw new ApiError({
+          code,
+          message,
+          status: code === "exercise_save_unknown" ? 500 : 400,
+          details:
+            code === "exercise_save_unknown" ? { error_id: "0123456789abcdef0123456789abcdef" } : {}
+        });
+      }
+      return baseImplementation(path, options);
+    });
+    render(<StructuredCatalogSection />);
+    const exerciseRow = (await screen.findAllByText("پرس بالاسینه دمبل"))
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    await user.click(within(exerciseRow as HTMLElement).getByRole("button", { name: "ویرایش" }));
+    await user.click(screen.getByRole("button", { name: "ذخیره حرکت" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(screen.getByRole("alert")).toHaveFocus();
+    expect(screen.getByRole("heading", { name: "ویرایش حرکت" })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("پرس بالاسینه دمبل")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ذخیره حرکت" })).toBeEnabled();
+    if (code === "exercise_save_unknown") {
+      expect(screen.getByRole("alert")).toHaveTextContent("0123456789abcdef0123456789abcdef");
+    }
+
+    apiRequestMock.mockImplementation(baseImplementation);
+    await user.click(screen.getByRole("button", { name: "ذخیره حرکت" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("حرکت ذخیره شد.");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("shows the shared muscle and region taxonomy as distinct, parent-linked lists", async () => {
