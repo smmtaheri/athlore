@@ -51,12 +51,19 @@ class AddStagePublicHostTests(unittest.TestCase):
             updated,
         )
         self.assertIn("    server_name athlore.ir;", updated)
+        self.assertIn('    add_header Cache-Control "no-store" always;\n', updated)
+        self.assertIn("    proxy_hide_header Cache-Control;\n", updated)
+        self.assertIn("    proxy_hide_header Expires;\n", updated)
+        self.assertIn(f"{STUDENT_HOST};\n    proxy_hide_header", updated)
 
     def test_is_idempotent_when_public_host_is_already_routed(self) -> None:
         original = (
             "http {\n"
             "  server {\n"
             f"    server_name {PUBLIC_HOST} {COACH_HOST} {STUDENT_HOST};\n"
+            "    proxy_hide_header Cache-Control;\n"
+            "    proxy_hide_header Expires;\n"
+            '    add_header Cache-Control "no-store" always;\n'
             "  }\n"
             "}\n"
         )
@@ -65,6 +72,27 @@ class AddStagePublicHostTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(updated, original)
+
+    def test_adds_cache_policy_when_only_the_offline_location_has_no_store(self) -> None:
+        original = (
+            "http {\n"
+            "  server {\n"
+            f"    server_name {PUBLIC_HOST} {COACH_HOST} {STUDENT_HOST};\n"
+            "    location / {\n"
+            "      proxy_pass http://stage;\n"
+            "    }\n"
+            "    location @stage_offline {\n"
+            '      add_header Cache-Control "no-store" always;\n'
+            "    }\n"
+            "  }\n"
+            "}\n"
+        )
+
+        result, updated = self.run_patch(original)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(updated.count('add_header Cache-Control "no-store" always;'), 2)
+        self.assertLess(updated.index("proxy_hide_header Cache-Control;"), updated.index("location /"))
 
     def test_refuses_ambiguous_or_missing_gateway_routes(self) -> None:
         original = (

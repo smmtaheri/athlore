@@ -73,4 +73,4 @@ if ! "${PRODUCTION_COMPOSE[@]}" exec -T nginx nginx -s reload; then
   exit 1
 fi
 
-echo "==> Shared production Nginx reloaded with stage.athlore.ir and stage app routes"
+echo "==> Shared Nginx reloaded with stage routes and Cache-Control: no-store"

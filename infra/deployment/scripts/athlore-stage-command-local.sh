@@ -99,32 +99,38 @@ _push_stage_branch_if_needed() {
   fi
 }
 
+_shared_gateway_support_is_current() {
+  local template
+  template="$(git -C "$ROOT" show "$1:infra/deployment/nginx/templates/server-stage-gateway.conf.template" 2>/dev/null)" || return 1
+  [[ "$template" == *'server_name ${STAGE_PUBLIC_DOMAIN}'* \
+    && "$template" == *'proxy_hide_header Cache-Control;'* \
+    && "$template" == *'proxy_hide_header Expires;'* \
+    && "$template" == *'add_header Cache-Control "no-store" always;'* ]]
+}
+
 _publish_shared_gateway_support_if_needed() {
-  local gateway_template ahead path
-  gateway_template="infra/deployment/nginx/templates/server-stage-gateway.conf.template"
+  local ahead path
 
   echo "==> Checking the shared production gateway support on main (without switching branches)"
   git -C "$ROOT" fetch origin main
 
-  if git -C "$ROOT" show "origin/main:$gateway_template" 2>/dev/null \
-      | grep -F 'server_name ${STAGE_PUBLIC_DOMAIN}' >/dev/null; then
-    echo "==> origin/main already contains the public stage gateway route"
+  if _shared_gateway_support_is_current origin/main; then
+    echo "==> origin/main already contains the current stage gateway and cache policy"
     return 0
   fi
 
   if ! git -C "$ROOT" show-ref --verify --quiet refs/heads/main; then
-    echo "ERROR: origin/main does not yet contain the stage gateway route and no local main ref is available." >&2
+    echo "ERROR: origin/main lacks the current stage gateway policy and no local main ref is available." >&2
     exit 1
   fi
-  if ! git -C "$ROOT" show "main:$gateway_template" 2>/dev/null \
-      | grep -F 'server_name ${STAGE_PUBLIC_DOMAIN}' >/dev/null; then
-    echo "ERROR: local main does not contain the public stage gateway route." >&2
+  if ! _shared_gateway_support_is_current main; then
+    echo "ERROR: local main does not contain the current stage gateway and cache policy." >&2
     exit 1
   fi
 
   if ! git -C "$ROOT" merge-base --is-ancestor origin/main main; then
     if git -C "$ROOT" merge-base --is-ancestor main origin/main; then
-      echo "ERROR: local main is behind origin/main, which still lacks the stage gateway route." >&2
+      echo "ERROR: local main is behind origin/main, which still lacks the current stage gateway policy." >&2
     else
       echo "ERROR: local main and origin/main have diverged; refusing to publish gateway support." >&2
     fi
@@ -133,7 +139,7 @@ _publish_shared_gateway_support_if_needed() {
 
   ahead="$(git -C "$ROOT" rev-list --count origin/main..main)"
   if [[ "$ahead" == "0" ]]; then
-    echo "ERROR: origin/main lacks the public stage route, but local main has no commits to publish." >&2
+    echo "ERROR: origin/main lacks the current stage gateway policy, but local main has no commits to publish." >&2
     exit 1
   fi
 

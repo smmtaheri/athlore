@@ -20,4 +20,5 @@ if [[ "$(git -C "$REPO_ROOT" rev-parse HEAD)" != "$(git -C "$REPO_ROOT" rev-pars
   exit 1
 fi
 "$REPO_ROOT/infra/deployment/scripts/stage-build.sh"
-exec "$REPO_ROOT/infra/deployment/scripts/stage-gateway-up.sh"
+"$REPO_ROOT/infra/deployment/scripts/stage-gateway-up.sh"
+exec "$REPO_ROOT/infra/deployment/scripts/stage-verify.sh"

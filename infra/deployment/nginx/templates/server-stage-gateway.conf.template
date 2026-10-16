@@ -8,6 +8,11 @@
     include /etc/nginx/snippets/security-headers.conf;
     include /etc/nginx/snippets/hsts.conf;
 
+    # Stage must always serve the current build, including its HTML entrypoint.
+    proxy_hide_header Cache-Control;
+    proxy_hide_header Expires;
+    add_header Cache-Control "no-store" always;
+
     location / {
       resolver 127.0.0.11 valid=5s ipv6=off;
       set $stage_origin athlore-stage-nginx;

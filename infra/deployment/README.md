@@ -146,7 +146,7 @@ do not run the production `deploy.sh` from that checkout.
 The three stage hostnames are routed by the production Nginx edge proxy over a
 private Docker network. No extra host port or ParsPack Origin Rule is needed.
 `deploy-stage-athlore` (and `deploy-athlore` while the local branch is `stage`)
-builds the isolated stage stack, then renders and validates the shared gateway
+builds the isolated stage stack, then updates and validates the shared gateway
 configuration and reloads only the production Nginx process if the route
 changed. If `origin/main` lacks the route, the laptop helper publishes the
 available fast-forward deployment-only commits from its local `main` ref
@@ -155,6 +155,13 @@ changes. Stage deploy does not rebuild or restart the production application,
 database, or media services. When stage is stopped, the gateway responds with
 HTTP 503, `Cache-Control: no-store`, and a clear plain-text staging-offline
 message.
+
+Stage responses use `Cache-Control: no-store` at the shared gateway so a CDN
+cannot retain another environment's HTML or an older stage build. Deployment
+revalidates previously cached HTML, then checks the exact public URLs against
+the bundle in the running stage frontend and verifies each API health endpoint.
+It fails instead of reporting success if the CDN still serves an old bundle
+or omits the no-store policy.
 
 ParsPack DNS/CDN must send `stage.athlore.ir`, `stage.coach.athlore.ir`, and
 `stage.student.athlore.ir` to the same origin as production and provide HTTPS
