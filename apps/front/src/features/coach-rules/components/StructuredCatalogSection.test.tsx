@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../../shared/api/errors";
@@ -156,6 +156,99 @@ describe("StructuredCatalogSection", () => {
         }
       ];
     });
+  });
+
+  it("loads every page and searches late-page movements by muscle and Persian spelling", async () => {
+    const user = userEvent.setup();
+    const baseImplementation = apiRequestMock.getMockImplementation()!;
+    const taxonomy = await baseImplementation("/exercise-taxonomy/");
+    const firstPage = await baseImplementation("/exercises/");
+    const template = firstPage.results[0];
+    const exercises = Array.from({ length: 205 }, (_, index) => ({
+      ...template,
+      id: `exercise-${index + 1}`,
+      name: `حرکت ${index + 1}`,
+      aliases: index === 204 ? ["اسکوات تکی"] : [],
+      targets:
+        index >= 200
+          ? [{ muscle_key: "quadriceps", region_key: null, role: "primary" }]
+          : template.targets
+    }));
+    taxonomy.muscles.push({
+      id: "muscle-quadriceps",
+      key: "quadriceps",
+      name: "چهارسر ران",
+      name_en: "Quadriceps",
+      is_active: true,
+      sort_order: 5,
+      regions: []
+    });
+    apiRequestMock.mockImplementation(
+      async (path: string, options?: { query?: { offset?: number } }) => {
+        if (path === "/exercise-taxonomy/") return taxonomy;
+        if (path === "/exercises/") {
+          const offset = options?.query?.offset || 0;
+          return {
+            count: exercises.length,
+            next: offset < 200 ? `/api/v1/exercises/?limit=100&offset=${offset + 100}` : null,
+            results: exercises.slice(offset, offset + 100)
+          };
+        }
+        return baseImplementation(path, options);
+      }
+    );
+    render(<StructuredCatalogSection />);
+
+    const table = await screen.findByRole("table", { name: "کاتالوگ حرکات" });
+    expect(within(table).getByText("حرکت 205")).toBeInTheDocument();
+    expect(within(table).getAllByRole("row")).toHaveLength(206);
+    expect(
+      apiRequestMock.mock.calls
+        .filter(([path]) => path === "/exercises/")
+        .map(([, options]) => options.query.offset)
+    ).toEqual([0, 100, 200]);
+
+    const search = screen.getByRole("textbox", { name: "جست‌وجو" });
+    for (const query of ["چهار سر", "چهارسر", "چهار‌سر", "اسكوات تكي"]) {
+      fireEvent.change(search, { target: { value: query } });
+      expect(within(table).getByText("حرکت 205")).toBeInTheDocument();
+      expect(screen.queryByText("حرکت 1", { exact: true })).not.toBeInTheDocument();
+    }
+    fireEvent.change(search, { target: { value: "" } });
+    await user.selectOptions(screen.getByRole("combobox", { name: "فیلتر عضله" }), "quadriceps");
+    expect(
+      within(screen.getByRole("table", { name: "کاتالوگ حرکات" })).getAllByRole("row")
+    ).toHaveLength(6);
+
+    await user.click(screen.getByRole("button", { name: /^حرکت جدید$/ }));
+    const drawer = screen.getByRole("dialog", { name: /^حرکت جدید$/ });
+    await user.type(within(drawer).getAllByRole("textbox")[0], "حركت ‌205");
+    await user.selectOptions(
+      within(drawer).getByRole("combobox", { name: /^عضله اصلی/ }),
+      "quadriceps"
+    );
+    await user.click(within(drawer).getByRole("button", { name: /^ذخیره حرکت$/ }));
+    expect(await within(drawer).findByRole("alert")).toHaveTextContent("این حرکت تکراری است");
+    expect(apiRequestMock.mock.calls.some(([, options]) => options?.method === "POST")).toBe(false);
+  });
+
+  it("reports a later-page failure instead of displaying an incomplete catalog", async () => {
+    const baseImplementation = apiRequestMock.getMockImplementation()!;
+    apiRequestMock.mockImplementation(
+      async (path: string, options?: { query?: { offset?: number } }) => {
+        if (path === "/exercises/") {
+          if (options?.query?.offset) throw new Error("Catalog page unavailable");
+          const dto = await baseImplementation(path);
+          return { ...dto, next: "/api/v1/exercises/?offset=1" };
+        }
+        return baseImplementation(path, options);
+      }
+    );
+    render(<StructuredCatalogSection />);
+
+    expect(await screen.findByText("دریافت کاتالوگ انجام نشد.")).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "کاتالوگ حرکات" })).not.toBeInTheDocument();
+    expect(screen.queryByText("لیست خالی است")).not.toBeInTheDocument();
   });
 
   it("renders structured rows, handler status, and archive action", async () => {

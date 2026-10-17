@@ -45,6 +45,32 @@ type CatalogExercise = {
   priority: number;
 };
 
+async function loadCatalogExercises(): Promise<CatalogExercise[]> {
+  const exercises: CatalogExercise[] = [];
+  let hasNextPage = true;
+  while (hasNextPage) {
+    const page = await apiRequest<{ results: CatalogExercise[]; next?: string | null }>(
+      "/exercises/",
+      { query: { limit: 100, offset: exercises.length } }
+    );
+    if (page.next && page.results.length === 0) {
+      throw new Error("Exercise catalog pagination returned an empty intermediate page.");
+    }
+    exercises.push(...page.results);
+    hasNextPage = Boolean(page.next);
+  }
+  return exercises;
+}
+
+function normalizeExerciseSearch(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[يى]/g, "ی")
+    .replace(/ك/g, "ک")
+    .replace(/[\s\u200c\u200d]+/g, "");
+}
+
 type Technique = {
   id: string | null;
   key: string;
@@ -247,7 +273,7 @@ export function StructuredCatalogSection() {
       apiRequest<ExerciseTaxonomy>("/exercise-taxonomy/", {
         query: { include_inactive: true }
       }),
-      apiRequest<{ results?: CatalogExercise[] }>("/exercises/", { query: { limit: 100 } }),
+      loadCatalogExercises(),
       apiRequest<Technique[]>("/training-techniques/")
     ]);
   };
@@ -256,7 +282,7 @@ export function StructuredCatalogSection() {
     void load()
       .then(([taxonomyDto, exerciseDto, techniqueDto]) => {
         setTaxonomy(taxonomyDto);
-        setExercises(exerciseDto.results || []);
+        setExercises(exerciseDto);
         setTechniques(techniqueDto);
       })
       .catch(() => setFeedback("دریافت کاتالوگ انجام نشد."));
@@ -265,10 +291,20 @@ export function StructuredCatalogSection() {
   const visibleExercises = useMemo(
     () =>
       exercises.filter((exercise) => {
-        const haystack = [exercise.name, exercise.name_en, ...exercise.aliases]
-          .join(" ")
-          .toLowerCase();
-        const matchesSearch = !search || haystack.includes(search.toLowerCase());
+        const targetLabels = exercise.targets.flatMap((target) => {
+          const muscle = taxonomy?.muscles.find((item) => item.key === target.muscle_key);
+          const region = muscle?.regions.find((item) => item.key === target.region_key);
+          return [
+            muscle?.name || "",
+            muscle?.name_en || "",
+            region?.name || "",
+            region?.name_en || ""
+          ];
+        });
+        const haystack = normalizeExerciseSearch(
+          [exercise.name, exercise.name_en, ...exercise.aliases, ...targetLabels].join(" ")
+        );
+        const matchesSearch = haystack.includes(normalizeExerciseSearch(search));
         const matchesMuscle =
           !filters.muscle ||
           exercise.targets.some((target) => target.muscle_key === filters.muscle);
@@ -282,13 +318,16 @@ export function StructuredCatalogSection() {
           !filters.equipment || exercise.equipment_keys.includes(filters.equipment);
         return matchesSearch && matchesMuscle && matchesRegion && matchesLevel && matchesEquipment;
       }),
-    [exercises, filters, search]
+    [exercises, filters, search, taxonomy]
   );
 
   if (!taxonomy) {
     return (
       <Card>
-        <EmptyState description="در حال دریافت taxonomy کاتالوگ..." title="کاتالوگ حرکات" />
+        <EmptyState
+          description={feedback || "در حال دریافت کاتالوگ حرکات..."}
+          title="کاتالوگ حرکات"
+        />
       </Card>
     );
   }
@@ -336,6 +375,20 @@ export function StructuredCatalogSection() {
 
   const saveExercise = async () => {
     setFeedback("");
+    const duplicate = exercises.some(
+      (exercise) =>
+        exercise.id !== editingId &&
+        normalizeExerciseSearch(exercise.name) === normalizeExerciseSearch(draft.name) &&
+        exercise.targets.some(
+          (target) => target.role === "primary" && target.muscle_key === draft.primary_muscle
+        )
+    );
+    if (duplicate) {
+      setFeedback(
+        "این حرکت تکراری است و قبلاً برای همین عضله ثبت شده است. حرکت موجود را ویرایش کنید یا نام دیگری وارد کنید."
+      );
+      return;
+    }
     setIsSavingExercise(true);
     try {
       const dto = await apiRequest<CatalogExercise>(
@@ -494,7 +547,7 @@ export function StructuredCatalogSection() {
               id="exercise-catalog-search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="نام یا نام جایگزین"
+              placeholder="نام حرکت، نام جایگزین یا عضله"
             />
           </FormField>
           <FormField htmlFor="exercise-catalog-filter-muscle" label="فیلتر عضله">
