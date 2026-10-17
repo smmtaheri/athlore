@@ -13,7 +13,7 @@ from rest_framework.views import APIView
 logger = logging.getLogger(__name__)
 
 DUPLICATE_MESSAGE = (
-    "حرکتی با این نام برای این عضله قبلاً ثبت شده است. "
+    "این حرکت تکراری است و قبلاً برای همین عضله ثبت شده است. "
     "حرکت موجود را ویرایش کنید یا نام دیگری وارد کنید."
 )
 EXTERNAL_KEY_DUPLICATE_MESSAGE = "شناسه مرجع این حرکت قبلاً استفاده شده است؛ شناسه دیگری وارد کنید."

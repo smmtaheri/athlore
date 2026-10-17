@@ -42,6 +42,7 @@ class ExerciseSaveErrorTests(APITestCase):
                 self.assertEqual(response.status_code, 400)
                 self.assertEqual(response.data["error"]["code"], "exercise_duplicate")
                 self.assertEqual(response.data["error"]["message"], DUPLICATE_MESSAGE)
+                self.assertIn("تکراری", response.data["error"]["message"])
                 self.assertEqual(Exercise.objects.filter(name=payload["name"]).count(), 1)
 
     def test_duplicate_edit_rolls_back_and_can_be_corrected(self):
