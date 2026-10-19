@@ -148,6 +148,21 @@ describe("AppRoutes", () => {
     expect(screen.getByLabelText(/شماره موبایل/)).toBeInTheDocument();
   });
 
+  it("sends an anonymous athlete opening the student root to login", async () => {
+    await renderRoute("/", anonymousRepo(), "student");
+
+    expect(await screen.findByText("ورود ورزشکار")).toBeInTheDocument();
+    expect(screen.queryByText("صفحه پیدا نشد")).not.toBeInTheDocument();
+  });
+
+  it("sends an authenticated athlete opening the student root to the dashboard", async () => {
+    await renderRoute("/", studentRepo(studentSession()), "student");
+
+    expect(await screen.findByText(/سلام/)).toBeInTheDocument();
+    expect(screen.getByText("پنل ورزشکار")).toBeInTheDocument();
+    expect(screen.queryByText("صفحه پیدا نشد")).not.toBeInTheDocument();
+  });
+
   it("does not recognize the removed student URL on the student surface", async () => {
     await renderRoute("/student/login", anonymousRepo(), "student");
     expect(await screen.findByText("صفحه پیدا نشد")).toBeInTheDocument();
