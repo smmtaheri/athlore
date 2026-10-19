@@ -1,4 +1,4 @@
-"""SMS.ir delivery and database-backed, single-use phone login challenges."""
+"""Najva delivery and database-backed, single-use phone login challenges."""
 
 import hmac
 import http.client
@@ -7,6 +7,7 @@ import logging
 import secrets
 import uuid
 from datetime import timedelta
+from urllib.parse import quote, urlencode
 
 from django.conf import settings
 from django.db import transaction
@@ -51,49 +52,51 @@ def _code_digest(key: str, nonce, code: str) -> str:
 
 
 def _configuration():
-    key = str(settings.SMSIR_API_KEY or "").strip()
-    template = str(settings.SMSIR_TEMPLATE_ID or "").strip()
-    parameter = str(settings.SMSIR_CODE_PARAMETER or "").strip()
-    if not key or not template.isdigit() or int(template) <= 0 or not parameter:
+    key = str(settings.NAJVA_API_KEY or "").strip()
+    sender = str(settings.NAJVA_SENDER or "").strip()
+    template = str(settings.NAJVA_TEMPLATE or "").strip()
+    if not key or not sender.isascii() or not sender.isdigit() or not template:
         raise SmsConfigurationError()
-    return key, int(template), parameter
+    return key, sender, template
 
 
 def _send_sms(phone: str, code: str) -> None:
-    key, template, parameter = _configuration()
-    connection = http.client.HTTPSConnection("api.sms.ir", timeout=20)
+    key, sender, template = _configuration()
+    query = urlencode(
+        {"sender": sender, "receptor": "0" + phone[3:], "template": template, "token": code}
+    )
+    connection = http.client.HTTPSConnection("sms.najva.com", timeout=20)
     try:
         connection.request(
             "POST",
-            "/v1/send/verify",
-            body=json.dumps(
-                {
-                    "mobile": "0" + phone[3:],
-                    "templateId": template,
-                    "parameters": [{"name": parameter, "value": code}],
-                }
-            ),
-            headers={"X-API-KEY": key, "Content-Type": "application/json"},
+            f"/v1/{quote(key, safe='')}/verify/lookup.json?{query}",
+            headers={"Accept": "application/json"},
         )
         response = connection.getresponse()
         payload = json.loads(response.read(65536))
+        result = payload.get("return") if isinstance(payload, dict) else None
+        entries = payload.get("entries") if isinstance(payload, dict) else None
         if (
-            not 200 <= response.status < 300
-            or not isinstance(payload, dict)
-            or payload.get("status") != 1
-            or not isinstance(payload.get("data"), dict)
-            or not payload["data"].get("messageId")
+            response.status != 200
+            or not isinstance(result, dict)
+            or result.get("status") != 200
+            or not isinstance(entries, list)
+            or len(entries) != 1
+            or not isinstance(entries[0], dict)
+            or type(entries[0].get("messageid")) is not int
+            or entries[0]["messageid"] <= 0
+            or entries[0].get("status") != 1
         ):
-            provider_status = payload.get("status") if isinstance(payload, dict) else None
+            provider_status = result.get("status") if isinstance(result, dict) else None
             logger.warning(
-                "SMS.ir rejected a login delivery (HTTP %s, provider status %s)",
+                "Najva rejected a login delivery (HTTP %s, provider status %s)",
                 response.status,
                 provider_status if isinstance(provider_status, int) else "invalid",
             )
             raise SmsDeliveryUnavailable()
     except (OSError, http.client.HTTPException, ValueError) as exc:
-        # Never log provider bodies/headers: these may include codes or credentials.
-        logger.warning("SMS.ir login delivery failed (%s)", type(exc).__name__)
+        # URLs contain the API key and code; never log URLs, bodies or exception text.
+        logger.warning("Najva login delivery failed (%s)", type(exc).__name__)
         raise SmsDeliveryUnavailable() from None
     finally:
         connection.close()

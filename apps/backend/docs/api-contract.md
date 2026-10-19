@@ -190,9 +190,10 @@ access or code login. No account migration or database schema change is needed.
 
 ### POST `/api/v1/auth/request-code/`
 
-With `LOGIN_OTP_PROVIDER=smsir` (stage Compose), this endpoint sends a random
-six-digit code through SMS.ir. Configuration requires `SMSIR_API_KEY`, a real
-approved `SMSIR_TEMPLATE_ID`, and `SMSIR_CODE_PARAMETER` (default `CODE`). The
+With `LOGIN_OTP_PROVIDER=najva` (stage Compose), this endpoint sends a random
+six-digit code through Najva. Configuration requires `NAJVA_API_KEY`,
+`NAJVA_SENDER` (default `100005676`), and the approved template name
+`NAJVA_TEMPLATE` (default `athlore`, using the `%token` placeholder). The
 API key never reaches the browser. There is no automatic static-code fallback.
 Successful acknowledgement returns `delivery_mode: sms`, a generic message,
 `expires_in_seconds: 300` and `retry_after_seconds: 60`, without the code.

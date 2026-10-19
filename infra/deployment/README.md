@@ -213,9 +213,9 @@ and uploads persist while the containers release CPU/RAM. Never use `docker
 compose down -v` or `docker volume prune` to switch stage off. The shared edge
 network is private/internal and is retained when either stack is stopped.
 
-### Stage SMS login (SMS.ir)
+### Stage SMS login (Najva)
 
-Stage Compose forces `LOGIN_OTP_PROVIDER=smsir` and an empty static code, even
+Stage Compose forces `LOGIN_OTP_PROVIDER=najva` and an empty static code, even
 if an old `.env.stage` still contains `LOGIN_OTP_STATIC_CODE=1111`. Production
 Compose and its login provider are unchanged. Password login remains available.
 
@@ -223,17 +223,23 @@ Before a future stage deployment, privately configure these in the server's
 `infra/deployment/.env.stage` (never in Git or frontend build arguments):
 
 ```env
-SMSIR_API_KEY=<private provider key>
-SMSIR_TEMPLATE_ID=<approved SMS.ir template ID>
-SMSIR_CODE_PARAMETER=CODE
+NAJVA_API_KEY=<private provider key>
+NAJVA_SENDER=100005676
+NAJVA_TEMPLATE=athlore
 ```
 
-The template ID is issued by SMS.ir for an approved verification message; it is
-not the generated login code. The named parameter must match that template.
+Najva requires an approved template NAME, not its numeric ID. The `athlore`
+template must include `%token` for the generated code. The sender must belong
+to the account and permit OTP delivery; whitelist the stage server's outbound
+IP in Najva. Requests use HTTPS POST with `sender`, `receptor`, `template` and
+`token` query parameters. Only a successful response with `return.status=200`
+and one queued entry (`status=1`, positive `messageid`) is accepted.
 Missing/invalid configuration returns `503 sms_not_configured`, not a test code.
 Provider rejection/timeouts return a sanitized `503 sms_delivery_unavailable`.
 No provider response body, API key, or plaintext login code is logged or stored.
-See the [official verification API](https://sms.ir/rest-api/) for the provider contract.
+See the [official lookup API](https://developers.najva.com/reference/v1-send-lookup)
+for the provider contract. Never log full request URLs: the key is in the path
+and the code is in the query string.
 
 The backend alone joins an outbound bridge network for HTTPS delivery; this
 does not publish any ports or expose PostgreSQL. OTP state uses the existing
@@ -250,7 +256,8 @@ Migration `accounts.0013_phone_login_challenges` adds only temporary auth state;
 existing users, passwords, profiles and visits are unchanged. Migrations run
 on the next explicitly requested deployment, not while editing or testing code.
 Tests mock the provider and must never send real SMS. An actual delivery test
-requires the real template ID and an explicitly authorized send.
+requires private key configuration, an approved template, and an explicitly
+authorized send.
 
 `stage-deploy.sh` refuses a non-stage branch, a dirty checkout, or a checkout
 that does not end up exactly at `origin/stage`. Keep the stage checkout in a

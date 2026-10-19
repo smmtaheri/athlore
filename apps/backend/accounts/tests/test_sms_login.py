@@ -3,6 +3,7 @@
 import json
 from datetime import timedelta
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 from django.contrib.auth import get_user_model
 from django.test import override_settings
@@ -16,11 +17,11 @@ from students.models import Student, StudentProfile
 
 @override_settings(
     LOGIN_OTP_ENABLED=True,
-    LOGIN_OTP_PROVIDER="smsir",
+    LOGIN_OTP_PROVIDER="najva",
     LOGIN_OTP_STATIC_CODE="1111",
-    SMSIR_API_KEY="fake-private-provider-key",
-    SMSIR_TEMPLATE_ID="12345",
-    SMSIR_CODE_PARAMETER="CODE",
+    NAJVA_API_KEY="fake-private-provider-key",
+    NAJVA_SENDER="100005676",
+    NAJVA_TEMPLATE="athlore",
 )
 class SmsLoginTests(APITestCase):
     def setUp(self):
@@ -55,7 +56,7 @@ class SmsLoginTests(APITestCase):
         self.response = self.transport.return_value.getresponse.return_value
         self.response.status = 200
         self.response.read.return_value = json.dumps(
-            {"status": 1, "data": {"messageId": 42}}
+            {"return": {"status": 200}, "entries": [{"messageid": 42, "status": 1}]}
         ).encode()
         rng = patch("accounts.login_codes.secrets.randbelow", return_value=234567)
         self.rng = rng.start()
@@ -97,16 +98,19 @@ class SmsLoginTests(APITestCase):
             self.assertNotIn(secret, str(response.data))
         self.assertFalse(response.cookies)
         self.assertNotIn("tokens", response.data)
-        self.transport.assert_called_once_with("api.sms.ir", timeout=20)
+        self.transport.assert_called_once_with("sms.najva.com", timeout=20)
         args, kwargs = self.transport.return_value.request.call_args
-        self.assertEqual(args, ("POST", "/v1/send/verify"))
-        self.assertEqual(kwargs["headers"]["X-API-KEY"], "fake-private-provider-key")
+        self.assertEqual(args[0], "POST")
+        url = urlsplit(args[1])
+        self.assertEqual(url.path, "/v1/fake-private-provider-key/verify/lookup.json")
+        self.assertEqual(kwargs, {"headers": {"Accept": "application/json"}})
         self.assertEqual(
-            json.loads(kwargs["body"]),
+            parse_qs(url.query),
             {
-                "mobile": "09121111111",
-                "templateId": 12345,
-                "parameters": [{"name": "CODE", "value": "334567"}],
+                "sender": ["100005676"],
+                "receptor": ["09121111111"],
+                "template": ["athlore"],
+                "token": ["334567"],
             },
         )
         challenge = PhoneLoginChallenge.objects.get()
@@ -200,10 +204,10 @@ class SmsLoginTests(APITestCase):
 
     def test_missing_configuration_fails_closed_but_password_still_works(self):
         for config in (
-            {"SMSIR_API_KEY": ""},
-            {"SMSIR_TEMPLATE_ID": ""},
-            {"SMSIR_TEMPLATE_ID": "0"},
-            {"SMSIR_CODE_PARAMETER": ""},
+            {"NAJVA_API_KEY": ""},
+            {"NAJVA_SENDER": ""},
+            {"NAJVA_SENDER": "invalid"},
+            {"NAJVA_TEMPLATE": ""},
         ):
             with self.subTest(config=config), override_settings(**config):
                 result = self.send()
@@ -226,8 +230,8 @@ class SmsLoginTests(APITestCase):
     def test_transport_failures_do_not_issue_codes_or_leak_provider_errors(self):
         for result in (
             b"not-json",
-            b'{"status": 0, "message": "fake-private-provider-key"}',
-            b'{"status": 1, "data": {}}',
+            b'{"return": {"status": 424, "message": "fake-private-provider-key"}}',
+            b'{"return": {"status": 200}, "entries": []}',
         ):
             with self.subTest(result=result):
                 self.response.read.return_value = result
@@ -241,6 +245,43 @@ class SmsLoginTests(APITestCase):
         response = self.send()
         self.assertEqual(response.status_code, 503)
         self.assertNotIn("sensitive provider detail", str(response.data))
+
+    def test_unaccepted_message_states_and_redirects_do_not_issue_a_code(self):
+        for entry in (
+            {"messageid": 0, "status": 1},
+            {"messageid": 42, "status": 6},
+            {"messageid": 42, "status": 15},
+            {"messageid": "42", "status": 1},
+            None,
+        ):
+            with self.subTest(entry=entry):
+                self.response.read.return_value = json.dumps(
+                    {"return": {"status": 200}, "entries": [entry]}
+                ).encode()
+                self.assertEqual(self.send().status_code, 503)
+                self.assertEqual(self.login().status_code, 401)
+                self.allow_resend()
+        self.response.status = 302
+        PhoneLoginChallenge.objects.update(request_count=0)
+        self.assertEqual(self.send().status_code, 503)
+        self.assertEqual(self.transport.call_count, 6)
+
+    def test_url_encoding_and_transport_logs_do_not_leak_credentials(self):
+        with override_settings(NAJVA_API_KEY="private/key?value", NAJVA_TEMPLATE="athlore&test"):
+            self.assertEqual(self.send().status_code, 200)
+        args, _ = self.transport.return_value.request.call_args
+        self.assertIn("/v1/private%2Fkey%3Fvalue/verify/lookup.json?", args[1])
+        self.assertEqual(parse_qs(urlsplit(args[1]).query)["template"], ["athlore&test"])
+        self.allow_resend()
+        self.transport.return_value.request.side_effect = OSError(
+            "fake-private-provider-key token=334567 receptor=09121111111"
+        )
+        with self.assertLogs("accounts.login_codes", level="WARNING") as logs:
+            response = self.send()
+        self.assertEqual(response.status_code, 503)
+        for secret in ("fake-private-provider-key", "334567", "09121111111"):
+            self.assertNotIn(secret, str(response.data))
+            self.assertNotIn(secret, str(logs.output))
 
     def test_failed_delivery_keeps_limits_and_never_falls_back_to_static_code(self):
         self.response.status = 500

@@ -294,7 +294,7 @@ def request_phone_login_code(*, phone_number: str, role: str, client_ip: str = "
     phone_canon = normalize_iran_mobile(phone_number, required=True)
     if role not in {"coach", "student"}:
         raise PermissionError("Invalid role.")
-    if settings.LOGIN_OTP_PROVIDER == "smsir":
+    if settings.LOGIN_OTP_PROVIDER == "najva":
         from accounts.login_codes import request_sms_code
 
         return request_sms_code(phone=phone_canon, role=role, client_ip=client_ip)
@@ -320,7 +320,7 @@ def login_by_phone(
 ) -> dict:
     """Authenticate a coach or active student portal using a phone credential."""
     phone_canon = normalize_iran_mobile(phone_number, required=True)
-    if method == "code" and settings.LOGIN_OTP_PROVIDER == "smsir":
+    if method == "code" and settings.LOGIN_OTP_PROVIDER == "najva":
         from accounts.login_codes import verify_sms_code
 
         supplied_code = str(code).translate(_OTP_DIGIT_TRANSLATION).strip()

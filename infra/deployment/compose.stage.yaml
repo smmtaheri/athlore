@@ -57,11 +57,11 @@ services:
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL}
       DJANGO_MEDIA_ROOT: ${DJANGO_MEDIA_ROOT:-/data/media}
       LOGIN_OTP_ENABLED: ${LOGIN_OTP_ENABLED:-true}
-      LOGIN_OTP_PROVIDER: smsir
+      LOGIN_OTP_PROVIDER: najva
       LOGIN_OTP_STATIC_CODE: ""
-      SMSIR_API_KEY: ${SMSIR_API_KEY:-}
-      SMSIR_TEMPLATE_ID: ${SMSIR_TEMPLATE_ID:-}
-      SMSIR_CODE_PARAMETER: ${SMSIR_CODE_PARAMETER:-CODE}
+      NAJVA_API_KEY: ${NAJVA_API_KEY:-}
+      NAJVA_SENDER: ${NAJVA_SENDER:-100005676}
+      NAJVA_TEMPLATE: ${NAJVA_TEMPLATE:-athlore}
       DJANGO_SECURE_SSL_REDIRECT: ${DJANGO_SECURE_SSL_REDIRECT:-true}
       DJANGO_SESSION_COOKIE_SECURE: ${DJANGO_SESSION_COOKIE_SECURE:-true}
       DJANGO_CSRF_COOKIE_SECURE: ${DJANGO_CSRF_COOKIE_SECURE:-true}
@@ -170,7 +170,7 @@ services:
           - athlore-stage-nginx
 
 networks:
-  # Only the backend can reach SMS.ir. This network publishes no host ports.
+  # Only the backend can reach Najva. This network publishes no host ports.
   sms_egress:
     driver: bridge
   internal:
