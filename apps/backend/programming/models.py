@@ -140,6 +140,27 @@ class ProgramVersion(models.Model):
         return f"{self.program_id} v{self.version_number}"
 
 
+class ProgramReadySms(models.Model):
+    """One delivery attempt per published version, independent of program success."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SENDING = "sending", "Sending"
+        SENT = "sent", "Accepted by provider"
+        FAILED = "failed", "Failed"
+        SKIPPED = "skipped", "Not eligible"
+
+    version = models.OneToOneField(
+        ProgramVersion, primary_key=True, on_delete=models.CASCADE, related_name="ready_sms"
+    )
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    provider_message_id = models.PositiveBigIntegerField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    attempted_at = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+
 class GenerationRun(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"

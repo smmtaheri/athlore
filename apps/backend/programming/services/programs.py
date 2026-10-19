@@ -744,6 +744,9 @@ def finalize_version(version: ProgramVersion, *, actor) -> ProgramVersion:
     version.save(update_fields=["status", "finalized_at", "finalized_by", "updated_at"])
     version.program.updated_at = timezone.now()
     version.program.save(update_fields=["updated_at"])
+    from programming.services.program_notifications import schedule_program_ready_sms
+
+    schedule_program_ready_sms(version)
     return version
 
 

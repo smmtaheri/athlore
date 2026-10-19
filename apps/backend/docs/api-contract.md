@@ -193,7 +193,7 @@ access or code login. No account migration or database schema change is needed.
 With `LOGIN_OTP_PROVIDER=najva` (stage Compose), this endpoint sends a random
 six-digit code through Najva. Configuration requires `NAJVA_API_KEY`,
 `NAJVA_SENDER` (default `100005676`), and the approved template name
-`NAJVA_TEMPLATE` (default `athlore`, using the `%token` placeholder). The
+`NAJVA_TEMPLATE` (default `athlore_otp`, using the `%token` placeholder). The
 API key never reaches the browser. There is no automatic static-code fallback.
 Successful acknowledgement returns `delivery_mode: sms`, a generic message,
 `expires_in_seconds: 300` and `retry_after_seconds: 60`, without the code.
@@ -697,6 +697,25 @@ Body may include `training`, `nutrition`, `supplements`, `pdf_settings` (partial
 
 `draft` → `finalized` · sets `finalized_at` · content becomes immutable · **200** version  
 Idempotent if already finalized by same id → **200** same  
+
+When `PROGRAM_READY_SMS_ENABLED=true` (stage only by default), the first successful
+finalization schedules one Najva message **after the database transaction commits**.
+Both generated and uploaded programs use this path; three PDF sections still
+produce one message, not one per file. Drafts/staging, activation and repeated
+finalize requests do not send messages. The existing response contract is unchanged.
+Only active students with an enabled, active portal account and a visible program
+are notified. `NAJVA_PROGRAM_READY_TEMPLATE` defaults to `athlore_program_ready`;
+`token20` receives the first whitespace-delimited name (maximum 20 characters),
+or the generic salutation `ورزشکار` for missing/overlong legacy names.
+
+Provider failures never roll back publication or hide the program. A persistent
+`ProgramReadySms` row records pending/sending/sent/failed/skipped status per version,
+the provider message ID on acceptance, and a sanitized error code. `sent` means
+Najva accepted the message, not confirmed handset delivery. There is no automatic
+retry: a timeout may mean the provider accepted the SMS. Repeated publication does
+not retry failed/uncertain sends. Staff can inspect status in Django admin; no
+new coach/student screens are added. This sends synchronously after commit with
+a 20-second provider timeout; it is not a background queue.
 **Ownership:** owned program/version.
 
 ### POST `/api/v1/programs/{program_id}/activate`

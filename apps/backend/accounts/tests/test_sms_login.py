@@ -21,7 +21,7 @@ from students.models import Student, StudentProfile
     LOGIN_OTP_STATIC_CODE="1111",
     NAJVA_API_KEY="fake-private-provider-key",
     NAJVA_SENDER="100005676",
-    NAJVA_TEMPLATE="athlore",
+    NAJVA_TEMPLATE="athlore_otp",
 )
 class SmsLoginTests(APITestCase):
     def setUp(self):
@@ -50,7 +50,7 @@ class SmsLoginTests(APITestCase):
             must_change_password=False,
             account_activated_at=timezone.now(),
         )
-        transport = patch("accounts.login_codes.http.client.HTTPSConnection")
+        transport = patch("common.sms.http.client.HTTPSConnection")
         self.transport = transport.start()
         self.addCleanup(transport.stop)
         self.response = self.transport.return_value.getresponse.return_value
@@ -109,7 +109,7 @@ class SmsLoginTests(APITestCase):
             {
                 "sender": ["100005676"],
                 "receptor": ["09121111111"],
-                "template": ["athlore"],
+                "template": ["athlore_otp"],
                 "token": ["334567"],
             },
         )
@@ -276,7 +276,7 @@ class SmsLoginTests(APITestCase):
         self.transport.return_value.request.side_effect = OSError(
             "fake-private-provider-key token=334567 receptor=09121111111"
         )
-        with self.assertLogs("accounts.login_codes", level="WARNING") as logs:
+        with self.assertLogs("common.sms", level="WARNING") as logs:
             response = self.send()
         self.assertEqual(response.status_code, 503)
         for secret in ("fake-private-provider-key", "334567", "09121111111"):

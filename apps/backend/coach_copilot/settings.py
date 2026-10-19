@@ -162,7 +162,15 @@ LOGIN_OTP_STATIC_CODE = os.environ.get("LOGIN_OTP_STATIC_CODE", "")
 LOGIN_OTP_PROVIDER = os.environ.get("LOGIN_OTP_PROVIDER", "static").strip().lower()
 NAJVA_API_KEY = os.environ.get("NAJVA_API_KEY", "")
 NAJVA_SENDER = os.environ.get("NAJVA_SENDER", "100005676")
-NAJVA_TEMPLATE = os.environ.get("NAJVA_TEMPLATE", "athlore")
+NAJVA_TEMPLATE = os.environ.get("NAJVA_TEMPLATE", "athlore_otp")
+NAJVA_PROGRAM_READY_TEMPLATE = os.environ.get(
+    "NAJVA_PROGRAM_READY_TEMPLATE", "athlore_program_ready"
+)
+PROGRAM_READY_SMS_ENABLED = os.environ.get("PROGRAM_READY_SMS_ENABLED", "false").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 
 _CANONICAL_HTTPS_ORIGINS = [f"https://{host}" for host in _CANONICAL_HOSTS]
 _LOCAL_DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
