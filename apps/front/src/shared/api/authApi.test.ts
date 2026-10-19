@@ -12,6 +12,30 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 describe("API auth bootstrap", () => {
+  it("maps SMS expiry and resend delay without receiving the secret code", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse({
+          delivery_mode: "sms",
+          message: "کد ورود پیامک می‌شود.",
+          expires_in_seconds: 300,
+          retry_after_seconds: 60
+        })
+      )
+    );
+    expect(
+      await createApiAuthRepository().requestLoginCode({
+        phoneNumber: "9121112222",
+        role: "student"
+      })
+    ).toEqual({
+      deliveryMode: "sms",
+      message: "کد ورود پیامک می‌شود.",
+      expiresInSeconds: 300,
+      retryAfterSeconds: 60
+    });
+  });
   it.each([{ username: "legacy-athlete" }, { email: "coach@example.com" }])(
     "never falls back to a legacy login endpoint for %j",
     async (identifier) => {

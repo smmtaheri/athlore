@@ -213,6 +213,45 @@ and uploads persist while the containers release CPU/RAM. Never use `docker
 compose down -v` or `docker volume prune` to switch stage off. The shared edge
 network is private/internal and is retained when either stack is stopped.
 
+### Stage SMS login (SMS.ir)
+
+Stage Compose forces `LOGIN_OTP_PROVIDER=smsir` and an empty static code, even
+if an old `.env.stage` still contains `LOGIN_OTP_STATIC_CODE=1111`. Production
+Compose and its login provider are unchanged. Password login remains available.
+
+Before a future stage deployment, privately configure these in the server's
+`infra/deployment/.env.stage` (never in Git or frontend build arguments):
+
+```env
+SMSIR_API_KEY=<private provider key>
+SMSIR_TEMPLATE_ID=<approved SMS.ir template ID>
+SMSIR_CODE_PARAMETER=CODE
+```
+
+The template ID is issued by SMS.ir for an approved verification message; it is
+not the generated login code. The named parameter must match that template.
+Missing/invalid configuration returns `503 sms_not_configured`, not a test code.
+Provider rejection/timeouts return a sanitized `503 sms_delivery_unavailable`.
+No provider response body, API key, or plaintext login code is logged or stored.
+See the [official verification API](https://sms.ir/rest-api/) for the provider contract.
+
+The backend alone joins an outbound bridge network for HTTPS delivery; this
+does not publish any ports or expose PostgreSQL. OTP state uses the existing
+stage PostgreSQL database, shared by Gunicorn workers: random six-digit codes,
+five-minute expiry, one successful use, five failed guesses, a 60-second resend
+delay, five sends per phone/role per hour, and 30 requests per connection IP per
+hour. The IP quota uses `REMOTE_ADDR`, not caller-supplied forwarding headers;
+behind the edge proxy it may be shared by testers. Phone quota cannot be
+bypassed by switching phone notation. Unknown, disabled, and pending-setup
+accounts receive the same acknowledgement without sending a paid SMS or
+creating an account. Expired records older than a day are pruned during sends.
+
+Migration `accounts.0013_phone_login_challenges` adds only temporary auth state;
+existing users, passwords, profiles and visits are unchanged. Migrations run
+on the next explicitly requested deployment, not while editing or testing code.
+Tests mock the provider and must never send real SMS. An actual delivery test
+requires the real template ID and an explicitly authorized send.
+
 `stage-deploy.sh` refuses a non-stage branch, a dirty checkout, or a checkout
 that does not end up exactly at `origin/stage`. Keep the stage checkout in a
 different directory from `/root/athlore`; the production deploy script always

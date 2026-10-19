@@ -83,6 +83,57 @@ describe.each(["coach", "student"] as const)("%s code login", (role) => {
     expect(phone).toHaveAccessibleDescription(/نام کاربری/);
   });
 
+  it("accepts a six-digit SMS code and prevents immediate resends for both roles", async () => {
+    const { send, login, user } = showLogin();
+    send.mockResolvedValueOnce({
+      deliveryMode: "sms",
+      message: "کد ورود پیامک می‌شود.",
+      expiresInSeconds: 300,
+      retryAfterSeconds: 60
+    });
+    await user.type(await screen.findByLabelText(/شماره موبایل/), "9121112222");
+    await user.click(screen.getByRole("button", { name: "ورود با کد یک‌بارمصرف" }));
+    await user.click(screen.getByRole("button", { name: "ارسال کد" }));
+    const input = await screen.findByLabelText(/کد یک‌بارمصرف/);
+    expect(input).toHaveAttribute("placeholder", "کد ۶ رقمی پیامک‌شده");
+    expect(input).toHaveAttribute("maxlength", "6");
+    expect(screen.getByRole("button", { name: /ارسال دوباره کد \(/ })).toBeDisabled();
+    login.mockRejectedValueOnce(
+      new ApiError({ code: "authentication_required", message: "Invalid code", status: 401 })
+    );
+    await user.type(input, "334567");
+    await user.click(screen.getByRole("button", { name: "ورود با کد" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("منقضی شده");
+    expect(login).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "334567", method: "code", role })
+    );
+    await user.clear(screen.getByLabelText(/شماره موبایل/));
+    expect(screen.queryByLabelText(/کد یک‌بارمصرف/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ارسال کد" })).toBeEnabled();
+  });
+
+  it("clears invalidated codes after delivery failure but keeps password login usable", async () => {
+    const { send, user } = showLogin();
+    send.mockRejectedValueOnce(
+      new ApiError({
+        code: "sms_delivery_unavailable",
+        message: "ارسال پیامک انجام نشد.",
+        status: 503
+      })
+    );
+    await user.type(await screen.findByLabelText(/شماره موبایل/), "9121112222");
+    await user.click(screen.getByRole("button", { name: "ورود با کد یک‌بارمصرف" }));
+    await user.click(screen.getByRole("button", { name: "ارسال کد" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("ارسال پیامک انجام نشد");
+    expect(screen.queryByLabelText(/کد یک‌بارمصرف/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /ارسال کد \(/ })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "رمز عبور" }));
+    expect(screen.getByLabelText(/رمز عبور/)).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: role === "coach" ? "ورود به داشبورد" : "ورود" })
+    ).toBeEnabled();
+  });
+
   it("keeps the code hidden while sending and allows retry after delivery fails", async () => {
     const { send, login, user } = showLogin();
     let rejectDelivery!: (reason: unknown) => void;

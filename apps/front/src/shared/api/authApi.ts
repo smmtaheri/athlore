@@ -94,16 +94,27 @@ async function bootstrapSessionFromRefreshCookie(): Promise<AuthSession | null> 
 export function createApiAuthRepository(): ApiAuthRepository {
   return {
     async requestLoginCode(input: LoginCodeRequestInput): Promise<LoginCodeRequestResult> {
-      const response = await apiRequest<{ delivery_mode: "test" | "sms"; message: string }>(
-        "/auth/request-code/",
-        {
-          auth: false,
-          skipRefresh: true,
-          method: "POST",
-          body: { phone_number: input.phoneNumber.trim(), role: input.role }
-        }
-      );
-      return { deliveryMode: response.delivery_mode, message: response.message };
+      const response = await apiRequest<{
+        delivery_mode: "test" | "sms";
+        message: string;
+        expires_in_seconds?: number;
+        retry_after_seconds?: number;
+      }>("/auth/request-code/", {
+        auth: false,
+        skipRefresh: true,
+        method: "POST",
+        body: { phone_number: input.phoneNumber.trim(), role: input.role }
+      });
+      return {
+        deliveryMode: response.delivery_mode,
+        message: response.message,
+        ...(response.expires_in_seconds != null
+          ? { expiresInSeconds: response.expires_in_seconds }
+          : {}),
+        ...(response.retry_after_seconds != null
+          ? { retryAfterSeconds: response.retry_after_seconds }
+          : {})
+      };
     },
     async getSession() {
       const stored = readAuthSession();

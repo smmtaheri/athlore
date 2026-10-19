@@ -568,6 +568,10 @@ class CoachTechnique(models.Model):
 # Reference-bank (exercise aliases/history) and nutrition/supplement models live in a
 # dedicated module for readability; imported here so Django's app registry picks them
 # up as part of the `accounts` app (required for migrations autodetection).
+from accounts.login_code_models import (  # noqa: E402,F401
+    LoginCodeIpLimit,
+    PhoneLoginChallenge,
+)
 from accounts.nutrition_models import (  # noqa: E402,F401
     CoachNutritionTemplate,
     CoachSupplementTemplate,

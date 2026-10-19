@@ -188,7 +188,24 @@ new accounts and preserves existing usernames. The old portal username-edit rout
 the same explicit error. First activation/reset still requires password change before normal portal
 access or code login. No account migration or database schema change is needed.
 
-### POST `/api/v1/auth/request-code/` (staging code-login flow)
+### POST `/api/v1/auth/request-code/`
+
+With `LOGIN_OTP_PROVIDER=smsir` (stage Compose), this endpoint sends a random
+six-digit code through SMS.ir. Configuration requires `SMSIR_API_KEY`, a real
+approved `SMSIR_TEMPLATE_ID`, and `SMSIR_CODE_PARAMETER` (default `CODE`). The
+API key never reaches the browser. There is no automatic static-code fallback.
+Successful acknowledgement returns `delivery_mode: sms`, a generic message,
+`expires_in_seconds: 300` and `retry_after_seconds: 60`, without the code.
+Only existing active accounts that completed student password setup are eligible
+for paid delivery; other accounts receive the same acknowledgement without SMS.
+Missing configuration/provider errors return explicit sanitized 503 errors.
+Codes are hashed in shared database state, scoped to phone and role, expire in
+five minutes, and are consumed once. Five wrong guesses exhaust a challenge;
+resending invalidates its predecessor. Requests are throttled by phone/role
+and connection IP, including failed sends. Password login is independent.
+
+The following static-provider behavior is retained for the existing production
+configuration and isolated tests; it is disabled unconditionally in stage Compose.
 
 Anonymous request: `{ "phone_number": "9121234567", "role": "coach" | "student" }`.
 The phone is normalized with the same rules as phone login. Invalid input returns
