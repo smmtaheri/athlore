@@ -25,6 +25,8 @@ for (const role of ["coach", "student"] as const) {
     const coach = await registration.json();
     let phone = coachPhone;
     let expectedUserId = coach.user.id;
+    const origin = new URL(baseURL!);
+    origin.hostname = role === "coach" ? "localhost" : "127.0.0.1";
     if (role === "student") {
       phone = `09${((Number(coachPhone.slice(2)) + 1) % 1_000_000_000).toString().padStart(9, "0")}`;
       const headers = { Authorization: `Bearer ${coach.tokens.access}` };
@@ -45,7 +47,7 @@ for (const role of ["coach", "student"] as const) {
         `${api}/students/${student.id}/portal/set-initial-password/`,
         {
           headers,
-          data: { username: phone, initial_password: "InitialCode123!" }
+          data: { initial_password: "InitialCode123!" }
         }
       );
       expect(provisioned.status()).toBe(200);
@@ -60,17 +62,27 @@ for (const role of ["coach", "student"] as const) {
       expect(initial.status()).toBe(200);
       const pending = await initial.json();
       expectedUserId = pending.user.id;
-      const setup = await request.post(`${api}/student/complete-setup/`, {
-        headers: { Authorization: `Bearer ${pending.tokens.access}` },
-        data: { password, password_confirm: password }
-      });
-      expect(setup.status()).toBe(200);
+      await context.clearCookies();
+      await page.goto(`${origin.origin}/login`);
+      await page.getByLabel(/شماره موبایل/).fill(phone);
+      await page.locator("#student-login-password").fill("InitialCode123!");
+      await page.getByRole("button", { name: "ورود", exact: true }).click();
+      await expect(
+        page.getByRole("heading", { name: "تغییر رمز عبور", exact: true })
+      ).toBeVisible();
+      await page.locator("#setup-password").fill(password);
+      await page.locator("#setup-password-confirm").fill(password);
+      await page.getByRole("button", { name: "ثبت رمز جدید", exact: true }).click();
+      await expect(page.getByLabel(/شماره موبایل/)).toBeVisible();
     }
     await context.clearCookies();
 
-    const origin = new URL(baseURL!);
-    origin.hostname = role === "coach" ? "localhost" : "127.0.0.1";
     await page.goto(`${origin.origin}/login`);
+    await expect(page.getByLabel(/شماره موبایل/)).toHaveAttribute(
+      "placeholder",
+      "شماره موبایل؛ 09xxxxxxxxx"
+    );
+    await expect(page.getByLabel(/شماره موبایل/)).toHaveAccessibleDescription(/فقط شماره موبایل/);
     await page.getByLabel(/شماره موبایل/).fill(phone.slice(1));
     await page.getByRole("button", { name: "ورود با کد یک‌بارمصرف", exact: true }).click();
     const code = page.getByLabel(/کد یک‌بارمصرف/);
@@ -152,5 +164,37 @@ for (const role of ["coach", "student"] as const) {
         exact: true
       })
     ).toBeVisible();
+
+    for (const path of ["/auth/login/", "/student/login/"]) {
+      const retired = await request.post(`${api}${path}`, {
+        data: { username: phone, password }
+      });
+      expect(retired.status()).toBe(410);
+      expect((await retired.json()).error.code).toBe("phone_login_required");
+    }
+    await context.clearCookies();
+    await page.evaluate(() => {
+      window.sessionStorage.clear();
+      window.localStorage.clear();
+    });
+    await page.goto(`${origin.origin}/login`);
+    await page.getByLabel(/شماره موبایل/).fill(phone);
+    await page
+      .locator(role === "coach" ? "#login-password" : "#student-login-password")
+      .fill(password);
+    const passwordResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/auth/phone-login/") && response.request().method() === "POST"
+    );
+    await page
+      .getByRole("button", {
+        name: role === "coach" ? "ورود به داشبورد" : "ورود",
+        exact: true
+      })
+      .click();
+    const passwordLogin = await passwordResponse;
+    expect(passwordLogin.status()).toBe(200);
+    expect((await passwordLogin.json()).user.id).toBe(expectedUserId);
+    await expect(page).toHaveURL(/\/dashboard$/);
   });
 }

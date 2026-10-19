@@ -12,6 +12,17 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 describe("API auth bootstrap", () => {
+  it.each([{ username: "legacy-athlete" }, { email: "coach@example.com" }])(
+    "never falls back to a legacy login endpoint for %j",
+    async (identifier) => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      await expect(
+        createApiAuthRepository().login({ ...identifier, password: "SecurePass123!" })
+      ).rejects.toThrow("شماره موبایل");
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  );
   beforeEach(() => {
     window.localStorage.clear();
     window.sessionStorage.clear();

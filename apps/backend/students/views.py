@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from common.exceptions import PhoneLoginRequired
 from common.pagination import StandardLimitOffsetPagination
 from common.permissions import (
     IsAuthenticatedCoach,
@@ -22,11 +23,9 @@ from students.serializers import (
     ResetPortalPasswordSerializer,
     SendToStudentSerializer,
     SetPortalInitialPasswordSerializer,
-    SetPortalUsernameSerializer,
     StudentAnswersUpdateSerializer,
     StudentListSerializer,
     StudentPortalCompleteSetupSerializer,
-    StudentPortalLoginSerializer,
     StudentSerializer,
     VisitSerializer,
     VisitWriteSerializer,
@@ -254,7 +253,7 @@ class VisitAnswerRevisionsView(APIView):
 
 
 class StudentActivateLoginView(APIView):
-    """Back-compat: coach sets username + initial or reset password."""
+    """Coach sets an initial/reset password for the student's phone login."""
 
     permission_classes = [IsAuthenticatedCoach]
 
@@ -268,7 +267,6 @@ class StudentActivateLoginView(APIView):
             student,
             rotate_password=serializer.validated_data.get("rotate_password", True),
             initial_password=serializer.validated_data["initial_password"],
-            username=(serializer.validated_data.get("username") or "").strip() or None,
         )
         return Response(result, status=status.HTTP_200_OK)
 
@@ -284,7 +282,6 @@ class StudentPortalSetInitialPasswordView(APIView):
         result = services.set_portal_initial_password(
             coach,
             student,
-            username=serializer.validated_data["username"],
             initial_password=serializer.validated_data["initial_password"],
         )
         return Response(result, status=status.HTTP_200_OK)
@@ -295,15 +292,8 @@ class StudentPortalSetUsernameView(APIView):
 
     def post(self, request, student_id):
         coach = get_request_coach(request)
-        student = services.get_student_for_coach(coach, student_id)
-        serializer = SetPortalUsernameSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        result = services.set_portal_username(
-            coach,
-            student,
-            username=serializer.validated_data["username"],
-        )
-        return Response(result, status=status.HTTP_200_OK)
+        services.get_student_for_coach(coach, student_id)
+        raise PhoneLoginRequired()
 
 
 class StudentPortalResetPasswordView(APIView):
@@ -345,7 +335,7 @@ class StudentPortalReactivateView(APIView):
 class StudentCompleteSetupView(APIView):
     """Authenticated forced password change after coach initial/reset password.
 
-    Ends the temporary setup session; client must re-login on /student/login.
+    Ends the temporary setup session; client must re-login with their phone.
     """
 
     permission_classes = [IsAuthenticatedStudentSetup]
@@ -373,39 +363,7 @@ class StudentPublicLoginView(APIView):
     authentication_classes = []
 
     def post(self, request):
-        from accounts.auth_cookies import set_refresh_cookie
-
-        serializer = StudentPortalLoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        try:
-            payload = services.login_student(**serializer.validated_data)
-        except services.StudentPortalAccessDenied as exc:
-            return Response(
-                {
-                    "error": {
-                        "code": exc.code,
-                        "message": exc.message,
-                        "details": {},
-                    }
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        except services.StudentLoginInvalidCredentials as exc:
-            return Response(
-                {
-                    "error": {
-                        "code": exc.code,
-                        "message": exc.message,
-                        "details": {},
-                    }
-                },
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-        refresh = payload.get("tokens", {}).get("refresh")
-        response = Response(payload, status=status.HTTP_200_OK)
-        if refresh:
-            set_refresh_cookie(response, refresh)
-        return response
+        raise PhoneLoginRequired()
 
 
 class MyVisitListView(APIView):

@@ -115,6 +115,7 @@ export function LoginPage() {
         ) : null}
         <FormField error={errors.phoneNumber} htmlFor="login-phone" label="شماره موبایل" required>
           <Input
+            aria-describedby="login-phone-help"
             autoComplete="tel"
             disabled={saving}
             id="login-phone"
@@ -125,13 +126,14 @@ export function LoginPage() {
               setCode("");
               setErrors({});
             }}
-            placeholder="9121234567"
+            placeholder="شماره موبایل؛ 09xxxxxxxxx"
             type="tel"
             value={phoneNumber}
           />
         </FormField>
-        <p className={styles.loginMethodHint}>
-          شماره را با ۹۱۲…، ۰۹۱۲…، ۹۸۹۱۲… یا +۹۸۹۱۲… وارد کنید؛ سیستم خودش آن را یکسان‌سازی می‌کند.
+        <p className={styles.loginMethodHint} id="login-phone-help">
+          فقط شماره موبایل حساب خودتان را وارد کنید، نه نام کاربری یا ایمیل. شماره با ۹…، ۰۹…، ۹۸۹…
+          یا +۹۸۹… پذیرفته می‌شود.
         </p>
         {appConfig.loginOtpEnabled ? (
           <LoginMethodSelector

@@ -150,7 +150,7 @@ export function createAuthRepository(storage = getStorage()): AuthRepository {
       return read();
     },
     async login(input) {
-      if (!input.phoneNumber?.trim() && !input.username?.trim()) {
+      if (!input.phoneNumber?.trim()) {
         throw new Error("Credentials are required.");
       }
       if (input.method === "code" && input.code !== "1111") {
@@ -176,34 +176,6 @@ export function createAuthRepository(storage = getStorage()): AuthRepository {
           },
           username: input.phoneNumber.trim()
         };
-        if (input.password === "must-change") {
-          session.mustChangePassword = true;
-        }
-        write(session);
-        return session;
-      }
-
-      if (input.username?.trim()) {
-        if (!input.password) throw new Error("Credentials are required.");
-        const session: AuthSession = {
-          mustChangePassword: false,
-          role: "student",
-          student: {
-            coachId: "coach-1",
-            fullName: "شاگرد آزمایشی",
-            id: "student-mock-1",
-            phoneNumber: "+989121111111"
-          },
-          token: "mock-student-token",
-          user: {
-            createdAt: new Date().toISOString(),
-            email: "",
-            fullName: "شاگرد آزمایشی",
-            id: input.username.trim()
-          },
-          username: input.username.trim()
-        };
-        // Mock: password "must-change" forces setup state for UI tests.
         if (input.password === "must-change") {
           session.mustChangePassword = true;
         }

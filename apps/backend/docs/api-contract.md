@@ -175,14 +175,18 @@ Common: `ordering=-updated_at` (prefix `-` for desc). Whitelist per resource.
 
 ### POST `/api/v1/auth/phone-login`
 
-Coach login resolves the existing coach by `phone_number`; it does not create or replace an account.
-The request uses `{ "phone_number", "role": "coach", "method": "password", "password" }`.
-Iranian mobile forms such as `09…`, `98…` (without `+`), and `+98…` normalize to the same stored
-number. Stage may additionally allow its configured one-time-code method; that test-only behavior
-must not be enabled in production. Invalid credentials return a generic `401`.
+Both coach and student login resolve existing accounts through the role profile's `phone_number`;
+login never creates an account or rewrites internal usernames, IDs, passwords, or domain ownership.
+The request uses `{ "phone_number", "role": "coach" | "student", "method": "password", "password" }`
+or the configured code method. National `9…`, `09…`, `989…`, and `+989…` inputs normalize to the
+same stored number. Invalid credentials return a generic `401`.
 
-Coach email login is rejected. The legacy `/api/v1/auth/login/` route remains for student username
-compatibility; student portal clients should use `/api/v1/student/login/`.
+Legacy `/api/v1/auth/login/` and `/api/v1/student/login/` always return `410` with
+`phone_login_required`, a phone-login instruction, and no tokens. Existing sessions are unaffected.
+Student activation requires only `initial_password`; the server allocates an internal username for
+new accounts and preserves existing usernames. The old portal username-edit route is retired with
+the same explicit error. First activation/reset still requires password change before normal portal
+access or code login. No account migration or database schema change is needed.
 
 ### POST `/api/v1/auth/request-code/` (staging code-login flow)
 

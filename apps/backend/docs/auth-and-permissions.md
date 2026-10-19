@@ -58,7 +58,8 @@ Never log raw passwords. Never return password hashes in APIs.
 
 - Coach login uses the mobile number on the existing `CoachProfile` plus the account password.
 - The existing `User.email` remains account data but is not an accepted coach login identifier.
-- Student portal login continues to use the student username flow.
+- Both roles log in through `/auth/phone-login/` using their profile phone and a password or configured code.
+- Legacy username/email login endpoints return `410 phone_login_required`; existing account IDs and sessions are preserved.
 - Generic error on failure: do not reveal whether an identifier exists
 
 ### Password reset

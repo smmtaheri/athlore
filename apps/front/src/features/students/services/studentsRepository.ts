@@ -21,10 +21,8 @@ export interface StudentsRepository {
   resetPortalPassword?(id: string, initialPassword: string): Promise<StudentActivateLoginResult>;
   setPortalInitialPassword?(
     id: string,
-    username: string,
     initialPassword: string
   ): Promise<StudentActivateLoginResult>;
-  setPortalUsername?(id: string, username: string): Promise<{ studentId: string; username: string }>;
   update(id: string, input: StudentInput): Promise<Student>;
 }
 
@@ -159,7 +157,9 @@ export function createStudentsRepository(storage = getStorage()): StudentsReposi
         username: "mock_student"
       };
     },
-    async setPortalInitialPassword(id, username, initialPassword) {
+    async setPortalInitialPassword(id, initialPassword) {
+      const username =
+        read().find((student) => student.id === id)?.portalAccess?.username || "mock_student";
       return {
         initialPassword,
         portalAccess: {
@@ -175,9 +175,6 @@ export function createStudentsRepository(storage = getStorage()): StudentsReposi
         temporaryPassword: initialPassword,
         username
       };
-    },
-    async setPortalUsername(id, username) {
-      return { studentId: id, username };
     },
     async resetPortalPassword(id, initialPassword) {
       return {

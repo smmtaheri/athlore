@@ -234,6 +234,7 @@ export function StudentLoginPage() {
               autoComplete="tel"
               disabled={saving}
               id="student-login-phone"
+              aria-describedby="student-login-phone-help"
               inputMode="tel"
               onChange={(event) => {
                 setPhoneNumber(event.target.value);
@@ -241,14 +242,14 @@ export function StudentLoginPage() {
                 setCode("");
                 setError("");
               }}
-              placeholder="مثلا ۹۱۲۳۱۳۴۲۰۲"
+              placeholder="شماره موبایل؛ 09xxxxxxxxx"
               type="tel"
               value={phoneNumber}
             />
           </FormField>
-          <p className={authStyles.loginMethodHint}>
-            شماره را با ۹۱۲…، ۰۹۱۲…، ۹۸۹۱۲… یا +۹۸۹۱۲… وارد کنید؛ سیستم خودش آن را یکسان‌سازی
-            می‌کند.
+          <p className={authStyles.loginMethodHint} id="student-login-phone-help">
+            فقط شماره موبایلی را وارد کنید که مربی در پروفایل شما ثبت کرده است، نه نام کاربری. شماره
+            با ۹…، ۰۹…، ۹۸۹… یا +۹۸۹… پذیرفته می‌شود.
           </p>
           {appConfig.loginOtpEnabled ? (
             <LoginMethodSelector

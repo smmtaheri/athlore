@@ -146,25 +146,15 @@ export function createApiStudentsRepository(): StudentsRepository & {
       });
       return studentActivateLoginFromApi(dto);
     },
-    async setPortalInitialPassword(id: string, username: string, initialPassword: string) {
+    async setPortalInitialPassword(id: string, initialPassword: string) {
       const dto = await apiRequest<Record<string, unknown>>(
         `/students/${id}/portal/set-initial-password/`,
         {
           method: "POST",
-          body: { username: username.trim(), initial_password: initialPassword }
+          body: { initial_password: initialPassword }
         }
       );
       return studentActivateLoginFromApi(dto);
-    },
-    async setPortalUsername(id: string, username: string) {
-      const dto = await apiRequest<Record<string, unknown>>(
-        `/students/${id}/portal/set-username/`,
-        { method: "POST", body: { username: username.trim() } }
-      );
-      return {
-        studentId: strId(dto.student_id) || id,
-        username: String(dto.username || username.trim())
-      };
     },
     async resetPortalPassword(id: string, initialPassword: string) {
       const dto = await apiRequest<Record<string, unknown>>(

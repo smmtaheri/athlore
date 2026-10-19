@@ -480,8 +480,13 @@ class PdfApiTests(PdfTestMixin, APITestCase):
             must_change_password=False,
         )
         student_login = self.client.post(
-            "/api/v1/auth/login/",
-            {"username": student_user.username, "password": "StudentPass123!"},
+            "/api/v1/auth/phone-login/",
+            {
+                "phone_number": self.student.phone_number,
+                "role": "student",
+                "method": "password",
+                "password": "StudentPass123!",
+            },
             format="json",
         )
         self.assertEqual(student_login.status_code, status.HTTP_200_OK, student_login.data)
@@ -609,8 +614,13 @@ class PdfApiTests(PdfTestMixin, APITestCase):
             must_change_password=False,
         )
         login = self.client.post(
-            "/api/v1/auth/login/",
-            {"username": student_user.username, "password": "StudentPass123!"},
+            "/api/v1/auth/phone-login/",
+            {
+                "phone_number": self.student.phone_number,
+                "role": "student",
+                "method": "password",
+                "password": "StudentPass123!",
+            },
             format="json",
         )
         self.assertEqual(login.status_code, status.HTTP_200_OK, login.data)
@@ -640,9 +650,7 @@ class PdfApiTests(PdfTestMixin, APITestCase):
             {
                 "student_id": str(self.student.id),
                 "section": "nutrition",
-                "file": SimpleUploadedFile(
-                    "nutrition.pdf", pdf, content_type="application/pdf"
-                ),
+                "file": SimpleUploadedFile("nutrition.pdf", pdf, content_type="application/pdf"),
             },
             format="multipart",
             **self.ha,
@@ -687,9 +695,7 @@ class PdfApiTests(PdfTestMixin, APITestCase):
                 **self.ha,
             )
         self.assertEqual(finalized.status_code, status.HTTP_200_OK, finalized.data)
-        artifacts = list(
-            PdfArtifact.objects.filter(program_id=program_id, deleted_at__isnull=True)
-        )
+        artifacts = list(PdfArtifact.objects.filter(program_id=program_id, deleted_at__isnull=True))
         self.assertEqual(len(artifacts), 1)
         self.assertEqual(artifacts[0].section, "nutrition")
 
@@ -712,8 +718,13 @@ class PdfApiTests(PdfTestMixin, APITestCase):
             must_change_password=False,
         )
         login = self.client.post(
-            "/api/v1/auth/login/",
-            {"username": student_user.username, "password": "StudentPass123!"},
+            "/api/v1/auth/phone-login/",
+            {
+                "phone_number": self.student.phone_number,
+                "role": "student",
+                "method": "password",
+                "password": "StudentPass123!",
+            },
             format="json",
         )
         self.assertEqual(login.status_code, status.HTTP_200_OK, login.data)

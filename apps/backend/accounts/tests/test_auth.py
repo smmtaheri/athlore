@@ -52,13 +52,13 @@ class AuthTests(APITestCase):
             {"email": "login@example.com", "password": "SecurePass123!"},
             format="json",
         )
-        self.assertEqual(email_login.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(email_login.status_code, status.HTTP_410_GONE)
         username_email_login = self.client.post(
             "/api/v1/auth/login/",
             {"username": "login@example.com", "password": "SecurePass123!"},
             format="json",
         )
-        self.assertEqual(username_email_login.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(username_email_login.status_code, status.HTTP_410_GONE)
 
         phone_login = self.client.post(
             "/api/v1/auth/phone-login/",
@@ -81,7 +81,7 @@ class AuthTests(APITestCase):
             {"email": "login@example.com", "password": "WrongPass999!"},
             format="json",
         )
-        self.assertEqual(bad.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(bad.status_code, status.HTTP_410_GONE)
 
     def test_phone_login_for_coach_with_password_and_stage_code(self):
         register(
@@ -212,7 +212,9 @@ class AuthTests(APITestCase):
         from rest_framework_simplejwt.tokens import RefreshToken
 
         refresh = RefreshToken(res.data["tokens"]["refresh"])
-        started_at = int(refresh["iat"] - settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds())
+        started_at = int(
+            refresh["iat"] - settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds()
+        )
         refresh[REFRESH_SESSION_STARTED_AT_CLAIM] = started_at
         expired = self.client.post(
             "/api/v1/auth/refresh/", {"refresh": str(refresh)}, format="json"
@@ -226,8 +228,13 @@ class AuthTests(APITestCase):
         user.is_active = False
         user.save(update_fields=["is_active"])
         res = self.client.post(
-            "/api/v1/auth/login/",
-            {"email": "dead@example.com", "password": "SecurePass123!"},
+            "/api/v1/auth/phone-login/",
+            {
+                "phone_number": user.coach_profile.phone_number,
+                "role": "coach",
+                "method": "password",
+                "password": "SecurePass123!",
+            },
             format="json",
         )
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)

@@ -75,6 +75,14 @@ describe.each(["coach", "student"] as const)("%s code login", (role) => {
     );
   });
 
+  it("shows a phone-only hint and a non-personal masked example", async () => {
+    showLogin();
+    const phone = await screen.findByLabelText(/شماره موبایل/);
+    expect(phone).toHaveAttribute("placeholder", "شماره موبایل؛ 09xxxxxxxxx");
+    expect(phone).toHaveAccessibleDescription(/فقط شماره موبایل/);
+    expect(phone).toHaveAccessibleDescription(/نام کاربری/);
+  });
+
   it("keeps the code hidden while sending and allows retry after delivery fails", async () => {
     const { send, login, user } = showLogin();
     let rejectDelivery!: (reason: unknown) => void;

@@ -320,18 +320,12 @@ class ActivateLoginSerializer(serializers.Serializer):
     initial_password = serializers.CharField(
         write_only=True, trim_whitespace=False, min_length=4, max_length=128
     )
-    username = serializers.CharField(required=False, allow_blank=True, max_length=150)
 
 
 class SetPortalInitialPasswordSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=150)
     initial_password = serializers.CharField(
         write_only=True, trim_whitespace=False, min_length=4, max_length=128
     )
-
-
-class SetPortalUsernameSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=150)
 
 
 class ResetPortalPasswordSerializer(serializers.Serializer):
@@ -345,11 +339,6 @@ class StudentPortalCompleteSetupSerializer(serializers.Serializer):
     password_confirm = serializers.CharField(
         write_only=True, trim_whitespace=False, required=False, allow_blank=True
     )
-
-
-class StudentPortalLoginSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=150)
-    password = serializers.CharField(write_only=True, trim_whitespace=False)
 
 
 class StudentAnswersUpdateSerializer(serializers.Serializer):

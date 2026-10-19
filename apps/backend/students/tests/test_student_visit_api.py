@@ -421,12 +421,12 @@ class StudentVisitApiTests(TestCase):
     def test_activate_login_endpoint(self):
         resp = self.coach_client.post(
             f"/api/v1/students/{self.student.id}/activate-login/",
-            {"username": "portal_user", "initial_password": "123456"},
+            {"initial_password": "123456"},
             format="json",
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data["initial_password"], "123456")
-        self.assertEqual(resp.data["username"], "portal_user")
+        self.assertEqual(resp.data["username"], self.student.phone_number.lstrip("+"))
         self.assertEqual(resp.data["portal_access"]["status"], "pending_activation")
         again = self.coach_client.post(
             f"/api/v1/students/{self.student.id}/activate-login/",
@@ -435,7 +435,7 @@ class StudentVisitApiTests(TestCase):
         )
         self.assertEqual(again.status_code, 200)
         self.assertEqual(again.data["initial_password"], "654321")
-        self.assertEqual(again.data["username"], "portal_user")
+        self.assertEqual(again.data["username"], resp.data["username"])
         self.assertTrue(again.data["must_change_password"])
 
     def test_patch_ignores_non_coach_editable_answers_then_send(self):

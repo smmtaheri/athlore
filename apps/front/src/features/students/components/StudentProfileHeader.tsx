@@ -48,10 +48,7 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
   const [passwordModal, setPasswordModal] = useState<PasswordModalMode>(null);
-  const [usernameModalOpen, setUsernameModalOpen] = useState(false);
   const [initialPassword, setInitialPassword] = useState("");
-  const [portalUsername, setPortalUsername] = useState("");
-  const [usernameDraft, setUsernameDraft] = useState("");
   const [credentials, setCredentials] = useState<StudentActivateLoginResult | null>(null);
   const portal = student.portalAccess;
   const portalStatus = portal?.status ?? "not_started";
@@ -83,9 +80,8 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
   const submitInitialPassword = async () => {
     if (!passwordModal) return;
     const password = initialPassword.trim();
-    const username = portalUsername.trim();
-    if (passwordModal === "activate" && username.length < 3) {
-      setActionError("نام کاربری باید حداقل ۳ کاراکتر باشد.");
+    if (!student.phoneNumber) {
+      setActionError("ابتدا شماره موبایل شاگرد را در ویرایش اطلاعات وارد کنید.");
       return;
     }
     if (password.length < 4) {
@@ -101,12 +97,11 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
             ? await studentsRepository.resetPortalPassword(student.id, password)
             : await studentsRepository.activateLogin!(student.id, true, password)
           : studentsRepository.setPortalInitialPassword
-            ? await studentsRepository.setPortalInitialPassword(student.id, username, password)
+            ? await studentsRepository.setPortalInitialPassword(student.id, password)
             : await studentsRepository.activateLogin!(student.id, true, password);
       setCredentials(result);
       setPasswordModal(null);
       setInitialPassword("");
-      setPortalUsername("");
       await refreshStudent();
     } catch (error) {
       setActionError(
@@ -115,34 +110,6 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
           : error instanceof Error
             ? error.message
             : "ثبت رمز اولیه انجام نشد."
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submitPortalUsername = async () => {
-    const next = usernameDraft.trim();
-    if (next.length < 3) {
-      setActionError("نام کاربری باید حداقل ۳ کاراکتر باشد.");
-      return;
-    }
-    setBusy(true);
-    setActionError("");
-    try {
-      if (!studentsRepository.setPortalUsername) {
-        throw new Error("ویرایش نام کاربری در دسترس نیست.");
-      }
-      await studentsRepository.setPortalUsername(student.id, next);
-      setUsernameModalOpen(false);
-      await refreshStudent();
-    } catch (error) {
-      setActionError(
-        error instanceof ApiError
-          ? persianMessageForApiError(error)
-          : error instanceof Error
-            ? error.message
-            : "ویرایش نام کاربری انجام نشد."
       );
     } finally {
       setBusy(false);
@@ -208,7 +175,9 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
             <StatusBadge variant={portalStatusVariant[portalStatus]}>
               {portalStatusLabel[portalStatus]}
             </StatusBadge>
-            {portal?.username ? <span>نام کاربری: {portal.username}</span> : null}
+            {student.phoneNumber ? (
+              <span>شماره ورود: {formatIranMobileDisplay(student.phoneNumber)}</span>
+            ) : null}
           </div>
         </div>
       </div>
@@ -267,7 +236,6 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
             onClick={() => {
               setActionError("");
               setInitialPassword("");
-              setPortalUsername(portal?.username || "");
               setPasswordModal("activate");
             }}
             variant="secondary"
@@ -287,19 +255,6 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
             variant="secondary"
           >
             ریست رمز پنل شاگرد
-          </Button>
-        ) : null}
-        {portal?.username && portalStatus !== "not_started" ? (
-          <Button
-            disabled={busy}
-            onClick={() => {
-              setActionError("");
-              setUsernameDraft(portal.username || "");
-              setUsernameModalOpen(true);
-            }}
-            variant="secondary"
-          >
-            ویرایش نام کاربری
           </Button>
         ) : null}
         {portalStatus === "disabled" ? (
@@ -324,44 +279,10 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
       <Modal
         footer={
           <div className={styles.profileActions}>
-            <Button onClick={() => setUsernameModalOpen(false)} variant="secondary">
-              انصراف
-            </Button>
-            <Button disabled={busy} isLoading={busy} onClick={() => void submitPortalUsername()}>
-              ذخیره نام کاربری
-            </Button>
-          </div>
-        }
-        onClose={() => setUsernameModalOpen(false)}
-        open={usernameModalOpen}
-        title="ویرایش نام کاربری شاگرد"
-      >
-        <div className={styles.formGrid}>
-          {actionError ? (
-            <p className={styles.dangerText} role="alert">
-              {actionError}
-            </p>
-          ) : null}
-          <FormField htmlFor="portal-username-edit" label="نام کاربری" required>
-            <Input
-              autoComplete="off"
-              autoFocus
-              id="portal-username-edit"
-              onChange={(event) => setUsernameDraft(event.target.value)}
-              value={usernameDraft}
-            />
-          </FormField>
-        </div>
-      </Modal>
-
-      <Modal
-        footer={
-          <div className={styles.profileActions}>
             <Button
               onClick={() => {
                 setPasswordModal(null);
                 setInitialPassword("");
-                setPortalUsername("");
               }}
               variant="secondary"
             >
@@ -375,26 +296,16 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
         onClose={() => {
           setPasswordModal(null);
           setInitialPassword("");
-          setPortalUsername("");
         }}
         open={passwordModal !== null}
         title={passwordModal === "reset" ? "ریست رمز پنل شاگرد" : "فعال‌سازی پنل شاگرد"}
       >
         <div className={styles.formGrid}>
           <p className={styles.actionHint}>
-            نام کاربری را مربی تعیین می‌کند. رمز اولیه فقط برای ورود اول (یا پس از ریست) است و شاگرد
-            باید بلافاصله رمز جدید خودش را تعیین کند. برای تست می‌توانید از ۱۲۳۴۵۶ استفاده کنید.
+            شاگرد با شماره موبایل ثبت‌شده در پروفایل و این رمز اولیه وارد می‌شود و باید بلافاصله رمز
+            جدید خودش را تعیین کند. نیازی به نام کاربری جداگانه نیست.
           </p>
-          {passwordModal === "activate" ? (
-            <FormField htmlFor="portal-username" label="نام کاربری شاگرد" required>
-              <Input
-                autoComplete="off"
-                id="portal-username"
-                onChange={(event) => setPortalUsername(event.target.value)}
-                value={portalUsername}
-              />
-            </FormField>
-          ) : null}
+          <p>شماره ورود شاگرد: {formatIranMobileDisplay(student.phoneNumber)}</p>
           <FormField htmlFor="portal-initial-password" label="رمز اولیه" required>
             <Input
               autoComplete="new-password"
@@ -426,21 +337,19 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
                 رمز اولیه: <strong>{shownPassword}</strong>
               </p>
             ) : null}
-            {credentials.username ? (
-              <p>
-                نام کاربری فعلی: <strong>{credentials.username}</strong>
-              </p>
-            ) : null}
+            <p>
+              شماره ورود: <strong>{formatIranMobileDisplay(student.phoneNumber)}</strong>
+            </p>
             <p className={styles.actionHint}>
-              این رمز فقط همین لحظه نمایش داده می‌شود و بعداً قابل بازیابی نیست. شاگرد با نام کاربری
-              و همین رمز اولیه وارد می‌شود و بلافاصله رمز دائمی خود را تعیین می‌کند.
+              این رمز فقط همین لحظه نمایش داده می‌شود و بعداً قابل بازیابی نیست. شاگرد با شماره
+              موبایل و همین رمز اولیه وارد می‌شود و بلافاصله رمز دائمی خود را تعیین می‌کند.
             </p>
             <p className={styles.actionHint}>
               برای ورود شاگرد، این آدرس را برای او ارسال کنید: {loginUrl}
             </p>
             {credentials.purpose === "password_reset" ? (
               <p className={styles.actionHint}>
-                رمز قبلی نامعتبر شد. نام کاربری و داده‌های شاگرد حفظ می‌شوند.
+                رمز قبلی نامعتبر شد. حساب و داده‌های شاگرد حفظ می‌شوند.
               </p>
             ) : null}
           </div>

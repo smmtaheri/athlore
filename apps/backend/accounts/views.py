@@ -9,14 +9,13 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from accounts import services
 from accounts.serializers import (
     CoachProfileSerializer,
-    LoginSerializer,
     LogoutSerializer,
     PhoneLoginCodeRequestSerializer,
     PhoneLoginSerializer,
     RefreshSerializer,
     RegisterSerializer,
 )
-from common.exceptions import ConflictError
+from common.exceptions import ConflictError, PhoneLoginRequired
 from common.permissions import IsAuthenticatedCoach, get_request_coach
 
 
@@ -57,29 +56,7 @@ class LoginView(APIView):
     authentication_classes = []
 
     def post(self, request):
-        from accounts.auth_cookies import set_refresh_cookie
-
-        serializer = LoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        try:
-            payload = services.login_user(**serializer.validated_data)
-        except PermissionError:
-            return Response(
-                {
-                    "error": {
-                        "code": "authentication_required",
-                        "message": "ایمیل یا رمز عبور نادرست است.",
-                        "details": {},
-                    }
-                },
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-        refresh = payload.get("tokens", {}).get("refresh")
-        # Prefer HttpOnly cookie for refresh; still return body for backward-compatible clients.
-        response = Response(payload, status=status.HTTP_200_OK)
-        if refresh:
-            set_refresh_cookie(response, refresh)
-        return response
+        raise PhoneLoginRequired()
 
 
 class PhoneLoginCodeRequestView(APIView):

@@ -15,6 +15,12 @@ class ConflictError(APIException):
         super().__init__(detail=detail, code=code or self.default_code)
 
 
+class PhoneLoginRequired(APIException):
+    status_code = 410
+    default_detail = "ورود با نام کاربری یا ایمیل غیرفعال شده است؛ با شماره موبایل و رمز عبور یا کد ورود وارد شوید."
+    default_code = "phone_login_required"
+
+
 class InvalidStateError(APIException):
     status_code = 400
     default_detail = "Invalid state transition."

@@ -11,11 +11,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from accounts.models import CoachProfile
 from common.exceptions import ConflictError, InvalidStateError
 from common.permissions import get_owned_object
-from common.phone import (
-    InvalidPhoneError,
-    normalize_iran_mobile,
-    normalize_iran_mobile_or_validation_error,
-)
+from common.phone import normalize_iran_mobile_or_validation_error
 from students.models import Student, StudentProfile, Visit
 
 User = get_user_model()
@@ -568,11 +564,7 @@ def _validate_portal_username(username: str, *, exclude_user_id=None) -> str:
     chosen = (username or "").strip()
     if len(chosen) < MIN_PORTAL_USERNAME_LENGTH:
         raise ValidationError(
-            {
-                "username": [
-                    f"نام کاربری باید حداقل {MIN_PORTAL_USERNAME_LENGTH} کاراکتر باشد."
-                ]
-            },
+            {"username": [f"نام کاربری باید حداقل {MIN_PORTAL_USERNAME_LENGTH} کاراکتر باشد."]},
             code="username_too_short",
         )
     if len(chosen) > 150:
@@ -642,9 +634,13 @@ def _apply_initial_password(profile: StudentProfile, initial_password: str) -> N
 
 @transaction.atomic
 def set_portal_initial_password(
-    coach, student: Student, *, username: str, initial_password: str
+    coach, student: Student, *, initial_password: str, username: str | None = None
 ) -> dict:
-    """Coach assigns portal username + initial password (hashed; shown once)."""
+    """Set an initial password without replacing an existing account identity.
+
+    The optional username is an internal provisioning hint for new accounts only;
+    public activation endpoints never accept or edit login usernames.
+    """
     if student.coach_id != coach.id:
         raise NotFound(detail="Student not found.")
     if not student.phone_number:
@@ -654,9 +650,13 @@ def set_portal_initial_password(
         )
     password = _validate_coach_initial_password(initial_password)
     profile = _ensure_portal_user(student)
-    chosen_username = _validate_portal_username(username, exclude_user_id=profile.user_id)
     user = profile.user
-    user.username = chosen_username
+    if user.username.startswith("pending_"):
+        user.username = _validate_portal_username(
+            username or _unique_username(_student_username_base(student)),
+            exclude_user_id=profile.user_id,
+        )
+    chosen_username = user.username
     user.first_name = student.full_name[:150]
     user.save(update_fields=["username", "first_name"])
     _apply_initial_password(profile, password)
@@ -680,7 +680,7 @@ def set_portal_username(coach, student: Student, *, username: str) -> dict:
     profile = StudentProfile.objects.filter(student=student).select_related("user").first()
     if profile is None:
         raise ValidationError(
-            {"portal": ["ابتدا پنل شاگرد را با نام کاربری و رمز اولیه فعال کنید."]},
+            {"portal": ["ابتدا پنل شاگرد را با شماره موبایل و رمز اولیه فعال کنید."]},
             code="activation_required",
         )
     chosen = _validate_portal_username(username, exclude_user_id=profile.user_id)
@@ -707,7 +707,7 @@ def reset_portal_password(coach, student: Student, *, initial_password: str) -> 
         )
     if profile.user.username.startswith("pending_"):
         raise ValidationError(
-            {"username": ["ابتدا نام کاربری شاگرد را تعیین کنید."]},
+            {"portal": ["ابتدا دسترسی پنل شاگرد را فعال کنید."]},
             code="username_required",
         )
     password = _validate_coach_initial_password(initial_password)
@@ -753,14 +753,14 @@ def reactivate_student_portal(coach, student: Student) -> dict:
     profile = StudentProfile.objects.filter(student=student).select_related("user").first()
     if profile is None or profile.user.username.startswith("pending_"):
         raise ValidationError(
-            {"portal": ["ابتدا باید حساب شاگرد با نام کاربری فعال شود."]},
+            {"portal": ["ابتدا باید دسترسی پنل شاگرد فعال شود."]},
             code="activation_required",
         )
     if profile.must_change_password:
         raise ValidationError(
             {
                 "portal": [
-                    "رمز اولیه در انتظار تغییر است؛ شاگرد باید با نام کاربری و رمز اولیه وارد شود."
+                    "رمز اولیه در انتظار تغییر است؛ شاگرد باید با شماره موبایل و رمز اولیه وارد شود."
                 ]
             },
             code="password_change_required",
@@ -821,7 +821,7 @@ def login_student(*, username: str, password: str) -> dict:
 
 
 SETUP_COMPLETE_RELOGIN_MESSAGE = (
-    "رمز عبور با موفقیت تغییر کرد. لطفاً دوباره با نام کاربری و رمز جدید وارد شوید."
+    "رمز عبور با موفقیت تغییر کرد. لطفاً دوباره با شماره موبایل و رمز جدید وارد شوید."
 )
 
 
@@ -832,8 +832,9 @@ def complete_student_setup(
     password: str,
     password_confirm: str | None = None,
 ) -> dict:
-    """Forced password change after coach initial/reset password. Username is coach-owned."""
+    """Complete forced password change without changing the internal account identity."""
     from django.contrib.auth.password_validation import validate_password
+
     from accounts.services import blacklist_user_refresh_tokens
 
     profile = getattr(user, "student_profile", None)
@@ -917,15 +918,8 @@ def activate_student_login(
     del rotate_password
     profile = StudentProfile.objects.filter(student=student).select_related("user").first()
     if profile is not None and not profile.user.username.startswith("pending_"):
-        if username:
-            set_portal_username(coach, student, username=username)
         result = reset_portal_password(coach, student, initial_password=initial_password)
     else:
-        if not username:
-            raise ValidationError(
-                {"username": ["نام کاربری شاگرد الزامی است."]},
-                code="username_required",
-            )
         result = set_portal_initial_password(
             coach, student, username=username, initial_password=initial_password
         )
