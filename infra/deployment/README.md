@@ -84,6 +84,14 @@ replacement server. Run `bash infra/deployment/scripts/backup.sh --mode full`
 from the laptop monorepo root. Use `--mode update` for subsequent snapshots.
 Do not use deployment scripts for offline disaster recovery.
 
+A successful backup/`verify` does not prove destination Docker compatibility
+or complete DB/account recovery. The runbook records the 2026-10-20 image
+archive failure and requires a real restore rehearsal, row/password-hash
+comparison, and separate stage/SSH/GitHub/CDN inventory before accepting a
+replacement backup or retiring the previous host. The current collector
+backs up production only; compatibility/audit helpers are not yet bundled
+automatically. Read those requirements before taking the next backup.
+
 ## Status
 
 ```bash
