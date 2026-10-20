@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 from accounts.models import ProgramTemplate
 from accounts.rules_services import replace_coach_rules
 from common.testing import auth_header, register
+from programming.models import GenerationRun, Program, ProgramVersion
 from students.models import Student
 
 MIN_RULES = {
@@ -274,6 +275,116 @@ class ProgramAndGeneratorTests(APITestCase):
             **self.h,
         )
         self.assertEqual(visit.status_code, 201)
+
+    def test_generate_draft_with_iso_dates_returns_reviewable_program(self):
+        response = self.client.post(
+            "/api/v1/programs/generate/",
+            {
+                "student_id": self.student_id,
+                "template_id": str(self.template.id),
+                "program_type": "complete",
+                "date_range_start": "2026-10-20",
+                "date_range_end": "2026-11-17",
+            },
+            format="json",
+            **self.h,
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        program = response.json()["program"]
+        self.assertEqual(program["date_range_start"], "2026-10-20")
+        self.assertEqual(program["date_range_end"], "2026-11-17")
+        self.assertEqual(program["current_draft"]["status"], "draft")
+        detail = self.client.get(f"/api/v1/programs/{program['id']}/", **self.h)
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json()["date_range_start"], "2026-10-20")
+        self.assertEqual(Program.objects.count(), 1)
+        self.assertEqual(ProgramVersion.objects.count(), 1)
+        self.assertEqual(GenerationRun.objects.count(), 1)
+
+    def test_empty_draft_and_lineage_update_with_iso_dates(self):
+        response = self.client.post(
+            "/api/v1/programs/",
+            {
+                "student_id": self.student_id,
+                "title": "Dated draft",
+                "program_type": "complete",
+                "date_range_start": "2026-10-20",
+                "date_range_end": "2026-11-17",
+            },
+            format="json",
+            **self.h,
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        program_id = response.json()["id"]
+        self.assertEqual(response.json()["date_range_start"], "2026-10-20")
+        updated = self.client.patch(
+            f"/api/v1/programs/{program_id}/",
+            {"date_range_end": "2026-11-24"},
+            format="json",
+            **self.h,
+        )
+        self.assertEqual(updated.status_code, 200, updated.data)
+        self.assertEqual(updated.json()["date_range_start"], "2026-10-20")
+        self.assertEqual(updated.json()["date_range_end"], "2026-11-24")
+        cleared = self.client.patch(
+            f"/api/v1/programs/{program_id}/",
+            {"date_range_start": None, "date_range_end": None},
+            format="json",
+            **self.h,
+        )
+        self.assertEqual(cleared.status_code, 200, cleared.data)
+        self.assertIsNone(cleared.json()["date_range_start"])
+        self.assertIsNone(cleared.json()["date_range_end"])
+
+    def test_invalid_program_dates_do_not_persist_drafts_or_generation_runs(self):
+        invalid_ranges = [
+            ({"date_range_start": "not-a-date"}, "date_range_start"),
+            ({"date_range_end": "2026-02-30"}, "date_range_end"),
+            (
+                {"date_range_start": "2026-11-17", "date_range_end": "2026-10-20"},
+                "date_range_end",
+            ),
+        ]
+        for endpoint in ("/api/v1/programs/", "/api/v1/programs/generate/"):
+            for dates, field in invalid_ranges:
+                with self.subTest(endpoint=endpoint, dates=dates):
+                    response = self.client.post(
+                        endpoint,
+                        {
+                            "student_id": self.student_id,
+                            "template_id": str(self.template.pk),
+                            "title": "Invalid dates",
+                            "program_type": "complete",
+                            **dates,
+                        },
+                        format="json",
+                        **self.h,
+                    )
+                    self.assertEqual(response.status_code, 400, response.data)
+                    self.assertIn(field, response.json()["error"]["details"])
+                    self.assertFalse(Program.objects.exists())
+                    self.assertFalse(ProgramVersion.objects.exists())
+                    self.assertFalse(GenerationRun.objects.exists())
+
+    def test_invalid_lineage_dates_leave_existing_program_unchanged(self):
+        program = Program.objects.create(
+            coach=self.coach_a,
+            student_id=self.student_id,
+            title="Original title",
+            program_type="complete",
+            date_range_start="2026-10-20",
+            date_range_end="2026-11-17",
+        )
+        response = self.client.patch(
+            f"/api/v1/programs/{program.pk}/",
+            {"title": "Changed title", "date_range_end": "2026-10-19"},
+            format="json",
+            **self.h,
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        program.refresh_from_db()
+        self.assertEqual(program.title, "Original title")
+        self.assertEqual(program.date_range_end.isoformat(), "2026-11-17")
 
     def test_generate_draft_and_deterministic(self):
         payload = {

@@ -14,7 +14,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from accounts.models import CoachProfile
+from accounts.models import CoachProfile, ProgramTemplate
 from accounts.rules_services import replace_coach_rules
 from common.testing import auth_header, register
 from delivery.models import PdfArtifact, StagedProgramPdf
@@ -373,6 +373,48 @@ class PdfArtifactServiceTests(PdfTestMixin, APITestCase):
 @override_settings(MEDIA_ROOT="/tmp/should-be-overridden")
 @override_settings(PUBLIC_REGISTRATION_ENABLED=True)
 class PdfApiTests(PdfTestMixin, APITestCase):
+    def test_uploaded_section_attaches_to_generated_draft_with_dates(self):
+        pdf = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"
+        uploaded = self.client.post(
+            "/api/v1/program-pdfs/staging/",
+            {
+                "student_id": str(self.student.pk),
+                "section": "workout",
+                "file": SimpleUploadedFile("workout.pdf", pdf, content_type="application/pdf"),
+            },
+            format="multipart",
+            **self.ha,
+        )
+        self.assertEqual(uploaded.status_code, status.HTTP_201_CREATED, uploaded.data)
+        template = ProgramTemplate.objects.get(coach=self.coach_a)
+        generated = self.client.post(
+            "/api/v1/programs/generate/",
+            {
+                "student_id": str(self.student.pk),
+                "template_id": str(template.pk),
+                "program_type": "complete",
+                "date_range_start": "2026-10-20",
+                "date_range_end": "2026-11-17",
+            },
+            format="json",
+            **self.ha,
+        )
+        self.assertEqual(generated.status_code, status.HTTP_201_CREATED, generated.data)
+        program = generated.json()["program"]
+        version_id = program["current_draft"]["id"]
+        attached = self.client.post(
+            f"/api/v1/programs/{program['id']}/versions/{version_id}/staged-pdf/",
+            {"staged_pdf_id": uploaded.json()["id"], "section": "workout"},
+            format="json",
+            **self.ha,
+        )
+        self.assertEqual(attached.status_code, status.HTTP_200_OK, attached.data)
+        self.assertEqual(attached.json()["date_range_start"], "2026-10-20")
+        self.assertEqual(attached.json()["date_range_end"], "2026-11-17")
+        self.assertEqual(attached.json()["staged_pdfs"][0]["id"], uploaded.json()["id"])
+        staged = StagedProgramPdf.objects.get(pk=uploaded.json()["id"])
+        self.assertEqual(str(staged.program_version_id), version_id)
+
     def test_stage_preview_and_delete_uploaded_program_pdf(self):
         pdf = (
             b"%PDF-1.4\n"
