@@ -154,8 +154,8 @@ export function calculateDashboardMetrics({
     ...visit,
     studentName: studentNames.get(visit.studentId) ?? "شاگرد"
   }));
-  const latestVisits = latestPerStudent(dashboardVisits, (visit) => visit.visitDate);
-  const latestVisitEntries = latestPerStudent(dashboardVisits, (visit) => visit.createdAt);
+  const latestVisits = latestVisitsByDate(dashboardVisits, (visit) => visit.visitDate);
+  const latestVisitEntries = latestVisitsByDate(dashboardVisits, (visit) => visit.createdAt);
   const latestPrograms = [...programs].sort(compareByUpdatedAt).slice(0, 5);
   const studentsWithVisit = new Set(visits.map((visit) => visit.studentId));
   const overdueVisits = students
@@ -202,26 +202,19 @@ export function calculateDashboardMetrics({
   };
 }
 
-function latestPerStudent(
+function latestVisitsByDate(
   visits: DashboardVisit[],
   dateForSort: (visit: DashboardVisit) => string
 ): DashboardVisit[] {
-  const latestByStudent = new Map<string, DashboardVisit>();
-  for (const visit of visits) {
-    const current = latestByStudent.get(visit.studentId);
-    const nextDate = dateForSort(visit);
-    const currentDate = current ? dateForSort(current) : "";
-    if (
-      !current ||
-      nextDate > currentDate ||
-      (nextDate === currentDate && visit.updatedAt > current.updatedAt)
-    ) {
-      latestByStudent.set(visit.studentId, visit);
-    }
-  }
-  return [...latestByStudent.values()]
-    .sort((a, b) => dateForSort(b).localeCompare(dateForSort(a)) || compareByUpdatedAt(a, b))
-    .slice(0, 5);
+  return visits
+    .filter((visit) => visit.status !== "draft")
+    .sort(
+      (a, b) =>
+        dateForSort(b).localeCompare(dateForSort(a)) ||
+        b.createdAt.localeCompare(a.createdAt) ||
+        b.id.localeCompare(a.id)
+    )
+    .slice(0, 10);
 }
 
 export function emptyMonthlyVisitSummary(asOf: string): MonthlyVisitSummary {

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import {
   CalendarDays,
   ChevronDown,
+  ChevronUp,
   FileText,
   Plus,
   RefreshCcw,
@@ -231,7 +232,7 @@ function openDashboardDetail(id: string) {
   element.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function DashboardVisitsSection({
+export function DashboardVisitsSection({
   entries,
   visits
 }: {
@@ -239,14 +240,23 @@ function DashboardVisitsSection({
   visits: DashboardVisit[];
 }) {
   const [sort, setSort] = useState<"created" | "visit">("visit");
-  const items = sort === "visit" ? visits : entries;
+  const [expanded, setExpanded] = useState(false);
+  const items = (sort === "visit" ? visits : entries).slice(0, 10);
+  const visibleItems = expanded ? items : items.slice(0, 5);
+  const ordering = sort === "visit" ? "-visit_date" : "-created_at";
 
   return (
-    <Card className={mvpStyles.dashboardPriorityCard}>
+    <Card
+      className={mvpStyles.dashboardPriorityCard}
+      role="region"
+      aria-labelledby="recent-visits-heading"
+    >
       <div className={mvpStyles.dashboardSectionHeader}>
         <div>
-          <h2 className={styles.sectionTitle}>آخرین شاگردهای ویزیت‌شده</h2>
-          <p className={styles.sectionDescription}>هر شاگرد فقط یک‌بار در فهرست دیده می‌شود.</p>
+          <h2 className={styles.sectionTitle} id="recent-visits-heading">
+            آخرین ویزیت‌ها
+          </h2>
+          <p className={styles.sectionDescription}>مرور و پیگیری ویزیت‌های اخیر شاگردها</p>
         </div>
         <div aria-label="مرتب‌سازی ویزیت‌ها" className={mvpStyles.dashboardSort} role="group">
           <Button
@@ -274,14 +284,14 @@ function DashboardVisitsSection({
           title="هنوز ویزیتی برای نمایش نیست"
         />
       ) : (
-        <div className={mvpStyles.bodyCheckList}>
-          {items.map((visit) => {
+        <div className={mvpStyles.bodyCheckList} id="dashboard-recent-visits">
+          {visibleItems.map((visit) => {
             const statusInfo = visitStatusInfo(visit.status);
             return (
               <Link
                 className={mvpStyles.bodyCheckItem}
                 key={`${sort}-${visit.studentId}-${visit.id}`}
-                to={`/students/${visit.studentId}/visits`}
+                to={`/visits?student=${visit.studentId}&visit=${visit.id}&ordering=${ordering}`}
               >
                 <div className={mvpStyles.bodyCheckIdentity}>
                   <strong>{visit.studentName}</strong>
@@ -297,6 +307,23 @@ function DashboardVisitsSection({
           })}
         </div>
       )}
+      <div className={mvpStyles.dashboardVisitActions}>
+        {items.length > 5 ? (
+          <Button
+            aria-controls="dashboard-recent-visits"
+            aria-expanded={expanded}
+            iconEnd={expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            onClick={() => setExpanded((value) => !value)}
+            size="sm"
+            variant="secondary"
+          >
+            {expanded ? "نمایش کمتر" : `نمایش ${items.length} ویزیت آخر`}
+          </Button>
+        ) : null}
+        <Link className={mvpStyles.dashboardVisitLink} to={`/visits?ordering=${ordering}`}>
+          مشاهده همه ویزیت‌ها
+        </Link>
+      </div>
     </Card>
   );
 }

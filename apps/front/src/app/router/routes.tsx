@@ -5,6 +5,7 @@ import { LoginPage, RegisterPage } from "../../features/auth/pages/AuthPages";
 import { CoachRulesPage } from "../../features/coach-rules";
 import { StudentBodyCheckPage } from "../../features/body-check/pages/StudentBodyCheckPage";
 import { DashboardPage } from "../../features/dashboard";
+import { CoachVisitsPage } from "../../features/visits/pages/CoachVisitsPage";
 import { StudentShell } from "../../features/student-portal/components/StudentShell";
 import { StudentDashboardPage } from "../../features/student-portal/pages/StudentDashboardPage";
 import { StudentLoginPage } from "../../features/student-portal/pages/StudentLoginPage";
@@ -28,13 +29,10 @@ import {
 import { PublicHomePage } from "../../pages/home/PublicHomePage";
 import { PublicInformationPage } from "../../pages/home/PublicInformationPage";
 import { NotFoundPage } from "../../pages/placeholders/NotFoundPage";
-import { PlaceholderPage } from "../../pages/placeholders/PlaceholderPage";
 import { UiKitPage } from "../../pages/ui-kit/UiKitPage";
 import { appDomains, resolveAppSurface } from "../config/appOrigin";
 import type { AppSurface } from "../config/appOrigin";
 import { SettingsPage } from "../../pages/settings/SettingsPage";
-
-const nextStepMessage = "پیاده سازی این صفحه در مرحله بعد انجام می شود.";
 
 export function AppRoutes({
   surface = resolveAppSurface(),
@@ -121,16 +119,7 @@ function CoachRoutes() {
           element={<StudentVisitFormPage mode="edit" />}
           path="students/:studentId/visits/:visitId/edit"
         />
-        <Route
-          element={
-            <PlaceholderPage
-              breadcrumb={["داشبورد", "ویزیت ها"]}
-              description={nextStepMessage}
-              title="ویزیت های ماهانه"
-            />
-          }
-          path="visits"
-        />
+        <Route element={<CoachVisitsPage />} path="visits" />
         <Route element={<ProgramsListPage />} path="programs" />
         <Route element={<ProgramGenerationPage />} path="programs/new" />
         <Route element={<CoachProgramRequestsPage />} path="program-requests" />

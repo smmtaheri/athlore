@@ -1,5 +1,12 @@
 import type { LucideIcon } from "lucide-react";
-import { BellRing, ClipboardList, LayoutDashboard, SlidersHorizontal, Users } from "lucide-react";
+import {
+  BellRing,
+  CalendarDays,
+  ClipboardList,
+  LayoutDashboard,
+  SlidersHorizontal,
+  Users
+} from "lucide-react";
 
 export interface NavigationItem {
   end?: boolean;
@@ -19,6 +26,11 @@ export const primaryNavigationItems: NavigationItem[] = [
     icon: Users,
     label: "شاگردها",
     path: "/students"
+  },
+  {
+    icon: CalendarDays,
+    label: "ویزیت‌ها",
+    path: "/visits"
   },
   {
     icon: ClipboardList,

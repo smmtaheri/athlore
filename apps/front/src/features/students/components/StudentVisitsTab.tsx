@@ -431,7 +431,13 @@ function VisitActions({ onDelete, onSelect, studentId, visit }: VisitActionsProp
   );
 }
 
-function VisitDetailsPanel({ studentId, visit }: { studentId: string; visit: StudentVisit }) {
+export function VisitDetailsPanel({
+  studentId,
+  visit
+}: {
+  studentId: string;
+  visit: StudentVisit;
+}) {
   const weightChange = visit.currentWeightKg - visit.previousWeightKg;
   const dynamicSections = enabledSectionsFromTemplate(visit.formTemplateSnapshot);
   const hasMeasurements = Object.values(visit.measurements).some((value) => value !== undefined);
@@ -583,7 +589,7 @@ function LevelBadge({ level }: { level: VisitLevel }) {
   return <StatusBadge variant={variant}>{levelLabels[level]}</StatusBadge>;
 }
 
-function VisitStatusBadge({ status }: { status: VisitStatus }) {
+export function VisitStatusBadge({ status }: { status: VisitStatus }) {
   const variant =
     status === "finalized"
       ? "success"
