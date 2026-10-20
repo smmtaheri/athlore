@@ -9,7 +9,7 @@ from typing import Any
 from django.db import transaction
 from django.db.models import Max, Q
 from django.utils import timezone
-from django.utils.dateparse import parse_date
+from rest_framework import serializers
 from rest_framework.exceptions import NotFound, ValidationError
 
 from accounts.models import CoachProfile, ProgramTemplate
@@ -301,6 +301,20 @@ def _latest_visit(student: Student) -> Visit | None:
     return student.visits.order_by("-visit_date", "-created_at").first()
 
 
+def _program_dates(start, end):
+    """Validate API date values before persisting and serializing a program."""
+    dates = {}
+    for name, value in (("date_range_start", start), ("date_range_end", end)):
+        try:
+            dates[name] = serializers.DateField(allow_null=True).run_validation(value)
+        except ValidationError as exc:
+            raise ValidationError({name: exc.detail}) from exc
+    start, end = dates["date_range_start"], dates["date_range_end"]
+    if start and end and end < start:
+        raise ValidationError({"date_range_end": ["تاریخ پایان نمی‌تواند قبل از شروع باشد."]})
+    return start, end
+
+
 @transaction.atomic
 def create_empty_draft(
     coach: CoachProfile,
@@ -320,6 +334,7 @@ def create_empty_draft(
     if not title:
         raise ValidationError({"title": ["title is required."]})
 
+    date_range_start, date_range_end = _program_dates(date_range_start, date_range_end)
     program = Program.objects.create(
         coach=coach,
         student=student,
@@ -375,16 +390,9 @@ def create_uploaded_pdf_draft(
     if not title:
         raise ValidationError({"title": ["عنوان برنامه الزامی است."]})
 
-    start = parse_date(str(date_range_start)) if date_range_start else None
-    end = parse_date(str(date_range_end)) if date_range_end else None
-    if date_range_start and not start:
-        raise ValidationError({"date_range_start": ["تاریخ شروع معتبر نیست."]})
-    if date_range_end and not end:
-        raise ValidationError({"date_range_end": ["تاریخ پایان معتبر نیست."]})
+    start, end = _program_dates(date_range_start, date_range_end)
     if not start or not end:
         raise ValidationError({"date_range_start": ["تاریخ شروع و پایان برنامه الزامی است."]})
-    if start and end and end < start:
-        raise ValidationError({"date_range_end": ["تاریخ پایان نمی‌تواند قبل از شروع باشد."]})
 
     try:
         staged = StagedProgramPdf.objects.select_for_update().get(
@@ -535,6 +543,9 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
             code="incompatible_template",
         )
 
+    start, end = _program_dates(
+        request_data.get("date_range_start"), request_data.get("date_range_end")
+    )
     visit = _latest_visit(student)
     ensure_rule_set(coach)
 
@@ -580,8 +591,8 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
             title=title,
             program_type=program_type,
             date_range_label=document.get("date_range_label") or "",
-            date_range_start=request_data.get("date_range_start"),
-            date_range_end=request_data.get("date_range_end"),
+            date_range_start=start,
+            date_range_end=end,
         )
         version = ProgramVersion.objects.create(
             program=program,
@@ -619,6 +630,10 @@ def update_program_lineage(program: Program, payload: dict) -> Program:
     if program.archived_at:
         raise InvalidStateError(detail="Archived program cannot be updated.")
     ensure_student_active(program.student)
+    start, end = _program_dates(
+        payload.get("date_range_start", program.date_range_start),
+        payload.get("date_range_end", program.date_range_end),
+    )
     if "title" in payload:
         title = str(payload["title"] or "").strip()
         if not title:
@@ -626,10 +641,8 @@ def update_program_lineage(program: Program, payload: dict) -> Program:
         program.title = title
     if "date_range_label" in payload:
         program.date_range_label = str(payload["date_range_label"] or "")
-    if "date_range_start" in payload:
-        program.date_range_start = payload["date_range_start"]
-    if "date_range_end" in payload:
-        program.date_range_end = payload["date_range_end"]
+    program.date_range_start = start
+    program.date_range_end = end
     program.save()
     return program
 

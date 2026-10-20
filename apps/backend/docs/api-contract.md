@@ -687,6 +687,13 @@ Full historical version document (content immutable if `finalized` / `archived`)
 Update lineage fields: `title`, `date_range*` only.  
 **Ownership:** program owned by coach.
 
+Program creation, generation, and lineage updates accept `date_range_start` and
+`date_range_end` as ISO dates (`YYYY-MM-DD`) or `null`. Invalid dates and an end
+before the start return field-specific `400` errors before changes are saved.
+Successful responses serialize supplied dates as ISO strings, including the
+initial draft response used to attach uploaded PDF sections. The upload-only
+draft endpoint continues to require both dates.
+
 ### PATCH `/api/v1/programs/{program_id}/versions/{version_id}`
 
 **Allowed only if** `status=draft` and version’s Program is owned.  
