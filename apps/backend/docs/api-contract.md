@@ -281,7 +281,8 @@ single-use provider challenges before public OTP use.
   "pdf_files_pending": 0,
   "pdf_files_failed": 0,
   "pdf_generation_available": true,
-  "latest_visits": [ /* VisitListItem max 5 */ ],
+  "latest_visits": [ /* VisitListItem with student_name, max 10, newest visit date first */ ],
+  "latest_visit_entries": [ /* same cap, newest creation time first */ ],
   "latest_programs": [ /* ProgramSummary max 5 */ ],
   "overdue_visits": [ /* StudentListItem */ ],
   "follow_up_students": [ /* StudentListItem */ ],
@@ -291,6 +292,17 @@ single-use provider challenges before public OTP use.
 
 **Notes:** Overdue rule default = active students with no visit in **35 days** (`summary_last_visit_date`). PDF counts are coach-scoped live aggregates from `PdfArtifact` (deleted excluded); see `docs/p3-pdf-artifacts-implementation.md`.  
 **Pagination:** embedded caps, not full paginator.
+
+Recent visits exclude drafts and include multiple visits for the same student.
+The dashboard initially shows five entries and can expand to ten; its full-list link opens `/visits`.
+
+### GET `/api/v1/visits/`
+
+Coach-only, coach-scoped paginated visit history, including drafts. Each result is a
+`Visit` DTO with `student_name`. Supports `limit`, `offset`, `search` (student name),
+`status` (`all` or a visit status), and `ordering` (`-visit_date` or `-created_at`).
+Ordering is deterministic using creation time and ID as tie breakers. Unknown
+status or ordering values return a validation error.
 
 ---
 

@@ -5,8 +5,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import jdatetime
-from django.db.models import Count, F, Q, Window
-from django.db.models.functions import RowNumber
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from accounts.models import CoachProfile
@@ -26,6 +25,7 @@ OVERDUE_VISIT_DAYS = 35
 MONTHLY_VISIT_INTERVAL_DAYS = 30
 MONTHLY_VISIT_DUE_SOON_DAYS = 7
 RECENT_LIMIT = 5
+RECENT_VISITS_LIMIT = 10
 PROGRAM_DUE_SOON_DAYS = 7
 
 
@@ -54,21 +54,13 @@ def _calendar_month_bounds(today: date, calendar: str) -> tuple[date, date, str]
     return month_start, next_month, month_start.strftime("%Y-%m")
 
 
-def _latest_visits_per_student(coach: CoachProfile, *, order_field: str) -> list[Visit]:
-    """Return each student's latest non-draft visit, ordered by the requested date."""
+def _latest_visits(coach: CoachProfile, *, order_field: str) -> list[Visit]:
+    """Return the latest non-draft visits, including repeat visits for a student."""
     return list(
         Visit.objects.filter(coach=coach)
         .exclude(status=Visit.Status.DRAFT)
-        .annotate(
-            student_visit_rank=Window(
-                expression=RowNumber(),
-                partition_by=[F("student_id")],
-                order_by=[F(order_field).desc(), F("updated_at").desc(), F("id").desc()],
-            )
-        )
-        .filter(student_visit_rank=1)
         .select_related("student")
-        .order_by(f"-{order_field}", "-updated_at", "student__full_name")[:RECENT_LIMIT]
+        .order_by(f"-{order_field}", "-created_at", "-id")[:RECENT_VISITS_LIMIT]
     )
 
 
@@ -491,8 +483,8 @@ def build_dashboard(coach: CoachProfile, *, today: date | None = None) -> dict:
             :RECENT_LIMIT
         ]
     )
-    latest_visits = _latest_visits_per_student(coach, order_field="visit_date")
-    latest_visit_entries = _latest_visits_per_student(coach, order_field="created_at")
+    latest_visits = _latest_visits(coach, order_field="visit_date")
+    latest_visit_entries = _latest_visits(coach, order_field="created_at")
     program_followups = _build_program_request_summary(coach, today)
 
     today_tasks: list[str] = []

@@ -275,6 +275,13 @@ class VisitSerializer(serializers.ModelSerializer):
         return str(snap.get("name") or obj.form_template_key or "")
 
 
+class CoachVisitListSerializer(VisitSerializer):
+    student_name = serializers.CharField(source="student.full_name", read_only=True)
+
+    class Meta(VisitSerializer.Meta):
+        fields = (*VisitSerializer.Meta.fields, "student_name")
+
+
 class VisitWriteSerializer(serializers.Serializer):
     staged_photo_session_id = serializers.UUIDField(required=False)
     visit_date = serializers.DateField(required=True)
