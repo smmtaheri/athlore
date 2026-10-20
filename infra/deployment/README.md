@@ -134,6 +134,12 @@ from the selected branch when needed; it does not create commits or deploy
 uncommitted files. Dedicated stage controls (`up-stage-athlore`,
 `down-stage-athlore`, and `status-stage-athlore`) remain available.
 
+The explicit `deploy-stage-athlore` command always publishes the local `stage`
+branch and deploys the isolated stage checkout, even when the laptop checkout
+is on `main`, another branch, or a detached commit. It does not switch the
+laptop checkout or publish its current `HEAD` as stage. The checkout must still
+be clean, and a missing, behind, or incorrectly tracked stage branch is rejected.
+
 ## Staging environment
 
 Stage uses the same server and public IP, but runs as an isolated Compose
