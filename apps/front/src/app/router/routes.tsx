@@ -145,7 +145,9 @@ function StudentRoutes({ publicPagesOnStudentSurface }: { publicPagesOnStudentSu
           <Route element={<PublicInformationPage page="privacy" />} path="/privacy" />
           <Route element={<PublicInformationPage page="terms" />} path="/terms" />
         </>
-      ) : null}
+      ) : (
+        <Route element={<Navigate replace to="/dashboard" />} path="/" />
+      )}
       <Route
         element={
           <PublicOnlyRoute role="student">

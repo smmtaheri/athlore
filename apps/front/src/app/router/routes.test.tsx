@@ -148,6 +148,21 @@ describe("AppRoutes", () => {
     expect(screen.getByLabelText(/شماره موبایل/)).toBeInTheDocument();
   });
 
+  it("redirects an anonymous student from the portal root to login", async () => {
+    await renderRoute("/", anonymousRepo(), "student");
+
+    expect(await screen.findByRole("heading", { name: "ورود ورزشکار" })).toBeInTheDocument();
+    expect(screen.queryByText("صفحه پیدا نشد")).not.toBeInTheDocument();
+  });
+
+  it("redirects an activated student from the portal root to the dashboard", async () => {
+    await renderRoute("/", studentRepo(studentSession()), "student");
+
+    expect(await screen.findByText(/سلام/)).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "منوی اصلی ورزشکار" })).toBeInTheDocument();
+    expect(screen.queryByText("صفحه پیدا نشد")).not.toBeInTheDocument();
+  });
+
   it("does not recognize the removed student URL on the student surface", async () => {
     await renderRoute("/student/login", anonymousRepo(), "student");
     expect(await screen.findByText("صفحه پیدا نشد")).toBeInTheDocument();
