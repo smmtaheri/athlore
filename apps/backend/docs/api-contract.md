@@ -808,6 +808,37 @@ Create (returns raw token once) · revoke active links.
 
 Anonymous download authorized only by secure bearer token (hash stored). Invalid/expired/revoked → **404**.
 
+### Program request flow
+
+`ProgramRequest` is the shared work item between a student and coach. A program reaching its
+end date only creates a dashboard reminder; it never creates a request automatically.
+
+- `GET /api/v1/me/program-request-defaults/` returns editable initial values from the student
+  profile and most recently fulfilled request.
+- `GET|POST /api/v1/me/program-requests/` lists the student’s requests or submits a request.
+  At least one of `workout`, `nutrition`, or `supplement` is required. The request captures
+  weekly training sessions, training environment, goal, injury/limitation updates, schedule,
+  sleep, and nutrition notes. A partial unique constraint allows at most one open request per
+  student; retries return the existing request instead of creating duplicates.
+- Student responses intentionally omit coach-only request notes and the coach-facing profile
+  snapshot. Visit private notes are not copied into a request or exposed through this API.
+- `GET /api/v1/program-requests/?status=open|all|<status>` is coach-scoped. The dashboard
+  includes open/unread request counts plus program period reminders.
+- `GET /api/v1/program-requests/{id}/` marks that request read. `POST
+  /api/v1/program-requests/mark-read/` marks the coach’s open queue read. `POST
+  /api/v1/program-requests/{id}/start/` accepts `assessment_mode` (`online`, `in_person`,
+  `none`) and optional `visit_id`.
+- A coach may start an online/in-person Visit from a request, or go straight to program work
+  without a new Visit. When a specific Visit is attached, generation uses that Visit, never a
+  different “latest” one. Creating a program from an explicit existing Visit also connects it
+  to the student’s open request or creates the associated in-person request once.
+- A request becomes fulfilled only when every requested section is active/finalized and has a
+  ready, student-accessible PDF. Publishing one requested section does not replace unrelated
+  active sections or fulfill the remaining request sections.
+- Dashboard period reminders are derived from the current active program by section: ended,
+  ending within seven days, or missing an end date. Reminders do not send a request or modify a
+  program automatically.
+
 ---
 
 ## 9. Resource ↔ Frontend capability coverage
@@ -816,6 +847,8 @@ Anonymous download authorized only by secure bearer token (hash stored). Invalid
 |---|---|
 | Login/Register/Logout | `/auth/*` |
 | Dashboard | `/dashboard` |
+| Student program request | `/me/program-request-defaults`, `/me/program-requests` |
+| Coach program request queue | `/program-requests`, `/program-requests/{id}/start` |
 | Student CRUD/list | `/students` |
 | Visits | `/students/{id}/visits` |
 | Coach rules page | `/coach-rules` |

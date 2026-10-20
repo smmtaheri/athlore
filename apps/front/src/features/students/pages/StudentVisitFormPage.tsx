@@ -1,7 +1,7 @@
 import { formatCalendarDateTime } from "../../../shared/dates/calendar";
 import { useEffect, useState } from "react";
 import { ArrowRight, UserRound } from "lucide-react";
-import { useLocation, useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { ContentSection, PageContainer, PageHeader, Stack } from "../../../components/layout";
 import { Button, Card, EmptyState, Skeleton } from "../../../components/ui";
 import { ApiError, persianMessageForVisitApiError } from "../../../shared/api/errors";
@@ -21,6 +21,8 @@ import type { StudentVisit, StudentVisitInput, VisitAnswerRevision } from "../ty
 import type { Student } from "../types/student";
 import type { VisitFormTemplate } from "../types/visitForm";
 import { goalLabels, trainingLevelLabels } from "../types/options";
+import { programRequestRepository } from "../../program-requests/services/programRequestRepository";
+import type { ProgramAssessmentMode } from "../../program-requests/types/programRequest";
 import styles from "../components/students.module.css";
 
 function answersLockedForStatus(status: StudentVisit["status"] | undefined): boolean {
@@ -65,6 +67,12 @@ export function StudentVisitFormPage({
   const location = useLocation();
   const navigate = useNavigate();
   const { studentId, visitId } = useParams();
+  const [searchParams] = useSearchParams();
+  const programRequestId = searchParams.get("programRequestId");
+  const assessmentMode = (searchParams.get("assessmentMode") ?? "online") as ProgramAssessmentMode;
+  const requestQuery = programRequestId
+    ? `?programRequestId=${encodeURIComponent(programRequestId)}&assessmentMode=${encodeURIComponent(assessmentMode)}`
+    : "";
 
   const incomingVisitSaved = (location.state as { visitSaved?: string } | null)?.visitSaved ?? "";
   if (incomingVisitSaved && routeFeedback !== incomingVisitSaved) {
@@ -153,7 +161,10 @@ export function StudentVisitFormPage({
         answersLockedForStatus(currentStatus)
       ) {
         const resent = await visitsRepo.sendToStudent(studentId, visitId);
-        navigate(`/students/${studentId}/visits/${resent.id}/edit`, {
+        if (programRequestId) {
+          await programRequestRepository.startCoach(programRequestId, assessmentMode, resent.id);
+        }
+        navigate(`/students/${studentId}/visits/${resent.id}/edit${requestQuery}`, {
           replace: true,
           state: {
             visitSaved: resent.expiresAt
@@ -173,9 +184,13 @@ export function StudentVisitFormPage({
         ? ` ${savedVisit.photoIssues.join(" ")}`
         : "";
 
+      if (programRequestId) {
+        await programRequestRepository.startCoach(programRequestId, assessmentMode, savedVisit.id);
+      }
+
       if (intent === "send-to-student") {
         savedVisit = await visitsRepo.sendToStudent(studentId, savedVisit.id);
-        navigate(`/students/${studentId}/visits/${savedVisit.id}/edit`, {
+        navigate(`/students/${studentId}/visits/${savedVisit.id}/edit${requestQuery}`, {
           replace: true,
           state: {
             visitSaved: savedVisit.expiresAt
@@ -189,7 +204,7 @@ export function StudentVisitFormPage({
 
       if (intent === "start-coach-review") {
         savedVisit = await visitsRepo.startCoachReview(studentId, savedVisit.id);
-        navigate(`/students/${studentId}/visits/${savedVisit.id}/edit`, {
+        navigate(`/students/${studentId}/visits/${savedVisit.id}/edit${requestQuery}`, {
           replace: true,
           state: { visitSaved: `بررسی مربی شروع شد؛ فرم شاگرد قفل است.${photoWarning}` }
         });
@@ -206,7 +221,10 @@ export function StudentVisitFormPage({
       }
 
       if (intent === "generate-program") {
-        navigate(`/programs/new?studentId=${studentId}&visitId=${savedVisit.id}`, {
+        const requestParams = programRequestId
+          ? `&programRequestId=${encodeURIComponent(programRequestId)}`
+          : "";
+        navigate(`/programs/new?studentId=${studentId}&visitId=${savedVisit.id}${requestParams}`, {
           state: {
             visitSaved: `ویزیت ذخیره شد و تولید برنامه در مرحله بعد تکمیل می شود.${photoWarning}`
           }

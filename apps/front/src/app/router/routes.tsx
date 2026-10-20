@@ -12,6 +12,8 @@ import { StudentVisitDetailPage } from "../../features/student-portal/pages/Stud
 import { StudentVisitsPage } from "../../features/student-portal/pages/StudentVisitsPage";
 import { StudentProgramDetailPage } from "../../features/student-portal/pages/StudentProgramDetailPage";
 import { StudentProgramsPage } from "../../features/student-portal/pages/StudentProgramsPage";
+import { StudentProgramRequestPage } from "../../features/program-requests/pages/StudentProgramRequestPage";
+import { CoachProgramRequestsPage } from "../../features/program-requests/pages/CoachProgramRequestsPage";
 import {
   ProgramGenerationPage,
   ProgramPreviewPage,
@@ -131,6 +133,7 @@ function CoachRoutes() {
         />
         <Route element={<ProgramsListPage />} path="programs" />
         <Route element={<ProgramGenerationPage />} path="programs/new" />
+        <Route element={<CoachProgramRequestsPage />} path="program-requests" />
         <Route element={<ProgramPreviewPage />} path="programs/:programId" />
         <Route element={<ProgramPreviewPage />} path="programs/:programId/preview" />
         <Route element={<CoachRulesPage />} path="coach-rules" />
@@ -171,6 +174,7 @@ function StudentRoutes({ publicPagesOnStudentSurface }: { publicPagesOnStudentSu
       >
         <Route element={<StudentDashboardPage />} path="dashboard" />
         <Route element={<StudentProgramsPage />} path="programs" />
+        <Route element={<StudentProgramRequestPage />} path="program-request" />
         <Route element={<StudentProgramDetailPage />} path="programs/:programId" />
         <Route element={<StudentBodyCheckPage />} path="body-check" />
         <Route element={<StudentVisitsPage />} path="visits" />

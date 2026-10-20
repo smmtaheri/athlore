@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 from datetime import timedelta
 from typing import Any
+from uuid import UUID
 
 from django.db import transaction
 from django.db.models import Max, Q
@@ -23,6 +24,14 @@ from programming.services.generator import (
 )
 from students.models import Student, Visit
 from students.services import ensure_student_active
+
+PROGRAM_SECTIONS = ("workout", "nutrition", "supplement")
+
+
+def program_sections_for_type(program_type: str) -> list[str]:
+    if program_type == Program.ProgramType.COMPLETE:
+        return list(PROGRAM_SECTIONS)
+    return [program_type] if program_type in PROGRAM_SECTIONS else []
 
 
 def programs_for_coach(coach: CoachProfile):
@@ -49,6 +58,41 @@ def programs_for_student(student: Student):
         .prefetch_related("versions")
         .distinct()
     )
+
+
+def current_program_section_map(student: Student) -> dict[str, list[str]]:
+    """Resolve the newest active program independently for workout, food, and supplements."""
+    return current_program_section_maps([student]).get(str(student.id), {})
+
+
+def current_program_section_maps(students) -> dict[str, dict[str, list[str]]]:
+    """Resolve current section ownership for a batch of students in a single query."""
+    student_ids = [student.id for student in students]
+    programs = (
+        Program.objects.filter(
+            student_id__in=student_ids,
+            archived_at__isnull=True,
+            active_version__status=ProgramVersion.Status.FINALIZED,
+        )
+        .select_related("active_version")
+        .order_by("student_id", "-updated_at", "-created_at", "-id")
+    )
+    claimed_by_student: dict[str, set[str]] = {}
+    by_student: dict[str, dict[str, list[str]]] = {}
+    for program in programs:
+        student_key = str(program.student_id)
+        claimed = claimed_by_student.setdefault(student_key, set())
+        sections = set(program.sections or program_sections_for_type(program.program_type))
+        sections.intersection_update(PROGRAM_SECTIONS)
+        current_here = sections - claimed
+        if current_here:
+            by_student.setdefault(student_key, {})[str(program.id)] = [
+                section
+                for section in ("workout", "nutrition", "supplement")
+                if section in current_here
+            ]
+            claimed.update(current_here)
+    return by_student
 
 
 def get_program_for_student(student: Student, program_id) -> Program:
@@ -134,6 +178,7 @@ def serialize_program_summary(program: Program) -> dict:
         "student_name": program.student.full_name,
         "title": program.title,
         "program_type": program.program_type,
+        "sections": list(program.sections or program_sections_for_type(program.program_type)),
         "delivery_source": current.delivery_source
         if current
         else ProgramVersion.DeliverySource.GENERATED,
@@ -165,19 +210,26 @@ def _latest_student_version(program: Program) -> ProgramVersion | None:
     return finalized[0]
 
 
-def serialize_student_program_summary(program: Program) -> dict:
+def serialize_student_program_summary(
+    program: Program, *, current_sections: dict[str, list[str]] | None = None
+) -> dict:
     version = _latest_student_version(program)
+    if current_sections is None:
+        current_sections = current_program_section_map(program.student)
+    current_for_program = current_sections.get(str(program.id), [])
     return {
         "id": str(program.id),
         "student_id": str(program.student_id),
         "title": program.title,
         "program_type": program.program_type,
+        "sections": list(program.sections or program_sections_for_type(program.program_type)),
         "delivery_source": version.delivery_source
         if version
         else ProgramVersion.DeliverySource.GENERATED,
-        "status": "active" if version and program.active_version_id == version.id else "ready",
+        "status": "active" if current_for_program else "ready",
         "version": version.version_number if version else 0,
-        "is_current": bool(version and program.active_version_id == version.id),
+        "is_current": bool(version and current_for_program),
+        "current_sections": current_for_program,
         "date_range": program.date_range_label,
         "created_at": program.created_at.isoformat().replace("+00:00", "Z"),
         "updated_at": program.updated_at.isoformat().replace("+00:00", "Z"),
@@ -301,6 +353,31 @@ def _latest_visit(student: Student) -> Visit | None:
     return student.visits.order_by("-visit_date", "-created_at").first()
 
 
+def _visit_for_generation(
+    coach: CoachProfile, student: Student, request_data: dict
+) -> Visit | None:
+    request_id = request_data.get("program_request_id")
+    if request_id:
+        from programming.models import ProgramRequest
+
+        program_request = ProgramRequest.objects.filter(
+            pk=request_id,
+            coach=coach,
+            student=student,
+            status__in=["submitted", "awaiting_info", "in_progress"],
+        ).first()
+        if program_request is None:
+            raise NotFound(detail="درخواست برنامهٔ باز برای این شاگرد پیدا نشد.")
+        return program_request.visit
+    visit_id = request_data.get("visit_id")
+    if visit_id:
+        try:
+            return Visit.objects.get(pk=visit_id, coach=coach, student=student)
+        except Visit.DoesNotExist as exc:
+            raise NotFound(detail="Visit not found for this student.") from exc
+    return _latest_visit(student)
+
+
 def _program_dates(start, end):
     """Validate API date values before persisting and serializing a program."""
     dates = {}
@@ -340,6 +417,7 @@ def create_empty_draft(
         student=student,
         title=title,
         program_type=program_type,
+        sections=program_sections_for_type(program_type),
         date_range_label=date_range_label or "",
         date_range_start=date_range_start,
         date_range_end=date_range_end,
@@ -412,6 +490,7 @@ def create_uploaded_pdf_draft(
         student=student,
         title=title,
         program_type=program_type,
+        sections=program_sections_for_type(program_type),
         date_range_label=(date_range_label or "").strip(),
         date_range_start=start,
         date_range_end=end,
@@ -499,6 +578,41 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
     student = _get_owned_student(coach, student_id)
     ensure_student_active(student)
 
+    generation_data = request_data
+    request_id = request_data.get("program_request_id")
+    if request_id:
+        from programming.models import ProgramRequest
+
+        try:
+            request_id = UUID(str(request_id))
+            program_request = ProgramRequest.objects.get(
+                pk=request_id,
+                coach=coach,
+                student=student,
+                status__in=["submitted", "awaiting_info", "in_progress"],
+            )
+        except (ProgramRequest.DoesNotExist, ValueError, TypeError, AttributeError) as exc:
+            raise NotFound(detail="درخواست برنامهٔ باز برای این شاگرد پیدا نشد.") from exc
+        supplied_visit_id = request_data.get("visit_id")
+        if supplied_visit_id and str(supplied_visit_id) != str(program_request.visit_id):
+            raise ValidationError(
+                {"visit_id": ["ویزیت انتخاب‌شده با ویزیت متصل به درخواست یکسان نیست."]}
+            )
+        requested_sections = list(program_request.sections or [])
+        type_sections = set(
+            program_sections_for_type(str(request_data.get("program_type") or "complete"))
+        )
+        selected_sections = [
+            section
+            for section in PROGRAM_SECTIONS
+            if section in requested_sections and section in type_sections
+        ]
+        if not selected_sections:
+            raise ValidationError(
+                {"program_type": ["نوع برنامه با بخش‌های درخواست‌شده هم‌خوانی ندارد."]}
+            )
+        generation_data = {**request_data, "program_sections": selected_sections}
+
     try:
         template = ProgramTemplate.objects.get(pk=template_id, coach=coach)
     except ProgramTemplate.DoesNotExist as Exc:
@@ -544,18 +658,18 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
         )
 
     start, end = _program_dates(
-        request_data.get("date_range_start"), request_data.get("date_range_end")
+        generation_data.get("date_range_start"), generation_data.get("date_range_end")
     )
-    visit = _latest_visit(student)
+    visit = _visit_for_generation(coach, student, generation_data)
     ensure_rule_set(coach)
 
     run = GenerationRun.objects.create(
         coach=coach,
         student=student,
-        engine=str(request_data.get("engine") or GENERATOR_VERSION),
-        seed=str(request_data.get("seed") or ""),
+        engine=str(generation_data.get("engine") or GENERATOR_VERSION),
+        seed=str(generation_data.get("seed") or ""),
         status=GenerationRun.Status.PENDING,
-        request=request_data,
+        request=generation_data,
     )
 
     try:
@@ -564,11 +678,11 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
             student=student,
             visit=visit,
             template=template,
-            request=request_data,
+            request=generation_data,
         )
-        if any(w.startswith("missing_exercise_candidates") for w in warnings) and request_data.get(
-            "fail_on_missing_exercises"
-        ):
+        if any(
+            w.startswith("missing_exercise_candidates") for w in warnings
+        ) and generation_data.get("fail_on_missing_exercises"):
             raise GenerationFailedError(
                 detail="Missing exercise candidates for one or more muscles."
             )
@@ -578,7 +692,7 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
             student=student,
             visit=visit,
             template=template,
-            request=request_data,
+            request=generation_data,
         )
         title = document["title"]
         program_type = document["program_type"]
@@ -590,6 +704,7 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
             student=student,
             title=title,
             program_type=program_type,
+            sections=document.get("program_sections") or program_sections_for_type(program_type),
             date_range_label=document.get("date_range_label") or "",
             date_range_start=start,
             date_range_end=end,
@@ -770,11 +885,15 @@ def activate_version(program: Program, version_id) -> Program:
     version = get_version_for_coach(program.coach, program, version_id)
     if version.status != ProgramVersion.Status.FINALIZED:
         raise InvalidStateError(detail="Only finalized versions can be activated.")
+    from programming.services import program_requests
+
+    program_requests.validate_activation_for_requests(program, version)
     program.active_version = version
     program.save(update_fields=["active_version", "updated_at"])
     student = program.student
     student.summary_current_program_title = program.title
     student.save(update_fields=["summary_current_program_title", "updated_at"])
+    program_requests.reconcile_fulfillment(program)
     return program
 
 
@@ -836,6 +955,9 @@ def duplicate_program(
         student=student,
         title=f"{source_program.title} (کپی)",
         program_type=source_program.program_type,
+        sections=list(
+            source_program.sections or program_sections_for_type(source_program.program_type)
+        ),
         date_range_label=source_program.date_range_label,
         date_range_start=source_program.date_range_start,
         date_range_end=source_program.date_range_end,

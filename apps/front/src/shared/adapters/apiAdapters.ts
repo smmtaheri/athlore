@@ -1022,6 +1022,48 @@ export function dashboardFromApi(dto: Record<string, unknown>): DashboardMetrics
     bodyCheckToday: ((dto.body_check_today as Record<string, unknown>[]) || []).map(
       bodyCheckTodayFromApi
     ),
+    programRequests: (() => {
+      const summary = (dto.program_requests as Record<string, unknown>) || {};
+      const items = Array.isArray(summary.items)
+        ? (summary.items as Record<string, unknown>[])
+        : [];
+      return {
+        openCount: num(summary.open_count),
+        unreadCount: num(summary.unread_count),
+        items: items.map((item) => ({
+          assessmentMode: str(item.assessment_mode) as "in_person" | "none" | "online",
+          createdAt: str(item.created_at),
+          id: str(item.id),
+          readAt: item.read_at == null ? null : str(item.read_at),
+          sections: asStringArray(item.sections),
+          status: str(item.status),
+          studentId: str(item.student_id),
+          studentName: str(item.student_name)
+        }))
+      };
+    })(),
+    programPeriods: (() => {
+      const summary = (dto.program_periods as Record<string, unknown>) || {};
+      const items = Array.isArray(summary.items)
+        ? (summary.items as Record<string, unknown>[])
+        : [];
+      return {
+        daysUntilDue: num(summary.days_until_due),
+        dueSoonCount: num(summary.due_soon_count),
+        expiredCount: num(summary.expired_count),
+        missingEndDateCount: num(summary.missing_end_date_count),
+        items: items.map((item) => ({
+          daysRemaining: item.days_remaining == null ? null : num(item.days_remaining),
+          endDate: item.end_date == null ? null : str(item.end_date),
+          programId: str(item.program_id),
+          sections: asStringArray(item.sections),
+          state: str(item.state) as "due_soon" | "expired" | "missing_end_date",
+          studentId: str(item.student_id),
+          studentName: str(item.student_name),
+          title: str(item.title)
+        }))
+      };
+    })(),
     draftPrograms: num(dto.draft_programs),
     finalPrograms: num(dto.final_programs),
     followUpStudents: ((dto.follow_up_students as Record<string, unknown>[]) || []).map(

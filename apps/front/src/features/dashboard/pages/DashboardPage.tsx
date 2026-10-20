@@ -401,6 +401,7 @@ export function DashboardContent({
   return (
     <div className={mvpStyles.pageStack}>
       <DashboardOverview metrics={metrics} />
+      <DashboardProgramFollowups metrics={metrics} />
       <Card className={mvpStyles.quickActions}>
         <Link to="/students/new">
           <Button iconStart={<UserPlus size={18} />}>افزودن شاگرد</Button>
@@ -469,6 +470,134 @@ export function DashboardContent({
       </div>
     </div>
   );
+}
+
+function DashboardProgramFollowups({ metrics }: { metrics: DashboardMetrics }) {
+  const requests = metrics.programRequests ?? { items: [], openCount: 0, unreadCount: 0 };
+  const periods = metrics.programPeriods ?? {
+    daysUntilDue: 7,
+    dueSoonCount: 0,
+    expiredCount: 0,
+    items: [],
+    missingEndDateCount: 0
+  };
+  const periodCount = periods.expiredCount + periods.dueSoonCount + periods.missingEndDateCount;
+
+  return (
+    <div className={mvpStyles.twoColumn}>
+      <Card className={mvpStyles.listCard}>
+        <div className={mvpStyles.dashboardSectionHeader}>
+          <div>
+            <h2 className={styles.sectionTitle}>درخواست‌های برنامه</h2>
+            <p className={styles.sectionDescription}>
+              درخواست ثبت‌شده را بررسی کنید؛ پایان برنامه به‌تنهایی درخواست نمی‌سازد.
+            </p>
+          </div>
+          <StatusBadge variant={requests.openCount > 0 ? "warning" : "success"}>
+            {requests.unreadCount} جدید · {requests.openCount} باز
+          </StatusBadge>
+        </div>
+        {requests.items.length === 0 ? (
+          <p className={styles.sectionDescription}>درخواست بازی برای رسیدگی نیست.</p>
+        ) : (
+          <div className={mvpStyles.bodyCheckList}>
+            {requests.items.map((item) => (
+              <Link className={mvpStyles.bodyCheckItem} key={item.id} to="/program-requests">
+                <div className={mvpStyles.bodyCheckIdentity}>
+                  <strong>{item.studentName}</strong>
+                  <StatusBadge variant={item.readAt ? "info" : "warning"}>
+                    {item.readAt ? requestStatusLabel(item.status) : "جدید"}
+                  </StatusBadge>
+                </div>
+                <div className={mvpStyles.bodyCheckDetails}>
+                  <span>{item.sections.map(programSectionLabel).join("، ")}</span>
+                  <span>{requestAssessmentLabel(item.assessmentMode)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+        <Link className={mvpStyles.listItemLink} to="/program-requests">
+          مشاهدهٔ صف درخواست‌ها
+        </Link>
+      </Card>
+
+      <Card className={mvpStyles.listCard}>
+        <div className={mvpStyles.dashboardSectionHeader}>
+          <div>
+            <h2 className={styles.sectionTitle}>وضعیت دورهٔ برنامه‌ها</h2>
+            <p className={styles.sectionDescription}>
+              برنامه‌های تمام‌شده یا نزدیک پایان برای تصمیم مربی.
+            </p>
+          </div>
+          <StatusBadge
+            variant={periods.expiredCount ? "danger" : periodCount ? "warning" : "success"}
+          >
+            {periods.expiredCount} پایان‌یافته · {periods.dueSoonCount} تا {periods.daysUntilDue}{" "}
+            روز آینده
+          </StatusBadge>
+        </div>
+        {periods.items.length === 0 ? (
+          <p className={styles.sectionDescription}>موردی برای یادآوری دوره وجود ندارد.</p>
+        ) : (
+          <div className={mvpStyles.bodyCheckList}>
+            {periods.items.slice(0, DASHBOARD_PREVIEW_LIMIT).map((item) => (
+              <Link
+                className={mvpStyles.bodyCheckItem}
+                key={`${item.programId}-${item.state}`}
+                to={`/students/${item.studentId}/programs`}
+              >
+                <div className={mvpStyles.bodyCheckIdentity}>
+                  <strong>{item.studentName}</strong>
+                  <StatusBadge
+                    variant={
+                      item.state === "expired"
+                        ? "danger"
+                        : item.state === "due_soon"
+                          ? "warning"
+                          : "neutral"
+                    }
+                  >
+                    {periodStateLabel(item.state, item.daysRemaining)}
+                  </StatusBadge>
+                </div>
+                <div className={mvpStyles.bodyCheckDetails}>
+                  <span>{item.title}</span>
+                  <span>{item.sections.map(programSectionLabel).join("، ")}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function programSectionLabel(section: string): string {
+  if (section === "workout") return "تمرینی";
+  if (section === "nutrition") return "غذایی";
+  if (section === "supplement") return "مکمل";
+  return section;
+}
+
+function requestAssessmentLabel(mode: string): string {
+  if (mode === "in_person") return "ترجیح حضوری";
+  if (mode === "none") return "بدون ویزیت جدید";
+  return "ترجیح آنلاین";
+}
+
+function requestStatusLabel(status: string): string {
+  if (status === "awaiting_info") return "منتظر اطلاعات";
+  if (status === "in_progress") return "در حال رسیدگی";
+  return "ثبت‌شده";
+}
+
+function periodStateLabel(state: string, daysRemaining: number | null): string {
+  if (state === "expired") return "پایان‌یافته";
+  if (state === "missing_end_date") return "بدون تاریخ پایان";
+  if (daysRemaining === 0) return "پایان امروز";
+  return `${daysRemaining} روز مانده`;
 }
 
 function cycleSummaryStatus(item: BodyCheckCycleSummaryItem): {

@@ -1,0 +1,216 @@
+.page {
+  width: min(100%, 980px);
+  margin-inline: auto;
+  padding: clamp(16px, 4vw, 36px);
+  display: grid;
+  gap: 20px;
+}
+
+.header {
+  display: grid;
+  gap: 8px;
+}
+
+.header h1,
+.header p,
+.openRequest h2,
+.formStack h2 {
+  margin: 0;
+}
+
+.header h1 {
+  color: var(--color-text-primary);
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+}
+
+.header p,
+.hint {
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+.eyebrow {
+  color: var(--color-primary-700);
+  font-weight: 700;
+}
+
+.formStack {
+  display: grid;
+  gap: 16px;
+}
+
+.formStack > :first-child {
+  display: grid;
+  gap: 20px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.sectionFieldset {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.sectionFieldset legend {
+  padding-inline: 6px;
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.sectionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.openRequest {
+  display: grid;
+  gap: 12px;
+}
+
+.openRequest p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.75;
+}
+
+.statusLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.feedback {
+  margin: 0;
+  color: var(--color-primary-700);
+  font-weight: 700;
+}
+
+.queueSummary,
+.requestMeta,
+.requestActions,
+.studentHeading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.queueSummary {
+  flex-wrap: wrap;
+}
+
+.coachQueue {
+  display: grid;
+  gap: 16px;
+}
+
+.requestCard {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.requestCard h2,
+.requestCard p {
+  margin: 0;
+}
+
+.requestCard h2 {
+  color: var(--color-text-primary);
+  font-size: 1.1rem;
+}
+
+.requestCard p {
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+.studentHeading {
+  min-width: 0;
+}
+
+.studentHeading svg {
+  flex: 0 0 auto;
+  color: var(--color-primary-700);
+}
+
+.requestMeta {
+  flex-wrap: wrap;
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
+.requestMeta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle, #f6f7fb);
+  padding: 6px 9px;
+}
+
+.requestActions {
+  flex-wrap: wrap;
+  border-top: 1px solid var(--color-border);
+  padding-top: 14px;
+}
+
+.secondaryAction {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+.secondaryAction:hover {
+  border-color: var(--color-primary-500);
+}
+
+.errorCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-danger-700, #b42318);
+}
+
+@media (max-width: 680px) {
+  .page {
+    padding: 16px;
+  }
+
+  .formGrid,
+  .sectionGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .statusLine {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .requestActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .requestActions > *,
+  .secondaryAction {
+    width: 100%;
+  }
+}

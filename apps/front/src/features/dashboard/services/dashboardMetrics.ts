@@ -81,11 +81,45 @@ export interface DashboardVisit extends StudentVisit {
   studentName: string;
 }
 
+export interface DashboardProgramRequestItem {
+  assessmentMode: "in_person" | "none" | "online";
+  createdAt: string;
+  id: string;
+  readAt: string | null;
+  sections: string[];
+  status: string;
+  studentId: string;
+  studentName: string;
+}
+
+export interface DashboardProgramPeriodItem {
+  daysRemaining: number | null;
+  endDate: string | null;
+  programId: string;
+  sections: string[];
+  state: "due_soon" | "expired" | "missing_end_date";
+  studentId: string;
+  studentName: string;
+  title: string;
+}
+
 export interface DashboardMetrics {
   activeStudents: number;
   asOf: string;
   bodyCheckCycles: BodyCheckCycleSummary;
   bodyCheckToday: BodyCheckTodayItem[];
+  programRequests?: {
+    items: DashboardProgramRequestItem[];
+    openCount: number;
+    unreadCount: number;
+  };
+  programPeriods?: {
+    daysUntilDue: number;
+    dueSoonCount: number;
+    expiredCount: number;
+    items: DashboardProgramPeriodItem[];
+    missingEndDateCount: number;
+  };
   draftPrograms: number;
   finalPrograms: number;
   followUpStudents: Student[];

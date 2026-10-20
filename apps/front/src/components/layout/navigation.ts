@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ClipboardList, LayoutDashboard, SlidersHorizontal, Users } from "lucide-react";
+import { BellRing, ClipboardList, LayoutDashboard, SlidersHorizontal, Users } from "lucide-react";
 
 export interface NavigationItem {
   end?: boolean;
@@ -26,6 +26,11 @@ export const primaryNavigationItems: NavigationItem[] = [
     path: "/programs"
   },
   {
+    icon: BellRing,
+    label: "درخواست‌های برنامه",
+    path: "/program-requests"
+  },
+  {
     icon: SlidersHorizontal,
     label: "قوانین مربی",
     path: "/coach-rules"
@@ -38,6 +43,9 @@ export const primaryNavigationItems: NavigationItem[] = [
 ];
 
 export function getNavigationTitle(pathname: string): string {
+  if (pathname === "/program-requests" || pathname.startsWith("/program-requests/")) {
+    return "درخواست‌های برنامه";
+  }
   const current = primaryNavigationItems.find((item) => {
     if (item.end) {
       return pathname === item.path;

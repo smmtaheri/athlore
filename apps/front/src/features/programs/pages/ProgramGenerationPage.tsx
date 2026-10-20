@@ -58,6 +58,8 @@ import type {
 import styles from "../components/programFlow.module.css";
 import { SupplementSelectionFields } from "../../coach-rules/components/SupplementSelectionFields";
 import { emptySupplementSelection } from "../../coach-rules/services/supplementCatalogRepository";
+import { programRequestRepository } from "../../program-requests/services/programRequestRepository";
+import type { ProgramRequest } from "../../program-requests/types/programRequest";
 import {
   calendarInputToIso,
   calendarPlaceholder,
@@ -119,6 +121,7 @@ export function ProgramGenerationPage({
   const [students, setStudents] = useState<Student[]>([]);
   const [rules, setRules] = useState<CoachRules>();
   const [visits, setVisits] = useState<StudentVisit[]>([]);
+  const [programRequest, setProgramRequest] = useState<ProgramRequest | null>(null);
   const [feedback, setFeedback] = useState(
     () => (location.state as { visitSaved?: string } | null)?.visitSaved ?? ""
   );
@@ -139,6 +142,8 @@ export function ProgramGenerationPage({
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const initialStudentId = searchParams.get("studentId") ?? "";
+  const programRequestId = searchParams.get("programRequestId") ?? "";
+  const initialVisitId = searchParams.get("visitId") ?? "";
   const [form, setForm] = useState<ProgramGenerationInput>({
     applyExerciseCatalog: true,
     applyGeneralRules: true,
@@ -163,13 +168,18 @@ export function ProgramGenerationPage({
 
   useEffect(() => {
     let isMounted = true;
-    Promise.all([studentsRepo.list(), coachRulesRepo.get().catch(() => undefined)])
-      .then(([studentItems, coachRules]) => {
+    Promise.all([
+      studentsRepo.list(),
+      coachRulesRepo.get().catch(() => undefined),
+      programRequestId ? programRequestRepository.getCoach(programRequestId) : Promise.resolve(null)
+    ])
+      .then(([studentItems, coachRules, requestItem]) => {
         if (!isMounted) {
           return;
         }
         const activeStudentItems = studentItems.filter((student) => student.status === "active");
         const requestedStudent = studentItems.find((student) => student.id === initialStudentId);
+        setProgramRequest(requestItem);
         const selectedStudent =
           activeStudentItems.find((student) => student.id === initialStudentId) ??
           (requestedStudent ? undefined : activeStudentItems[0]);
@@ -202,7 +212,11 @@ export function ProgramGenerationPage({
         setForm((current) => ({
           ...current,
           daysPerWeek: studentDays ?? template?.daysPerWeek ?? 4,
+          programType: requestItem
+            ? programTypeForRequest(requestItem.sections)
+            : current.programType,
           goal:
+            requestItem?.goal ||
             selectedStudent?.goals.secondaryGoal ||
             selectedStudent?.goals.primaryGoal ||
             current.goal,
@@ -210,8 +224,15 @@ export function ProgramGenerationPage({
           musclePriorities: selectedStudent?.goals.musclePriorities ?? current.musclePriorities,
           studentId: selectedStudent?.id ?? "",
           templateId: template?.id ?? "",
-          title: selectedStudent ? `برنامه کامل ${selectedStudent.fullName}` : "برنامه جدید"
+          title: selectedStudent
+            ? `برنامه ${requestItem ? programTitleForRequest(requestItem.sections) : "کامل"} ${selectedStudent.fullName}`
+            : "برنامه جدید"
         }));
+        if (requestItem) {
+          setFeedback(
+            `درخواست برنامهٔ ${requestItem.studentName} باز است؛ فقط بخش‌های انتخاب‌شده در درخواست نمایش داده می‌شوند.`
+          );
+        }
         setStatus("loaded");
       })
       .catch(() => {
@@ -223,7 +244,7 @@ export function ProgramGenerationPage({
     return () => {
       isMounted = false;
     };
-  }, [coachRulesRepo, initialStudentId, studentsRepo]);
+  }, [coachRulesRepo, initialStudentId, programRequestId, studentsRepo]);
 
   useEffect(() => {
     if (!form.studentId || status === "loading") {
@@ -250,7 +271,12 @@ export function ProgramGenerationPage({
   }, [form.studentId, status, visitsRepo]);
 
   const selectedStudent = students.find((student) => student.id === form.studentId);
-  const latestVisit = visits[0];
+  const selectedVisitId = initialVisitId || programRequest?.visitId || "";
+  const latestVisit = selectedVisitId
+    ? visits.find((visit) => visit.id === selectedVisitId)
+    : programRequest
+      ? undefined
+      : visits[0];
   const selectedTemplate = rules?.templates.find((template) => template.id === form.templateId);
   const validationErrors = Object.values(errors);
 
@@ -263,8 +289,9 @@ export function ProgramGenerationPage({
       label: `${template.name} - ${template.daysPerWeek} روز`,
       value: template.id
     })) ?? [];
-  const includedSections =
-    form.programType === "complete"
+  const includedSections = programRequest
+    ? programSections.filter((section) => programRequest.sections.includes(section.id))
+    : form.programType === "complete"
       ? programSections
       : programSections.filter((section) => section.id === form.programType);
   const generatedSections = includedSections.filter(
@@ -444,6 +471,8 @@ export function ProgramGenerationPage({
     try {
       const generationInput = {
         ...form,
+        ...(programRequestId ? { programRequestId } : {}),
+        ...(initialVisitId ? { visitId: initialVisitId } : {}),
         dateRangeEnd: period!.endIso,
         dateRangeLabel: period!.label,
         dateRangeStart: period!.startIso
@@ -538,6 +567,8 @@ export function ProgramGenerationPage({
         dateRangeLabel: period.label,
         dateRangeStart: period.startIso,
         programType: form.programType,
+        ...(programRequestId ? { programRequestId } : {}),
+        ...(initialVisitId ? { visitId: initialVisitId } : {}),
         stagedPdfId: firstStaged.id,
         studentId: form.studentId,
         title: form.title
@@ -702,6 +733,7 @@ export function ProgramGenerationPage({
               <FormField error={errors.programType} label="نوع برنامه" required>
                 <Select
                   aria-label="نوع برنامه"
+                  disabled={Boolean(programRequestId)}
                   options={programTypeOptions}
                   value={form.programType}
                   onChange={(event) =>
@@ -778,15 +810,17 @@ export function ProgramGenerationPage({
                       >
                         <FileUp aria-hidden size={16} /> بارگذاری PDF
                       </Button>
-                      <Button
-                        aria-label={`عدم ارسال بخش ${section.label}`}
-                        aria-pressed={method === "omitted"}
-                        onClick={() => setSectionMethod(section.id, "omitted")}
-                        size="sm"
-                        variant={method === "omitted" ? "primary" : "secondary"}
-                      >
-                        عدم ارسال
-                      </Button>
+                      {!programRequest ? (
+                        <Button
+                          aria-label={`عدم ارسال بخش ${section.label}`}
+                          aria-pressed={method === "omitted"}
+                          onClick={() => setSectionMethod(section.id, "omitted")}
+                          size="sm"
+                          variant={method === "omitted" ? "primary" : "secondary"}
+                        >
+                          عدم ارسال
+                        </Button>
+                      ) : null}
                     </div>
                     {method === "uploaded" ? (
                       <>
@@ -1120,6 +1154,17 @@ function formatFileSize(size: number): string {
   return size < 1024 * 1024
     ? `${Math.max(1, Math.round(size / 1024))} کیلوبایت`
     : `${(size / (1024 * 1024)).toFixed(1)} مگابایت`;
+}
+
+function programTypeForRequest(sections: ProgramRequest["sections"]): StudentProgramType {
+  return sections.length === 1 ? sections[0] : "complete";
+}
+
+function programTitleForRequest(sections: ProgramRequest["sections"]): string {
+  if (sections.length !== 1) return "کامل";
+  if (sections[0] === "workout") return "تمرینی";
+  if (sections[0] === "nutrition") return "غذایی";
+  return "مکمل";
 }
 
 function isErrorFeedback(message: string): boolean {

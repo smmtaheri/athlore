@@ -433,7 +433,10 @@ def generate_document(
 
     # Unified visit form overlay (in-memory only; never invents "normal" for missing fields).
     context_visit = visit
-    if context_visit is None or not (context_visit.answers or {}):
+    has_explicit_visit_context = bool(request.get("program_request_id") or request.get("visit_id"))
+    if (
+        context_visit is None or not (context_visit.answers or {})
+    ) and not has_explicit_visit_context:
         context_visit = latest_visit_for_generation(student) or visit
     assessment_ctx = build_generation_context_from_visit(context_visit)
     merged = merge_student_with_assessment(
@@ -540,9 +543,16 @@ def _generate_document_body(
         )
 
     program_type = str(request.get("program_type") or "complete")
-    include_training = program_type in {"workout", "complete"}
-    include_nutrition = program_type in {"nutrition", "complete"}
-    include_supplements = program_type in {"supplement", "complete"}
+    requested_sections = request.get("program_sections")
+    if isinstance(requested_sections, list) and requested_sections:
+        requested_sections = {str(section) for section in requested_sections}
+        include_training = "workout" in requested_sections
+        include_nutrition = "nutrition" in requested_sections
+        include_supplements = "supplement" in requested_sections
+    else:
+        include_training = program_type in {"workout", "complete"}
+        include_nutrition = program_type in {"nutrition", "complete"}
+        include_supplements = program_type in {"supplement", "complete"}
     if request.get("include_training") is False:
         include_training = False
     if request.get("include_nutrition") is False:
@@ -738,6 +748,15 @@ def _generate_document_body(
     document = {
         "title": title,
         "program_type": program_type,
+        "program_sections": [
+            section
+            for section, included in (
+                ("workout", include_training),
+                ("nutrition", include_nutrition),
+                ("supplement", include_supplements),
+            )
+            if included
+        ],
         "date_range_label": date_range_label,
         "training": training,
         "nutrition": nutrition,

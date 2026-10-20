@@ -16,6 +16,7 @@ export const studentPaths = {
   bodyCheck: "/body-check",
   dashboard: "/dashboard",
   login: "/login",
+  programRequest: "/program-request",
   programs: "/programs",
   visits: "/visits"
 } as const;
@@ -33,7 +34,11 @@ const DEFAULT_DOMAINS = {
 } as const;
 
 function normalizeDomain(value: string | undefined, fallback: string): string {
-  const normalized = value?.trim().toLowerCase().replace(/^https?:\/\//, "").split("/")[0];
+  const normalized = value
+    ?.trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .split("/")[0];
   return normalized || fallback;
 }
 

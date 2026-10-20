@@ -17,6 +17,7 @@ These terms are **authoritative** across all design documents. Do not invent syn
 | **Coach** / **CoachProfile** | Coaching tenant profile owned 1:1 by a User. All business data is scoped to a Coach. |
 | **Student** | A trainee managed by exactly one Coach. Aggregate root for profile data. |
 | **Visit** | A monthly check-in for a Student (weight, measurements, adherence, notes). |
+| **Program Request** (`ProgramRequest`) | A student/coach work item describing requested program sections and current context, optionally linked to one exact Visit and fulfilled by active program sections. |
 | **BodyMeasurement** | Circumference / composition values recorded on a Visit (value object, not a separate aggregate). |
 | **CoachRuleSet** | The Coach’s programming system: templates, level rules, injury rules, muscle priorities, structured exercise catalog, general rules. |
 | **ProgramTemplate** | Reusable split/volume template inside a CoachRuleSet. |
@@ -72,12 +73,36 @@ Frontend legacy names mapped to this model:
 | **CoachProfile** | Display/style settings; owns all tenant data by FK | Created at registration |
 | **Student** | Goals, injuries, equipment, lifestyle, preferences, training background/conditions, summary denorms | Never shared across Coaches |
 | **Visit** | Measurements, adherence, visit notes | Belongs to one Student (and thus one Coach) |
+| **Program Request** | Requested workout/nutrition/supplement sections, request context, progress and optional exact Visit/program links | At most one open request per Student; coach-private Visit notes remain outside the request |
 | **CoachRuleSet** | Templates, level/injury/muscle rules, structured exercise catalog, general rules | Exactly one per Coach |
 | **Program** | Lineage metadata; pointers to active/draft versions; ordered Versions | Belongs to one Student + Coach |
 | **Generation Run** | Input snapshot, engine metadata, output linkage | Belongs to Coach; may attach to a Version |
 | **PDF File** | File metadata, status, share token, storage key | Belongs to Coach; references Program Version |
 
 **Program Version** is an **entity inside the Program aggregate**, not a separate root. All versioning operations go through the Program aggregate/service.
+
+### Program request lifecycle
+
+```text
+student submits (or coach starts an in-person program workflow)
+                         │
+                         ▼
+      submitted → awaiting_info → in_progress → fulfilled
+                         └───────────────→ cancelled
+```
+
+- An expired or soon-to-expire program raises a coach dashboard reminder only; it does not
+  manufacture a `ProgramRequest`.
+- The student can request any non-empty subset of workout, nutrition, and supplement. The
+  submitted context is prefilled from their profile and last fulfilled request, and may be
+  updated in the next request.
+- Online, in-person, and no-new-assessment flows share one request. A request may link to one
+  exact Visit; generation must not fall back to whichever Visit happens to be newest.
+- Completion is section-aware. A requested section counts as fulfilled only after it has an
+  active finalized version and a ready PDF for the student. A partial publication preserves
+  other sections’ active programs.
+- The request response visible to the student omits coach notes and coach-facing profile
+  snapshots. Visit private notes are not duplicated or surfaced through the request flow.
 
 ---
 

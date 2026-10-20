@@ -426,7 +426,9 @@ export function createApiProgramsRepository(): ProgramsRepository & {
           program_type: input.programType,
           date_range_label: input.dateRangeLabel,
           date_range_start: input.dateRangeStart,
-          date_range_end: input.dateRangeEnd
+          date_range_end: input.dateRangeEnd,
+          ...(input.programRequestId ? { program_request_id: input.programRequestId } : {}),
+          ...(input.visitId ? { visit_id: input.visitId } : {})
         }
       });
       return stripMeta(
@@ -464,6 +466,8 @@ export function createApiProgramsRepository(): ProgramsRepository & {
         date_range_end: input.dateRangeEnd,
         engine: "rules_v1"
       };
+      if (input.programRequestId) body.program_request_id = input.programRequestId;
+      if (input.visitId) body.visit_id = input.visitId;
       if (input.targetMuscle) {
         body.target_muscle = input.targetMuscle;
       }

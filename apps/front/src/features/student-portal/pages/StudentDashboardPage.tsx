@@ -82,6 +82,22 @@ export function StudentDashboardPage({
 
         {status === "loaded" ? (
           <>
+            <section className={styles.stackTight} aria-labelledby="program-request-heading">
+              <Card className={styles.visitCardOpen} padding="md">
+                <div className={styles.stackTight}>
+                  <h2 className={styles.sectionTitle} id="program-request-heading">
+                    برنامهٔ بعدی لازم دارید؟
+                  </h2>
+                  <p className={styles.muted}>
+                    نوع برنامه و تغییرات شرایطتان را ثبت کنید تا مربی در پنلش پیگیری کند.
+                  </p>
+                  <Link to={studentPaths.programRequest}>
+                    <Button>ثبت یا پیگیری درخواست برنامه</Button>
+                  </Link>
+                </div>
+              </Card>
+            </section>
+
             <section className={styles.stackTight} aria-labelledby="bc-today-heading">
               <h2 className={styles.sectionTitle} id="bc-today-heading">
                 بادی چک امروز

@@ -230,6 +230,8 @@ export interface ProgramGenerationInput {
   level: string;
   musclePriorities: string[];
   programType: StudentProgramType;
+  programRequestId?: string;
+  visitId?: string;
   studentId: string;
   targetExerciseCount?: number;
   targetMuscle?: string;
@@ -252,6 +254,8 @@ export interface UploadedProgramDraftInput {
   dateRangeLabel: string;
   dateRangeStart: string;
   programType: StudentProgramType;
+  programRequestId?: string;
+  visitId?: string;
   stagedPdfId: string;
   studentId: string;
   title: string;
