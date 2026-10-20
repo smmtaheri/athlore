@@ -16,6 +16,7 @@ Usage:
   status-stage-athlore
 
 All commands operate on the remote isolated stage checkout over SSH.
+Deployment publishes the local stage branch without switching branches.
 Configuration overrides: ATHLORE_LOCAL_ROOT, ATHLORE_STAGE_SSH_HOST,
 ATHLORE_STAGE_REMOTE_ROOT.
 USAGE
@@ -58,7 +59,7 @@ if [[ ! -d "$ROOT/.git" ]]; then
 fi
 
 _push_stage_branch_if_needed() {
-  local branch upstream ahead behind short
+  local upstream ahead behind short
 
   if [[ -n "$(git -C "$ROOT" status --porcelain --untracked-files=all)" ]]; then
     echo "ERROR: Athlore has uncommitted changes. Commit (or stash) before deploy-stage-athlore." >&2
@@ -67,22 +68,21 @@ _push_stage_branch_if_needed() {
     exit 1
   fi
 
-  branch="$(git -C "$ROOT" branch --show-current)"
-  if [[ "$branch" != "stage" ]]; then
-    echo "ERROR: deploy-stage-athlore only deploys the local stage branch (current: ${branch:-detached HEAD})." >&2
+  if ! git -C "$ROOT" show-ref --verify --quiet refs/heads/stage; then
+    echo "ERROR: local stage branch is missing; create it from origin/stage before deploying." >&2
     exit 1
   fi
-  short="$(git -C "$ROOT" rev-parse --short HEAD)"
+  short="$(git -C "$ROOT" rev-parse --short refs/heads/stage)"
 
-  if upstream="$(git -C "$ROOT" rev-parse --abbrev-ref '@{u}' 2>/dev/null)"; then
+  if upstream="$(git -C "$ROOT" rev-parse --abbrev-ref 'stage@{u}' 2>/dev/null)"; then
     if [[ "$upstream" != "origin/stage" ]]; then
       echo "ERROR: local stage branch tracks '$upstream', expected 'origin/stage'." >&2
       exit 1
     fi
     echo "==> Checking origin/stage before deployment"
     git -C "$ROOT" fetch origin stage
-    ahead="$(git -C "$ROOT" rev-list --count '@{u}..HEAD')"
-    behind="$(git -C "$ROOT" rev-list --count "HEAD..@{u}")"
+    ahead="$(git -C "$ROOT" rev-list --count origin/stage..refs/heads/stage)"
+    behind="$(git -C "$ROOT" rev-list --count refs/heads/stage..origin/stage)"
     if [[ "$behind" != "0" ]]; then
       echo "ERROR: local stage is behind origin/stage by $behind commit(s). Fast-forward it, review, then retry." >&2
       exit 1
@@ -91,11 +91,11 @@ _push_stage_branch_if_needed() {
       echo "==> athlore stage: nothing to push ($short = $upstream)"
     else
       echo "==> Pushing athlore stage: $ahead local commit(s) -> origin/stage"
-      git -C "$ROOT" push origin HEAD:refs/heads/stage
+      git -C "$ROOT" push origin refs/heads/stage:refs/heads/stage
     fi
   else
     echo "==> Pushing athlore stage and setting upstream: origin/stage"
-    git -C "$ROOT" push -u origin HEAD:refs/heads/stage
+    git -C "$ROOT" push -u origin refs/heads/stage:refs/heads/stage
   fi
 }
 
