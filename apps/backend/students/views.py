@@ -18,6 +18,7 @@ from common.permissions import (
 from students import services
 from students import visit_form_services as vfs
 from students import visit_photo_services as photo_services
+from students.creation_diagnostics import log_creation_failure
 from students.serializers import (
     ActivateLoginSerializer,
     ResetPortalPasswordSerializer,
@@ -35,6 +36,20 @@ from students.serializers import (
 class StudentListCreateView(APIView):
     permission_classes = [IsAuthenticatedCoach]
     pagination_class = StandardLimitOffsetPagination
+
+    def handle_exception(self, exc):
+        if self.request.method != "POST":
+            return super().handle_exception(exc)
+        request_id = log_creation_failure(
+            exc,
+            request=self.request,
+            phase=getattr(self, "_creation_phase", "request"),
+            coach_id=getattr(self, "_creation_coach_id", None),
+            student_id=getattr(self, "_creation_student_id", None),
+        )
+        response = super().handle_exception(exc)
+        response["X-Request-ID"] = request_id
+        return response
 
     def get(self, request):
         coach = get_request_coach(request)
@@ -79,13 +94,18 @@ class StudentListCreateView(APIView):
 
     def post(self, request):
         coach = get_request_coach(request)
+        self._creation_coach_id = coach.pk
+        self._creation_phase = "validation"
         serializer = StudentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         # Ignore any client-provided coach ownership fields
         data = dict(serializer.validated_data)
         data.pop("coach", None)
         data.pop("coach_id", None)
+        self._creation_phase = "persistence"
         student = services.create_student(coach, data)
+        self._creation_student_id = student.pk
+        self._creation_phase = "response_serialization"
         return Response(StudentSerializer(student).data, status=status.HTTP_201_CREATED)
 
 

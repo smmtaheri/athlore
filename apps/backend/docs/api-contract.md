@@ -307,6 +307,12 @@ single-use provider challenges before public OTP use.
 
 ### POST `/api/v1/students`
 
+Rejected student creation requests emit structured `student_create_rejected` logs
+with field error codes, processing phase, coach/actor IDs, and a correlation ID.
+Handled error responses expose that ID in `X-Request-ID`. Unexpected failures log
+`student_create_failed` with exception type and source locations. These diagnostics
+exclude request bodies, submitted values, passwords, and exception messages.
+
 **Request:** full Student write DTO (FE `StudentInput` analogue, snake_case):
 
 ```json
