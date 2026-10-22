@@ -14,6 +14,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient, APITestCase
 
 from accounts.models import CoachProfile
+from common.sms import MOCK_MESSAGE_ID_BASE
 from programming.models import Program, ProgramReadySms, ProgramVersion
 from programming.services.program_notifications import deliver_program_ready_sms
 from programming.services.programs import finalize_version, programs_for_student
@@ -22,6 +23,7 @@ from students.models import Student, StudentProfile
 
 @override_settings(
     PROGRAM_READY_SMS_ENABLED=True,
+    SMS_BACKEND="najva",
     NAJVA_API_KEY="fake-program-key",
     NAJVA_SENDER="100005676",
     NAJVA_PROGRAM_READY_TEMPLATE="athlore_program_ready",
@@ -110,6 +112,17 @@ class ProgramReadySmsTests(APITestCase):
             self.assertEqual(self.finalize().status_code, 200)
         deliver_program_ready_sms(self.version.pk)
         self.assertEqual(self.transport.call_count, 1)
+
+    def test_mock_backend_records_program_notification_without_network_access(self):
+        with override_settings(SMS_BACKEND="mock"):
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.finalize()
+
+        self.assertEqual(response.status_code, 200, response.data)
+        delivery = ProgramReadySms.objects.get()
+        self.assertEqual(delivery.status, "sent")
+        self.assertGreaterEqual(delivery.provider_message_id, MOCK_MESSAGE_ID_BASE)
+        self.transport.assert_not_called()
 
     def test_draft_edit_does_not_send_or_schedule(self):
         with self.captureOnCommitCallbacks(execute=True):

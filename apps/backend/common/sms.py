@@ -3,12 +3,14 @@
 import http.client
 import json
 import logging
+import time
 from urllib.parse import quote, urlencode
 
 from django.conf import settings
 from rest_framework.exceptions import APIException
 
 logger = logging.getLogger(__name__)
+MOCK_MESSAGE_ID_BASE = 9_000_000_000_000_000_000
 
 
 class SmsDeliveryUnavailable(APIException):
@@ -24,6 +26,13 @@ class SmsConfigurationError(SmsDeliveryUnavailable):
     )
 
 
+def sms_backend() -> str:
+    backend = str(getattr(settings, "SMS_BACKEND", "najva") or "").strip().lower()
+    if backend not in {"mock", "najva"}:
+        raise SmsConfigurationError()
+    return backend
+
+
 def configuration(template: str):
     key = str(settings.NAJVA_API_KEY or "").strip()
     sender = str(settings.NAJVA_SENDER or "").strip()
@@ -34,6 +43,14 @@ def configuration(template: str):
 
 
 def send_template_sms(*, phone: str, template: str, tokens: dict[str, str]) -> int:
+    backend = sms_backend()
+    template = str(template or "").strip()
+    if backend == "mock":
+        if not template:
+            raise SmsConfigurationError()
+        logger.info("Mock SMS accepted; no external delivery (template=%s)", template)
+        return MOCK_MESSAGE_ID_BASE + time.time_ns() % 1_000_000_000
+
     key, sender, template = configuration(template)
     query = urlencode(
         {"sender": sender, "receptor": "0" + phone[3:], "template": template, **tokens}

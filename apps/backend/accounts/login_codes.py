@@ -13,7 +13,7 @@ from rest_framework.exceptions import Throttled
 
 from accounts.login_code_models import LoginCodeIpLimit, PhoneLoginChallenge
 from accounts.models import CoachProfile
-from common.sms import configuration, send_template_sms
+from common.sms import SmsConfigurationError, configuration, send_template_sms, sms_backend
 
 TTL_SECONDS = 300
 RESEND_SECONDS = 60
@@ -35,7 +35,12 @@ def _code_digest(key: str, nonce, code: str) -> str:
 
 
 def _configuration():
-    return configuration(settings.NAJVA_TEMPLATE)
+    if sms_backend() == "mock":
+        code = str(getattr(settings, "LOGIN_OTP_MOCK_CODE", "") or "")
+        if len(code) != 6 or not code.isascii() or not code.isdigit():
+            raise SmsConfigurationError()
+        return
+    configuration(settings.NAJVA_TEMPLATE)
 
 
 def _send_sms(phone: str, code: str) -> None:
@@ -58,10 +63,15 @@ def _eligible(phone: str, role: str) -> bool:
 
 def request_sms_code(*, phone: str, role: str, client_ip: str) -> dict:
     _configuration()
+    mock_delivery = sms_backend() == "mock"
     now = timezone.now()
     key = _challenge_key(phone, role)
     nonce = uuid.uuid4()
-    code = str(secrets.randbelow(900000) + 100000)
+    code = (
+        str(settings.LOGIN_OTP_MOCK_CODE)
+        if mock_delivery
+        else str(secrets.randbelow(900000) + 100000)
+    )
     with transaction.atomic():
         ip_limit, _ = LoginCodeIpLimit.objects.select_for_update().get_or_create(
             key=_digest("ip", client_ip or "unknown")
@@ -109,8 +119,12 @@ def request_sms_code(*, phone: str, role: str, client_ip: str) -> dict:
     PhoneLoginChallenge.objects.filter(last_requested_at__lt=now - timedelta(days=1)).delete()
     LoginCodeIpLimit.objects.filter(window_started_at__lt=now - timedelta(days=1)).delete()
     return {
-        "delivery_mode": "sms",
-        "message": "در صورت فعال بودن حساب، کد ورود پیامک می‌شود. اعتبار کد ۵ دقیقه است.",
+        "delivery_mode": "test" if mock_delivery else "sms",
+        "message": (
+            "در محیط آزمایشی پیامک واقعی ارسال نمی‌شود؛ از کد آزمایشی استفاده کنید."
+            if mock_delivery
+            else "در صورت فعال بودن حساب، کد ورود پیامک می‌شود. اعتبار کد ۵ دقیقه است."
+        ),
         "expires_in_seconds": TTL_SECONDS,
         "retry_after_seconds": RESEND_SECONDS,
     }

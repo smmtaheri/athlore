@@ -160,6 +160,8 @@ LOGIN_OTP_ENABLED = os.environ.get("LOGIN_OTP_ENABLED", "false").lower() in {
 }
 LOGIN_OTP_STATIC_CODE = os.environ.get("LOGIN_OTP_STATIC_CODE", "")
 LOGIN_OTP_PROVIDER = os.environ.get("LOGIN_OTP_PROVIDER", "static").strip().lower()
+LOGIN_OTP_MOCK_CODE = os.environ.get("LOGIN_OTP_MOCK_CODE", "")
+SMS_BACKEND = os.environ.get("SMS_BACKEND", "najva").strip().lower()
 NAJVA_API_KEY = os.environ.get("NAJVA_API_KEY", "")
 NAJVA_SENDER = os.environ.get("NAJVA_SENDER", "100005676")
 NAJVA_TEMPLATE = os.environ.get("NAJVA_TEMPLATE", "athlore_otp")

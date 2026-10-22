@@ -11,7 +11,9 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from accounts.login_code_models import LoginCodeIpLimit, PhoneLoginChallenge
+from accounts.login_codes import _challenge_key
 from accounts.models import CoachProfile
+from common.phone import normalize_iran_mobile
 from students.models import Student, StudentProfile
 
 
@@ -19,6 +21,7 @@ from students.models import Student, StudentProfile
     LOGIN_OTP_ENABLED=True,
     LOGIN_OTP_PROVIDER="najva",
     LOGIN_OTP_STATIC_CODE="1111",
+    SMS_BACKEND="najva",
     NAJVA_API_KEY="fake-private-provider-key",
     NAJVA_SENDER="100005676",
     NAJVA_TEMPLATE="athlore_otp",
@@ -118,6 +121,42 @@ class SmsLoginTests(APITestCase):
         self.assertNotIn("334567", challenge.code_digest)
         self.assertNotIn("9121111111", challenge.key)
         self.transport.return_value.close.assert_called_once()
+
+    def test_mock_backend_logs_in_both_roles_without_contacting_provider(self):
+        with override_settings(SMS_BACKEND="mock", LOGIN_OTP_MOCK_CODE="123456"):
+            for role, phone, user in (
+                ("coach", "9121111111", self.user),
+                ("student", "9122222222", self.student_user),
+            ):
+                with self.subTest(role=role):
+                    response = self.send(phone, role)
+                    self.assertEqual(response.status_code, 200, response.data)
+                    self.assertEqual(response.data["delivery_mode"], "test")
+                    self.assertIn("پیامک واقعی ارسال نمی‌شود", response.data["message"])
+                    self.assertNotIn("123456", str(response.data))
+                    self.assertEqual(response.data["expires_in_seconds"], 300)
+                    canonical_phone = normalize_iran_mobile(phone, required=True)
+                    challenge = PhoneLoginChallenge.objects.get(
+                        key=_challenge_key(canonical_phone, role)
+                    )
+                    self.assertEqual(len(challenge.code_digest), 64)
+                    login = self.login(code="123456", phone=phone, role=role)
+                    self.assertEqual(login.status_code, 200, login.data)
+                    self.assertEqual(login.data["user"]["id"], str(user.pk))
+                    self.assertEqual(
+                        self.login(code="123456", phone=phone, role=role).status_code, 401
+                    )
+
+        self.transport.assert_not_called()
+        self.assertEqual(get_user_model().objects.count(), 2)
+
+    def test_mock_backend_requires_a_six_digit_test_code(self):
+        with override_settings(SMS_BACKEND="mock", LOGIN_OTP_MOCK_CODE="1111"):
+            response = self.send()
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.data["error"]["code"], "sms_not_configured")
+        self.transport.assert_not_called()
 
     def test_both_roles_sign_in_to_existing_identities_and_cannot_replay(self):
         for role, phone, user in (
