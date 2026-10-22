@@ -42,6 +42,24 @@ Never touches `coach-assistant-backend/db.sqlite3`.
 - `artifacts/playwright-report/` — HTML report
 - Failure: screenshot / video / trace per Playwright config
 
+## Stage SMS safety for browser E2E
+
+- The stage Compose stack forces the backend SMS adapter to `mock`; OTP and
+  program-ready notification flows must never contact Najva or deliver a real
+  message. Do not use a real handset delivery as an E2E assertion.
+- For stage OTP browser checks, request a code and enter the fixed test code
+  `111111`. The backend still exercises the challenge lifecycle and one-time
+  verification. Password login remains a separate, unchanged path.
+- The isolated local `login-code-flow.spec.ts` harness still uses its own
+  static test code (`1111`); it does not configure or represent the deployed
+  stage backend.
+- Program-ready SMS E2E checks should assert the notification record and the
+  mock adapter result, not handset receipt. Backend regression tests must also
+  assert that the SMS HTTPS connection is never constructed in mock mode.
+- The detailed request → visit → program → student PDF flow and its mandatory
+  stage checklist are in
+  [`product-flows/program-request-to-delivery.md`](./product-flows/program-request-to-delivery.md).
+
 ## Known limitations
 
 - Critical E2E uses UI register + API helpers for student/rules/program setup, then UI for finalize/PDF/share
