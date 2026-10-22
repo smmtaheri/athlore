@@ -219,15 +219,40 @@ and uploads persist while the containers release CPU/RAM. Never use `docker
 compose down -v` or `docker volume prune` to switch stage off. The shared edge
 network is private/internal and is retained when either stack is stopped.
 
-### Stage SMS mock
+### Stage SMS (real provider)
 
-Stage Compose forces `LOGIN_OTP_PROVIDER=najva`, `SMS_BACKEND=mock`, and the
-fixed six-digit `LOGIN_OTP_MOCK_CODE=111111`, even if an old `.env.stage` has a
-Najva API key or legacy static-code setting. The login challenge lifecycle is
-still exercised, but the shared adapter never opens a connection to Najva.
-This covers both OTP login and program-ready notifications. Do not add a Najva
-key to stage for routine E2E testing. Production Compose and its login provider
-are unchanged. Password login remains available.
+The shared Stage environment keeps SMS enabled: Compose forces
+`LOGIN_OTP_PROVIDER=najva` and `SMS_BACKEND=najva`, and passes the private
+`NAJVA_API_KEY` from `.env.stage` to the backend. Configure the approved sender
+and template below. Both OTP login and program-ready notifications use this
+real transport on shared Stage. Password login remains available.
+
+```env
+NAJVA_API_KEY=<private provider key>
+NAJVA_SENDER=100005676
+NAJVA_TEMPLATE=athlore_otp
+NAJVA_PROGRAM_READY_TEMPLATE=athlore_program_ready
+```
+
+Never commit the key or pass it to frontend build arguments. Najva requires an
+approved template NAME, not its numeric ID. The OTP template must include
+`%token`; the program-ready template uses `%token20`. The sender must belong to
+the account and be authorized for both transactional templates. Only a
+successful response with `return.status=200` and one queued entry (`status=1`,
+positive `messageid`) is accepted. Provider rejection/timeouts return a
+sanitized `503`; credentials, request URLs, and codes are not logged.
+
+### Isolated E2E SMS mock
+
+Automated E2E runs that must not send a real SMS must target a disposable local
+or dedicated test stack, with a separate test database and media volume—not the
+shared Stage Compose service or its database. Set `SMS_BACKEND=mock`,
+`LOGIN_OTP_PROVIDER=najva`, and `LOGIN_OTP_MOCK_CODE=111111` only in that
+isolated backend process. The challenge lifecycle remains real and database
+backed; the SMS adapter returns a synthetic message ID and never opens an HTTPS
+connection. The program-ready flow uses the same mock. Test code `111111` is
+fixed only in that isolated test configuration and must never be enabled for
+production or the shared Stage runtime.
 
 OTP challenges use the existing stage PostgreSQL database, shared by Gunicorn
 workers: five-minute expiry, one successful use, five failed guesses, a
@@ -246,14 +271,13 @@ Tests mock the provider and must never send real SMS. An actual delivery test
 requires private key configuration, an approved template, and an explicitly
 authorized send.
 
-### Stage program-ready notification mock
+### Stage program-ready SMS
 
 Stage Compose enables `PROGRAM_READY_SMS_ENABLED` by default; production settings
-default to disabled and production Compose is unchanged. The program-ready
-notification uses the same mock transport as OTP, so publishing a test program
-does not send a real message. Set this flag to `false` in `.env.stage` to disable
-the notification record independently of OTP. Keep the template name for
-payload-shape coverage; it does not need Najva approval in mock mode:
+default to disabled and production Compose is unchanged. On shared Stage, the
+program-ready notification is a real Najva SMS. Set this flag to `false` in
+`.env.stage` to disable it when publishing test programs; automated no-SMS E2E
+runs should instead use the isolated mock configuration above.
 
 ```env
 PROGRAM_READY_SMS_ENABLED=true
@@ -261,21 +285,23 @@ NAJVA_PROGRAM_READY_TEMPLATE=athlore_program_ready
 ```
 
 The template payload uses `token20` for the first name. A successful Stage
-`ProgramReadySms` row means the mock accepted the request; its message ID is a
-synthetic sentinel beginning with `9000000000000000000`, not a provider receipt
-or proof of handset delivery.
+`ProgramReadySms` row means Najva accepted the request, not that the handset
+received it. In isolated mock mode, the same row has a synthetic message ID
+beginning with `9000000000000000000` and does not indicate phone delivery.
 
 Migration `programming.0003_programreadysms` stores one notification per newly
 finalized version; it does not backfill or message historical programs. Sends run
 after commit, once for all delivered sections. Failures are recorded separately
-and logged without personal information/keys. Provider delivery testing is not
-part of the normal Stage E2E flow and must be explicitly authorized.
+and logged without personal information/keys. Any test that publishes a program
+on shared Stage can send a real SMS; use test accounts and confirm the target
+number before publishing.
 Inspect `ProgramReadySms` in Django admin (`/admin/programming/programreadysms/`)
 for status and provider message ID. Pending/sending records after a process crash
 require operator review; failed/uncertain sends are not retried automatically,
-because a provider timeout is not proof of non-delivery. On stage, `sent` means
-the mock accepted the request; in production it means accepted by Najva, not a
-delivery receipt. There is no additional queue or worker service.
+because a provider timeout is not proof of non-delivery. On shared Stage,
+`sent` means Najva accepted the request; in isolated mock E2E, it means the mock
+accepted it. Neither status proves handset delivery. There is no additional
+queue or worker service.
 
 `stage-deploy.sh` refuses a non-stage branch, a dirty checkout, or a checkout
 that does not end up exactly at `origin/stage`. Keep the stage checkout in a
@@ -286,7 +312,7 @@ tracks `main` and must not be used to update Stage.
 
 The production Compose defaults and example enable the temporary fixed login
 code (`1111`) and display it in the no-SMS delivery notice. This is not secure
-for public use: anyone who knows an active account's phone can sign in. Stage
-uses a separate mock transport and fixed six-digit test code (`111111`). Connect
-a real SMS provider and remove the production fixed code before treating OTP
-as a secure production authentication method.
+for public use: anyone who knows an active account's phone can sign in. The
+shared Stage environment uses real Najva OTP; the six-digit test code belongs
+only to isolated E2E configuration. Remove the production fixed code before
+treating OTP as a secure production authentication method.
