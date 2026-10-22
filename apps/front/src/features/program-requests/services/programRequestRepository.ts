@@ -61,6 +61,20 @@ function toApi(draft: ProgramRequestDraft) {
 
 export function createApiProgramRequestRepository(): ProgramRequestRepository {
   return {
+    async cancelMine(id) {
+      const dto = await apiRequest<Record<string, unknown>>(
+        `/me/program-requests/${encodeURIComponent(id)}/cancel/`,
+        { method: "POST" }
+      );
+      return mapRequest(dto);
+    },
+    async cancelCoach(id) {
+      const dto = await apiRequest<Record<string, unknown>>(
+        `/program-requests/${encodeURIComponent(id)}/cancel/`,
+        { method: "POST" }
+      );
+      return mapRequest(dto);
+    },
     async getDefaults() {
       const dto = await apiRequest<Record<string, unknown>>("/me/program-request-defaults/");
       return {

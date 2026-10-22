@@ -1,6 +1,7 @@
 from django.urls import path
 
 from programming.views import (
+    CoachProgramRequestCancelView,
     CoachProgramRequestDetailView,
     CoachProgramRequestListView,
     CoachProgramRequestMarkReadView,
@@ -9,6 +10,7 @@ from programming.views import (
     GenerationRunListView,
     MyProgramDetailView,
     MyProgramListView,
+    MyProgramRequestCancelView,
     MyProgramRequestDefaultsView,
     MyProgramRequestListCreateView,
     ProgramActivateView,
@@ -37,6 +39,11 @@ urlpatterns = [
         MyProgramRequestListCreateView.as_view(),
         name="my-program-request-list",
     ),
+    path(
+        "me/program-requests/<uuid:request_id>/cancel/",
+        MyProgramRequestCancelView.as_view(),
+        name="my-program-request-cancel",
+    ),
     path("program-requests/", CoachProgramRequestListView.as_view(), name="program-request-list"),
     path(
         "program-requests/mark-read/",
@@ -52,6 +59,11 @@ urlpatterns = [
         "program-requests/<uuid:request_id>/start/",
         CoachProgramRequestStartView.as_view(),
         name="program-request-start",
+    ),
+    path(
+        "program-requests/<uuid:request_id>/cancel/",
+        CoachProgramRequestCancelView.as_view(),
+        name="program-request-cancel",
     ),
     path("me/programs/", MyProgramListView.as_view(), name="my-program-list"),
     path("me/programs/<uuid:program_id>/", MyProgramDetailView.as_view(), name="my-program-detail"),

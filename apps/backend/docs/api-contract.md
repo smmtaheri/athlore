@@ -832,6 +832,12 @@ end date only creates a dashboard reminder; it never creates a request automatic
   weekly training sessions, training environment, goal, injury/limitation updates, schedule,
   sleep, and nutrition notes. A partial unique constraint allows at most one open request per
   student; retries return the existing request instead of creating duplicates.
+- `POST /api/v1/me/program-requests/{id}/cancel/` and `POST
+  /api/v1/program-requests/{id}/cancel/` let the owning student or coach cancel any open request.
+  Cancellation is soft: the request and linked Visit/program drafts remain in history, while the
+  request leaves the open queue and the student may submit another. The partial unique constraint
+  continues to prevent a second simultaneous open request. The actor and cancellation timestamp
+  are recorded; a fulfilled or already-cancelled request cannot be cancelled again.
 - Student responses intentionally omit coach-only request notes and the coach-facing profile
   snapshot. Visit private notes are not copied into a request or exposed through this API.
 - `GET /api/v1/program-requests/?status=open|all|<status>` is coach-scoped. The dashboard
@@ -859,8 +865,8 @@ end date only creates a dashboard reminder; it never creates a request automatic
 |---|---|
 | Login/Register/Logout | `/auth/*` |
 | Dashboard | `/dashboard` |
-| Student program request | `/me/program-request-defaults`, `/me/program-requests` |
-| Coach program request queue | `/program-requests`, `/program-requests/{id}/start` |
+| Student program request | `/me/program-request-defaults`, `/me/program-requests`, `/me/program-requests/{id}/cancel` |
+| Coach program request queue | `/program-requests`, `/program-requests/{id}/start`, `/program-requests/{id}/cancel` |
 | Student CRUD/list | `/students` |
 | Visits | `/students/{id}/visits` |
 | Coach rules page | `/coach-rules` |

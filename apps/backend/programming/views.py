@@ -1,6 +1,7 @@
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -400,6 +401,20 @@ class MyProgramRequestListCreateView(APIView):
         )
 
 
+class MyProgramRequestCancelView(APIView):
+    permission_classes = [IsAuthenticatedStudent]
+
+    def post(self, request, request_id):
+        student = get_request_student(request)
+        try:
+            item = ProgramRequest.objects.get(pk=request_id, student=student)
+        except ProgramRequest.DoesNotExist as exc:
+            raise NotFound(detail="درخواست برنامه پیدا نشد.") from exc
+        item = request_services.cancel_request(request=item, actor=request.user)
+        item = ProgramRequest.objects.select_related("student").get(pk=item.pk)
+        return Response(request_services.serialize_request(item, for_student=True))
+
+
 class CoachProgramRequestListView(APIView):
     permission_classes = [IsAuthenticatedCoach]
 
@@ -453,6 +468,20 @@ class CoachProgramRequestDetailView(APIView):
 
             raise NotFound(detail="درخواست برنامه پیدا نشد.") from exc
         item = request_services.mark_read(item)
+        return Response(request_services.serialize_request(item))
+
+
+class CoachProgramRequestCancelView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def post(self, request, request_id):
+        coach = get_request_coach(request)
+        try:
+            item = ProgramRequest.objects.get(pk=request_id, coach=coach)
+        except ProgramRequest.DoesNotExist as exc:
+            raise NotFound(detail="درخواست برنامه پیدا نشد.") from exc
+        item = request_services.cancel_request(request=item, actor=request.user)
+        item = ProgramRequest.objects.select_related("student").get(pk=item.pk)
         return Response(request_services.serialize_request(item))
 
 

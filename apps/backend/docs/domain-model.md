@@ -88,7 +88,7 @@ student submits (or coach starts an in-person program workflow)
                          │
                          ▼
       submitted → awaiting_info → in_progress → fulfilled
-                         └───────────────→ cancelled
+          └──────────────┴──────────────┴────→ cancelled
 ```
 
 - An expired or soon-to-expire program raises a coach dashboard reminder only; it does not
@@ -101,6 +101,9 @@ student submits (or coach starts an in-person program workflow)
 - Completion is section-aware. A requested section counts as fulfilled only after it has an
   active finalized version and a ready PDF for the student. A partial publication preserves
   other sections’ active programs.
+- The student or owning coach may cancel any open request. Cancellation is soft and audited; it
+  preserves linked visits and program drafts, closes the open-request slot, and allows a new
+  request. The one-open-request-per-student constraint still prevents concurrent duplicates.
 - The request response visible to the student omits coach notes and coach-facing profile
   snapshots. Visit private notes are not duplicated or surfaced through the request flow.
 

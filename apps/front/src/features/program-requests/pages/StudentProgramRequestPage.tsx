@@ -7,6 +7,7 @@ import {
   EmptyState,
   FormField,
   Input,
+  Modal,
   Select,
   Skeleton,
   StatusBadge,
@@ -63,6 +64,8 @@ export function StudentProgramRequestPage() {
   const [openRequest, setOpenRequest] = useState<ProgramRequest | null>(null);
   const [status, setStatus] = useState<"error" | "loaded" | "loading">("loading");
   const [submitting, setSubmitting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const [feedback, setFeedback] = useState("");
 
   useEffect(() => {
@@ -120,6 +123,38 @@ export function StudentProgramRequestPage() {
     }
   };
 
+  const cancelRequest = async () => {
+    if (!openRequest) return;
+    setCancelling(true);
+    setFeedback("");
+    try {
+      const cancelled = await programRequestRepository.cancelMine(openRequest.id);
+      setDraft({
+        assessmentMode: cancelled.assessmentMode,
+        goal: cancelled.goal,
+        injuryNotes: cancelled.injuryNotes,
+        nutritionNotes: cancelled.nutritionNotes,
+        purpose: cancelled.purpose,
+        sections: cancelled.sections,
+        sessionsPerWeek: cancelled.sessionsPerWeek,
+        sleepNotes: cancelled.sleepNotes,
+        trainingEnvironment: cancelled.trainingEnvironment,
+        trainingTimeNotes: cancelled.trainingTimeNotes
+      });
+      setOpenRequest(null);
+      setConfirmCancel(false);
+      setFeedback("درخواست لغو شد؛ اطلاعات آن برای ارسال دوباره آماده است.");
+    } catch (error) {
+      setFeedback(
+        error instanceof ApiError
+          ? persianMessageForApiError(error)
+          : "لغو درخواست انجام نشد. دوباره تلاش کنید."
+      );
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (status === "loading") {
     return (
       <div className={styles.page}>
@@ -148,6 +183,11 @@ export function StudentProgramRequestPage() {
 
       {openRequest ? (
         <Card className={styles.openRequest} padding="lg">
+          {feedback ? (
+            <p className={styles.feedback} role="alert">
+              {feedback}
+            </p>
+          ) : null}
           <div className={styles.statusLine}>
             <h2>درخواست جاری شما</h2>
             <StatusBadge variant={openRequest.status === "in_progress" ? "info" : "warning"}>
@@ -159,9 +199,14 @@ export function StudentProgramRequestPage() {
           <p className={styles.hint}>
             برای جلوگیری از درخواست تکراری، تا بسته‌شدن این درخواست، درخواست تازه ثبت نمی‌شود.
           </p>
-          <Button onClick={() => navigate(studentPaths.programs)} variant="secondary">
-            مشاهدهٔ برنامه‌های من
-          </Button>
+          <div className={styles.requestActions}>
+            <Button onClick={() => navigate(studentPaths.programs)} variant="secondary">
+              مشاهدهٔ برنامه‌های من
+            </Button>
+            <Button onClick={() => setConfirmCancel(true)} variant="danger">
+              لغو درخواست
+            </Button>
+          </div>
         </Card>
       ) : (
         <div className={styles.formStack}>
@@ -307,6 +352,38 @@ export function StudentProgramRequestPage() {
           </Button>
         </div>
       )}
+      <Modal
+        footer={
+          <>
+            <Button
+              disabled={cancelling}
+              onClick={() => setConfirmCancel(false)}
+              variant="secondary"
+            >
+              بازگشت
+            </Button>
+            <Button isLoading={cancelling} onClick={() => void cancelRequest()} variant="danger">
+              لغو درخواست
+            </Button>
+          </>
+        }
+        onClose={() => {
+          if (!cancelling) setConfirmCancel(false);
+        }}
+        open={confirmCancel}
+        title="لغو درخواست برنامه؟"
+      >
+        <p>
+          با تأیید، درخواست فعلی بسته می‌شود و می‌توانید درخواست تازه‌ای بفرستید. اطلاعات درخواست
+          برای سابقه نگه داشته می‌شود.
+        </p>
+        {openRequest?.status === "in_progress" ? (
+          <p>
+            ویزیت یا پیش‌نویس برنامه‌ای که مربی تا این مرحله ساخته حذف نمی‌شود؛ لغو درخواست فقط آن
+            را از صف درخواست‌های باز خارج می‌کند.
+          </p>
+        ) : null}
+      </Modal>
     </main>
   );
 }

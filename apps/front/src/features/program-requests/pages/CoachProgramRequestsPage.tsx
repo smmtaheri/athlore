@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { CalendarClock, ClipboardList, Dumbbell, RefreshCcw, UserRound } from "lucide-react";
-import { Button, Card, EmptyState, Skeleton, StatusBadge } from "../../../components/ui";
+import { Button, Card, EmptyState, Modal, Skeleton, StatusBadge } from "../../../components/ui";
 import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
 import { programRequestRepository } from "../services/programRequestRepository";
 import type {
@@ -32,6 +32,9 @@ export function CoachProgramRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [cancelTarget, setCancelTarget] = useState<ProgramRequest | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -107,6 +110,28 @@ export function CoachProgramRequestsPage() {
     }
   };
 
+  const cancelRequest = async () => {
+    if (!cancelTarget) return;
+    setCancelling(true);
+    setError("");
+    try {
+      await programRequestRepository.cancelCoach(cancelTarget.id);
+      const remaining = items.filter((item) => item.id !== cancelTarget.id);
+      setItems(remaining);
+      setUnreadCount(remaining.filter((item) => !item.readAt).length);
+      setNotice(`درخواست ${cancelTarget.studentName} لغو شد.`);
+      setCancelTarget(null);
+    } catch (cause) {
+      setError(
+        cause instanceof ApiError
+          ? persianMessageForApiError(cause)
+          : "لغو درخواست انجام نشد. دوباره تلاش کنید."
+      );
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   return (
     <main className={styles.page}>
       <header className={styles.header}>
@@ -124,6 +149,11 @@ export function CoachProgramRequestsPage() {
           <Button onClick={reload} variant="secondary">
             تلاش دوباره
           </Button>
+        </Card>
+      ) : null}
+      {notice ? (
+        <Card className={styles.feedback} padding="md" role="status">
+          {notice}
         </Card>
       ) : null}
 
@@ -233,12 +263,50 @@ export function CoachProgramRequestsPage() {
                   >
                     ساخت برنامه بدون ویزیت
                   </Button>
+                  <Button
+                    disabled={busyId === item.id || cancelling}
+                    onClick={() => {
+                      setError("");
+                      setNotice("");
+                      setCancelTarget(item);
+                    }}
+                    variant="danger"
+                  >
+                    لغو درخواست
+                  </Button>
                 </div>
               </Card>
             ))}
           </div>
         </>
       ) : null}
+      <Modal
+        footer={
+          <>
+            <Button disabled={cancelling} onClick={() => setCancelTarget(null)} variant="secondary">
+              بازگشت
+            </Button>
+            <Button isLoading={cancelling} onClick={() => void cancelRequest()} variant="danger">
+              لغو درخواست
+            </Button>
+          </>
+        }
+        onClose={() => {
+          if (!cancelling) setCancelTarget(null);
+        }}
+        open={cancelTarget !== null}
+        title="لغو درخواست برنامه؟"
+      >
+        <p>
+          درخواست {cancelTarget?.studentName ?? "شاگرد"} از صف درخواست‌های باز خارج می‌شود و شاگرد
+          می‌تواند درخواست تازه‌ای ثبت کند. سابقهٔ درخواست حفظ خواهد شد.
+        </p>
+        {cancelTarget?.status === "in_progress" ? (
+          <p>
+            ویزیت و پیش‌نویس‌های مرتبط حذف نمی‌شوند؛ فقط این درخواست دیگر در صف باز قرار نمی‌گیرد.
+          </p>
+        ) : null}
+      </Modal>
     </main>
   );
 }

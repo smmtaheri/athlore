@@ -45,6 +45,8 @@ export interface ProgramRequestDraft {
 }
 
 export interface ProgramRequestRepository {
+  cancelCoach(id: string): Promise<ProgramRequest>;
+  cancelMine(id: string): Promise<ProgramRequest>;
   createMine(draft: ProgramRequestDraft): Promise<ProgramRequest>;
   getDefaults(): Promise<ProgramRequestDraft>;
   getCoach(id: string): Promise<ProgramRequest>;

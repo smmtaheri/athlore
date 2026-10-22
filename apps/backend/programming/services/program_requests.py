@@ -255,6 +255,21 @@ def create_request(
 
 
 @transaction.atomic
+def cancel_request(*, request: ProgramRequest, actor) -> ProgramRequest:
+    """Cancel an open request while keeping linked visits and programs intact."""
+    Student.objects.select_for_update().get(pk=request.student_id)
+    request = ProgramRequest.objects.select_for_update().get(pk=request.pk)
+    if request.status not in OPEN_STATUSES:
+        raise ValidationError({"status": ["این درخواست باز نیست و امکان لغو آن وجود ندارد."]})
+
+    request.status = ProgramRequest.Status.CANCELLED
+    request.cancelled_at = timezone.now()
+    request.cancelled_by = actor
+    request.save(update_fields=["status", "cancelled_at", "cancelled_by", "updated_at"])
+    return request
+
+
+@transaction.atomic
 def mark_read(request: ProgramRequest) -> ProgramRequest:
     if request.read_at is None:
         request.read_at = timezone.now()
