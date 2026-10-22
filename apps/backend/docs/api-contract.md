@@ -198,13 +198,15 @@ the `%token` placeholder). The API key never reaches the browser and there is
 no automatic static-code fallback. Production's current static-code setting
 is described below.
 
-Stage Compose hardcodes `SMS_BACKEND=mock` and `LOGIN_OTP_MOCK_CODE=111111`.
-Requests for eligible active coach/student accounts return
-`delivery_mode: test` and a message stating that no real SMS was sent; use the
-fixed test code in the UI. The shared adapter returns a synthetic message ID
-without constructing an HTTPS connection, even if a stale stage `.env` has a
-Najva key. Non-eligible accounts receive the same generic acknowledgement but
-do not get a valid challenge. Do not configure or send real SMS for stage E2E.
+Shared Stage Compose hardcodes `SMS_BACKEND=najva`; eligible active coach/student
+accounts receive a random six-digit Najva code and `delivery_mode: sms`.
+Automated no-SMS E2E must use a separate disposable backend/database with
+`SMS_BACKEND=mock` and `LOGIN_OTP_MOCK_CODE=111111`. In that isolated mode,
+eligible accounts receive `delivery_mode: test`, the response says no real SMS
+was sent, and the adapter returns a synthetic message ID without opening an
+HTTPS connection. The fixed code must never be enabled on shared Stage or
+production. Non-eligible accounts receive the same generic acknowledgement but
+do not get a valid challenge.
 
 The response includes `expires_in_seconds: 300` and
 `retry_after_seconds: 60`, without revealing the code. Codes are stored hashed,
@@ -728,8 +730,9 @@ Idempotent if already finalized by same id → **200** same
 
 When `PROGRAM_READY_SMS_ENABLED=true` (stage only by default), the first successful
 finalization schedules one message through the shared SMS adapter **after the
-database transaction commits**. Stage uses the mock adapter and never contacts
-Najva; production uses a real transport only when explicitly configured.
+database transaction commits**. Shared Stage uses the real Najva transport;
+isolated E2E uses the mock adapter and never contacts Najva. Production uses a
+real transport only when explicitly configured.
 Both generated and uploaded programs use this path; three PDF sections still
 produce one message, not one per file. Drafts/staging, activation and repeated
 finalize requests do not send messages. The existing response contract is unchanged.
@@ -740,10 +743,11 @@ or the generic salutation `ورزشکار` for missing/overlong legacy names.
 
 Provider failures never roll back publication or hide the program. A persistent
 `ProgramReadySms` row records pending/sending/sent/failed/skipped status per version,
-the adapter message ID on acceptance, and a sanitized error code. On stage,
-`sent` means the mock accepted the request and `provider_message_id` is synthetic;
-it does not mean a handset received a message. In production, `sent` means Najva
-accepted the message, not confirmed handset delivery. There is no automatic
+the adapter message ID on acceptance, and a sanitized error code. In isolated
+mock E2E, `sent` means the mock accepted the request and `provider_message_id` is
+synthetic; it does not mean a handset received a message. On shared Stage or
+production, `sent` means Najva accepted the message, not confirmed handset
+delivery. There is no automatic
 retry: a timeout may mean the provider accepted the SMS. Repeated publication does
 not retry failed/uncertain sends. Staff can inspect status in Django admin; no
 new coach/student screens are added. This sends synchronously after commit with
