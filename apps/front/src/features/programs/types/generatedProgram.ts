@@ -22,6 +22,9 @@ export interface TrainingExercise {
   reps: string;
   rawPrescription?: string;
   selectionSource?: string;
+  trainingGroupId?: string | null;
+  trainingGroupName?: string;
+  trainingGroupSize?: number;
   supersetGroupId?: string | null;
   supersetWithPrevious?: boolean;
   supersetPartnerName?: string | null;

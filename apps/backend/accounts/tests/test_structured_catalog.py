@@ -227,6 +227,30 @@ class StructuredCatalogApiTests(APITestCase):
         self.assertEqual(public.status_code, 200)
         self.assertIn("superset", {row["key"] for row in public.data})
         self.assertIn("drop_set", {row["key"] for row in public.data})
+        self.assertTrue(
+            {
+                "superset",
+                "drop_set",
+                "rest_pause",
+                "tri_set",
+                "partial_reps",
+                "21s",
+                "5_10_20",
+                "giant_set",
+                "mammoth_set",
+                "post_exhaustion",
+                "fst_7",
+                "pyramid_sets",
+                "reverse_pyramid",
+                "top_backoff",
+                "cluster_sets",
+                "pre_exhaustion",
+                "myo_reps",
+                "tempo_isometric",
+                "mechanical_drop_set",
+            }.issubset({row["key"] for row in public.data})
+        )
+        self.assertTrue(all(row["recipe"].get("version") == 1 for row in public.data))
         superset_public = next(row for row in public.data if row["key"] == "superset")
         self.assertIn("pairing_mode", superset_public["parameter_schema"])
         self.assertIn("rest_after_pair_seconds", superset_public["parameter_schema"])
@@ -270,6 +294,29 @@ class StructuredCatalogApiTests(APITestCase):
             **auth_header(self.tokens_b),
         )
         self.assertEqual(forbidden_patch.status_code, 404)
+
+    def test_custom_recipe_is_saved_and_reported_as_executable(self):
+        recipe = {
+            "version": 1,
+            "target": "last_isolation",
+            "steps": [
+                {"op": "prescribe", "sets": 4, "reps": "۱۰ تا ۱۲", "rest_seconds": 75},
+                {"op": "tempo", "pattern": "3-1-2"},
+            ],
+        }
+        response = self.client.post(
+            "/api/v1/training-techniques/",
+            {
+                "key": "coach-system-custom-recipe",
+                "name": "روش سفارشی مربی",
+                "recipe": recipe,
+            },
+            format="json",
+            **auth_header(self.tokens_a),
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.data["handler_status"], "implemented")
+        self.assertEqual(response.data["recipe"], recipe)
 
 
 @override_settings(PUBLIC_REGISTRATION_ENABLED=True)
@@ -372,7 +419,8 @@ class StructuredCatalogGeneratorTests(APITestCase):
                 {
                     "exercises": [
                         {
-                            "name": "پرس بالاسینه دمبل",
+                            "name": "جلو بازو دمبل",
+                            "targetMuscle": "جلو بازو",
                             "sets": 3,
                             "supersetGroupId": None,
                             "techniques": [],
@@ -444,6 +492,168 @@ class StructuredCatalogGeneratorTests(APITestCase):
         self.assertEqual(first["techniques"][0]["parameters"]["pairing_mode"], "antagonist")
         self.assertEqual(evidence[0]["status"], "applied")
         self.assertEqual(evidence[0]["parameters"]["max_pairs"], 2)
+
+    def test_coach_recipe_changes_prescription_and_surfaces_instructions(self):
+        recipe = {
+            "version": 1,
+            "target": "last_isolation",
+            "steps": [
+                {"op": "prescribe", "sets": 4, "reps": "۱۰ تا ۱۲", "rest_seconds": 75},
+                {"op": "tempo", "pattern": "3-1-2"},
+            ],
+        }
+        created = self.client.post(
+            "/api/v1/training-techniques/",
+            {"key": "custom-tempo-system", "name": "تمپوی شخصی", "recipe": recipe},
+            format="json",
+            **auth_header(self.tokens),
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+
+        days, evidence, _ = apply_structured_techniques(
+            [
+                {
+                    "id": "day-1",
+                    "exercises": [
+                        {
+                            "id": "press",
+                            "name": "پرس سینه هالتر",
+                            "targetMuscle": "سینه",
+                            "sets": 3,
+                            "reps": "۸ تا ۱۰",
+                            "rest": "۹۰ ثانیه",
+                            "notes": "",
+                            "supersetGroupId": None,
+                            "techniques": [],
+                        },
+                        {
+                            "id": "curl",
+                            "name": "جلو بازو دمبل",
+                            "targetMuscle": "جلو بازو",
+                            "sets": 3,
+                            "reps": "۸ تا ۱۰",
+                            "rest": "۹۰ ثانیه",
+                            "notes": "",
+                            "supersetGroupId": None,
+                            "techniques": [],
+                        },
+                    ],
+                }
+            ],
+            self.coach,
+            "intermediate",
+            selected_systems=[{"key": "custom-tempo-system"}],
+        )
+        press, curl = days[0]["exercises"]
+        self.assertEqual(press["sets"], 3)
+        self.assertEqual(curl["sets"], 4)
+        self.assertEqual(curl["reps"], "۱۰ تا ۱۲")
+        self.assertIn("تمپو 3-1-2", curl["notes"])
+        self.assertEqual(evidence[0]["status"], "applied")
+        self.assertEqual(evidence[0]["applications"][0]["exercise_name"], "جلو بازو دمبل")
+
+    def test_generic_recipe_builds_three_exercise_group_with_individual_reps(self):
+        recipe = {
+            "version": 1,
+            "target": "all",
+            "grouping": {
+                "size": 3,
+                "mode": "same_muscle",
+                "allow_compound": True,
+                "max_groups_per_session": 2,
+                "rest_between_seconds": 0,
+                "rest_after_seconds": 120,
+                "exercise_prescriptions": [
+                    {"sets": 1, "reps": "۵"},
+                    {"sets": 1, "reps": "۱۰"},
+                    {"sets": 1, "reps": "۲۰"},
+                ],
+            },
+            "steps": [
+                {"op": "instruction", "title": "توالی", "text": "سه حرکت را به‌ترتیب اجرا کن."}
+            ],
+        }
+        self.client.post(
+            "/api/v1/training-techniques/",
+            {"key": "custom-tri-set", "name": "تری‌ست شخصی", "recipe": recipe},
+            format="json",
+            **auth_header(self.tokens),
+        )
+        source = [
+            {
+                "id": f"exercise-{index}",
+                "name": f"حرکت سینه {index}",
+                "targetMuscle": "سینه",
+                "sets": 3,
+                "reps": "۸ تا ۱۲",
+                "notes": "",
+                "supersetGroupId": None,
+                "techniques": [],
+            }
+            for index in range(1, 7)
+        ]
+        days, evidence, _ = apply_structured_techniques(
+            [{"id": "day-1", "exercises": source}],
+            self.coach,
+            "intermediate",
+            selected_systems=[{"key": "custom-tri-set"}],
+        )
+        exercises = days[0]["exercises"]
+        self.assertEqual(
+            [exercise["reps"] for exercise in exercises], ["۵", "۱۰", "۲۰", "۵", "۱۰", "۲۰"]
+        )
+        self.assertEqual(len({exercise["trainingGroupId"] for exercise in exercises}), 2)
+        self.assertTrue(all(exercise["trainingGroupSize"] == 3 for exercise in exercises))
+        self.assertEqual(evidence[0]["applied_count"], 2)
+
+    def test_grouped_last_set_recipe_does_not_overwrite_full_exercise_prescription(self):
+        recipe = {
+            "version": 1,
+            "target": "last_set",
+            "grouping": {
+                "size": 2,
+                "mode": "same_muscle",
+                "allow_compound": True,
+                "max_groups_per_session": 1,
+                "rest_between_seconds": 0,
+                "rest_after_seconds": 90,
+                "exercise_prescriptions": [
+                    {"sets": 1, "reps": "۵"},
+                    {"sets": 1, "reps": "۱۰"},
+                ],
+            },
+            "steps": [{"op": "partial_range", "mode": "after_failure", "count": 2}],
+        }
+        self.client.post(
+            "/api/v1/training-techniques/",
+            {"key": "last-set-group", "name": "ست پایانی گروه", "recipe": recipe},
+            format="json",
+            **auth_header(self.tokens),
+        )
+        source = [
+            {
+                "id": f"exercise-{index}",
+                "name": f"حرکت سینه {index}",
+                "targetMuscle": "سینه",
+                "sets": 3,
+                "reps": "۸ تا ۱۲",
+                "notes": "",
+                "supersetGroupId": None,
+                "techniques": [],
+            }
+            for index in range(1, 3)
+        ]
+        days, evidence, _ = apply_structured_techniques(
+            [{"id": "day-1", "exercises": source}],
+            self.coach,
+            "intermediate",
+            selected_systems=[{"key": "last-set-group"}],
+        )
+        for exercise in days[0]["exercises"]:
+            self.assertEqual(exercise["sets"], 3)
+            self.assertEqual(exercise["reps"], "۸ تا ۱۲")
+            self.assertIn("فقط در ست پایانی", exercise["notes"])
+        self.assertEqual(evidence[0]["applied_count"], 1)
 
     def test_partial_rep_modes_are_opt_in_and_preserve_normal_exercise_selection(self):
         from accounts.models import TrainingTechnique

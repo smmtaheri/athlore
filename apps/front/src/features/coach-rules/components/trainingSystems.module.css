@@ -108,6 +108,46 @@
   gap: 12px;
 }
 
+.recipePanel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.recipeSteps {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.recipeStep {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.recipeStepHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.groupPrescriptions {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+
 .checks {
   display: flex;
   flex-wrap: wrap;

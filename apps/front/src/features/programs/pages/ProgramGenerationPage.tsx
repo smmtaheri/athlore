@@ -936,7 +936,9 @@ export function ProgramGenerationPage({
                   const canRun =
                     levelAllowed &&
                     !configuredOff &&
-                    (recognizedHandler || system.handler_status === "manual_only");
+                    (recognizedHandler ||
+                      system.recipe?.version === 1 ||
+                      system.handler_status === "manual_only");
                   const variants = trainingSystemVariants(system);
                   return (
                     <div className={styles.pageStack} key={system.id ?? system.key}>

@@ -259,6 +259,14 @@ export function StudentProgramDetailPage({
                           <strong>
                             {exercise.order}. {exercise.name}
                           </strong>
+                          {exercise.trainingGroupName ? (
+                            <span className={styles.trainingGroupBadge}>
+                              گروه {exercise.trainingGroupName}
+                              {exercise.trainingGroupSize
+                                ? ` · ${exercise.trainingGroupSize} حرکت`
+                                : ""}
+                            </span>
+                          ) : null}
                           {exercise.notes ? <span>{exercise.notes}</span> : null}
                         </div>
                         <div className={styles.exercisePrescription}>

@@ -17,7 +17,7 @@ describe("TrainingSystemsSection", () => {
           id: id ?? "coach-system-1",
           source: "coach_private",
           base_technique_key: null,
-          handler_status: "manual_only"
+          handler_status: "implemented"
         };
         systems = [saved];
         return saved;
@@ -33,14 +33,21 @@ describe("TrainingSystemsSection", () => {
     await user.type(screen.getByLabelText(/نام سیستم/), "استراحت-مکث");
     await user.type(screen.getByLabelText("توضیح کوتاه"), "مکث کوتاه میان بخش‌های ست");
     await user.type(screen.getByLabelText("روش اجرا / نکته برای شاگرد"), "۱۵ ثانیه مکث و ادامه");
+    await user.click(screen.getByRole("button", { name: "افزودن مرحله" }));
+    await user.type(screen.getByLabelText("عنوان دستور"), "مینی‌ست");
+    await user.type(screen.getByLabelText("توضیح برای شاگرد"), "با فرم صحیح ادامه بده");
     await user.click(screen.getByRole("button", { name: "ذخیره سیستم" }));
 
     expect(await screen.findByText("استراحت-مکث")).toBeInTheDocument();
-    expect(screen.getByText("دستور دستی")).toBeInTheDocument();
+    expect(screen.getByText("قابل استفاده در تولید")).toBeInTheDocument();
     expect(repository.save).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "استراحت-مکث",
-        execution_method: "۱۵ ثانیه مکث و ادامه"
+        execution_method: "۱۵ ثانیه مکث و ادامه",
+        recipe: expect.objectContaining({
+          version: 1,
+          steps: [expect.objectContaining({ op: "instruction", title: "مینی‌ست" })]
+        })
       }),
       null
     );

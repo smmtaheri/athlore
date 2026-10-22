@@ -1,6 +1,6 @@
 import { appConfig } from "../../../app/config/appConfig";
 import { apiRequest } from "../../../shared/api/client";
-import type { TrainingSystem } from "../types/coachRules";
+import type { TrainingRecipe, TrainingSystem } from "../types/coachRules";
 
 export interface TrainingSystemInput {
   allowed_levels: string[];
@@ -12,6 +12,7 @@ export interface TrainingSystemInput {
   max_per_session: number;
   name: string;
   parameters: Record<string, unknown>;
+  recipe?: TrainingRecipe;
 }
 
 export interface TrainingSystemsRepository {
@@ -42,6 +43,11 @@ export function createTrainingSystemsRepository(): TrainingSystemsRepository {
             default: ["one_and_half", "after_failure", "partial_only"]
           },
           after_failure_reps: { default: 3 }
+        },
+        recipe: {
+          version: 1,
+          target: "last_isolation",
+          steps: [{ op: "partial_range", mode: "after_failure", count: 3 }]
         }
       }
     ];
@@ -57,7 +63,11 @@ export function createTrainingSystemsRepository(): TrainingSystemsRepository {
           source: input.base_technique_key ? "coach_override" : "coach_private",
           base_technique_key: input.base_technique_key ?? null,
           handler_key: input.base_technique_key ?? undefined,
-          handler_status: input.base_technique_key ? "implemented" : "manual_only"
+          handler_status: input.recipe
+            ? "implemented"
+            : input.base_technique_key
+              ? "implemented"
+              : "manual_only"
         };
         items = current ? items.map((item) => (item.id === id ? next : item)) : [...items, next];
         return structuredClone(next);

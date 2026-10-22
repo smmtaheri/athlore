@@ -33,6 +33,7 @@ from accounts.models import (
     ProgramTemplate,
     TrainingTechnique,
 )
+from accounts.training_recipes import validate_training_recipe
 
 VALID_LEVELS = {"beginner", "intermediate", "advanced"}
 VALID_IMPORTANCE = {"high", "medium", "low"}
@@ -426,6 +427,24 @@ def serialize_muscle_region(region: MuscleRegion) -> dict:
 def _technique_handler_status(technique: TrainingTechnique | None) -> str:
     if technique and technique.handler_key:
         return "implemented"
+    if technique and technique.recipe:
+        try:
+            validate_training_recipe(technique.recipe, allow_empty=False)
+        except ValidationError:
+            return "manual_only"
+        return "implemented"
+    return "manual_only"
+
+
+def _coach_technique_handler_status(config: CoachTechnique) -> str:
+    if config.base_technique_id:
+        return _technique_handler_status(config.base_technique)
+    if config.recipe:
+        try:
+            validate_training_recipe(config.recipe, allow_empty=False)
+        except ValidationError:
+            return "manual_only"
+        return "implemented"
     return "manual_only"
 
 
@@ -519,6 +538,7 @@ def serialize_coach_technique(config: CoachTechnique) -> dict:
         "name": config.name,
         "description": config.description,
         "execution_method": config.execution_method,
+        "recipe": copy.deepcopy(config.recipe or (base.recipe if base else {})),
         "allowed_levels": list(config.allowed_levels or []),
         "max_per_session": config.max_per_session,
         "parameters": copy.deepcopy(config.parameters or {}),
@@ -526,7 +546,7 @@ def serialize_coach_technique(config: CoachTechnique) -> dict:
         "source": "coach_override" if base else "coach_private",
         "base_technique_key": base.key if base else None,
         "handler_key": base.handler_key if base else "",
-        "handler_status": _technique_handler_status(base),
+        "handler_status": _coach_technique_handler_status(config),
         "public_definition": (
             {
                 "key": base.key,
@@ -534,6 +554,7 @@ def serialize_coach_technique(config: CoachTechnique) -> dict:
                 "description": base.description,
                 "execution_method": base.execution_method,
                 "parameter_schema": copy.deepcopy(base.parameter_schema or {}),
+                "recipe": copy.deepcopy(base.recipe or {}),
             }
             if base
             else None
@@ -562,6 +583,7 @@ def get_coach_techniques(coach: CoachProfile) -> list[dict]:
                     "name": base.name,
                     "description": base.description,
                     "execution_method": base.execution_method,
+                    "recipe": copy.deepcopy(base.recipe or {}),
                     "allowed_levels": [],
                     "max_per_session": 0,
                     "parameters": {},
@@ -1168,6 +1190,9 @@ def create_coach_technique(coach: CoachProfile, payload: dict) -> CoachTechnique
         allowed_levels=levels,
         max_per_session=max_per_session,
         parameters=parameters,
+        recipe=validate_training_recipe(
+            payload.get("recipe", base.recipe if base else {}), allow_empty=True
+        ),
         enabled=bool(payload.get("enabled", True)),
     )
 
@@ -1212,6 +1237,8 @@ def update_coach_technique(config: CoachTechnique, payload: dict) -> CoachTechni
             payload["parameters"],
             field="parameters",
         )
+    if "recipe" in payload:
+        config.recipe = validate_training_recipe(payload["recipe"], allow_empty=True)
     if "enabled" in payload:
         config.enabled = bool(payload["enabled"])
     config.save()

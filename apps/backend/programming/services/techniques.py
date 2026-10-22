@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 from rest_framework.exceptions import ValidationError
 
 from accounts.models import CoachProfile, CoachTechnique, TrainingTechnique
+from accounts.training_recipes import validate_training_recipe
 
 PARTIAL_REP_VARIANTS = {
     "one_and_half": "تکرار یک‌ونیم: یک تکرار کامل و یک نیم‌تکرار",
     "after_failure": "پس از رسیدن به ناتوانی فنی، نیم‌تکرار اضافه",
     "partial_only": "اجرای کل ست در دامنهٔ نیمه",
 }
-SUPPORTED_GENERATION_HANDLERS = {"superset", "drop_set", "partial_reps"}
+SUPPORTED_GENERATION_HANDLERS = {"superset", "drop_set", "partial_reps", "recipe"}
 
 
 def enabled_techniques_for_level(
@@ -56,8 +58,9 @@ def enabled_techniques_for_level(
                 description=base.description,
                 execution_method=base.execution_method,
                 allowed_levels=[level],
-                max_per_session=0,
+                max_per_session=2 if base.handler_key == "partial_reps" else 0,
                 parameters={},
+                recipe={},
                 enabled=True,
             )
         )
@@ -119,6 +122,7 @@ def normalize_training_system_selection(
         if config:
             base = config.base_technique
             handler = base.handler_key if base else ""
+            recipe = config.recipe or (base.recipe if base else {})
             if not config.enabled:
                 raise ValidationError({"training_systems": [f"System '{key}' is disabled."]})
             if config.allowed_levels and level not in config.allowed_levels:
@@ -128,12 +132,15 @@ def normalize_training_system_selection(
         else:
             base = TrainingTechnique.objects.filter(key=key, is_active=True).first()
             handler = base.handler_key if base else ""
+            recipe = base.recipe if base else {}
         if not base and not config:
             raise ValidationError({"training_systems": [f"Unknown training system: {key}."]})
-        if handler and handler not in SUPPORTED_GENERATION_HANDLERS:
+        if handler and handler not in SUPPORTED_GENERATION_HANDLERS and not recipe:
             raise ValidationError(
                 {"training_systems": [f"System '{key}' has no automatic implementation."]}
             )
+        if recipe:
+            validate_training_recipe(recipe, allow_empty=False)
 
         selection: dict[str, Any] = {"key": key}
         if handler == "partial_reps":
@@ -195,6 +202,7 @@ def _selected_configs(
                 name=base.name,
                 description=base.description,
                 execution_method=base.execution_method,
+                max_per_session=2 if base.handler_key == "partial_reps" else 0,
                 parameters={},
                 enabled=True,
             )
@@ -381,6 +389,311 @@ def _apply_manual_system(days: list[dict], config: CoachTechnique) -> int:
     return len(days)
 
 
+def _recipe_for(config: CoachTechnique) -> dict[str, Any]:
+    base = config.base_technique
+    recipe = validate_training_recipe(
+        config.recipe or (base.recipe if base else {}), allow_empty=False
+    )
+    if base and base.handler_key == "superset" and config.parameters:
+        grouping = recipe.setdefault("grouping", {})
+        params = _superset_parameters(config)
+        grouping.update(
+            {
+                "mode": params["pairing_mode"],
+                "max_groups_per_session": params["max_pairs"],
+                "allow_compound": params["allow_compound"],
+                "rest_between_seconds": params["rest_between_exercises_seconds"],
+                "rest_after_seconds": params["rest_after_pair_seconds"],
+            }
+        )
+    if base and base.handler_key == "drop_set" and config.parameters:
+        for step in _walk_recipe_steps(recipe["steps"]):
+            if step["op"] == "repeat":
+                step["count"] = int(config.parameters.get("drops", step["count"]))
+            if step["op"] == "load_change" and step["direction"] == "down":
+                step["percent"] = int(config.parameters.get("reduction_percent", step["percent"]))
+    if base and base.handler_key == "partial_reps":
+        partial = next((step for step in recipe["steps"] if step["op"] == "partial_range"), None)
+        if partial:
+            partial["count"] = int(
+                _partial_reps_parameters(config).get("after_failure_reps", partial.get("count", 3))
+            )
+    return recipe
+
+
+def _walk_recipe_steps(steps: list[dict[str, Any]]):
+    for step in steps:
+        yield step
+        if step["op"] == "repeat":
+            yield from _walk_recipe_steps(step["steps"])
+
+
+def _recipe_instructions(steps: list[dict[str, Any]]) -> list[str]:
+    instructions: list[str] = []
+    for step in steps:
+        operation = step["op"]
+        if operation == "prescribe":
+            values = []
+            if "sets" in step:
+                values.append(f"{step['sets']} ست")
+            if "reps" in step:
+                values.append(f"{step['reps']} تکرار")
+            if "rest_seconds" in step:
+                values.append(f"استراحت {step['rest_seconds']} ثانیه")
+            if step.get("rpe"):
+                values.append(f"شدت {step['rpe']}")
+            if values:
+                instructions.append("، ".join(values))
+        elif operation == "rest":
+            instructions.append(f"{step['seconds']} ثانیه استراحت")
+        elif operation == "load_change":
+            direction = "افزایش" if step["direction"] == "up" else "کاهش"
+            instructions.append(f"{direction} بار به میزان {step['percent']}٪")
+        elif operation == "partial_range":
+            labels = {
+                "one_and_half": "تکرار یک‌ونیم",
+                "after_failure": "نیم‌تکرار پس از ناتوانی فنی",
+                "partial_only": "اجرای تکرارها در دامنهٔ نیمه",
+            }
+            detail = labels[step["mode"]]
+            if step.get("count"):
+                detail += f" ({step['count']} تکرار)"
+            if step.get("range"):
+                detail += f"؛ دامنه: {step['range']}"
+            instructions.append(detail)
+        elif operation == "tempo":
+            detail = f"تمپو {step['pattern']}"
+            if step.get("hold_seconds"):
+                detail += f"؛ مکث {step['hold_seconds']} ثانیه"
+            instructions.append(detail)
+        elif operation == "instruction":
+            instructions.append(f"{step['title']}: {step['text']}")
+        elif operation == "repeat":
+            nested = "، ".join(_recipe_instructions(step["steps"]))
+            instructions.append(f"{step['count']} دور: {nested}")
+    return instructions
+
+
+def _apply_recipe_prescriptions(exercise: dict, steps: list[dict[str, Any]]) -> None:
+    for step in steps:
+        if step["op"] == "prescribe":
+            if "sets" in step:
+                exercise["sets"] = step["sets"]
+            if "reps" in step:
+                exercise["reps"] = step["reps"]
+            if "rest_seconds" in step:
+                exercise["rest"] = f"{step['rest_seconds']} ثانیه"
+            if "rpe" in step:
+                exercise["rpe"] = step["rpe"]
+        elif step["op"] == "repeat":
+            for _ in range(step["count"]):
+                _apply_recipe_prescriptions(exercise, step["steps"])
+
+
+def _apply_recipe_grouping(
+    days: list[dict], config: CoachTechnique, grouping: dict[str, Any]
+) -> tuple[int, list[tuple[dict, list[dict]]]]:
+    from programming.services.training_selection import _movement_class, _superset_pair_allowed
+
+    size = grouping["size"]
+    mode = grouping["mode"]
+    max_groups = grouping["max_groups_per_session"]
+    if config.max_per_session:
+        max_groups = min(max_groups, config.max_per_session)
+    applications: list[tuple[dict, list[dict]]] = []
+    for day in days:
+        exercises = [
+            exercise
+            for exercise in day.get("exercises", [])
+            if not exercise.get("supersetGroupId") and not exercise.get("trainingGroupId")
+        ]
+        order = grouping.get("exercise_order", "generated")
+        if order in {"isolation_first", "compound_first"}:
+            reverse = order == "isolation_first"
+            exercises.sort(
+                key=lambda exercise: (
+                    _movement_class(
+                        str(exercise.get("name") or ""),
+                        str(exercise.get("targetMuscle") or ""),
+                    )
+                    == "isolation"
+                ),
+                reverse=reverse,
+            )
+        day_groups = 0
+        index = 0
+        while index <= len(exercises) - size and day_groups < max_groups:
+            group = exercises[index : index + size]
+            allowed = True
+            for pair_index in range(len(group) - 1):
+                first, second = group[pair_index], group[pair_index + 1]
+                if mode == "alternating":
+                    allowed = bool(first.get("targetMuscle")) and (
+                        first.get("targetMuscle") != second.get("targetMuscle")
+                    )
+                else:
+                    allowed = _superset_pair_allowed(
+                        first,
+                        second,
+                        pairing_mode=mode,
+                        allow_compound=bool(grouping.get("allow_compound")),
+                    )
+                if not allowed:
+                    break
+            if not allowed:
+                index += 1
+                continue
+
+            group_id = f"ts-{config.key}-{day_groups + 1}-{index + 1}"
+            group_name = config.name
+            for group_index, exercise in enumerate(group):
+                exercise["trainingGroupId"] = group_id
+                exercise["trainingGroupName"] = group_name
+                exercise["trainingGroupSize"] = size
+                exercise["supersetGroupId"] = group_id
+                exercise["supersetWithPrevious"] = group_index > 0
+                exercise["supersetPartnerName"] = (
+                    group[group_index + 1]["name"] if group_index + 1 < size else None
+                )
+                exercise["supersetRestBetweenSeconds"] = grouping["rest_between_seconds"]
+                exercise["supersetRestAfterSeconds"] = grouping["rest_after_seconds"]
+            applications.append((day, group))
+            day_groups += 1
+            index += size
+    return len(applications), applications
+
+
+def _apply_recipe(days: list[dict], config: CoachTechnique) -> tuple[int, list[dict]]:
+    recipe = _recipe_for(config)
+    grouping = recipe.get("grouping")
+    group_count, groups = _apply_recipe_grouping(days, config, grouping) if grouping else (0, [])
+    applications: list[dict] = []
+    max_per_session = config.max_per_session
+    target = recipe["target"]
+    note_prefix = f"{config.name}: "
+
+    group_by_day: dict[int, list[dict]] = {}
+    for day, group in groups:
+        group_by_day.setdefault(id(day), []).extend(group)
+    for day in days:
+        if grouping:
+            candidates = list(group_by_day.get(id(day), []))
+        else:
+            candidates = [
+                exercise
+                for exercise in day.get("exercises", [])
+                if not exercise.get("supersetGroupId")
+                and not exercise.get("dropSet")
+                and not any(
+                    item.get("key") == config.key for item in exercise.get("techniques", [])
+                )
+            ]
+            if target == "last_isolation":
+                from programming.services.training_selection import _movement_class
+
+                candidates = [
+                    exercise
+                    for exercise in candidates
+                    if _movement_class(
+                        str(exercise.get("name") or ""),
+                        str(exercise.get("targetMuscle") or ""),
+                    )
+                    == "isolation"
+                ]
+            if target in {"last_exercise", "last_isolation", "last_set"}:
+                candidates = candidates[-1:]
+            if max_per_session:
+                candidates = candidates[-max_per_session:]
+
+        group = group_by_day.get(id(day), [])
+        group_prescriptions = (grouping or {}).get("exercise_prescriptions", [])
+        selected_variants = getattr(config, "_selected_variants", None) or []
+        for candidate_index, exercise in enumerate(candidates):
+            exercise_recipe = copy.deepcopy(recipe)
+            base = config.base_technique
+            if base and base.handler_key == "partial_reps" and selected_variants:
+                partial = next(
+                    (step for step in exercise_recipe["steps"] if step["op"] == "partial_range"),
+                    None,
+                )
+                if partial:
+                    partial["mode"] = selected_variants[candidate_index % len(selected_variants)]
+                    partial["count"] = int(
+                        _partial_reps_parameters(config).get("after_failure_reps", 3)
+                    )
+            steps = exercise_recipe["steps"]
+            instructions = _recipe_instructions(steps)
+            if grouping and group_prescriptions and target != "last_set":
+                prescription = group_prescriptions[candidate_index % len(group_prescriptions)]
+                if prescription:
+                    _apply_recipe_prescriptions(exercise, [{"op": "prescribe", **prescription}])
+            if target != "last_set":
+                _apply_recipe_prescriptions(exercise, steps)
+            detail = "؛ ".join(instructions)
+            if target == "last_set":
+                detail = f"فقط در ست پایانی: {detail}"
+            if detail:
+                note = f"{note_prefix}{detail}"
+                existing = str(exercise.get("notes") or "").strip()
+                if note not in existing:
+                    exercise["notes"] = f"{existing} {note}".strip()
+            payload = {
+                "key": config.key,
+                "name": config.name,
+                "handler": (
+                    config.base_technique.handler_key if config.base_technique else "recipe"
+                )
+                or "recipe",
+                "config_id": str(config.id) if config.id else None,
+                "parameters": _parameters(config),
+                "recipe": exercise_recipe,
+            }
+            _append_technique(exercise, payload)
+            if config.key == "drop_set":
+                reduction = next(
+                    (
+                        step["percent"]
+                        for step in _walk_recipe_steps(recipe["steps"])
+                        if step["op"] == "load_change" and step["direction"] == "down"
+                    ),
+                    20,
+                )
+                drops = next(
+                    (
+                        step["count"]
+                        for step in _walk_recipe_steps(recipe["steps"])
+                        if step["op"] == "repeat"
+                    ),
+                    1,
+                )
+                exercise["dropSet"] = {"drops": drops, "reduction_percent": reduction}
+            if config.key == "partial_reps":
+                partial = next(
+                    (step for step in exercise_recipe["steps"] if step["op"] == "partial_range"),
+                    None,
+                )
+                if partial:
+                    exercise["partialReps"] = {
+                        "variant": partial["mode"],
+                        "after_failure_reps": partial.get("count", 3),
+                        "half_range": partial.get("range", "coach_defined_per_exercise"),
+                    }
+            applications.append(
+                {
+                    "day_id": day.get("id"),
+                    "exercise_id": exercise.get("id"),
+                    "exercise_name": exercise.get("name"),
+                    "group_id": exercise.get("trainingGroupId"),
+                    **(
+                        {"variant": exercise["partialReps"]["variant"]}
+                        if exercise.get("partialReps")
+                        else {}
+                    ),
+                }
+            )
+    return group_count if grouping else len(applications), applications
+
+
 def apply_structured_techniques(
     days: list[dict],
     coach: CoachProfile,
@@ -409,7 +722,29 @@ def apply_structured_techniques(
         base = config.base_technique
         handler = base.handler_key if base else ""
         parameters = _parameters(config)
-        if handler == "superset":
+        recipe = config.recipe or (base.recipe if base else {})
+        if recipe:
+            count, applications = _apply_recipe(days, config)
+            handled_keys.add(config.key)
+            evidence.append(
+                {
+                    "key": config.key,
+                    "name": config.name,
+                    "handler": handler or "recipe",
+                    "config_id": (
+                        None if getattr(config, "_platform_default", False) else str(config.id)
+                    ),
+                    "source": "platform_default"
+                    if getattr(config, "_platform_default", False)
+                    else "coach",
+                    "parameters": parameters,
+                    "recipe": _recipe_for(config),
+                    "applied_count": count,
+                    "applications": applications,
+                    "status": "applied" if count else "no_eligible_exercise",
+                }
+            )
+        elif handler == "superset":
             count = _apply_superset(days, config)
             handled_keys.add(config.key)
             evidence.append(

@@ -109,8 +109,35 @@ export interface TrainingSystem {
   name: string;
   parameter_schema?: Record<string, unknown>;
   parameters: Record<string, unknown>;
-  public_definition?: { parameter_schema?: Record<string, unknown> } | null;
+  recipe?: TrainingRecipe;
+  public_definition?: {
+    parameter_schema?: Record<string, unknown>;
+    recipe?: TrainingRecipe;
+  } | null;
   source: "platform" | "coach_override" | "coach_private";
+}
+
+export interface TrainingRecipeStep {
+  op: string;
+  [key: string]: unknown;
+}
+
+export interface TrainingRecipeGrouping {
+  allow_compound?: boolean;
+  exercise_order?: "generated" | "isolation_first" | "compound_first";
+  exercise_prescriptions?: Array<Record<string, unknown>>;
+  max_groups_per_session: number;
+  mode: "same_muscle" | "same_muscle_isolation" | "antagonist" | "any_eligible" | "alternating";
+  rest_after_seconds: number;
+  rest_between_seconds: number;
+  size: number;
+}
+
+export interface TrainingRecipe {
+  grouping?: TrainingRecipeGrouping;
+  steps: TrainingRecipeStep[];
+  target: "all" | "last_exercise" | "last_isolation" | "last_set";
+  version: 1;
 }
 
 export interface GeneralCoachRule {

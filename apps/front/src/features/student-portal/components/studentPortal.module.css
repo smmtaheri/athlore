@@ -581,6 +581,16 @@
   line-height: 1.6;
 }
 
+.trainingGroupBadge {
+  display: inline-block;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-50);
+  color: var(--color-primary-700) !important;
+  font-weight: 600;
+}
+
 .exercisePrescription {
   display: flex;
   flex-wrap: wrap;

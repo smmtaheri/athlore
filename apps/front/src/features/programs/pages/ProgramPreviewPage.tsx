@@ -822,18 +822,29 @@ function ExerciseEditor({
     <div className={styles.editableRow} data-superset-group={exercise.supersetGroupId || undefined}>
       <FormField
         label={
-          exercise.supersetGroupId
+          exercise.trainingGroupName
             ? exercise.supersetWithPrevious
-              ? "نام حرکت (زوج سوپرست)"
-              : "نام حرکت (سوپرست)"
-            : "نام حرکت"
+              ? `نام حرکت (${exercise.trainingGroupName})`
+              : `نام حرکت (${exercise.trainingGroupName})`
+            : exercise.supersetGroupId
+              ? exercise.supersetWithPrevious
+                ? "نام حرکت (زوج سوپرست)"
+                : "نام حرکت (سوپرست)"
+              : "نام حرکت"
         }
       >
         <Input
           value={exercise.name}
           onChange={(event) => onChange({ ...exercise, name: event.target.value })}
         />
+        {exercise.trainingGroupName ? (
+          <span className={styles.supersetBadge} data-testid="training-system-group-badge">
+            گروه {exercise.trainingGroupName}
+            {exercise.trainingGroupSize ? ` · ${exercise.trainingGroupSize} حرکت` : ""}
+          </span>
+        ) : null}
         {exercise.supersetGroupId &&
+        !exercise.trainingGroupName &&
         !exercise.supersetWithPrevious &&
         exercise.supersetPartnerName ? (
           <span className={styles.supersetBadge} data-testid="superset-badge">
@@ -848,7 +859,7 @@ function ExerciseEditor({
         ) : null}
         {exercise.supersetGroupId && !exercise.supersetWithPrevious ? (
           <small>
-            استراحت بین حرکات: {exercise.supersetRestBetweenSeconds ?? 0} ثانیه؛ بعد از جفت:{" "}
+            استراحت بین حرکات: {exercise.supersetRestBetweenSeconds ?? 0} ثانیه؛ بعد از گروه:{" "}
             {exercise.supersetRestAfterSeconds ?? 90} ثانیه
           </small>
         ) : null}
