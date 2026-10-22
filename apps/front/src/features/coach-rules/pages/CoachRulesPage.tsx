@@ -24,6 +24,7 @@ import { StructuredCatalogSection } from "../components/StructuredCatalogSection
 import { VisitFormTemplatesSection } from "../components/VisitFormTemplatesSection";
 import { SupplementTemplatesSection } from "../components/SupplementTemplatesSection";
 import { SupplementCatalogSection } from "../components/SupplementCatalogSection";
+import { TrainingSystemsSection } from "../components/TrainingSystemsSection";
 import {
   coachRulesRepository,
   cloneCoachRules,
@@ -46,6 +47,7 @@ import type {
 const sectionLabels: Record<CoachRuleSection, string> = {
   visitForms: "فرم‌های ویزیت",
   exercises: "کاتالوگ حرکات",
+  trainingSystems: "سیستم‌های تمرینی",
   general: "قوانین عمومی",
   injuries: "آسیب ها و محدودیت ها",
   levels: "قوانین سطح تمرین",
@@ -61,6 +63,7 @@ const sectionOrder: CoachRuleSection[] = [
   "injuries",
   "muscles",
   "exercises",
+  "trainingSystems",
   "general",
   "visitForms",
   "nutritionTemplates",
@@ -345,6 +348,9 @@ function RulesSection({ rules, section, templatesRepository, updateRules }: Rule
   }
   if (section === "exercises") {
     return <StructuredCatalogSection />;
+  }
+  if (section === "trainingSystems") {
+    return <TrainingSystemsSection />;
   }
   if (section === "nutritionTemplates") {
     return (

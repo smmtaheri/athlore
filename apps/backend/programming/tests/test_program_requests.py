@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -13,7 +14,7 @@ from programming.models import Program, ProgramRequest, ProgramVersion
 from programming.services import program_requests as request_services
 from programming.services.generator import generate_document
 from programming.services.programs import generate_program
-from students.models import Student
+from students.models import Student, Visit
 from students.services import complete_student_setup, login_student, set_portal_initial_password
 
 User = get_user_model()
@@ -200,6 +201,64 @@ class ProgramRequestApiTests(TestCase):
         )
         self.assertEqual(program.sections, ["nutrition"])
         self.assertEqual(run.request["program_sections"], ["nutrition"])
+
+    def test_visit_request_generation_carries_partial_rep_system_into_saved_draft(self):
+        visit = Visit.objects.create(
+            coach=self.coach,
+            student=self.student,
+            visit_date=date(2026, 10, 21),
+            current_weight_kg=80,
+            previous_weight_kg=81,
+            daily_energy_level=Visit.Level.GOOD,
+            sleep_quality=Visit.Level.MEDIUM,
+            stress_level=Visit.Level.LOW,
+            status=Visit.Status.FINALIZED,
+            answers={"training": {"sessions_per_week": 4}},
+        )
+        request = ProgramRequest.objects.create(
+            coach=self.coach,
+            student=self.student,
+            visit=visit,
+            sections=["workout"],
+            sessions_per_week=4,
+            assessment_mode=ProgramRequest.AssessmentMode.IN_PERSON,
+            status=ProgramRequest.Status.IN_PROGRESS,
+        )
+        rule_set, _ = CoachRuleSet.objects.get_or_create(coach=self.coach)
+        template = ProgramTemplate.objects.create(
+            rule_set=rule_set,
+            coach=self.coach,
+            name="Four-day visit test",
+            level=ProgramTemplate.Level.INTERMEDIATE,
+            days_per_week=4,
+            split=["سینه", "زیربغل", "پا", "سرشانه"],
+        )
+
+        program, run = generate_program(
+            self.coach,
+            {
+                "student_id": str(self.student.id),
+                "template_id": str(template.id),
+                "program_type": "workout",
+                "program_request_id": str(request.id),
+                "days_per_week": 4,
+                "level": "intermediate",
+                "date_range_start": "2026-10-22",
+                "date_range_end": "2026-11-18",
+                "training_systems": [{"key": "partial_reps", "variants": ["after_failure"]}],
+            },
+        )
+
+        self.assertEqual(str(run.request["visit_id"]), str(visit.id))
+        self.assertEqual(str(run.request["program_request_id"]), str(request.id))
+        self.assertEqual(run.request["training_systems"][0]["variants"], ["after_failure"])
+        self.assertEqual(program.sections, ["workout"])
+        exercises = [
+            item
+            for day in ProgramVersion.objects.get(program=program).training["days"]
+            for item in day["exercises"]
+        ]
+        self.assertTrue(any(item.get("partialReps") for item in exercises))
 
     @patch("programming.services.generator._generate_document_body", return_value=({}, []))
     @patch("programming.services.generator.merge_student_with_assessment")

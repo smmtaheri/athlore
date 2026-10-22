@@ -4,6 +4,7 @@ export type CoachRuleSection =
   | "injuries"
   | "muscles"
   | "exercises"
+  | "trainingSystems"
   | "general"
   | "nutritionTemplates"
   | "supplementTemplates"
@@ -91,6 +92,24 @@ export interface TrainingTechniqueConfig {
   maxPerSession: number;
   name: string;
   parameters: Record<string, unknown>;
+  source: "platform" | "coach_override" | "coach_private";
+}
+
+export interface TrainingSystem {
+  allowed_levels: string[];
+  base_technique_key: string | null;
+  description: string;
+  enabled: boolean;
+  execution_method: string;
+  handler_key?: string;
+  handler_status: "implemented" | "manual_only";
+  id: string | null;
+  key: string;
+  max_per_session: number;
+  name: string;
+  parameter_schema?: Record<string, unknown>;
+  parameters: Record<string, unknown>;
+  public_definition?: { parameter_schema?: Record<string, unknown> } | null;
   source: "platform" | "coach_override" | "coach_private";
 }
 

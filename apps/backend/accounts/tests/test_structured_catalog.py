@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from decimal import Decimal
 
 from django.test import override_settings
@@ -443,3 +444,80 @@ class StructuredCatalogGeneratorTests(APITestCase):
         self.assertEqual(first["techniques"][0]["parameters"]["pairing_mode"], "antagonist")
         self.assertEqual(evidence[0]["status"], "applied")
         self.assertEqual(evidence[0]["parameters"]["max_pairs"], 2)
+
+    def test_partial_rep_modes_are_opt_in_and_preserve_normal_exercise_selection(self):
+        from accounts.models import TrainingTechnique
+
+        self.assertTrue(
+            TrainingTechnique.objects.filter(key="partial_reps", is_active=True).exists()
+        )
+        baseline = [
+            {
+                "id": "day-1",
+                "notes": "فرم صحیح اولویت دارد.",
+                "exercises": [
+                    {
+                        "id": f"exercise-{index}",
+                        "name": f"حرکت {index}",
+                        "targetMuscle": "سینه",
+                        "sets": 3,
+                        "reps": "۸ تا ۱۲",
+                        "raw_prescription": "۳×۱۰",
+                        "notes": "",
+                        "supersetGroupId": None,
+                        "techniques": [],
+                    }
+                    for index in range(1, 5)
+                ],
+            }
+        ]
+
+        normal_days, normal_evidence, _ = apply_structured_techniques(
+            copy.deepcopy(baseline), self.coach, "intermediate", selected_systems=[]
+        )
+        self.assertEqual(normal_days, baseline)
+        self.assertEqual(normal_evidence, [])
+
+        for variant in ("one_and_half", "after_failure", "partial_only"):
+            days, evidence, _ = apply_structured_techniques(
+                copy.deepcopy(baseline),
+                self.coach,
+                "intermediate",
+                selected_systems=[{"key": "partial_reps", "variants": [variant]}],
+            )
+            exercises = days[0]["exercises"]
+            self.assertEqual(
+                [item["name"] for item in exercises],
+                [item["name"] for item in baseline[0]["exercises"]],
+            )
+            selected = [item for item in exercises if item.get("partialReps")]
+            self.assertEqual(len(selected), 2)
+            self.assertEqual({item["partialReps"]["variant"] for item in selected}, {variant})
+            self.assertTrue(all("تکرار نیمه" in item["notes"] for item in selected))
+            self.assertEqual(evidence[0]["status"], "applied")
+            self.assertEqual(evidence[0]["applications"][0]["variant"], variant)
+
+    def test_selected_manual_system_is_added_as_a_coach_review_note(self):
+        custom = self.client.post(
+            "/api/v1/training-techniques/",
+            {
+                "key": "coach-system-rest-pause",
+                "name": "استراحت-مکث مربی",
+                "description": "استراحت کوتاه میان تکرارها.",
+                "execution_method": "پس از هر بخش، ۱۵ ثانیه استراحت و ادامه تا فرم صحیح.",
+                "enabled": True,
+            },
+            format="json",
+            **auth_header(self.tokens),
+        )
+        self.assertEqual(custom.status_code, 201, custom.content)
+
+        days, evidence, _ = apply_structured_techniques(
+            [{"id": "day-1", "notes": "فرم صحیح اولویت دارد.", "exercises": []}],
+            self.coach,
+            "intermediate",
+            selected_systems=[{"key": "coach-system-rest-pause"}],
+        )
+        self.assertIn("استراحت-مکث مربی", days[0]["notes"])
+        self.assertIn("بازبینی مربی", days[0]["notes"])
+        self.assertEqual(evidence[0]["status"], "coach_review_required")

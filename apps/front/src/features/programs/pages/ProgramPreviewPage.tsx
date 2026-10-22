@@ -857,6 +857,12 @@ function ExerciseEditor({
             دراپ‌ست: {exercise.dropSet.drops} دراپ با کاهش {exercise.dropSet.reduction_percent}٪
           </span>
         ) : null}
+        {exercise.partialReps ? (
+          <span className={styles.supersetBadge} data-testid="partial-reps-badge">
+            {partialRepLabel(exercise.partialReps.variant, exercise.partialReps.after_failure_reps)}
+            ؛ دامنهٔ نیمه نیازمند بازبینی مربی است.
+          </span>
+        ) : null}
       </FormField>
       <FormField label="ست">
         <Input
@@ -908,6 +914,15 @@ function ExerciseEditor({
       </div>
     </div>
   );
+}
+
+function partialRepLabel(
+  variant: NonNullable<TrainingExercise["partialReps"]>["variant"],
+  count: number
+) {
+  if (variant === "one_and_half") return "تکرار یک‌ونیم";
+  if (variant === "after_failure") return `${count} نیم‌تکرار پس از ناتوانی فنی`;
+  return "کل ست در دامنهٔ نیمه";
 }
 
 function NutritionEditor({

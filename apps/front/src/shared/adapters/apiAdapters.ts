@@ -3,7 +3,8 @@
 import type {
   CoachRules,
   NutritionTemplateSummary,
-  SupplementTemplateSummary
+  SupplementTemplateSummary,
+  TrainingTechniqueConfig
 } from "../../features/coach-rules/types/coachRules";
 import type {
   GeneratedProgram,
@@ -620,6 +621,23 @@ export function coachRulesFromApi(dto: Record<string, unknown>): CoachRules {
     ...(supplementTemplates
       ? { supplementTemplates: supplementTemplates.map(supplementTemplateFromApi) }
       : {}),
+    trainingTechniques: ((dto.training_techniques as Record<string, unknown>[]) || []).map(
+      (item): TrainingTechniqueConfig => ({
+        allowedLevels: asStringArray(item.allowed_levels),
+        baseTechniqueKey: item.base_technique_key ? String(item.base_technique_key) : null,
+        enabled: Boolean(item.enabled),
+        handlerStatus: item.handler_status === "implemented" ? "implemented" : "manual_only",
+        id: item.id ? String(item.id) : null,
+        key: String(item.key ?? ""),
+        maxPerSession: num(item.max_per_session),
+        name: String(item.name ?? ""),
+        parameters: (item.parameters as Record<string, unknown>) || {},
+        source:
+          item.source === "coach_override" || item.source === "coach_private"
+            ? item.source
+            : "platform"
+      })
+    ),
     updatedAt: String(dto.updated_at ?? "")
   };
 }

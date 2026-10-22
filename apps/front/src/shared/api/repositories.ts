@@ -468,6 +468,7 @@ export function createApiProgramsRepository(): ProgramsRepository & {
       };
       if (input.programRequestId) body.program_request_id = input.programRequestId;
       if (input.visitId) body.visit_id = input.visitId;
+      if (input.trainingSystems) body.training_systems = input.trainingSystems;
       if (input.targetMuscle) {
         body.target_muscle = input.targetMuscle;
       }

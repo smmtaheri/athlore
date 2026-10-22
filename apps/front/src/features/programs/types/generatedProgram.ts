@@ -28,6 +28,11 @@ export interface TrainingExercise {
   supersetRestBetweenSeconds?: number;
   supersetRestAfterSeconds?: number;
   dropSet?: { drops: number; reduction_percent: number };
+  partialReps?: {
+    variant: "one_and_half" | "after_failure" | "partial_only";
+    after_failure_reps: number;
+    half_range: string;
+  };
   techniques?: Array<{
     key: string;
     name: string;
@@ -237,6 +242,7 @@ export interface ProgramGenerationInput {
   targetMuscle?: string;
   targetRegion?: string;
   supplementSelection?: import("../../coach-rules/services/supplementCatalogRepository").SupplementSelection;
+  trainingSystems?: Array<{ key: string; variants?: string[] }>;
   templateId: string;
   title: string;
 }

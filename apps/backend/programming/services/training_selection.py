@@ -825,6 +825,7 @@ def build_training_days(
     target_muscle: str = "",
     target_region: str = "",
     target_exercise_count: int | None = None,
+    selected_training_systems: list[dict] | None = None,
 ) -> tuple[list[dict], dict]:
     equipment_tokens = available_equipment_tokens(student.equipment)
     goals = student.goals or {}
@@ -1240,6 +1241,7 @@ def build_training_days(
         coach,
         level,
         allowed_names=allowed_technique_names,
+        selected_systems=selected_training_systems,
     )
     evidence["techniques"] = structured_technique_evidence
 

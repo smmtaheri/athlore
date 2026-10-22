@@ -611,7 +611,13 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
             raise ValidationError(
                 {"program_type": ["نوع برنامه با بخش‌های درخواست‌شده هم‌خوانی ندارد."]}
             )
-        generation_data = {**request_data, "program_sections": selected_sections}
+        generation_data = {
+            **request_data,
+            "program_request_id": str(program_request.id),
+            "program_sections": selected_sections,
+        }
+        if program_request.visit_id:
+            generation_data["visit_id"] = str(program_request.visit_id)
 
     try:
         template = ProgramTemplate.objects.get(pk=template_id, coach=coach)

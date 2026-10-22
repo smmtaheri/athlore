@@ -1,0 +1,150 @@
+.stack {
+  display: grid;
+  gap: 20px;
+}
+
+.header,
+.systemHead,
+.actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.header h2,
+.systemHead h3 {
+  margin: 0;
+}
+
+.header p,
+.systemHead p,
+.method {
+  color: var(--color-text-secondary, #64748b);
+  line-height: 1.8;
+}
+
+.notice,
+.feedback,
+.error {
+  padding: 12px 14px;
+  border-radius: 12px;
+  line-height: 1.8;
+}
+
+.notice {
+  background: #f8fafc;
+  color: #475569;
+}
+
+.feedback {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.error {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.systemCard {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.systemHead {
+  align-items: center;
+}
+
+.systemHead > div {
+  min-width: 0;
+}
+
+.systemHead p,
+.method {
+  margin: 6px 0 0;
+}
+
+.method {
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.actions {
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.editor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  max-height: min(70vh, 760px);
+  overflow: auto;
+}
+
+.editor > :nth-child(2),
+.editor > :nth-child(3),
+.full {
+  grid-column: 1 / -1;
+}
+
+.twoColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.select {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+@media (max-width: 640px) {
+  .header,
+  .systemHead {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .editor,
+  .twoColumns {
+    grid-template-columns: 1fr;
+  }
+
+  .editor > :nth-child(2),
+  .editor > :nth-child(3),
+  .full {
+    grid-column: auto;
+  }
+
+  .actions > button {
+    flex: 1 1 120px;
+  }
+}

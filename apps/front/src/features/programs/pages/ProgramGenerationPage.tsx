@@ -26,6 +26,11 @@ import {
   type CoachRulesRepository
 } from "../../coach-rules/services/coachRulesRepository";
 import type { CoachRules } from "../../coach-rules/types/coachRules";
+import type { TrainingSystem } from "../../coach-rules/types/coachRules";
+import {
+  trainingSystemsRepository,
+  type TrainingSystemsRepository
+} from "../../coach-rules/services/trainingSystemsRepository";
 import {
   studentProgramsRepository,
   type StudentProgramsRepository
@@ -102,12 +107,19 @@ const chestTargetRegionOptions = [
   { label: "داخل زیرسینه", value: "inner_lower_chest" }
 ];
 
+const partialRepVariantOptions = [
+  { label: "تکرار یک‌ونیم", value: "one_and_half" },
+  { label: "نیم‌تکرار پس از ناتوانی", value: "after_failure" },
+  { label: "کل ست در دامنهٔ نیمه", value: "partial_only" }
+] as const;
+
 export interface ProgramGenerationPageProps {
   coachRulesRepo?: CoachRulesRepository;
   programsRepo?: ProgramsRepository;
   studentProgramsRepo?: StudentProgramsRepository;
   studentsRepo?: StudentsRepository;
   visitsRepo?: StudentVisitsRepository;
+  trainingSystemsRepo?: TrainingSystemsRepository;
 }
 
 export function ProgramGenerationPage({
@@ -115,11 +127,14 @@ export function ProgramGenerationPage({
   programsRepo = programsRepository,
   studentProgramsRepo = studentProgramsRepository,
   studentsRepo = studentsRepository,
-  visitsRepo = studentVisitsRepository
+  visitsRepo = studentVisitsRepository,
+  trainingSystemsRepo = trainingSystemsRepository
 }: ProgramGenerationPageProps) {
   const location = useLocation();
   const [students, setStudents] = useState<Student[]>([]);
   const [rules, setRules] = useState<CoachRules>();
+  const [trainingSystems, setTrainingSystems] = useState<TrainingSystem[]>([]);
+  const [trainingSystemsAvailable, setTrainingSystemsAvailable] = useState(false);
   const [visits, setVisits] = useState<StudentVisit[]>([]);
   const [programRequest, setProgramRequest] = useState<ProgramRequest | null>(null);
   const [feedback, setFeedback] = useState(
@@ -162,6 +177,7 @@ export function ProgramGenerationPage({
     targetExerciseCount: 2,
     targetMuscle: "",
     targetRegion: "",
+    trainingSystems: [],
     templateId: "",
     title: "برنامه کامل محمد طاهری"
   });
@@ -171,19 +187,28 @@ export function ProgramGenerationPage({
     Promise.all([
       studentsRepo.list(),
       coachRulesRepo.get().catch(() => undefined),
-      programRequestId ? programRequestRepository.getCoach(programRequestId) : Promise.resolve(null)
+      programRequestId
+        ? programRequestRepository.getCoach(programRequestId)
+        : Promise.resolve(null),
+      trainingSystemsRepo
+        .list()
+        .then((items) => items)
+        .catch(() => [])
     ])
-      .then(([studentItems, coachRules, requestItem]) => {
+      .then(([studentItems, coachRules, requestItem, trainingSystemItems]) => {
         if (!isMounted) {
           return;
         }
         const activeStudentItems = studentItems.filter((student) => student.status === "active");
         const requestedStudent = studentItems.find((student) => student.id === initialStudentId);
         setProgramRequest(requestItem);
+        setTrainingSystems(trainingSystemItems);
+        setTrainingSystemsAvailable(trainingSystemItems.length > 0);
         const selectedStudent =
           activeStudentItems.find((student) => student.id === initialStudentId) ??
           (requestedStudent ? undefined : activeStudentItems[0]);
-        const studentDays = selectedStudent?.trainingConditions.trainingDaysPerWeek;
+        const studentDays =
+          requestItem?.sessionsPerWeek ?? selectedStudent?.trainingConditions.trainingDaysPerWeek;
         const preferredName = "۴ روزه حجم متوسط";
         const matchingTemplates = studentDays
           ? coachRules?.templates.filter((item) => item.daysPerWeek === studentDays)
@@ -223,6 +248,11 @@ export function ProgramGenerationPage({
           level: selectedStudent?.trainingBackground.level ?? current.level,
           musclePriorities: selectedStudent?.goals.musclePriorities ?? current.musclePriorities,
           studentId: selectedStudent?.id ?? "",
+          trainingSystems: defaultTrainingSystemSelection(
+            trainingSystemItems,
+            (selectedStudent?.trainingBackground.level ?? current.level) as TrainingLevel,
+            coachRules
+          ),
           templateId: template?.id ?? "",
           title: selectedStudent
             ? `برنامه ${requestItem ? programTitleForRequest(requestItem.sections) : "کامل"} ${selectedStudent.fullName}`
@@ -244,7 +274,7 @@ export function ProgramGenerationPage({
     return () => {
       isMounted = false;
     };
-  }, [coachRulesRepo, initialStudentId, programRequestId, studentsRepo]);
+  }, [coachRulesRepo, initialStudentId, programRequestId, studentsRepo, trainingSystemsRepo]);
 
   useEffect(() => {
     if (!form.studentId || status === "loading") {
@@ -391,6 +421,7 @@ export function ProgramGenerationPage({
     }
     const student = students.find((item) => item.id === studentId);
     const studentDays = student?.trainingConditions.trainingDaysPerWeek;
+    const studentLevel = (student?.trainingBackground.level ?? "intermediate") as TrainingLevel;
     const preferredName = "۴ روزه حجم متوسط";
     const matchingTemplates = studentDays
       ? rules?.templates.filter((item) => item.daysPerWeek === studentDays)
@@ -403,10 +434,11 @@ export function ProgramGenerationPage({
       ...current,
       daysPerWeek: studentDays ?? template?.daysPerWeek ?? 4,
       goal: student?.goals.secondaryGoal || current.goal,
-      level: student?.trainingBackground.level ?? current.level,
+      level: studentLevel,
       musclePriorities: student?.goals.musclePriorities ?? current.musclePriorities,
       studentId,
       supplementSelection: emptySupplementSelection(),
+      trainingSystems: defaultTrainingSystemSelection(trainingSystems, studentLevel, rules),
       templateId: template?.id ?? "",
       title: student ? `برنامه کامل ${student.fullName}` : current.title
     }));
@@ -471,8 +503,9 @@ export function ProgramGenerationPage({
     try {
       const generationInput = {
         ...form,
+        trainingSystems: trainingSystemsAvailable ? (form.trainingSystems ?? []) : undefined,
         ...(programRequestId ? { programRequestId } : {}),
-        ...(initialVisitId ? { visitId: initialVisitId } : {}),
+        ...(selectedVisitId ? { visitId: selectedVisitId } : {}),
         dateRangeEnd: period!.endIso,
         dateRangeLabel: period!.label,
         dateRangeStart: period!.startIso
@@ -568,7 +601,7 @@ export function ProgramGenerationPage({
         dateRangeStart: period.startIso,
         programType: form.programType,
         ...(programRequestId ? { programRequestId } : {}),
-        ...(initialVisitId ? { visitId: initialVisitId } : {}),
+        ...(selectedVisitId ? { visitId: selectedVisitId } : {}),
         stagedPdfId: firstStaged.id,
         studentId: form.studentId,
         title: form.title
@@ -718,6 +751,7 @@ export function ProgramGenerationPage({
               >
                 <Select
                   placeholder="انتخاب شاگرد فعال"
+                  disabled={Boolean(programRequestId)}
                   id="program-student-select"
                   options={studentOptions}
                   value={form.studentId}
@@ -874,6 +908,117 @@ export function ProgramGenerationPage({
             <Card className={styles.pageStack}>
               <div className={styles.sectionHeader}>
                 <div>
+                  <h2 className={styles.sectionTitle}>سیستم‌های تمرینی این دوره</h2>
+                  <p className={styles.sectionDescription}>
+                    ویزیتِ متصل به درخواست و اطلاعات برنامه در تولید استفاده می‌شوند؛ اینجا مربی
+                    روش‌های اجرایی همین دوره را تأیید می‌کند. سیستم انتخاب‌نشده به‌صورت خودکار اضافه
+                    نمی‌شود.
+                  </p>
+                </div>
+                <StatusBadge variant="info">
+                  {programRequest
+                    ? "متصل به درخواست برنامه"
+                    : selectedVisitId
+                      ? "متصل به ویزیت"
+                      : "انتخاب مربی"}
+                </StatusBadge>
+              </div>
+              <div className={styles.checkboxGrid}>
+                {trainingSystems.map((system) => {
+                  const selected = form.trainingSystems?.find((item) => item.key === system.key);
+                  const levelAllowed =
+                    system.allowed_levels.length === 0 ||
+                    system.allowed_levels.includes(form.level);
+                  const configuredOff = system.source !== "platform" && !system.enabled;
+                  const recognizedHandler = ["superset", "drop_set", "partial_reps"].includes(
+                    system.handler_key ?? ""
+                  );
+                  const canRun =
+                    levelAllowed &&
+                    !configuredOff &&
+                    (recognizedHandler || system.handler_status === "manual_only");
+                  const variants = trainingSystemVariants(system);
+                  return (
+                    <div className={styles.pageStack} key={system.id ?? system.key}>
+                      <Checkbox
+                        checked={Boolean(selected)}
+                        disabled={!canRun}
+                        label={`${system.name}${canRun ? "" : " · در این سطح قابل انتخاب نیست"}`}
+                        onChange={(event) => {
+                          const next = event.target.checked
+                            ? [
+                                ...(form.trainingSystems ?? []),
+                                {
+                                  key: system.key,
+                                  ...(system.handler_key === "partial_reps" ? { variants } : {})
+                                }
+                              ]
+                            : (form.trainingSystems ?? []).filter(
+                                (item) => item.key !== system.key
+                              );
+                          updateForm("trainingSystems", next);
+                        }}
+                      />
+                      <p className={styles.sectionDescription}>
+                        {system.handler_status === "manual_only"
+                          ? "این روش به‌صورت یادداشت مربی به روزهای برنامه افزوده می‌شود و اجرای خودکار ندارد؛ قبل از ارسال بازبینی کنید."
+                          : system.description}
+                      </p>
+                      {selected && system.handler_key === "partial_reps" ? (
+                        <div className={styles.checkboxGrid}>
+                          {partialRepVariantOptions
+                            .filter((option) => variants.includes(option.value))
+                            .map((option) => (
+                              <Checkbox
+                                checked={selected.variants?.includes(option.value) ?? false}
+                                key={option.value}
+                                label={option.label}
+                                onChange={(event) => {
+                                  const previousVariants = selected.variants ?? [];
+                                  if (!event.target.checked && previousVariants.length === 1) {
+                                    updateForm(
+                                      "trainingSystems",
+                                      (form.trainingSystems ?? []).filter(
+                                        (item) => item.key !== system.key
+                                      )
+                                    );
+                                    return;
+                                  }
+                                  const nextVariants = event.target.checked
+                                    ? [...new Set([...previousVariants, option.value])]
+                                    : previousVariants.filter((item) => item !== option.value);
+                                  const nextSelection = (form.trainingSystems ?? []).map((item) =>
+                                    item.key === system.key
+                                      ? { ...item, variants: nextVariants }
+                                      : item
+                                  );
+                                  updateForm("trainingSystems", nextSelection);
+                                }}
+                              />
+                            ))}
+                          <span className={styles.sectionDescription}>
+                            مقدارهای سه‌گانه و ۳ نیم‌تکرار پس از ناتوانی، پیش‌فرض‌های اولیه‌اند؛
+                            دامنهٔ نیمه برای هر حرکت در بازبینی مربی مشخص می‌شود.
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+              {trainingSystems.length === 0 ? (
+                <p className={styles.sectionDescription} role="status">
+                  فهرست سیستم‌ها در دسترس نیست؛ از «قوانین مربی ← سیستم‌های تمرینی» دوباره دریافتش
+                  کنید.
+                </p>
+              ) : null}
+            </Card>
+          ) : null}
+
+          {generatedSections.length > 0 ? (
+            <Card className={styles.pageStack}>
+              <div className={styles.sectionHeader}>
+                <div>
                   <h2 className={styles.sectionTitle}>تنظیمات برنامه</h2>
                   <p className={styles.sectionDescription}>
                     مربی می تواند قبل از تولید موارد قابل تغییر را اصلاح کند.
@@ -920,7 +1065,21 @@ export function ProgramGenerationPage({
                   <Select
                     options={levelOptions}
                     value={form.level}
-                    onChange={(event) => updateForm("level", event.target.value as TrainingLevel)}
+                    onChange={(event) => {
+                      const level = event.target.value as TrainingLevel;
+                      setForm((current) => ({
+                        ...current,
+                        level,
+                        trainingSystems: (current.trainingSystems ?? []).filter((selected) => {
+                          const system = trainingSystems.find((item) => item.key === selected.key);
+                          return (
+                            system &&
+                            (system.allowed_levels.length === 0 ||
+                              system.allowed_levels.includes(level))
+                          );
+                        })
+                      }));
+                    }}
                   />
                 </FormField>
                 <FormField
@@ -1165,6 +1324,52 @@ function programTitleForRequest(sections: ProgramRequest["sections"]): string {
   if (sections[0] === "workout") return "تمرینی";
   if (sections[0] === "nutrition") return "غذایی";
   return "مکمل";
+}
+
+function defaultTrainingSystemSelection(
+  systems: TrainingSystem[],
+  level: TrainingLevel,
+  rules?: CoachRules
+): ProgramGenerationInput["trainingSystems"] {
+  const levelRule = rules?.levels.find((item) => item.id === level);
+  const allowedByRule = new Set(
+    (levelRule?.allowedTechniques ?? []).map((item) => item.replace(/‌/g, " ").trim().toLowerCase())
+  );
+
+  return systems
+    .filter((system) => {
+      if (system.handler_key === "partial_reps") return false;
+      if (system.allowed_levels.length && !system.allowed_levels.includes(level)) return false;
+      if (system.source === "coach_private") return false;
+      if (system.source === "coach_override") return system.enabled;
+      const aliases = [system.key, system.name].map((item) =>
+        item.replace(/‌/g, " ").trim().toLowerCase()
+      );
+      return (
+        (system.handler_key === "superset" && level === "intermediate") ||
+        aliases.some((item) => allowedByRule.has(item))
+      );
+    })
+    .map((system) => ({ key: system.key }));
+}
+
+function trainingSystemVariants(system: TrainingSystem): string[] {
+  const schema = system.parameter_schema ?? system.public_definition?.parameter_schema ?? {};
+  const variantSchema = schema.variants;
+  const schemaDefault =
+    variantSchema && typeof variantSchema === "object" && "default" in variantSchema
+      ? (variantSchema as { default?: unknown }).default
+      : undefined;
+  const configured = system.parameters?.variants;
+  const values = Array.isArray(configured)
+    ? configured
+    : Array.isArray(schemaDefault)
+      ? schemaDefault
+      : partialRepVariantOptions.map((item) => item.value);
+  const available = new Set(partialRepVariantOptions.map((item) => item.value));
+  return values.filter((item): item is (typeof partialRepVariantOptions)[number]["value"] =>
+    available.has(item as (typeof partialRepVariantOptions)[number]["value"])
+  );
 }
 
 function isErrorFeedback(message: string): boolean {

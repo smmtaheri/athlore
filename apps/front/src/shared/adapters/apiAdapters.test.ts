@@ -108,9 +108,27 @@ describe("api adapters", () => {
       levels: [],
       injuries: [],
       muscle_priorities: [],
+      training_techniques: [
+        {
+          id: null,
+          key: "partial_reps",
+          name: "تکرار نیمه",
+          source: "platform",
+          enabled: false,
+          allowed_levels: [],
+          max_per_session: 0,
+          handler_status: "implemented",
+          parameters: {}
+        }
+      ],
       general_rules: { extra_notes: "x", items: [] }
     });
     expect(rules.templates[0].daysPerWeek).toBe(3);
+    expect(rules.trainingTechniques?.[0]).toMatchObject({
+      key: "partial_reps",
+      handlerStatus: "implemented",
+      source: "platform"
+    });
     const body = coachRulesToApi(rules);
     expect((body.templates as { days_per_week: number }[])[0].days_per_week).toBe(3);
     expect(body).not.toHaveProperty("exercise_bank");

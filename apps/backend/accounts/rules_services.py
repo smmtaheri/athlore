@@ -488,6 +488,26 @@ def _normalize_technique_parameters(
             if reduction < 1 or reduction > 80:
                 raise ValidationError({field: ["reduction_percent must be between 1 and 80."]})
             params["reduction_percent"] = reduction
+    elif handler_key == "partial_reps":
+        allowed_variants = {"one_and_half", "after_failure", "partial_only"}
+        variants = params.get("variants", sorted(allowed_variants))
+        if not isinstance(variants, list) or not variants:
+            raise ValidationError({field: ["variants must contain at least one supported option."]})
+        normalized_variants = list(dict.fromkeys(str(item) for item in variants))
+        invalid_variants = sorted(set(normalized_variants) - allowed_variants)
+        if invalid_variants:
+            raise ValidationError(
+                {field: [f"Unsupported partial-rep variants: {invalid_variants}"]}
+            )
+        params["variants"] = normalized_variants
+        try:
+            after_failure_reps = int(params.get("after_failure_reps", 3))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError({field: ["after_failure_reps must be an integer."]}) from exc
+        if after_failure_reps < 1 or after_failure_reps > 10:
+            raise ValidationError({field: ["after_failure_reps must be between 1 and 10."]})
+        params["after_failure_reps"] = after_failure_reps
+        params["half_range"] = "coach_defined_per_exercise"
     return params
 
 
@@ -1131,7 +1151,8 @@ def create_coach_technique(coach: CoachProfile, payload: dict) -> CoachTechnique
             raise ValidationError({"base_technique_key": ["This technique is already configured."]})
     levels = _validated_levels(payload.get("allowed_levels", []), "allowed_levels")
     try:
-        max_per_session = max(0, int(payload.get("max_per_session") or 0))
+        default_max = 2 if (base and base.handler_key == "partial_reps") else 0
+        max_per_session = max(0, int(payload.get("max_per_session", default_max) or 0))
     except (TypeError, ValueError) as exc:
         raise ValidationError({"max_per_session": ["Must be a non-negative integer."]}) from exc
     parameters = _normalize_technique_parameters(

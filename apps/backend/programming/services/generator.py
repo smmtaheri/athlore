@@ -596,6 +596,9 @@ def _generate_document_body(
                 if request.get("exercise_count") is not None
                 else None
             ),
+            selected_training_systems=(
+                request.get("training_systems") if "training_systems" in request else None
+            ),
         )
         warnings.extend(train_warnings)
 
@@ -864,6 +867,7 @@ def _build_training(
     target_muscle: str = "",
     target_region: str = "",
     target_exercise_count: int | None = None,
+    selected_training_systems: list[dict] | None = None,
 ) -> tuple[dict, list[str], dict]:
     warnings: list[str] = []
     rule_set = ensure_rule_set(coach)
@@ -995,6 +999,7 @@ def _build_training(
         target_muscle=target_muscle,
         target_region=target_region,
         target_exercise_count=target_exercise_count,
+        selected_training_systems=selected_training_systems,
         warnings=warnings,
     )
 
