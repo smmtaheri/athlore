@@ -268,6 +268,15 @@ class TrainingTechniqueListCreateView(APIView):
         )
 
 
+class PlatformTrainingTechniqueDetailView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def patch(self, request, technique_key):
+        get_request_coach(request)
+        technique = rules_services.update_platform_technique(technique_key, request.data)
+        return Response(rules_services.serialize_platform_technique(technique))
+
+
 class TrainingTechniqueDetailView(APIView):
     permission_classes = [IsAuthenticatedCoach]
 

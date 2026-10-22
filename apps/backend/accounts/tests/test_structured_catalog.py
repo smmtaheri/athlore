@@ -249,6 +249,8 @@ class StructuredCatalogApiTests(APITestCase):
                 "tempo_isometric",
                 "mechanical_drop_set",
                 "100_reps",
+                "gvt_10x10",
+                "antagonist_superset",
             }.issubset({row["key"] for row in public.data})
         )
         self.assertTrue(all(row["recipe"].get("version") == 1 for row in public.data))
@@ -298,6 +300,91 @@ class StructuredCatalogApiTests(APITestCase):
             **auth_header(self.tokens_b),
         )
         self.assertEqual(forbidden_patch.status_code, 404)
+
+    def test_platform_training_system_edits_are_shared_and_sync_unmodified_override_fields(self):
+        coach_a_headers = auth_header(self.tokens_a)
+        coach_b_headers = auth_header(self.tokens_b)
+        coach_a_catalog = self.client.get("/api/v1/training-techniques/", **coach_a_headers)
+        self.assertEqual(coach_a_catalog.status_code, 200)
+        base = next(row for row in coach_a_catalog.data if row["key"] == "superset")
+
+        coach_b_override = self.client.post(
+            "/api/v1/training-techniques/",
+            {
+                "key": "superset",
+                "name": base["name"],
+                "description": base["description"],
+                "execution_method": base["execution_method"],
+                "base_technique_key": "superset",
+                "recipe": base["recipe"],
+            },
+            format="json",
+            **coach_b_headers,
+        )
+        self.assertEqual(coach_b_override.status_code, 201, coach_b_override.content)
+
+        updated_recipe = {
+            **base["recipe"],
+            "grouping": {**base["recipe"]["grouping"], "rest_after_seconds": 105},
+        }
+        shared_edit = self.client.patch(
+            "/api/v1/training-techniques/platform/superset/",
+            {
+                "name": "سوپرست مشترک ویرایش‌شده",
+                "description": "تعریف مشترک جدید",
+                "execution_method": "روش اجرای مشترک جدید",
+                "recipe": updated_recipe,
+            },
+            format="json",
+            **coach_a_headers,
+        )
+        self.assertEqual(shared_edit.status_code, 200, shared_edit.content)
+        self.assertEqual(shared_edit.data["source"], "platform")
+
+        coach_b_catalog = self.client.get("/api/v1/training-techniques/", **coach_b_headers)
+        coach_b_system = next(row for row in coach_b_catalog.data if row["key"] == "superset")
+        self.assertEqual(coach_b_system["name"], "سوپرست مشترک ویرایش‌شده")
+        self.assertEqual(coach_b_system["description"], "تعریف مشترک جدید")
+        self.assertEqual(coach_b_system["recipe"]["grouping"]["rest_after_seconds"], 105)
+
+        custom_name = self.client.patch(
+            f"/api/v1/training-techniques/{coach_b_system['id']}/",
+            {"name": "سوپرست با نام شخصی مربی B"},
+            format="json",
+            **coach_b_headers,
+        )
+        self.assertEqual(custom_name.status_code, 200)
+
+        next_recipe = {
+            **updated_recipe,
+            "grouping": {**updated_recipe["grouping"], "rest_after_seconds": 120},
+        }
+        second_shared_edit = self.client.patch(
+            "/api/v1/training-techniques/platform/superset/",
+            {
+                "name": "سوپرست نسخهٔ سراسری دوم",
+                "description": "تعریف مشترک دوم",
+                "recipe": next_recipe,
+            },
+            format="json",
+            **coach_a_headers,
+        )
+        self.assertEqual(second_shared_edit.status_code, 200, second_shared_edit.content)
+
+        coach_b_catalog = self.client.get("/api/v1/training-techniques/", **coach_b_headers)
+        coach_b_system = next(row for row in coach_b_catalog.data if row["key"] == "superset")
+        self.assertEqual(coach_b_system["name"], "سوپرست با نام شخصی مربی B")
+        self.assertEqual(coach_b_system["description"], "تعریف مشترک دوم")
+        self.assertEqual(coach_b_system["recipe"]["grouping"]["rest_after_seconds"], 120)
+
+    def test_platform_training_system_edit_rejects_runtime_handler_changes(self):
+        response = self.client.patch(
+            "/api/v1/training-techniques/platform/superset/",
+            {"handler_key": "recipe"},
+            format="json",
+            **auth_header(self.tokens_a),
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_custom_recipe_is_saved_and_reported_as_executable(self):
         recipe = {
@@ -687,6 +774,76 @@ class StructuredCatalogGeneratorTests(APITestCase):
         self.assertEqual(result["sets"], 1)
         self.assertIn("۱۰۰ تکرار تجمیعی", result["reps"])
         self.assertIn("ست‌های کوتاه", result["notes"])
+        self.assertEqual(evidence[0]["status"], "applied")
+
+    def test_gvt_10x10_system_prescribes_one_primary_exercise(self):
+        exercises = [
+            {
+                "id": "press",
+                "name": "پرس سینه هالتر",
+                "targetMuscle": "سینه",
+                "sets": 3,
+                "reps": "۸ تا ۱۰",
+                "notes": "",
+                "supersetGroupId": None,
+                "techniques": [],
+            },
+            {
+                "id": "fly",
+                "name": "قفسه دستگاه",
+                "targetMuscle": "سینه",
+                "sets": 3,
+                "reps": "۱۰ تا ۱۲",
+                "notes": "",
+                "supersetGroupId": None,
+                "techniques": [],
+            },
+        ]
+        days, evidence, _ = apply_structured_techniques(
+            [{"id": "day-1", "exercises": exercises}],
+            self.coach,
+            "intermediate",
+            selected_systems=[{"key": "gvt_10x10"}],
+        )
+        self.assertEqual(days[0]["exercises"][0]["sets"], 3)
+        self.assertEqual(days[0]["exercises"][1]["sets"], 10)
+        self.assertEqual(days[0]["exercises"][1]["reps"], "۱۰")
+        self.assertIn("حجم آلمانی", days[0]["exercises"][1]["notes"])
+        self.assertEqual(evidence[0]["status"], "applied")
+
+    def test_antagonist_superset_system_groups_opposing_muscles(self):
+        exercises = [
+            {
+                "id": "press",
+                "name": "پرس سینه هالتر",
+                "targetMuscle": "سینه",
+                "sets": 3,
+                "reps": "۸ تا ۱۰",
+                "notes": "",
+                "supersetGroupId": None,
+                "techniques": [],
+            },
+            {
+                "id": "row",
+                "name": "قایقی دستگاه",
+                "targetMuscle": "زیربغل",
+                "sets": 3,
+                "reps": "۸ تا ۱۰",
+                "notes": "",
+                "supersetGroupId": None,
+                "techniques": [],
+            },
+        ]
+        days, evidence, _ = apply_structured_techniques(
+            [{"id": "day-1", "exercises": exercises}],
+            self.coach,
+            "intermediate",
+            selected_systems=[{"key": "antagonist_superset"}],
+        )
+        first, second = days[0]["exercises"]
+        self.assertEqual(first["supersetGroupId"], second["supersetGroupId"])
+        self.assertNotEqual(first["supersetGroupId"], None)
+        self.assertIn("عضلات مخالف", first["notes"])
         self.assertEqual(evidence[0]["status"], "applied")
 
     def test_partial_rep_modes_are_opt_in_and_preserve_normal_exercise_selection(self):

@@ -97,7 +97,14 @@ type Technique = {
   handler_key?: string;
   handler_status: "implemented" | "manual_only";
   parameter_schema?: Record<string, unknown>;
-  public_definition?: { parameter_schema?: Record<string, unknown> } | null;
+  recipe?: Record<string, unknown>;
+  public_definition?: {
+    name?: string;
+    description?: string;
+    execution_method?: string;
+    parameter_schema?: Record<string, unknown>;
+    recipe?: Record<string, unknown>;
+  } | null;
 };
 
 const pairingModeOptions = [
@@ -267,6 +274,9 @@ export function StructuredCatalogSection() {
   const [editingId, setEditingId] = useState<string>();
   const [techniqueDraft, setTechniqueDraft] = useState<Technique>();
   const [techniqueBaseline, setTechniqueBaseline] = useState<Technique>();
+  const [globalTechniqueEdit, setGlobalTechniqueEdit] = useState(false);
+  const [globalRecipeText, setGlobalRecipeText] = useState("");
+  const [globalRecipeBaseline, setGlobalRecipeBaseline] = useState("");
   const [exerciseEditorOpen, setExerciseEditorOpen] = useState(false);
   const [exerciseBaseline, setExerciseBaseline] = useState<ExerciseDraft>(emptyDraft);
   const [search, setSearch] = useState("");
@@ -461,6 +471,34 @@ export function StructuredCatalogSection() {
 
   const startEditingTechnique = (row: Technique) => {
     const nextDraft = { ...row, parameters: techniqueParameters(row) };
+    setGlobalTechniqueEdit(false);
+    setGlobalRecipeText("");
+    setGlobalRecipeBaseline("");
+    setTechniqueBaseline(nextDraft);
+    setTechniqueDraft(nextDraft);
+  };
+
+  const startEditingPlatformTechnique = (row: Technique) => {
+    const definition = row.public_definition || row;
+    const recipe = definition.recipe || row.recipe || {};
+    const nextDraft: Technique = {
+      ...row,
+      name: definition.name ?? row.name,
+      description: definition.description ?? row.description,
+      execution_method: definition.execution_method ?? row.execution_method,
+      recipe,
+      id: null,
+      source: "platform",
+      base_technique_key: row.key,
+      allowed_levels: [],
+      max_per_session: 0,
+      parameters: {},
+      enabled: true
+    };
+    const recipeText = JSON.stringify(recipe, null, 2);
+    setGlobalTechniqueEdit(true);
+    setGlobalRecipeText(recipeText);
+    setGlobalRecipeBaseline(recipeText);
     setTechniqueBaseline(nextDraft);
     setTechniqueDraft(nextDraft);
   };
@@ -468,10 +506,46 @@ export function StructuredCatalogSection() {
   const closeTechniqueEditor = () => {
     setTechniqueDraft(undefined);
     setTechniqueBaseline(undefined);
+    setGlobalTechniqueEdit(false);
+    setGlobalRecipeText("");
+    setGlobalRecipeBaseline("");
   };
 
   const saveTechnique = async () => {
     if (!techniqueDraft) return;
+    if (globalTechniqueEdit) {
+      let recipe: Record<string, unknown>;
+      try {
+        const parsed: unknown = JSON.parse(globalRecipeText);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          throw new Error("Recipe must be an object.");
+        }
+        recipe = parsed as Record<string, unknown>;
+      } catch {
+        setFeedback("الگوی اجرای سیستم باید JSON معتبر باشد.");
+        return;
+      }
+      try {
+        await apiRequest<Technique>(
+          `/training-techniques/platform/${encodeURIComponent(techniqueDraft.key)}/`,
+          {
+            body: {
+              name: techniqueDraft.name,
+              description: techniqueDraft.description,
+              execution_method: techniqueDraft.execution_method,
+              recipe
+            },
+            method: "PATCH"
+          }
+        );
+        setTechniques(await apiRequest<Technique[]>("/training-techniques/"));
+        closeTechniqueEditor();
+        setFeedback("تعریف مشترک سیستم برای همهٔ مربی‌ها ذخیره شد.");
+      } catch {
+        setFeedback("ذخیرهٔ تعریف مشترک انجام نشد؛ فیلدهای الگوی اجرا را بررسی کنید.");
+      }
+      return;
+    }
     const payload = {
       key: techniqueDraft.key,
       name: techniqueDraft.name,
@@ -863,6 +937,7 @@ export function StructuredCatalogSection() {
       <TechniquesSection
         techniques={techniques}
         onEdit={startEditingTechnique}
+        onEditPlatform={startEditingPlatformTechnique}
         onDelete={(id) => void deleteTechnique(id)}
         onCreate={startNewTechnique}
       />
@@ -871,22 +946,27 @@ export function StructuredCatalogSection() {
           footer={(requestClose) => (
             <>
               <Button iconStart={<Save size={17} />} onClick={() => void saveTechnique()}>
-                ذخیره تکنیک
+                {globalTechniqueEdit ? "ذخیره برای همهٔ مربی‌ها" : "ذخیره تکنیک"}
               </Button>
               <Button onClick={requestClose} variant="secondary">
                 انصراف
               </Button>
             </>
           )}
-          hasUnsavedChanges={JSON.stringify(techniqueDraft) !== JSON.stringify(techniqueBaseline)}
+          hasUnsavedChanges={
+            JSON.stringify(techniqueDraft) !== JSON.stringify(techniqueBaseline) ||
+            (globalTechniqueEdit && globalRecipeText !== globalRecipeBaseline)
+          }
           onClose={closeTechniqueEditor}
           open
           title={
-            techniqueDraft.base_technique_key
-              ? "تنظیم تکنیک عمومی"
-              : techniqueDraft.id
-                ? "ویرایش تکنیک"
-                : "تکنیک خصوصی جدید"
+            globalTechniqueEdit
+              ? "ویرایش سیستم برای همهٔ مربی‌ها"
+              : techniqueDraft.base_technique_key
+                ? "تنظیم تکنیک عمومی برای من"
+                : techniqueDraft.id
+                  ? "ویرایش تکنیک"
+                  : "تکنیک خصوصی جدید"
           }
         >
           {feedback ? (
@@ -894,10 +974,19 @@ export function StructuredCatalogSection() {
               {feedback}
             </div>
           ) : null}
+          {globalTechniqueEdit ? (
+            <div className={styles.alertWarning} role="status">
+              این تغییر برای همهٔ مربی‌ها و برنامه‌های بعدی مشترک است. برنامه‌های قبلی تغییر
+              نمی‌کنند؛ تنظیم‌های شخصی‌ای که مربی تغییر داده باشد حفظ می‌شوند.
+            </div>
+          ) : null}
           <TechniqueEditor
             draft={techniqueDraft}
             levels={taxonomy.levels}
             publicTechniques={techniques.filter((item) => item.source === "platform")}
+            globalEdit={globalTechniqueEdit}
+            recipeText={globalRecipeText}
+            onRecipeTextChange={setGlobalRecipeText}
             onChange={setTechniqueDraft}
           />
         </EditorDrawer>
@@ -910,11 +999,13 @@ function TechniquesSection({
   techniques,
   onCreate,
   onEdit,
+  onEditPlatform,
   onDelete
 }: {
   techniques: Technique[];
   onCreate: () => void;
   onEdit: (technique: Technique) => void;
+  onEditPlatform: (technique: Technique) => void;
   onDelete: (id: string) => void;
 }) {
   return (
@@ -923,8 +1014,8 @@ function TechniquesSection({
         <div>
           <h2 className={styles.ruleCardTitle}>تکنیک‌های تمرینی</h2>
           <p>
-            منطق اجرایی عمومی اینجا دیده می‌شود. با «تنظیم برای من» پارامترهای خودت را تعریف کن؛
-            تکنیک بدون handler فقط ذخیره می‌شود.
+            سیستم‌های آماده را می‌توانی فقط برای خودت تنظیم کنی یا تعریف مشترکشان را برای همهٔ
+            مربی‌ها ویرایش کنی.
           </p>
         </div>
         <Button iconStart={<Plus size={18} />} onClick={onCreate}>
@@ -985,18 +1076,30 @@ function TechniquesSection({
               header: "عملیات",
               cell: (row) =>
                 row.source === "platform" ? (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => onEdit({ ...row, name: row.name, base_technique_key: row.key })}
-                  >
-                    تنظیم برای من
-                  </Button>
+                  <div className={styles.actionIconGroup}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        onEdit({ ...row, name: row.name, base_technique_key: row.key })
+                      }
+                    >
+                      تنظیم برای من
+                    </Button>
+                    <Button size="sm" onClick={() => onEditPlatform(row)}>
+                      ویرایش برای همه
+                    </Button>
+                  </div>
                 ) : (
                   <div className={styles.actionIconGroup}>
                     <Button size="sm" variant="secondary" onClick={() => onEdit(row)}>
-                      ویرایش
+                      {row.source === "coach_override" ? "تنظیم من" : "ویرایش"}
                     </Button>
+                    {row.source === "coach_override" ? (
+                      <Button size="sm" onClick={() => onEditPlatform(row)}>
+                        ویرایش برای همه
+                      </Button>
+                    ) : null}
                     {row.id ? (
                       <Button size="sm" variant="danger" onClick={() => onDelete(row.id as string)}>
                         حذف
@@ -1037,18 +1140,28 @@ function TechniquesSection({
             </div>
             <div className={styles.mobileCatalogActions}>
               {row.source === "platform" ? (
-                <Button
-                  fullWidth
-                  onClick={() => onEdit({ ...row, name: row.name, base_technique_key: row.key })}
-                  variant="secondary"
-                >
-                  تنظیم برای من
-                </Button>
+                <>
+                  <Button
+                    fullWidth
+                    onClick={() => onEdit({ ...row, name: row.name, base_technique_key: row.key })}
+                    variant="secondary"
+                  >
+                    تنظیم برای من
+                  </Button>
+                  <Button fullWidth onClick={() => onEditPlatform(row)}>
+                    ویرایش برای همهٔ مربی‌ها
+                  </Button>
+                </>
               ) : (
                 <>
                   <Button fullWidth onClick={() => onEdit(row)} variant="secondary">
-                    ویرایش
+                    {row.source === "coach_override" ? "تنظیم من" : "ویرایش"}
                   </Button>
+                  {row.source === "coach_override" ? (
+                    <Button fullWidth onClick={() => onEditPlatform(row)}>
+                      ویرایش برای همهٔ مربی‌ها
+                    </Button>
+                  ) : null}
                   {row.id ? (
                     <Button fullWidth onClick={() => onDelete(row.id as string)} variant="danger">
                       حذف
@@ -1068,11 +1181,17 @@ function TechniqueEditor({
   draft,
   levels,
   publicTechniques,
+  globalEdit,
+  recipeText,
+  onRecipeTextChange,
   onChange
 }: {
   draft: Technique;
   levels: Array<{ key: string; name: string }>;
   publicTechniques: Technique[];
+  globalEdit: boolean;
+  recipeText: string;
+  onRecipeTextChange: (value: string) => void;
   onChange: (draft: Technique) => void;
 }) {
   const handler = techniqueHandler(draft);
@@ -1089,36 +1208,44 @@ function TechniqueEditor({
   return (
     <Card className={styles.pageStack}>
       <h2 className={styles.ruleCardTitle}>
-        {draft.base_technique_key ? "تنظیم تکنیک عمومی" : "تکنیک خصوصی جدید"}
+        {globalEdit
+          ? "تعریف مشترک سیستم تمرینی"
+          : draft.base_technique_key
+            ? "تنظیم تکنیک عمومی برای من"
+            : "تکنیک خصوصی جدید"}
       </h2>
       <div className={styles.formGrid}>
-        <FormField label="کلید">
-          <Input
-            disabled={Boolean(draft.id || draft.base_technique_key)}
-            value={draft.key}
-            onChange={(event) => onChange({ ...draft, key: event.target.value })}
-          />
-        </FormField>
+        {!globalEdit ? (
+          <FormField label="کلید">
+            <Input
+              disabled={Boolean(draft.id || draft.base_technique_key)}
+              value={draft.key}
+              onChange={(event) => onChange({ ...draft, key: event.target.value })}
+            />
+          </FormField>
+        ) : null}
         <FormField label="نام">
           <Input
             value={draft.name}
             onChange={(event) => onChange({ ...draft, name: event.target.value })}
           />
         </FormField>
-        <FormField label="نوع اجرای خودکار" hint="برای اجرای واقعی یک handler انتخاب کن">
-          <Select
-            disabled={Boolean(draft.base_technique_key)}
-            options={[
-              { value: "", label: "فقط ذخیره اطلاعات" },
-              ...publicTechniques
-                .filter((item) => item.handler_key)
-                .map((item) => ({ value: item.key, label: `${item.name} · ${item.key}` }))
-            ]}
-            value={handler}
-            onChange={(event) => selectHandler(event.target.value)}
-            placeholder="انتخاب handler"
-          />
-        </FormField>
+        {!globalEdit ? (
+          <FormField label="نوع اجرای خودکار" hint="برای اجرای واقعی یک handler انتخاب کن">
+            <Select
+              disabled={Boolean(draft.base_technique_key)}
+              options={[
+                { value: "", label: "فقط ذخیره اطلاعات" },
+                ...publicTechniques
+                  .filter((item) => item.handler_key)
+                  .map((item) => ({ value: item.key, label: `${item.name} · ${item.key}` }))
+              ]}
+              value={handler}
+              onChange={(event) => selectHandler(event.target.value)}
+              placeholder="انتخاب handler"
+            />
+          </FormField>
+        ) : null}
         <FormField className={styles.fullField} label="توضیح">
           <Textarea
             value={draft.description}
@@ -1131,17 +1258,19 @@ function TechniqueEditor({
             onChange={(event) => onChange({ ...draft, execution_method: event.target.value })}
           />
         </FormField>
-        <FormField label="حداکثر در هر جلسه">
-          <Input
-            min={0}
-            type="number"
-            value={draft.max_per_session}
-            onChange={(event) =>
-              onChange({ ...draft, max_per_session: Number(event.target.value) })
-            }
-          />
-        </FormField>
-        {handler === "superset" ? (
+        {!globalEdit ? (
+          <FormField label="حداکثر در هر جلسه">
+            <Input
+              min={0}
+              type="number"
+              value={draft.max_per_session}
+              onChange={(event) =>
+                onChange({ ...draft, max_per_session: Number(event.target.value) })
+              }
+            />
+          </FormField>
+        ) : null}
+        {!globalEdit && handler === "superset" ? (
           <>
             <FormField label="روش جفت‌سازی">
               <Select
@@ -1186,7 +1315,7 @@ function TechniqueEditor({
             />
           </>
         ) : null}
-        {handler === "drop_set" ? (
+        {!globalEdit && handler === "drop_set" ? (
           <>
             <FormField label="تعداد دراپ">
               <Input
@@ -1208,7 +1337,7 @@ function TechniqueEditor({
             </FormField>
           </>
         ) : null}
-        {!handler ? (
+        {!globalEdit && !handler ? (
           <FormField className={styles.fullField} label="پارامترهای دستی (JSON)">
             <Textarea
               value={JSON.stringify(draft.parameters, null, 2)}
@@ -1222,7 +1351,7 @@ function TechniqueEditor({
             />
           </FormField>
         ) : null}
-        {handler ? (
+        {!globalEdit && handler ? (
           <div className={styles.fullField}>
             <small>
               این handler در generator پیاده‌سازی شده است و پارامترهای بالا در evidence تولید برنامه
@@ -1230,29 +1359,44 @@ function TechniqueEditor({
             </small>
           </div>
         ) : null}
-        <div className={styles.fullField}>
-          <strong>سطح‌های مجاز؛ خالی یعنی همه</strong>
-          {levels.map((level) => (
-            <Checkbox
-              key={level.key}
-              checked={draft.allowed_levels.includes(level.key)}
-              label={level.name}
-              onChange={(event) =>
-                onChange({
-                  ...draft,
-                  allowed_levels: event.target.checked
-                    ? [...draft.allowed_levels, level.key]
-                    : draft.allowed_levels.filter((item) => item !== level.key)
-                })
-              }
+        {!globalEdit ? (
+          <div className={styles.fullField}>
+            <strong>سطح‌های مجاز؛ خالی یعنی همه</strong>
+            {levels.map((level) => (
+              <Checkbox
+                key={level.key}
+                checked={draft.allowed_levels.includes(level.key)}
+                label={level.name}
+                onChange={(event) =>
+                  onChange({
+                    ...draft,
+                    allowed_levels: event.target.checked
+                      ? [...draft.allowed_levels, level.key]
+                      : draft.allowed_levels.filter((item) => item !== level.key)
+                  })
+                }
+              />
+            ))}
+          </div>
+        ) : null}
+        {globalEdit ? (
+          <FormField
+            className={styles.fullField}
+            label="الگوی اجرای سیستم (JSON)"
+            hint="دستور اجرایی ساختاریافته است؛ اگر تغییری لازم نیست، همین مقدار اولیه را نگه دار."
+          >
+            <Textarea
+              value={recipeText}
+              onChange={(event) => onRecipeTextChange(event.target.value)}
             />
-          ))}
-        </div>
-        <Switch
-          checked={draft.enabled}
-          label="فعال"
-          onCheckedChange={(enabled) => onChange({ ...draft, enabled })}
-        />
+          </FormField>
+        ) : (
+          <Switch
+            checked={draft.enabled}
+            label="فعال"
+            onCheckedChange={(enabled) => onChange({ ...draft, enabled })}
+          />
+        )}
       </div>
     </Card>
   );

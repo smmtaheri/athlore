@@ -134,6 +134,18 @@ describe("StructuredCatalogSection", () => {
           base_technique_key: "superset",
           handler_key: "superset",
           handler_status: "implemented",
+          recipe: {
+            version: 1,
+            target: "all",
+            grouping: {
+              size: 2,
+              mode: "same_muscle_isolation",
+              max_groups_per_session: 1,
+              rest_between_seconds: 0,
+              rest_after_seconds: 90
+            },
+            steps: [{ op: "instruction", title: "اجرا", text: "جفت را اجرا کن." }]
+          },
           parameter_schema: {
             pairing_mode: { default: "same_muscle_isolation" },
             max_pairs: { default: 1 },
@@ -551,5 +563,35 @@ describe("StructuredCatalogSection", () => {
     expect(screen.getByText("روش جفت‌سازی")).toBeInTheDocument();
     expect(screen.getByText("استراحت بعد از جفت (ثانیه)")).toBeInTheDocument();
     expect(screen.getByText(/این handler در generator پیاده‌سازی شده است/)).toBeInTheDocument();
+  });
+
+  it("allows editing a public training system for every coach separately from personal setup", async () => {
+    const user = userEvent.setup();
+    render(<StructuredCatalogSection />);
+
+    await user.click((await screen.findAllByRole("button", { name: "ویرایش برای همه" }))[0]);
+    const dialog = screen.getByRole("dialog", { name: "ویرایش سیستم برای همهٔ مربی‌ها" });
+    expect(
+      within(dialog).getByText(/برای همهٔ مربی‌ها و برنامه‌های بعدی مشترک است/)
+    ).toBeInTheDocument();
+    const nameField = within(dialog).getAllByRole("textbox")[0];
+    await user.clear(nameField);
+    await user.type(nameField, "سوپرست مشترک");
+    await user.click(within(dialog).getByRole("button", { name: "ذخیره برای همهٔ مربی‌ها" }));
+
+    const patchCall = apiRequestMock.mock.calls.find(
+      ([path, options]) =>
+        path === "/training-techniques/platform/superset/" && options?.method === "PATCH"
+    );
+    expect(patchCall?.[1]).toMatchObject({
+      body: {
+        name: "سوپرست مشترک",
+        recipe: expect.objectContaining({ version: 1, target: "all" })
+      },
+      method: "PATCH"
+    });
+    expect(
+      await screen.findByText("تعریف مشترک سیستم برای همهٔ مربی‌ها ذخیره شد.")
+    ).toBeInTheDocument();
   });
 });

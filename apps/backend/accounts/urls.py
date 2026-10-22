@@ -10,6 +10,7 @@ from accounts.rules_views import (
     MuscleRegionListCreateView,
     MuscleTaxonomyDetailView,
     MuscleTaxonomyListCreateView,
+    PlatformTrainingTechniqueDetailView,
     ProgramTemplateDetailView,
     ProgramTemplateListCreateView,
     TrainingTechniqueDetailView,
@@ -119,6 +120,11 @@ urlpatterns = [
         "training-techniques/",
         TrainingTechniqueListCreateView.as_view(),
         name="training-techniques",
+    ),
+    path(
+        "training-techniques/platform/<slug:technique_key>/",
+        PlatformTrainingTechniqueDetailView.as_view(),
+        name="platform-training-technique-detail",
     ),
     path(
         "training-techniques/<uuid:technique_id>/",

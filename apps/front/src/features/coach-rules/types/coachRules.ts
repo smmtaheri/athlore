@@ -111,6 +111,10 @@ export interface TrainingSystem {
   parameters: Record<string, unknown>;
   recipe?: TrainingRecipe;
   public_definition?: {
+    key?: string;
+    name?: string;
+    description?: string;
+    execution_method?: string;
     parameter_schema?: Record<string, unknown>;
     recipe?: TrainingRecipe;
   } | null;

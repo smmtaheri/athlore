@@ -564,6 +564,34 @@ def serialize_coach_technique(config: CoachTechnique) -> dict:
     }
 
 
+def serialize_platform_technique(base: TrainingTechnique) -> dict:
+    return {
+        "id": None,
+        "key": base.key,
+        "name": base.name,
+        "description": base.description,
+        "execution_method": base.execution_method,
+        "recipe": copy.deepcopy(base.recipe or {}),
+        "allowed_levels": [],
+        "max_per_session": 0,
+        "parameters": {},
+        "enabled": False,
+        "source": "platform",
+        "base_technique_key": base.key,
+        "handler_key": base.handler_key,
+        "handler_status": _technique_handler_status(base),
+        "parameter_schema": copy.deepcopy(base.parameter_schema or {}),
+        "public_definition": {
+            "key": base.key,
+            "name": base.name,
+            "description": base.description,
+            "execution_method": base.execution_method,
+            "parameter_schema": copy.deepcopy(base.parameter_schema or {}),
+            "recipe": copy.deepcopy(base.recipe or {}),
+        },
+    }
+
+
 def get_coach_techniques(coach: CoachProfile) -> list[dict]:
     configs = {
         config.base_technique_id: config
@@ -576,30 +604,66 @@ def get_coach_techniques(coach: CoachProfile) -> list[dict]:
         if config:
             rows.append(serialize_coach_technique(config))
         else:
-            rows.append(
-                {
-                    "id": None,
-                    "key": base.key,
-                    "name": base.name,
-                    "description": base.description,
-                    "execution_method": base.execution_method,
-                    "recipe": copy.deepcopy(base.recipe or {}),
-                    "allowed_levels": [],
-                    "max_per_session": 0,
-                    "parameters": {},
-                    "enabled": False,
-                    "source": "platform",
-                    "base_technique_key": base.key,
-                    "handler_key": base.handler_key,
-                    "handler_status": _technique_handler_status(base),
-                    "parameter_schema": copy.deepcopy(base.parameter_schema or {}),
-                }
-            )
+            rows.append(serialize_platform_technique(base))
     private = CoachTechnique.objects.filter(coach=coach, base_technique__isnull=True).order_by(
         "name"
     )
     rows.extend(serialize_coach_technique(config) for config in private)
     return rows
+
+
+@transaction.atomic
+def update_platform_technique(key: str, payload: dict) -> TrainingTechnique:
+    try:
+        base = TrainingTechnique.objects.select_for_update().get(key=key, is_active=True)
+    except TrainingTechnique.DoesNotExist as exc:
+        raise ValidationError({"key": ["Unknown active platform training system."]}) from exc
+
+    editable_fields = {"name", "description", "execution_method", "recipe"}
+    unsupported = sorted(set(payload) - editable_fields)
+    if unsupported:
+        raise ValidationError(
+            {"detail": f"These platform-definition fields cannot be edited: {unsupported}."}
+        )
+
+    previous = {field: copy.deepcopy(getattr(base, field)) for field in editable_fields}
+    changed_fields = []
+    if "name" in payload:
+        name = str(payload.get("name") or "").strip()
+        if not name or len(name) > 160:
+            raise ValidationError({"name": ["Name must contain 1-160 characters."]})
+        base.name = name
+        changed_fields.append("name")
+    for field in ("description", "execution_method"):
+        if field in payload:
+            value = str(payload.get(field) or "")
+            base_value = getattr(base, field)
+            if value != base_value:
+                setattr(base, field, value)
+                changed_fields.append(field)
+    if "recipe" in payload:
+        base.recipe = validate_training_recipe(payload["recipe"], allow_empty=False)
+        changed_fields.append("recipe")
+
+    if changed_fields:
+        base.save(update_fields=[*dict.fromkeys(changed_fields), "updated_at"])
+        # Existing coach records copy public text and recipes when configured.
+        # Move values that still match the prior public definition forward, while
+        # retaining fields a coach has independently customized.
+        for config in CoachTechnique.objects.filter(base_technique=base).iterator():
+            updates = []
+            for field in changed_fields:
+                previous_value = previous[field]
+                config_value = getattr(config, field)
+                if field == "recipe":
+                    previous_value = validate_training_recipe(previous_value, allow_empty=True)
+                    config_value = validate_training_recipe(config_value, allow_empty=True)
+                if config_value == previous_value:
+                    setattr(config, field, getattr(base, field))
+                    updates.append(field)
+            if updates:
+                config.save(update_fields=[*updates, "updated_at"])
+    return base
 
 
 def _validated_levels(value: Any, field: str = "levels") -> list[str]:
