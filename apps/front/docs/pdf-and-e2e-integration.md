@@ -42,20 +42,27 @@ Never touches `coach-assistant-backend/db.sqlite3`.
 - `artifacts/playwright-report/` — HTML report
 - Failure: screenshot / video / trace per Playwright config
 
-## Stage SMS safety for browser E2E
+## SMS safety for browser E2E
 
-- The stage Compose stack forces the backend SMS adapter to `mock`; OTP and
-  program-ready notification flows must never contact Najva or deliver a real
-  message. Do not use a real handset delivery as an E2E assertion.
-- For stage OTP browser checks, request a code and enter the fixed test code
-  `111111`. The backend still exercises the challenge lifecycle and one-time
-  verification. Password login remains a separate, unchanged path.
-- The isolated local `login-code-flow.spec.ts` harness still uses its own
-  static test code (`1111`); it does not configure or represent the deployed
-  stage backend.
-- Program-ready SMS E2E checks should assert the notification record and the
-  mock adapter result, not handset receipt. Backend regression tests must also
-  assert that the SMS HTTPS connection is never constructed in mock mode.
+- Shared Stage intentionally uses real Najva delivery for OTP and
+  program-ready notifications. Automated no-SMS E2E must run against an
+  isolated disposable backend, database, and media volume—not the shared Stage
+  Compose service or database.
+- `pnpm test:e2e` starts a disposable SQLite database and media directory and
+  forces `DB_ENGINE=sqlite`, `SMS_BACKEND=mock`, `LOGIN_OTP_PROVIDER=najva`,
+  `LOGIN_OTP_MOCK_CODE=111111`, and program-ready notifications on. The OTP
+  challenge lifecycle and one-time verification still run, but no SMS HTTPS
+  connection can be opened. Playwright also forces its API requests to this
+  local stack and never reuses an existing server. The fixed code must never be
+  enabled on shared Stage or production. Password login remains a separate,
+  unchanged path.
+- The isolated `login-code-flow.spec.ts` enters fixed code `111111` for both
+  coach and student roles. It does not configure or represent the deployed
+  shared Stage backend.
+- Program-ready SMS E2E checks on the isolated stack should assert the
+  notification record and mock result, not handset receipt. Publishing on
+  shared Stage can send a real SMS. Backend regression tests assert that the
+  HTTPS connection is never constructed in mock mode.
 - The detailed request → visit → program → student PDF flow and its mandatory
   stage checklist are in
   [`product-flows/program-request-to-delivery.md`](./product-flows/program-request-to-delivery.md).

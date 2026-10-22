@@ -51,9 +51,18 @@ process.on("SIGTERM", () => {
 
 const backendEnv = {
   ...process.env,
+  // This harness is always disposable: never inherit a Postgres target or live SMS provider.
+  DB_ENGINE: "sqlite",
   DJANGO_DB_NAME: tmpDb,
   DJANGO_MEDIA_ROOT: tmpMedia,
   DJANGO_DEBUG: "true",
+  LOGIN_OTP_ENABLED: "true",
+  LOGIN_OTP_PROVIDER: "najva",
+  LOGIN_OTP_STATIC_CODE: "",
+  LOGIN_OTP_MOCK_CODE: "111111",
+  SMS_BACKEND: "mock",
+  NAJVA_API_KEY: "",
+  PROGRAM_READY_SMS_ENABLED: "true",
   PUBLIC_API_BASE_URL: `http://127.0.0.1:${backendPort}/api/v1`,
   CORS_ALLOWED_ORIGINS: `http://127.0.0.1:${frontendPort},http://localhost:${frontendPort}`,
   PUBLIC_REGISTRATION_ENABLED: "true"
@@ -103,7 +112,10 @@ const frontend = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port",
   env: {
     ...process.env,
     VITE_API_BASE_URL: `http://127.0.0.1:${backendPort}/api/v1`,
-    VITE_PUBLIC_REGISTRATION_ENABLED: "true"
+    VITE_PUBLIC_REGISTRATION_ENABLED: "true",
+    VITE_LOGIN_OTP_ENABLED: "true",
+    VITE_COACH_DOMAIN: "localhost",
+    VITE_STUDENT_DOMAIN: "127.0.0.1"
   },
   stdio: "inherit"
 });

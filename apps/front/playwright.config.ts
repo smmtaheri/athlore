@@ -1,6 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const frontendPort = Number(process.env.E2E_FRONTEND_PORT || 5177);
+const backendPort = Number(process.env.E2E_BACKEND_PORT || 8767);
+
+// Browser E2E always targets the disposable local stack. In particular, do not
+// let an inherited URL point test setup or OTP requests at shared Stage.
+process.env.E2E_API_BASE_URL = `http://127.0.0.1:${backendPort}/api/v1`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -38,7 +43,8 @@ export default defineConfig({
   webServer: {
     command: `node ./e2e/scripts/start-stack.mjs`,
     url: `http://127.0.0.1:${frontendPort}/login`,
-    reuseExistingServer: !process.env.CI,
+    // Reuse could silently attach to a developer's non-isolated server.
+    reuseExistingServer: false,
     timeout: 180_000,
     stdout: "pipe",
     stderr: "pipe"

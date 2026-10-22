@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-// Run with LOGIN_OTP_ENABLED=true LOGIN_OTP_STATIC_CODE=1111
-// VITE_LOGIN_OTP_ENABLED=true VITE_COACH_DOMAIN=localhost VITE_STUDENT_DOMAIN=127.0.0.1.
+// start-stack.mjs provides a disposable SQLite/media backend with mocked SMS
+// and the database-backed fixed test code 111111. No SMS provider is contacted.
 for (const role of ["coach", "student"] as const) {
   test(`${role} requests a code before verification and keeps the same identity`, async ({
     page,
@@ -121,7 +121,7 @@ for (const role of ["coach", "student"] as const) {
     await expect(code).toBeFocused();
     await expect(page.getByRole("status")).toContainText("پیامک واقعی ارسال نمی‌شود");
 
-    await code.fill("2222");
+    await code.fill("222222");
     const wrongResponse = page.waitForResponse(
       (response) =>
         response.url().endsWith("/auth/phone-login/") && response.request().method() === "POST"
@@ -129,18 +129,10 @@ for (const role of ["coach", "student"] as const) {
     await page.getByRole("button", { name: "ورود با کد", exact: true }).click();
     expect((await wrongResponse).status()).toBe(401);
     await expect(page.getByRole("alert")).toContainText("کد ورود نادرست است");
-    await expect(code).toHaveValue("2222");
+    await expect(code).toHaveValue("222222");
 
-    await page.getByRole("button", { name: "ارسال دوباره کد", exact: true }).click();
-    await expect(code).toHaveValue("");
-    await code.fill("1111");
-    await page.getByRole("button", { name: "رمز عبور", exact: true }).click();
-    await expect(code).not.toBeVisible();
-    await expect(page.getByLabel(/رمز عبور/)).toBeVisible();
-    await page.getByRole("button", { name: "ورود با کد یک‌بارمصرف", exact: true }).click();
-    await expect(code).not.toBeVisible();
-    await send.click();
-    await code.fill("1111");
+    await expect(page.getByRole("button", { name: /ارسال دوباره کد/ })).toBeDisabled();
+    await code.fill("111111");
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth
