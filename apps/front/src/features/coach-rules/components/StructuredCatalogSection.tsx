@@ -45,6 +45,17 @@ type CatalogExercise = {
   priority: number;
 };
 
+const standardExerciseEquipmentKeys = new Set([
+  "bodyweight",
+  "dumbbell",
+  "barbell",
+  "cable",
+  "machine",
+  "smith_machine",
+  "kettlebell",
+  "resistance_band"
+]);
+
 async function loadCatalogExercises(): Promise<CatalogExercise[]> {
   const exercises: CatalogExercise[] = [];
   let hasNextPage = true;
@@ -372,6 +383,9 @@ export function StructuredCatalogSection() {
         disabled: region.is_active === false
       }));
   };
+  const exerciseEquipmentOptions = editingId
+    ? taxonomy.equipment
+    : taxonomy.equipment.filter((equipment) => standardExerciseEquipmentKeys.has(equipment.key));
 
   const saveExercise = async () => {
     setFeedback("");
@@ -791,7 +805,7 @@ export function StructuredCatalogSection() {
             </div>
             <div className={styles.fullField}>
               <strong>تجهیزات</strong>
-              {taxonomy.equipment.map((equipment) => (
+              {exerciseEquipmentOptions.map((equipment) => (
                 <Checkbox
                   key={equipment.key}
                   checked={draft.equipment_keys.includes(equipment.key)}

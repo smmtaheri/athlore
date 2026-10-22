@@ -277,6 +277,58 @@ describe("StructuredCatalogSection", () => {
     expect(screen.getByDisplayValue("پرس بالاسینه دمبل")).toBeInTheDocument();
   });
 
+  it("shows standard equipment when creating an exercise and preserves legacy equipment when editing", async () => {
+    const user = userEvent.setup();
+    const baseImplementation = apiRequestMock.getMockImplementation()!;
+    apiRequestMock.mockImplementation(async (path: string, options?: unknown) => {
+      const result = await baseImplementation(path, options);
+      if (path === "/exercise-taxonomy/") {
+        return {
+          ...result,
+          equipment: [
+            { key: "bodyweight", name: "وزن بدن" },
+            { key: "dumbbell", name: "دمبل" },
+            { key: "barbell", name: "هالتر" },
+            { key: "cable", name: "کابل" },
+            { key: "machine", name: "دستگاه" },
+            { key: "smith_machine", name: "اسمیت" },
+            { key: "kettlebell", name: "کتل بل" },
+            { key: "resistance_band", name: "کش" },
+            { key: "legacy-pull-up", name: "بارفیکس" },
+            { key: "legacy-dip-bench", name: "میز دیپ" }
+          ]
+        };
+      }
+      if (path === "/exercises/") {
+        return {
+          ...result,
+          results: result.results.map((exercise: { equipment_keys: string[] }) => ({
+            ...exercise,
+            equipment_keys: ["legacy-pull-up"]
+          }))
+        };
+      }
+      return result;
+    });
+    render(<StructuredCatalogSection />);
+
+    await user.click(await screen.findByRole("button", { name: /^حرکت جدید$/ }));
+    const newExerciseDrawer = screen.getByRole("dialog", { name: /^حرکت جدید$/ });
+    for (const label of ["وزن بدن", "دمبل", "هالتر", "کابل", "دستگاه", "اسمیت", "کتل بل", "کش"]) {
+      expect(within(newExerciseDrawer).getByLabelText(label)).toBeInTheDocument();
+    }
+    expect(within(newExerciseDrawer).queryByLabelText("بارفیکس")).not.toBeInTheDocument();
+    expect(within(newExerciseDrawer).queryByLabelText("میز دیپ")).not.toBeInTheDocument();
+    await user.click(within(newExerciseDrawer).getByRole("button", { name: "انصراف" }));
+
+    const exerciseRow = (await screen.findAllByText("پرس بالاسینه دمبل"))
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    await user.click(within(exerciseRow as HTMLElement).getByRole("button", { name: "ویرایش" }));
+    const editDrawer = screen.getByRole("dialog", { name: "ویرایش حرکت" });
+    expect(within(editDrawer).getByLabelText("بارفیکس")).toBeChecked();
+  });
+
   it("shows a clear success message after saving a movement", async () => {
     const user = userEvent.setup();
     render(<StructuredCatalogSection />);
