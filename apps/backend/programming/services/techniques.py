@@ -630,6 +630,9 @@ def _apply_recipe(days: list[dict], config: CoachTechnique) -> tuple[int, list[d
             if target != "last_set":
                 _apply_recipe_prescriptions(exercise, steps)
             detail = "؛ ".join(instructions)
+            execution_method = str(config.execution_method or "").strip()
+            if execution_method and execution_method not in detail:
+                detail = "؛ ".join(part for part in (execution_method, detail) if part)
             if target == "last_set":
                 detail = f"فقط در ست پایانی: {detail}"
             if detail:

@@ -248,9 +248,13 @@ class StructuredCatalogApiTests(APITestCase):
                 "myo_reps",
                 "tempo_isometric",
                 "mechanical_drop_set",
+                "100_reps",
             }.issubset({row["key"] for row in public.data})
         )
         self.assertTrue(all(row["recipe"].get("version") == 1 for row in public.data))
+        fst = next(row for row in public.data if row["key"] == "fst_7")
+        self.assertEqual(fst["name"], "FST-7")
+        self.assertNotIn("گاهی", fst["name"])
         superset_public = next(row for row in public.data if row["key"] == "superset")
         self.assertIn("pairing_mode", superset_public["parameter_schema"])
         self.assertIn("rest_after_pair_seconds", superset_public["parameter_schema"])
@@ -504,7 +508,12 @@ class StructuredCatalogGeneratorTests(APITestCase):
         }
         created = self.client.post(
             "/api/v1/training-techniques/",
-            {"key": "custom-tempo-system", "name": "تمپوی شخصی", "recipe": recipe},
+            {
+                "key": "custom-tempo-system",
+                "name": "تمپوی شخصی",
+                "execution_method": "در بخش منفی حرکت سه ثانیه کنترل کن.",
+                "recipe": recipe,
+            },
             format="json",
             **auth_header(self.tokens),
         )
@@ -549,6 +558,7 @@ class StructuredCatalogGeneratorTests(APITestCase):
         self.assertEqual(curl["sets"], 4)
         self.assertEqual(curl["reps"], "۱۰ تا ۱۲")
         self.assertIn("تمپو 3-1-2", curl["notes"])
+        self.assertIn("در بخش منفی حرکت سه ثانیه کنترل کن.", curl["notes"])
         self.assertEqual(evidence[0]["status"], "applied")
         self.assertEqual(evidence[0]["applications"][0]["exercise_name"], "جلو بازو دمبل")
 
@@ -654,6 +664,30 @@ class StructuredCatalogGeneratorTests(APITestCase):
             self.assertEqual(exercise["reps"], "۸ تا ۱۲")
             self.assertIn("فقط در ست پایانی", exercise["notes"])
         self.assertEqual(evidence[0]["applied_count"], 1)
+
+    def test_100_reps_system_targets_one_isolation_exercise(self):
+        exercise = {
+            "id": "biceps-curl",
+            "name": "جلو بازو دمبل",
+            "targetMuscle": "جلو بازو",
+            "sets": 3,
+            "reps": "۱۰ تا ۱۲",
+            "rest": "۹۰ ثانیه",
+            "notes": "",
+            "supersetGroupId": None,
+            "techniques": [],
+        }
+        days, evidence, _ = apply_structured_techniques(
+            [{"id": "day-1", "exercises": [exercise]}],
+            self.coach,
+            "intermediate",
+            selected_systems=[{"key": "100_reps"}],
+        )
+        result = days[0]["exercises"][0]
+        self.assertEqual(result["sets"], 1)
+        self.assertIn("۱۰۰ تکرار تجمیعی", result["reps"])
+        self.assertIn("ست‌های کوتاه", result["notes"])
+        self.assertEqual(evidence[0]["status"], "applied")
 
     def test_partial_rep_modes_are_opt_in_and_preserve_normal_exercise_selection(self):
         from accounts.models import TrainingTechnique
