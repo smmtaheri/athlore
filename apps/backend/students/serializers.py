@@ -179,16 +179,16 @@ class MeasurementsSerializer(serializers.Serializer):
 
 class AdherenceSerializer(serializers.Serializer):
     overall_percent = serializers.DecimalField(
-        max_digits=5, decimal_places=2, required=False, default=0
+        max_digits=5, decimal_places=2, required=False, allow_null=True
     )
     training_percent = serializers.DecimalField(
-        max_digits=5, decimal_places=2, required=False, default=0
+        max_digits=5, decimal_places=2, required=False, allow_null=True
     )
     nutrition_percent = serializers.DecimalField(
-        max_digits=5, decimal_places=2, required=False, default=0
+        max_digits=5, decimal_places=2, required=False, allow_null=True
     )
     supplements_percent = serializers.DecimalField(
-        max_digits=5, decimal_places=2, required=False, default=0
+        max_digits=5, decimal_places=2, required=False, allow_null=True
     )
 
 
@@ -292,9 +292,15 @@ class VisitWriteSerializer(serializers.Serializer):
     )
     measurements = MeasurementsSerializer(required=False)
     adherence = AdherenceSerializer(required=False)
-    daily_energy_level = serializers.ChoiceField(choices=Visit.Level.choices, required=True)
-    sleep_quality = serializers.ChoiceField(choices=Visit.Level.choices, required=True)
-    stress_level = serializers.ChoiceField(choices=Visit.Level.choices, required=True)
+    daily_energy_level = serializers.ChoiceField(
+        choices=Visit.Level.choices, required=False, allow_null=True
+    )
+    sleep_quality = serializers.ChoiceField(
+        choices=Visit.Level.choices, required=False, allow_null=True
+    )
+    stress_level = serializers.ChoiceField(
+        choices=Visit.Level.choices, required=False, allow_null=True
+    )
     body_feeling = serializers.CharField(required=False, allow_blank=True, default="")
     student_feedback = serializers.CharField(required=False, allow_blank=True, default="")
     coach_assessment = serializers.CharField(required=False, allow_blank=True, default="")
@@ -307,13 +313,6 @@ class VisitWriteSerializer(serializers.Serializer):
     form_template_id = serializers.UUIDField(required=False, allow_null=True)
     answers = serializers.DictField(required=False)
     skip_form_template = serializers.BooleanField(required=False, default=False)
-
-    def __init__(self, *args, **kwargs):
-        partial = kwargs.pop("partial", False)
-        super().__init__(*args, **kwargs)
-        if partial:
-            for field in self.fields.values():
-                field.required = False
 
 
 class SendToStudentSerializer(serializers.Serializer):

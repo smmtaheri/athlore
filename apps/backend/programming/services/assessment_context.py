@@ -219,11 +219,12 @@ def build_generation_context_from_visit(visit) -> dict[str, Any] | None:
         return base
 
     detail = executable.get("muscle_detail") or {}
+    explicit_no_weakness = executable.get("weak_muscles") == ["none"]
     if detail and "weak_muscles" not in executable:
         derived = _weak_from_detail(detail)
         if derived:
             executable["weak_muscles"] = derived
-    elif detail and executable.get("weak_muscles"):
+    elif detail and executable.get("weak_muscles") and not explicit_no_weakness:
         existing = [str(x) for x in executable["weak_muscles"]]
         for item in _weak_from_detail(detail):
             if item not in existing:

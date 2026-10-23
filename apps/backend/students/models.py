@@ -130,31 +130,41 @@ class Visit(models.Model):
     adherence_overall = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        default=Decimal("0"),
+        default=None,
+        null=True,
+        blank=True,
         validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
     )
     adherence_training = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        default=Decimal("0"),
+        default=None,
+        null=True,
+        blank=True,
         validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
     )
     adherence_nutrition = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        default=Decimal("0"),
+        default=None,
+        null=True,
+        blank=True,
         validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
     )
     adherence_supplements = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        default=Decimal("0"),
+        default=None,
+        null=True,
+        blank=True,
         validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
     )
 
-    daily_energy_level = models.CharField(max_length=16, choices=Level.choices)
-    sleep_quality = models.CharField(max_length=16, choices=Level.choices)
-    stress_level = models.CharField(max_length=16, choices=Level.choices)
+    daily_energy_level = models.CharField(
+        max_length=16, choices=Level.choices, null=True, blank=True
+    )
+    sleep_quality = models.CharField(max_length=16, choices=Level.choices, null=True, blank=True)
+    stress_level = models.CharField(max_length=16, choices=Level.choices, null=True, blank=True)
     body_feeling = models.TextField(blank=True, default="")
     student_feedback = models.TextField(blank=True, default="")
     coach_assessment = models.TextField(blank=True, default="")

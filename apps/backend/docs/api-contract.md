@@ -472,6 +472,12 @@ Paginated list, default `ordering=-visit_date`
 **201** Visit · **409** if unique visit_date conflict  
 Side effect: update Student `summary_last_visit_date`
 
+`daily_energy_level`, `sleep_quality`, `stress_level`, and each `adherence` percentage
+are optional and nullable. Omitted values on creation mean not assessed (`null`),
+not medium, zero, or 80 percent. Explicit zero remains a measured zero. PATCH
+preserves omitted values and accepts `null` to clear an observation. Existing
+recorded observations and historical notes are not rewritten by the schema migration.
+
 ### GET/PATCH/DELETE `/api/v1/students/{student_id}/visits/{visit_id}`
 
 - PATCH: mutable fields  

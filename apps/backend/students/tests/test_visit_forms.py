@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -535,6 +536,24 @@ class SeedVisitFormCreateOnlyTests(TestCase):
 
 
 class SemanticExtractionTests(TestCase):
+    def test_explicit_no_weakness_overrides_historical_muscle_details(self):
+        visit = Visit(
+            visit_date=date(2026, 8, 1),
+            form_template_snapshot={"sections": ARMAN_VISIT_FORM_TEMPLATE["sections"]},
+            answers={"weak_muscles": ["none"], "muscle_detail.chest.upper": "weak"},
+        )
+        context = build_generation_context_from_visit(visit)
+        self.assertEqual(context["executable"]["weak_muscles"], ["none"])
+        merged = merge_student_with_assessment(
+            student_goals={"weak_muscles": ["chest"]},
+            student_injuries={},
+            student_training_background={},
+            student_training_conditions={},
+            student_equipment={},
+            assessment_ctx=context,
+        )
+        self.assertEqual(merged["goals"]["weak_muscles"], [])
+
     def test_missing_means_not_assessed(self):
         extracted = extract_semantic_answers(
             answers={"goal": "hypertrophy"},
@@ -547,6 +566,7 @@ class SemanticExtractionTests(TestCase):
             student_injuries={},
             student_training_background={},
             student_training_conditions={},
+            student_equipment={},
             assessment_ctx={
                 "applied": True,
                 "executable": extracted["executable"],
