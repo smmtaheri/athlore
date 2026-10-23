@@ -3,6 +3,7 @@
 from copy import deepcopy
 from datetime import date
 from unittest.mock import patch
+from uuid import uuid4
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -95,6 +96,16 @@ class WorkoutWorkflowTests(TestCase):
         self.assertTrue(run.resulting_version.training["days"])
         self.assertEqual(run.request["training_systems"], [])
         self.assertFalse(programs_for_student(self.student).filter(pk=first.id).exists())
+
+    def test_missing_optional_template_falls_back_to_automatic_generation(self):
+        visit = self.visit()
+        visit.program_settings["template_id"] = str(uuid4())
+        visit.save(update_fields=["program_settings", "updated_at"])
+
+        program, run = prepare_from_visit(self.coach, self.coach.user, visit.id, "stale-template")
+
+        self.assertTrue(run.resulting_version.training["days"])
+        self.assertTrue(any("قالب انتخاب‌شده دیگر در دسترس نبود" in item for item in run.warnings))
 
     def test_progress_is_per_week_and_idempotent(self):
         program, _ = self.active_program()

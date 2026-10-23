@@ -8,6 +8,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
+from accounts.models import ProgramTemplate
 from programming.models import GenerationRun, ProgramRequest
 from programming.services import program_requests, programs
 from programming.services.assessment_context import build_generation_context_from_visit
@@ -103,6 +104,16 @@ def prepare_from_visit(coach, actor, visit_id, operation_key, section_methods=No
         **validate_settings(coach.program_defaults or {}),
         **validate_settings(visit.program_settings or {}),
     }
+    stale_template = bool(
+        settings.get("template_id")
+        and not ProgramTemplate.objects.filter(
+            pk=settings["template_id"], coach=coach, is_active=True, is_archived=False
+        ).exists()
+    )
+    if stale_template:
+        # A deleted/archived template is an optional preference, not a reason to
+        # make the visit's primary "prepare program" action fail with a 404.
+        settings.pop("template_id", None)
     semantic = (build_generation_context_from_visit(visit) or {}).get("executable") or {}
     sections = settings.get("sections", ["workout"])
     methods = settings.get("training_systems", semantic.get("training_methods", []))
@@ -206,6 +217,12 @@ def prepare_from_visit(coach, actor, visit_id, operation_key, section_methods=No
         request[key] = request[key].isoformat()
     program, run = programs.generate_program(coach, request)
     program_requests.link_program(program=program, actor=actor, visit_id=visit.id)
+    if stale_template:
+        run.warnings = [
+            *(run.warnings or []),
+            "قالب انتخاب‌شده دیگر در دسترس نبود؛ برنامه با تنظیمات خودکار ساخته شد.",
+        ]
+        run.save(update_fields=["warnings", "updated_at"])
     version = run.resulting_version
     version.pdf_settings = {
         **version.pdf_settings,
