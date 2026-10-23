@@ -20,7 +20,7 @@ import {
   StatusBadge,
   Textarea
 } from "../../../components/ui";
-import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
+import { ApiError, firstFieldError, persianMessageForApiError } from "../../../shared/api/errors";
 import {
   coachRulesRepository,
   type CoachRulesRepository
@@ -503,7 +503,22 @@ export function ProgramGenerationPage({
     try {
       const generationInput = {
         ...form,
-        trainingSystems: trainingSystemsAvailable ? (form.trainingSystems ?? []) : undefined,
+        trainingSystems: selectedTemplate?.executionPlan
+          ? undefined
+          : trainingSystemsAvailable
+            ? (form.trainingSystems ?? [])
+            : undefined,
+        ...(selectedTemplate?.executionPlan
+          ? {
+              applyInjuryRules: true,
+              applyLevelRules: true,
+              applyExerciseCatalog: true,
+              applyGeneralRules: true,
+              applyMusclePriorityRules: true,
+              targetMuscle: "",
+              targetRegion: ""
+            }
+          : {}),
         ...(programRequestId ? { programRequestId } : {}),
         ...(selectedVisitId ? { visitId: selectedVisitId } : {}),
         dateRangeEnd: period!.endIso,
@@ -561,7 +576,8 @@ export function ProgramGenerationPage({
       setStatus("loaded");
       setFeedback(
         error instanceof ApiError
-          ? persianMessageForApiError(error)
+          ? (firstFieldError(error, "execution_plan", "training_systems") ??
+              persianMessageForApiError(error))
           : "خطا در تولید برنامه. لطفا دوباره تلاش کنید."
       );
     }
@@ -904,7 +920,7 @@ export function ProgramGenerationPage({
             </div>
           </Card>
 
-          {generatedSections.length > 0 ? (
+          {generatedSections.length > 0 && !selectedTemplate?.executionPlan ? (
             <Card className={styles.pageStack}>
               <div className={styles.sectionHeader}>
                 <div>
@@ -1084,81 +1100,91 @@ export function ProgramGenerationPage({
                     }}
                   />
                 </FormField>
-                <FormField
-                  hint="اختیاری؛ برای محدودکردن انتخاب حرکات به یک عضله و ناحیهٔ ساختاریافته."
-                  htmlFor="program-target-muscle"
-                  label="عضله هدف"
-                >
-                  <Select
-                    id="program-target-muscle"
-                    options={targetMuscleOptions}
-                    value={form.targetMuscle ?? ""}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        targetMuscle: event.target.value,
-                        targetRegion: event.target.value ? current.targetRegion : ""
-                      }))
-                    }
-                  />
-                </FormField>
-                {form.targetMuscle === "سینه" ? (
+                {!selectedTemplate?.executionPlan ? (
                   <>
                     <FormField
-                      hint="فقط حرکاتی انتخاب می‌شوند که همین ناحیه را در catalog ساختاریافته داشته باشند."
-                      htmlFor="program-target-region"
-                      label="ناحیه هدف"
+                      hint="اختیاری؛ برای محدودکردن انتخاب حرکات به یک عضله و ناحیهٔ ساختاریافته."
+                      htmlFor="program-target-muscle"
+                      label="عضله هدف"
                     >
                       <Select
-                        id="program-target-region"
-                        options={chestTargetRegionOptions}
-                        value={form.targetRegion ?? ""}
-                        onChange={(event) => updateForm("targetRegion", event.target.value)}
-                      />
-                    </FormField>
-                    <FormField
-                      hint="تعداد حرکت سینه در هر جلسه؛ فقط وقتی ناحیه هدف انتخاب شده باشد اعمال می‌شود."
-                      htmlFor="program-target-exercise-count"
-                      label="تعداد حرکت هدف"
-                    >
-                      <Input
-                        id="program-target-exercise-count"
-                        min={1}
-                        max={8}
-                        type="number"
-                        value={form.targetExerciseCount ?? 2}
+                        id="program-target-muscle"
+                        options={targetMuscleOptions}
+                        value={form.targetMuscle ?? ""}
                         onChange={(event) =>
-                          updateForm("targetExerciseCount", Number(event.target.value))
+                          setForm((current) => ({
+                            ...current,
+                            targetMuscle: event.target.value,
+                            targetRegion: event.target.value ? current.targetRegion : ""
+                          }))
                         }
                       />
                     </FormField>
+                    {form.targetMuscle === "سینه" ? (
+                      <>
+                        <FormField
+                          hint="فقط حرکاتی انتخاب می‌شوند که همین ناحیه را در catalog ساختاریافته داشته باشند."
+                          htmlFor="program-target-region"
+                          label="ناحیه هدف"
+                        >
+                          <Select
+                            id="program-target-region"
+                            options={chestTargetRegionOptions}
+                            value={form.targetRegion ?? ""}
+                            onChange={(event) => updateForm("targetRegion", event.target.value)}
+                          />
+                        </FormField>
+                        <FormField
+                          hint="تعداد حرکت سینه در هر جلسه؛ فقط وقتی ناحیه هدف انتخاب شده باشد اعمال می‌شود."
+                          htmlFor="program-target-exercise-count"
+                          label="تعداد حرکت هدف"
+                        >
+                          <Input
+                            id="program-target-exercise-count"
+                            min={1}
+                            max={8}
+                            type="number"
+                            value={form.targetExerciseCount ?? 2}
+                            onChange={(event) =>
+                              updateForm("targetExerciseCount", Number(event.target.value))
+                            }
+                          />
+                        </FormField>
+                      </>
+                    ) : null}
+                    <FormField className={styles.fullField} label="اولویت عضلات">
+                      <Input
+                        value={form.musclePriorities.join("، ")}
+                        onChange={(event) =>
+                          updateForm(
+                            "musclePriorities",
+                            event.target.value
+                              .split(/[،,]/)
+                              .map((item) => item.trim())
+                              .filter(Boolean)
+                          )
+                        }
+                      />
+                    </FormField>
+                    <FormField className={styles.fullField} label="توضیح یا دستور خاص مربی">
+                      <Textarea
+                        value={form.customInstructions}
+                        onChange={(event) => updateForm("customInstructions", event.target.value)}
+                      />
+                    </FormField>
                   </>
-                ) : null}
-                <FormField className={styles.fullField} label="اولویت عضلات">
-                  <Input
-                    value={form.musclePriorities.join("، ")}
-                    onChange={(event) =>
-                      updateForm(
-                        "musclePriorities",
-                        event.target.value
-                          .split(/[،,]/)
-                          .map((item) => item.trim())
-                          .filter(Boolean)
-                      )
-                    }
-                  />
-                </FormField>
-                <FormField className={styles.fullField} label="توضیح یا دستور خاص مربی">
-                  <Textarea
-                    value={form.customInstructions}
-                    onChange={(event) => updateForm("customInstructions", event.target.value)}
-                  />
-                </FormField>
+                ) : (
+                  <p className={styles.sectionDescription}>
+                    چیدمان، مقدار اجرا و سیستم‌های تمرینی از بلوک‌های همین قالب خوانده می‌شوند. برای
+                    تغییر آن‌ها به «قوانین مربی ← قالب‌های برنامه» بروید؛ آسیب، سطح و تجهیزات شاگرد
+                    همچنان بررسی می‌شوند.
+                  </p>
+                )}
               </div>
             </Card>
           ) : null}
 
-          {generatedSections.length > 0 ? (
+          {generatedSections.length > 0 && !selectedTemplate?.executionPlan ? (
             <Card className={styles.pageStack}>
               <div className={styles.sectionHeader}>
                 <div>

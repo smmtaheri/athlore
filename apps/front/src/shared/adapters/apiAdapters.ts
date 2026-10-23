@@ -601,6 +601,12 @@ export function coachRulesFromApi(dto: Record<string, unknown>): CoachRules {
       orderChange: String(item.order_change ?? "")
     })),
     templates: ((dto.templates as Record<string, unknown>[]) || []).map((item) => ({
+      ...(item.execution_plan && (item.execution_plan as { version?: number }).version === 1
+        ? {
+            executionPlan:
+              item.execution_plan as import("../../features/coach-rules/types/coachRules").TemplateExecutionPlan
+          }
+        : {}),
       daysPerWeek: num(item.days_per_week),
       goal: String(item.goal ?? ""),
       id: String(item.id ?? ""),
@@ -681,6 +687,7 @@ export function coachRulesToApi(rules: CoachRules): Record<string, unknown> {
       sort_order: index
     })),
     templates: rules.templates.map((item, index) => ({
+      ...(item.executionPlan ? { execution_plan: item.executionPlan } : {}),
       days_per_week: item.daysPerWeek,
       goal: item.goal,
       intensity: item.intensity,

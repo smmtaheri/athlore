@@ -69,6 +69,16 @@ Never touches `coach-assistant-backend/db.sqlite3`.
 
 ## Known limitations
 
+Structured template coverage: `e2e/structured-templates.spec.ts` creates catalog
+movements and a coach recipe on the disposable mocked-SMS stack, edits a typed
+template through the coach UI on desktop/mobile, saves and reopens it, and then
+generates a real backend program to verify the exact fixed movements, rounds,
+rest and grouping. The template editor exposes text only for names/descriptions;
+day muscles, blocks, systems, repetitions/time, RIR and rest have typed controls.
+Legacy templates remain explicitly marked until the coach converts and reviews
+them. Conversion preserves old prose as non-executable description. Unknown
+legacy day labels require explicit muscle selection before saving.
+
 - Critical E2E uses UI register + API helpers for student/rules/program setup, then UI for finalize/PDF/share
 - Share token never stored in localStorage
 - Async PDF polling UI not required while Backend is synchronous

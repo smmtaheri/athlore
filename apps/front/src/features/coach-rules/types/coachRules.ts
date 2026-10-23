@@ -12,7 +12,32 @@ export type CoachRuleSection =
 
 export type TrainingLevelKey = "beginner" | "intermediate" | "advanced";
 
+export interface TemplateSlot {
+  muscle_key: string;
+  exercise_id: string | null;
+  unit: "reps" | "seconds";
+  minimum: number;
+  maximum: number;
+  reps_source: "default" | "system" | "custom";
+}
+
+export interface TemplateBlock {
+  system_key: string | null;
+  sets: number | null;
+  rest_seconds: number | null;
+  between_seconds: number | null;
+  slots: TemplateSlot[];
+}
+
+export interface TemplateExecutionPlan {
+  version: 1;
+  description: string;
+  defaults: { sets: number; minimum: number; maximum: number; rest_seconds: number; rir: number };
+  days: Array<{ muscles: string[]; blocks: TemplateBlock[] }>;
+}
+
 export interface ProgramTemplate {
+  executionPlan?: TemplateExecutionPlan;
   daysPerWeek: number;
   goal: string;
   id: string;
