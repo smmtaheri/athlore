@@ -747,6 +747,18 @@ Full historical version document (content immutable if `finalized` / `archived`)
 }
 ```
 
+`template_id` is optional. When omitted, the endpoint uses the quick-generation path without creating a saved `ProgramTemplate`. Its optional fields are:
+
+```json
+{
+  "session_muscles": [["سینه", "پشت بازو"], ["پا"], [], ["زیربغل", "جلو بازو"]],
+  "exercise_variety": "balanced",
+  "training_systems": [{"key": "superset"}]
+}
+```
+
+For quick mode, `days_per_week` is taken from the submitted request first, then the linked open request, the selected visit's `sessions_per_week`, the student profile, and finally 4. `session_muscles` must contain one row per session; an empty row delegates the split to the engine. `exercise_variety` accepts `stable`, `balanced`, or `varied`; random choices are reproducible from the stored generation seed. `training_systems: []` explicitly means no special technique and suppresses the legacy implicit superset fallback. A supplied `template_id` preserves the existing exact-template behavior and ignores quick-only muscle/variety controls.
+
 **Response `201`:**
 
 ```json

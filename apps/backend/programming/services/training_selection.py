@@ -8,6 +8,7 @@ provided by the caller (generator orchestration).
 from __future__ import annotations
 
 import hashlib
+import random
 from typing import Any
 
 from django.db.models import Q
@@ -492,6 +493,8 @@ def _pick_for_roles(
     preferred_names: set[str],
     historical_map: dict[str, dict],
     priority_boost: bool,
+    variety_level: str = "stable",
+    rng: random.Random | None = None,
 ) -> list[str]:
     remaining = list(candidates)
     picked: list[str] = []
@@ -513,7 +516,14 @@ def _pick_for_roles(
                 break
             matched = list(remaining)
         matched.sort(key=sort_key)
-        choice = matched[0]
+        if variety_level in {"balanced", "varied"}:
+            preferred_tier = matched[0] in preferred_names
+            choice_pool = [name for name in matched if (name in preferred_names) == preferred_tier]
+            if variety_level == "balanced":
+                choice_pool = choice_pool[:3]
+            choice = (rng or random).choice(choice_pool)
+        else:
+            choice = matched[0]
         picked.append(choice)
         remaining = [n for n in remaining if n != choice]
 
@@ -835,6 +845,8 @@ def build_training_days(
     target_region: str = "",
     target_exercise_count: int | None = None,
     selected_training_systems: list[dict] | None = None,
+    exercise_variety: str = "stable",
+    selection_seed: str = "",
 ) -> tuple[list[dict], dict]:
     if template.execution_plan:
         from programming.services.template_execution import build_template_days
@@ -957,6 +969,7 @@ def build_training_days(
     used: set[str] = set()
     used |= _alias_names(coach, used)
     base_sets = _base_sets(level, template, coach=coach)
+    selection_rng = random.Random(str(selection_seed or ""))
 
     allow_superset = False
     if level_rule and level != "beginner":
@@ -983,6 +996,7 @@ def build_training_days(
         "structured_catalog_selected": [],
         "structured_catalog_excluded": [],
         "techniques": [],
+        "exercise_variety": exercise_variety,
     }
 
     structured_technique_keys: set[str] = set()
@@ -1108,6 +1122,8 @@ def build_training_days(
                 preferred_names=preferred_names,
                 historical_map=historical_map,
                 priority_boost=muscle in priority or muscle in weak,
+                variety_level=exercise_variety,
+                rng=selection_rng,
             )
             for idx, name in enumerate(picked):
                 used.add(name)
@@ -1230,7 +1246,8 @@ def build_training_days(
         _apply_real_supersets(
             day_exercises,
             allow=(
-                allow_superset
+                selected_training_systems is None
+                and allow_superset
                 and apply_general
                 and not structured_technique_handler
                 and not has_superset_override

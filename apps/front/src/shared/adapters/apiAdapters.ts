@@ -794,6 +794,12 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
     daysPerWeek: numOrUndefined(
       template.days_per_week ?? generatorMeta.days_per_week ?? request.days_per_week
     ),
+    exerciseVariety:
+      request.exercise_variety === "stable" ||
+      request.exercise_variety === "balanced" ||
+      request.exercise_variety === "varied"
+        ? request.exercise_variety
+        : undefined,
     equipment: equipmentList,
     exerciseCatalog: { excluded: [], selected: [] },
     exerciseSelection: {
@@ -803,6 +809,10 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
       replacements: []
     },
     generationRunId: str(dto.id),
+    generationMode:
+      request.template_mode === "quick" || request.template_mode === "template"
+        ? request.template_mode
+        : undefined,
     generatorVersion: str(
       inputSnapshot.generator_version ?? generatorMeta.version ?? dto.engine ?? ""
     ),
@@ -818,6 +828,9 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
     ruleSetId: inputSnapshot.rules_digest ? str(inputSnapshot.rules_digest) : undefined,
     studentGoal: goals.primary_goal ? str(goals.primary_goal) : undefined,
     studentId: str(dto.student_id ?? student.id ?? ""),
+    sessionMuscles: Array.isArray(request.session_muscles)
+      ? request.session_muscles.map((row) => (Array.isArray(row) ? asStringArray(row) : []))
+      : undefined,
     studentLevel: template.level ? str(template.level) : undefined,
     techniques: [],
     templateId: template.id

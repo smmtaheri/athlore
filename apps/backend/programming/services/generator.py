@@ -377,8 +377,10 @@ def build_input_snapshot(
     request: dict,
 ) -> dict:
     rules = get_coach_rules_aggregate(coach)
+    quick_mode = request.get("template_mode") == "quick"
     return {
         "generator_version": GENERATOR_VERSION,
+        "generation_mode": "quick" if quick_mode else "template",
         "request": request,
         "student": {
             "id": str(student.id),
@@ -399,14 +401,23 @@ def build_input_snapshot(
             else None
         ),
         "template": {
-            "id": str(template.id),
-            "name": template.name,
+            "id": None if quick_mode else str(template.id),
+            "name": "بدون قالب؛ تنظیم سریع" if quick_mode else template.name,
             "level": template.level,
             "days_per_week": template.days_per_week,
             "split": list(template.split or []),
             "muscle_priority_order": list(template.muscle_priority_order or []),
             "execution_plan": template.execution_plan or {},
         },
+        "quick_settings": (
+            {
+                "session_muscles": request.get("session_muscles") or [],
+                "exercise_variety": request.get("exercise_variety") or "balanced",
+                "training_systems": request.get("training_systems") or [],
+            }
+            if quick_mode
+            else None
+        ),
         "rules_digest": hashlib.sha256(
             json.dumps(rules, ensure_ascii=False, sort_keys=True).encode("utf-8")
         ).hexdigest(),
@@ -621,6 +632,12 @@ def _generate_document_body(
             selected_training_systems=(
                 request.get("training_systems") if "training_systems" in request else None
             ),
+            exercise_variety=(
+                str(request.get("exercise_variety") or "balanced")
+                if request.get("template_mode") == "quick"
+                else "stable"
+            ),
+            selection_seed=str(request.get("seed") or ""),
         )
         warnings.extend(train_warnings)
 
@@ -789,8 +806,16 @@ def _generate_document_body(
         "pdf_settings": pdf_settings,
         "generator": {
             "version": GENERATOR_VERSION,
-            "template_id": str(template.id),
-            "template_name": template.name,
+            "template_id": (None if request.get("template_mode") == "quick" else str(template.id)),
+            "template_name": (
+                "بدون قالب؛ تنظیم سریع"
+                if request.get("template_mode") == "quick"
+                else template.name
+            ),
+            "generation_mode": request.get("template_mode") or "template",
+            "exercise_variety": (
+                request.get("exercise_variety") if request.get("template_mode") == "quick" else None
+            ),
             "level": level,
             "days_per_week": days_per_week,
             "warnings": list(warnings),
@@ -890,6 +915,8 @@ def _build_training(
     target_region: str = "",
     target_exercise_count: int | None = None,
     selected_training_systems: list[dict] | None = None,
+    exercise_variety: str = "stable",
+    selection_seed: str = "",
 ) -> tuple[dict, list[str], dict]:
     warnings: list[str] = []
     rule_set = ensure_rule_set(coach)
@@ -1022,6 +1049,8 @@ def _build_training(
         target_region=target_region,
         target_exercise_count=target_exercise_count,
         selected_training_systems=selected_training_systems,
+        exercise_variety=exercise_variety,
+        selection_seed=selection_seed,
         warnings=warnings,
     )
 
@@ -1048,6 +1077,7 @@ def _build_training(
         "structured_catalog_selected": selection_evidence.get("structured_catalog_selected", []),
         "structured_catalog_excluded": selection_evidence.get("structured_catalog_excluded", []),
         "techniques": selection_evidence.get("techniques", []),
+        "exercise_variety": exercise_variety,
     }
     return {"summary": summary, "days": days}, warnings, training_evidence
 

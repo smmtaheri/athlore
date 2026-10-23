@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from datetime import timedelta
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from django.db import transaction
 from django.db.models import Max, Q
@@ -22,6 +22,7 @@ from programming.services.generator import (
     build_input_snapshot,
     generate_document,
 )
+from programming.services.split_parser import CANONICAL_MUSCLES, normalize_muscle
 from students.models import Student, Visit
 from students.services import ensure_student_active
 
@@ -572,8 +573,8 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
 
     student_id = request_data.get("student_id")
     template_id = request_data.get("template_id")
-    if not student_id or not template_id:
-        raise ValidationError({"student_id": ["student_id and template_id are required."]})
+    if not student_id:
+        raise ValidationError({"student_id": ["انتخاب شاگرد الزامی است."]})
 
     student = _get_owned_student(coach, student_id)
     ensure_student_active(student)
@@ -619,15 +620,34 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
         if program_request.visit_id:
             generation_data["visit_id"] = str(program_request.visit_id)
 
-    try:
-        template = ProgramTemplate.objects.get(pk=template_id, coach=coach)
-    except ProgramTemplate.DoesNotExist as Exc:
-        raise NotFound(detail="Not found.") from Exc
+    visit = _visit_for_generation(coach, student, generation_data)
 
-    if template.is_archived or not template.is_active:
-        raise InvalidStateError(
-            detail="Template is archived or inactive.", code="archived_template"
+    if template_id:
+        try:
+            template = ProgramTemplate.objects.get(pk=template_id, coach=coach)
+        except ProgramTemplate.DoesNotExist as Exc:
+            raise NotFound(detail="Not found.") from Exc
+
+        if template.is_archived or not template.is_active:
+            raise InvalidStateError(
+                detail="Template is archived or inactive.", code="archived_template"
+            )
+        generation_data = {**generation_data, "template_mode": "template"}
+    else:
+        template, quick_settings = _build_quick_generation_template(
+            coach=coach,
+            student=student,
+            request_data=generation_data,
+            requested_sessions=(
+                (program_request.sessions_per_week if request_id else None)
+                or _visit_sessions_per_week(visit)
+            ),
         )
+        generation_data = {
+            **generation_data,
+            **quick_settings,
+            "template_mode": "quick",
+        }
 
     # Soft compatibility: warn via generation if level mismatches; hard fail if explicitly incompatible days
     if template.split and len(template.split) != template.days_per_week:
@@ -666,14 +686,15 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
     start, end = _program_dates(
         generation_data.get("date_range_start"), generation_data.get("date_range_end")
     )
-    visit = _visit_for_generation(coach, student, generation_data)
     ensure_rule_set(coach)
 
+    generation_seed = str(generation_data.get("seed") or uuid4().hex)
+    generation_data["seed"] = generation_seed
     run = GenerationRun.objects.create(
         coach=coach,
         student=student,
         engine=str(generation_data.get("engine") or GENERATOR_VERSION),
-        seed=str(generation_data.get("seed") or ""),
+        seed=generation_seed,
         status=GenerationRun.Status.PENDING,
         request=generation_data,
     )
@@ -744,6 +765,142 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
         run.error_message = str(Exc)[:500]
         run.save(update_fields=["status", "error_message", "updated_at"])
         raise GenerationFailedError(detail="Generation failed.") from Exc
+
+
+def _build_quick_generation_template(
+    *,
+    coach: CoachProfile,
+    student: Student,
+    request_data: dict,
+    requested_sessions: int | None,
+) -> tuple[ProgramTemplate, dict]:
+    """Adapt visit-time quick settings to the existing rules_v1 generation contract."""
+    raw_days = request_data.get("days_per_week")
+    if raw_days in (None, ""):
+        raw_days = (
+            requested_sessions
+            or (student.training_conditions or {}).get("training_days_per_week")
+            or 4
+        )
+    try:
+        if isinstance(raw_days, bool) or str(raw_days).strip() != str(int(raw_days)):
+            raise ValueError
+        days_per_week = int(raw_days)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError({"days_per_week": ["تعداد جلسه باید عدد صحیح باشد."]}) from exc
+    if not 1 <= days_per_week <= 7:
+        raise ValidationError({"days_per_week": ["تعداد جلسه باید بین ۱ تا ۷ باشد."]})
+
+    raw_split = request_data.get("session_muscles")
+    if raw_split is None:
+        raw_split = [[] for _ in range(days_per_week)]
+    if not isinstance(raw_split, list) or len(raw_split) != days_per_week:
+        raise ValidationError(
+            {"session_muscles": ["برای هر جلسه باید یک چیدمان عضلانی جداگانه فرستاده شود."]}
+        )
+
+    session_muscles: list[list[str]] = []
+    split_labels: list[str] = []
+    allowed_muscles = set(CANONICAL_MUSCLES)
+    for day_index, raw_muscles in enumerate(raw_split):
+        if not isinstance(raw_muscles, list) or len(raw_muscles) > len(CANONICAL_MUSCLES):
+            raise ValidationError({"session_muscles": [f"چیدمان جلسهٔ {day_index + 1} معتبر نیست."]})
+        normalized: list[str] = []
+        for raw_muscle in raw_muscles:
+            if not isinstance(raw_muscle, str) or not raw_muscle.strip():
+                continue
+            muscle = normalize_muscle(raw_muscle)
+            if muscle not in allowed_muscles:
+                raise ValidationError(
+                    {
+                        "session_muscles": [
+                            f"عضلهٔ «{raw_muscle}» برای جلسهٔ {day_index + 1} معتبر نیست."
+                        ]
+                    }
+                )
+            if muscle in normalized:
+                raise ValidationError(
+                    {"session_muscles": [f"عضلهٔ «{muscle}» در جلسهٔ {day_index + 1} تکراری است."]}
+                )
+            normalized.append(muscle)
+        session_muscles.append(normalized)
+        split_labels.append(" و ".join(normalized))
+
+    variety = str(request_data.get("exercise_variety") or "balanced")
+    if variety not in {"stable", "balanced", "varied"}:
+        raise ValidationError(
+            {"exercise_variety": ["سطح تنوع حرکت باید یکی از گزینه‌های موجود باشد."]}
+        )
+
+    raw_level = (
+        request_data.get("level")
+        or (student.training_background or {}).get("level")
+        or "intermediate"
+    )
+    if raw_level not in ProgramTemplate.Level.values:
+        raise ValidationError({"level": ["سطح تمرین معتبر نیست."]})
+    raw_priorities = request_data.get("muscle_priorities")
+    muscle_priorities = (
+        [item.strip() for item in raw_priorities if isinstance(item, str) and item.strip()]
+        if isinstance(raw_priorities, list)
+        else []
+    )
+    rule_set = ensure_rule_set(coach)
+    template = ProgramTemplate(
+        rule_set=rule_set,
+        coach=coach,
+        name="تنظیم سریع",
+        goal=str(request_data.get("goals") or "").strip(),
+        main_goal=str(request_data.get("goals") or "").strip()[:120],
+        level=raw_level,
+        days_per_week=days_per_week,
+        intensity="متوسط",
+        volume="متوسط",
+        rest_time="۹۰ ثانیه",
+        split=split_labels,
+        muscle_priority_order=muscle_priorities,
+        special_rules=[],
+        execution_plan={},
+    )
+    return template, {
+        "days_per_week": days_per_week,
+        "session_muscles": session_muscles,
+        "exercise_variety": variety,
+    }
+
+
+def _visit_sessions_per_week(visit: Visit | None) -> int | None:
+    if visit is None:
+        return None
+    answers = visit.answers or {}
+    sections = (visit.form_template_snapshot or {}).get("sections") or []
+    raw_value = answers.get("sessions_per_week")
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        for field in section.get("fields") or []:
+            if (
+                isinstance(field, dict)
+                and field.get("semantic_key") == "sessions_per_week"
+                and field.get("key") in answers
+            ):
+                raw_value = answers[field["key"]]
+                break
+        if raw_value is not None:
+            break
+    if isinstance(raw_value, bool) or raw_value in (None, ""):
+        return None
+    if isinstance(raw_value, float) and not raw_value.is_integer():
+        return None
+    if isinstance(raw_value, str):
+        raw_value = raw_value.translate(
+            str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+        )
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        return None
+    return value if 1 <= value <= 7 else None
 
 
 @transaction.atomic

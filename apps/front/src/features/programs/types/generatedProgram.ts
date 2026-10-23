@@ -171,10 +171,12 @@ export interface GenerationEvidenceTechnique {
  */
 export interface GenerationEvidence {
   daysPerWeek?: number;
+  exerciseVariety?: "stable" | "balanced" | "varied";
   equipment: string[];
   exerciseCatalog?: GenerationEvidenceCatalog;
   exerciseSelection: GenerationEvidenceExerciseSelection;
   generationRunId: string;
+  generationMode?: "quick" | "template";
   generatorVersion: string;
   injuryRules: string[];
   muscleFocus: GenerationEvidenceMuscleFocus;
@@ -182,6 +184,7 @@ export interface GenerationEvidence {
   ruleSetId?: string;
   studentGoal?: string;
   studentId: string;
+  sessionMuscles?: string[][];
   studentLevel?: string;
   techniques?: GenerationEvidenceTechnique[];
   templateId?: string;
@@ -234,10 +237,12 @@ export interface ProgramGenerationInput {
   dateRangeLabel?: string;
   dateRangeStart?: string;
   durationWeeks: number;
+  exerciseVariety?: "stable" | "balanced" | "varied";
   goal: string;
   level: string;
   musclePriorities: string[];
   programType: StudentProgramType;
+  sessionMuscles?: string[][];
   programRequestId?: string;
   visitId?: string;
   studentId: string;
@@ -246,8 +251,15 @@ export interface ProgramGenerationInput {
   targetRegion?: string;
   supplementSelection?: import("../../coach-rules/services/supplementCatalogRepository").SupplementSelection;
   trainingSystems?: Array<{ key: string; variants?: string[] }>;
-  templateId: string;
+  templateId?: string;
   title: string;
+}
+
+export interface QuickGenerationSettings {
+  daysPerWeek: number;
+  exerciseVariety: "stable" | "balanced" | "varied";
+  sessionMuscles: string[][];
+  trainingSystems: Array<{ key: string; variants?: string[] }>;
 }
 
 export interface StagedProgramPdf {

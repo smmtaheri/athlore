@@ -31,8 +31,7 @@ export function generateProgram({
   visit
 }: GenerateProgramParams): GeneratedProgram {
   const now = new Date().toISOString();
-  const template =
-    rules.templates.find((item) => item.id === input.templateId) ?? rules.templates[0];
+  const template = rules.templates.find((item) => item.id === input.templateId);
   const id = createStableId(input.studentId, input.title, input.daysPerWeek);
   const includeTraining = input.programType === "workout" || input.programType === "complete";
   const includeNutrition = input.programType === "nutrition" || input.programType === "complete";
@@ -63,7 +62,7 @@ export function generateProgram({
     training: includeTraining
       ? {
           days: createTrainingDays(input, rules, student, template),
-          summary: `${input.daysPerWeek} روز تمرین بر اساس ${template.name} و سطح ${levelLabel(input.level)}`
+          summary: `${input.daysPerWeek} روز تمرین ${template ? `بر اساس ${template.name}` : "با تنظیم سریع"} و سطح ${levelLabel(input.level)}`
         }
       : undefined,
     updatedAt: now,
@@ -84,7 +83,7 @@ function createTrainingDays(
   input: ProgramGenerationInput,
   rules: CoachRules,
   student: Student,
-  template: ProgramTemplate
+  template?: ProgramTemplate
 ): TrainingDay[] {
   const priorityMuscles = [
     ...input.musclePriorities,
@@ -93,16 +92,19 @@ function createTrainingDays(
   ].filter(Boolean);
   const muscles = unique([
     ...priorityMuscles,
-    ...template.musclePriorityOrder,
+    ...(template?.musclePriorityOrder ?? []),
     "زیربغل",
     "پا",
     "سرشانه"
   ]);
 
   return Array.from({ length: input.daysPerWeek }, (_, index) => {
+    const configuredMuscles = input.sessionMuscles?.[index]?.filter(Boolean) ?? [];
     const mainMuscle = muscles[index % muscles.length] ?? "سینه";
     const secondMuscle = muscles[(index + 1) % muscles.length] ?? "زیربغل";
-    const targetMuscles = unique([mainMuscle, secondMuscle]);
+    const targetMuscles = unique(
+      configuredMuscles.length ? configuredMuscles : [mainMuscle, secondMuscle]
+    );
     return {
       exercises: createExercises(
         targetMuscles,
@@ -119,7 +121,9 @@ function createTrainingDays(
           : "فرم صحیح و کنترل دامنه حرکت اولویت دارد.",
       order: index + 1,
       targetMuscles,
-      title: template.split[index] ?? `روز ${index + 1}`
+      title:
+        template?.split[index] ??
+        `جلسه ${index + 1}${configuredMuscles.length ? ` · ${configuredMuscles.join(" و ")}` : ""}`
     };
   });
 }
@@ -159,7 +163,7 @@ function createExercises(
           .sort((left, right) => right.priority - left.priority)
           .map((exercise) => exercise.name)
       : [];
-    const names = catalogNames.length ? catalogNames : fallbackMainExercises[muscle] ?? [];
+    const names = catalogNames.length ? catalogNames : (fallbackMainExercises[muscle] ?? []);
     return unique(names)
       .filter((name) => !forbidden.has(name))
       .slice(0, muscle === muscles[0] ? 3 : 2)

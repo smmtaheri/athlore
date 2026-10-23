@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ArrowRight, Eye, FileUp, RefreshCcw, Trash2, WandSparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowRight, Eye, FileUp, Plus, RefreshCcw, Trash2, WandSparkles, X } from "lucide-react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import {
   ContentSection,
@@ -91,6 +91,33 @@ const levelOptions = [
   { label: "حرفه‌ای", value: "advanced" }
 ];
 
+const quickMuscleOptions = [
+  "سینه",
+  "زیربغل",
+  "پا",
+  "سرشانه",
+  "پشت بازو",
+  "جلو بازو",
+  "شکم",
+  "ساق"
+].map((muscle) => ({ label: muscle, value: muscle }));
+
+const exerciseVarietyOptions = [
+  { label: "ثابت؛ اولویت با گزینه‌های منتخب", value: "stable" },
+  { label: "متعادل؛ تنوع محدود بین حرکت‌های مناسب", value: "balanced" },
+  { label: "متنوع؛ انتخاب گسترده‌تر از کاتالوگ", value: "varied" }
+];
+
+function emptySessionMuscles(days: number): string[][] {
+  return Array.from({ length: Math.max(0, Math.min(7, days)) }, () => []);
+}
+
+function resizeSessionMuscles(value: string[][] | undefined, days: number): string[][] {
+  const next = (value ?? []).slice(0, days).map((muscles) => [...muscles]);
+  while (next.length < days) next.push([]);
+  return next;
+}
+
 const targetMuscleOptions = [
   { label: "بدون تمرکز ناحیه‌ای", value: "" },
   { label: "سینه", value: "سینه" }
@@ -134,9 +161,12 @@ export function ProgramGenerationPage({
   const [students, setStudents] = useState<Student[]>([]);
   const [rules, setRules] = useState<CoachRules>();
   const [trainingSystems, setTrainingSystems] = useState<TrainingSystem[]>([]);
-  const [trainingSystemsAvailable, setTrainingSystemsAvailable] = useState(false);
   const [visits, setVisits] = useState<StudentVisit[]>([]);
+  const [visitsLoadedFor, setVisitsLoadedFor] = useState("");
   const [programRequest, setProgramRequest] = useState<ProgramRequest | null>(null);
+  const [quickSettingsNotice, setQuickSettingsNotice] = useState("");
+  const quickSettingsLoadedFor = useRef(new Set<string>());
+  const quickSettingsTouchedFor = useRef(new Set<string>());
   const [feedback, setFeedback] = useState(
     () => (location.state as { visitSaved?: string } | null)?.visitSaved ?? ""
   );
@@ -168,10 +198,12 @@ export function ProgramGenerationPage({
     customInstructions: "",
     daysPerWeek: 4,
     durationWeeks: 4,
+    exerciseVariety: "balanced",
     goal: "افزایش حجم و بهبود فرم بدن",
     level: "intermediate",
     musclePriorities: ["سینه", "سرشانه"],
     programType: "complete",
+    sessionMuscles: emptySessionMuscles(4),
     studentId: initialStudentId,
     supplementSelection: emptySupplementSelection(),
     targetExerciseCount: 2,
@@ -181,6 +213,8 @@ export function ProgramGenerationPage({
     templateId: "",
     title: "برنامه کامل محمد طاهری"
   });
+
+  const visitToPrefillId = initialVisitId || programRequest?.visitId || "";
 
   useEffect(() => {
     let isMounted = true;
@@ -203,20 +237,12 @@ export function ProgramGenerationPage({
         const requestedStudent = studentItems.find((student) => student.id === initialStudentId);
         setProgramRequest(requestItem);
         setTrainingSystems(trainingSystemItems);
-        setTrainingSystemsAvailable(trainingSystemItems.length > 0);
         const selectedStudent =
           activeStudentItems.find((student) => student.id === initialStudentId) ??
           (requestedStudent ? undefined : activeStudentItems[0]);
         const studentDays =
           requestItem?.sessionsPerWeek ?? selectedStudent?.trainingConditions.trainingDaysPerWeek;
-        const preferredName = "۴ روزه حجم متوسط";
-        const matchingTemplates = studentDays
-          ? coachRules?.templates.filter((item) => item.daysPerWeek === studentDays)
-          : coachRules?.templates;
-        const template =
-          matchingTemplates?.find((item) => item.name === preferredName) ??
-          matchingTemplates?.find((item) => item.daysPerWeek === 4) ??
-          matchingTemplates?.[0];
+        const resolvedDays = studentDays ?? 4;
         setStudents(activeStudentItems);
         setRules(coachRules);
         if (requestedStudent && requestedStudent.status !== "active") {
@@ -236,7 +262,8 @@ export function ProgramGenerationPage({
         }
         setForm((current) => ({
           ...current,
-          daysPerWeek: studentDays ?? template?.daysPerWeek ?? 4,
+          daysPerWeek: resolvedDays,
+          sessionMuscles: resizeSessionMuscles(current.sessionMuscles, resolvedDays),
           programType: requestItem
             ? programTypeForRequest(requestItem.sections)
             : current.programType,
@@ -248,12 +275,8 @@ export function ProgramGenerationPage({
           level: selectedStudent?.trainingBackground.level ?? current.level,
           musclePriorities: selectedStudent?.goals.musclePriorities ?? current.musclePriorities,
           studentId: selectedStudent?.id ?? "",
-          trainingSystems: defaultTrainingSystemSelection(
-            trainingSystemItems,
-            (selectedStudent?.trainingBackground.level ?? current.level) as TrainingLevel,
-            coachRules
-          ),
-          templateId: template?.id ?? "",
+          trainingSystems: [],
+          templateId: "",
           title: selectedStudent
             ? `برنامه ${requestItem ? programTitleForRequest(requestItem.sections) : "کامل"} ${selectedStudent.fullName}`
             : "برنامه جدید"
@@ -287,21 +310,107 @@ export function ProgramGenerationPage({
       .then((items) => {
         if (isMounted) {
           setVisits(items);
+          setVisitsLoadedFor(form.studentId);
+          const shouldPrefillFromVisit = programRequest
+            ? !programRequest.sessionsPerWeek && Boolean(programRequest.visitId)
+            : true;
+          if (shouldPrefillFromVisit && !quickSettingsTouchedFor.current.has(form.studentId)) {
+            const visit = visitToPrefillId
+              ? items.find((item) => item.id === visitToPrefillId)
+              : items[0];
+            const visitDays = sessionCountFromVisit(visit);
+            if (visitDays) {
+              setForm((current) =>
+                current.templateId
+                  ? current
+                  : {
+                      ...current,
+                      daysPerWeek: visitDays,
+                      sessionMuscles: resizeSessionMuscles(current.sessionMuscles, visitDays)
+                    }
+              );
+            }
+          }
         }
       })
       .catch(() => {
         if (isMounted) {
           setVisits([]);
+          setVisitsLoadedFor(form.studentId);
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [form.studentId, status, visitsRepo]);
+  }, [form.studentId, initialVisitId, programRequest, status, visitsRepo, visitToPrefillId]);
+
+  useEffect(() => {
+    const studentId = form.studentId;
+    if (
+      status !== "loaded" ||
+      !studentId ||
+      visitsLoadedFor !== studentId ||
+      !programsRepo.getLatestQuickSettings ||
+      quickSettingsLoadedFor.current.has(studentId)
+    ) {
+      return;
+    }
+
+    let isMounted = true;
+    quickSettingsLoadedFor.current.add(studentId);
+    setQuickSettingsNotice("");
+    programsRepo
+      .getLatestQuickSettings(studentId)
+      .then((settings) => {
+        if (!isMounted || !settings || quickSettingsTouchedFor.current.has(studentId)) {
+          return;
+        }
+        const availableSystems = new Set(
+          trainingSystems
+            .filter(
+              (system) =>
+                (system.source === "platform" || system.enabled) &&
+                (!system.allowed_levels.length || system.allowed_levels.includes(form.level))
+            )
+            .map((system) => system.key)
+        );
+        setForm((current) => {
+          if (current.studentId !== studentId || current.templateId) {
+            return current;
+          }
+          return {
+            ...current,
+            ...(current.daysPerWeek === settings.daysPerWeek
+              ? {
+                  sessionMuscles: resizeSessionMuscles(settings.sessionMuscles, current.daysPerWeek)
+                }
+              : {}),
+            exerciseVariety: settings.exerciseVariety,
+            trainingSystems: settings.trainingSystems.filter((item) =>
+              availableSystems.has(item.key)
+            )
+          };
+        });
+        if (isMounted) {
+          setQuickSettingsNotice(
+            "تنظیمات آخرین برنامه پیشنهاد شد؛ تقسیم عضلات فقط با تعداد جلسهٔ فعلی یکسان اعمال می‌شود."
+          );
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setQuickSettingsNotice("تنظیمات برنامهٔ قبلی دریافت نشد؛ می‌توانید همین‌جا ادامه دهید.");
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [form.level, form.studentId, programsRepo, status, trainingSystems, visitsLoadedFor]);
 
   const selectedStudent = students.find((student) => student.id === form.studentId);
-  const selectedVisitId = initialVisitId || programRequest?.visitId || "";
+  const selectedVisitId = visitToPrefillId;
   const latestVisit = selectedVisitId
     ? visits.find((visit) => visit.id === selectedVisitId)
     : programRequest
@@ -341,8 +450,21 @@ export function ProgramGenerationPage({
     field: Key,
     value: ProgramGenerationInput[Key]
   ) => {
+    if (["exerciseVariety", "sessionMuscles", "trainingSystems"].includes(field)) {
+      quickSettingsTouchedFor.current.add(form.studentId);
+    }
     setForm((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: "" }));
+  };
+
+  const handleDaysPerWeekChange = (days: number) => {
+    quickSettingsTouchedFor.current.add(form.studentId);
+    setForm((current) => ({
+      ...current,
+      daysPerWeek: days,
+      sessionMuscles: resizeSessionMuscles(current.sessionMuscles, days)
+    }));
+    setErrors((current) => ({ ...current, daysPerWeek: "" }));
   };
 
   const getProgramPeriod = () => {
@@ -413,6 +535,8 @@ export function ProgramGenerationPage({
   };
 
   const handleStudentChange = (studentId: string) => {
+    quickSettingsLoadedFor.current.delete(studentId);
+    quickSettingsTouchedFor.current.delete(studentId);
     if (programsRepo.deleteStagedPdf) {
       Object.values(stagedPdfs).forEach((staged) => {
         if (staged) void programsRepo.deleteStagedPdf?.(staged.id).catch(() => undefined);
@@ -422,28 +546,23 @@ export function ProgramGenerationPage({
     const student = students.find((item) => item.id === studentId);
     const studentDays = student?.trainingConditions.trainingDaysPerWeek;
     const studentLevel = (student?.trainingBackground.level ?? "intermediate") as TrainingLevel;
-    const preferredName = "۴ روزه حجم متوسط";
-    const matchingTemplates = studentDays
-      ? rules?.templates.filter((item) => item.daysPerWeek === studentDays)
-      : rules?.templates;
-    const template =
-      matchingTemplates?.find((item) => item.name === preferredName) ??
-      matchingTemplates?.find((item) => item.daysPerWeek === 4) ??
-      matchingTemplates?.[0];
+    const resolvedDays = studentDays ?? 4;
     setForm((current) => ({
       ...current,
-      daysPerWeek: studentDays ?? template?.daysPerWeek ?? 4,
+      daysPerWeek: resolvedDays,
+      sessionMuscles: emptySessionMuscles(resolvedDays),
       goal: student?.goals.secondaryGoal || current.goal,
       level: studentLevel,
       musclePriorities: student?.goals.musclePriorities ?? current.musclePriorities,
       studentId,
       supplementSelection: emptySupplementSelection(),
-      trainingSystems: defaultTrainingSystemSelection(trainingSystems, studentLevel, rules),
-      templateId: template?.id ?? "",
+      trainingSystems: [],
+      templateId: "",
       title: student ? `برنامه کامل ${student.fullName}` : current.title
     }));
     setErrors({});
     setFeedback("");
+    setQuickSettingsNotice("");
   };
 
   const setSectionMethod = (section: ProgramPdfSection, method: ProgramPdfSectionMethod) => {
@@ -501,13 +620,16 @@ export function ProgramGenerationPage({
     setFeedback("");
 
     try {
+      const { exerciseVariety, sessionMuscles, ...generationBase } = form;
       const generationInput = {
-        ...form,
-        trainingSystems: selectedTemplate?.executionPlan
-          ? undefined
-          : trainingSystemsAvailable
-            ? (form.trainingSystems ?? [])
-            : undefined,
+        ...generationBase,
+        ...(selectedTemplate
+          ? {}
+          : {
+              exerciseVariety: exerciseVariety ?? "balanced",
+              sessionMuscles: resizeSessionMuscles(sessionMuscles, form.daysPerWeek)
+            }),
+        trainingSystems: selectedTemplate?.executionPlan ? undefined : (form.trainingSystems ?? []),
         ...(selectedTemplate?.executionPlan
           ? {
               applyInjuryRules: true,
@@ -939,97 +1061,106 @@ export function ProgramGenerationPage({
                       : "انتخاب مربی"}
                 </StatusBadge>
               </div>
-              <div className={styles.checkboxGrid}>
-                {trainingSystems.map((system) => {
-                  const selected = form.trainingSystems?.find((item) => item.key === system.key);
-                  const levelAllowed =
-                    system.allowed_levels.length === 0 ||
-                    system.allowed_levels.includes(form.level);
-                  const configuredOff = system.source !== "platform" && !system.enabled;
-                  const recognizedHandler = ["superset", "drop_set", "partial_reps"].includes(
-                    system.handler_key ?? ""
-                  );
-                  const canRun =
-                    levelAllowed &&
-                    !configuredOff &&
-                    (recognizedHandler ||
-                      system.recipe?.version === 1 ||
-                      system.handler_status === "manual_only");
-                  const variants = trainingSystemVariants(system);
-                  return (
-                    <div className={styles.pageStack} key={system.id ?? system.key}>
-                      <Checkbox
-                        checked={Boolean(selected)}
-                        disabled={!canRun}
-                        label={`${system.name}${canRun ? "" : " · در این سطح قابل انتخاب نیست"}`}
-                        onChange={(event) => {
-                          const next = event.target.checked
-                            ? [
-                                ...(form.trainingSystems ?? []),
-                                {
-                                  key: system.key,
-                                  ...(system.handler_key === "partial_reps" ? { variants } : {})
-                                }
-                              ]
-                            : (form.trainingSystems ?? []).filter(
-                                (item) => item.key !== system.key
-                              );
-                          updateForm("trainingSystems", next);
-                        }}
-                      />
-                      <p className={styles.sectionDescription}>
-                        {system.handler_status === "manual_only"
-                          ? "این روش به‌صورت یادداشت مربی به روزهای برنامه افزوده می‌شود و اجرای خودکار ندارد؛ قبل از ارسال بازبینی کنید."
-                          : system.description}
-                      </p>
-                      {selected && system.handler_key === "partial_reps" ? (
-                        <div className={styles.checkboxGrid}>
-                          {partialRepVariantOptions
-                            .filter((option) => variants.includes(option.value))
-                            .map((option) => (
-                              <Checkbox
-                                checked={selected.variants?.includes(option.value) ?? false}
-                                key={option.value}
-                                label={option.label}
-                                onChange={(event) => {
-                                  const previousVariants = selected.variants ?? [];
-                                  if (!event.target.checked && previousVariants.length === 1) {
-                                    updateForm(
-                                      "trainingSystems",
-                                      (form.trainingSystems ?? []).filter(
-                                        (item) => item.key !== system.key
-                                      )
-                                    );
-                                    return;
+              <details className={styles.formAdvancedDetails}>
+                <summary>
+                  انتخاب سیستم تمرینی (اختیاری)
+                  {form.trainingSystems?.length
+                    ? ` · ${form.trainingSystems.length} انتخاب`
+                    : " · بدون سیستم خاص"}
+                </summary>
+                <div className={styles.checkboxGrid}>
+                  {trainingSystems.map((system) => {
+                    const selected = form.trainingSystems?.find((item) => item.key === system.key);
+                    const levelAllowed =
+                      system.allowed_levels.length === 0 ||
+                      system.allowed_levels.includes(form.level);
+                    const configuredOff = system.source !== "platform" && !system.enabled;
+                    const recognizedHandler = ["superset", "drop_set", "partial_reps"].includes(
+                      system.handler_key ?? ""
+                    );
+                    const canRun =
+                      levelAllowed &&
+                      !configuredOff &&
+                      (recognizedHandler ||
+                        system.recipe?.version === 1 ||
+                        system.handler_status === "manual_only");
+                    const variants = trainingSystemVariants(system);
+                    return (
+                      <div className={styles.pageStack} key={system.id ?? system.key}>
+                        <Checkbox
+                          checked={Boolean(selected)}
+                          disabled={!canRun}
+                          label={`${system.name}${canRun ? "" : " · در این سطح قابل انتخاب نیست"}`}
+                          onChange={(event) => {
+                            const next = event.target.checked
+                              ? [
+                                  ...(form.trainingSystems ?? []),
+                                  {
+                                    key: system.key,
+                                    ...(system.handler_key === "partial_reps" ? { variants } : {})
                                   }
-                                  const nextVariants = event.target.checked
-                                    ? [...new Set([...previousVariants, option.value])]
-                                    : previousVariants.filter((item) => item !== option.value);
-                                  const nextSelection = (form.trainingSystems ?? []).map((item) =>
-                                    item.key === system.key
-                                      ? { ...item, variants: nextVariants }
-                                      : item
-                                  );
-                                  updateForm("trainingSystems", nextSelection);
-                                }}
-                              />
-                            ))}
-                          <span className={styles.sectionDescription}>
-                            مقدارهای سه‌گانه و ۳ نیم‌تکرار پس از ناتوانی، پیش‌فرض‌های اولیه‌اند؛
-                            دامنهٔ نیمه برای هر حرکت در بازبینی مربی مشخص می‌شود.
-                          </span>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-              {trainingSystems.length === 0 ? (
-                <p className={styles.sectionDescription} role="status">
-                  فهرست سیستم‌ها در دسترس نیست؛ از «قوانین مربی ← سیستم‌های تمرینی» دوباره دریافتش
-                  کنید.
-                </p>
-              ) : null}
+                                ]
+                              : (form.trainingSystems ?? []).filter(
+                                  (item) => item.key !== system.key
+                                );
+                            updateForm("trainingSystems", next);
+                          }}
+                        />
+                        <p className={styles.sectionDescription}>
+                          {system.handler_status === "manual_only"
+                            ? "این روش به‌صورت یادداشت مربی به روزهای برنامه افزوده می‌شود و اجرای خودکار ندارد؛ قبل از ارسال بازبینی کنید."
+                            : system.description}
+                        </p>
+                        {selected && system.handler_key === "partial_reps" ? (
+                          <div className={styles.checkboxGrid}>
+                            {partialRepVariantOptions
+                              .filter((option) => variants.includes(option.value))
+                              .map((option) => (
+                                <Checkbox
+                                  checked={selected.variants?.includes(option.value) ?? false}
+                                  key={option.value}
+                                  label={option.label}
+                                  onChange={(event) => {
+                                    const previousVariants = selected.variants ?? [];
+                                    if (!event.target.checked && previousVariants.length === 1) {
+                                      updateForm(
+                                        "trainingSystems",
+                                        (form.trainingSystems ?? []).filter(
+                                          (item) => item.key !== system.key
+                                        )
+                                      );
+                                      return;
+                                    }
+                                    const nextVariants = event.target.checked
+                                      ? [...new Set([...previousVariants, option.value])]
+                                      : previousVariants.filter((item) => item !== option.value);
+                                    const nextSelection = (form.trainingSystems ?? []).map(
+                                      (item) =>
+                                        item.key === system.key
+                                          ? { ...item, variants: nextVariants }
+                                          : item
+                                    );
+                                    updateForm("trainingSystems", nextSelection);
+                                  }}
+                                />
+                              ))}
+                            <span className={styles.sectionDescription}>
+                              مقدارهای سه‌گانه و ۳ نیم‌تکرار پس از ناتوانی، پیش‌فرض‌های اولیه‌اند؛
+                              دامنهٔ نیمه برای هر حرکت در بازبینی مربی مشخص می‌شود.
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+                {trainingSystems.length === 0 ? (
+                  <p className={styles.sectionDescription} role="status">
+                    فهرست سیستم‌ها در دسترس نیست؛ از «قوانین مربی ← سیستم‌های تمرینی» دوباره دریافتش
+                    کنید.
+                  </p>
+                ) : null}
+              </details>
             </Card>
           ) : null}
 
@@ -1037,22 +1168,35 @@ export function ProgramGenerationPage({
             <Card className={styles.pageStack}>
               <div className={styles.sectionHeader}>
                 <div>
-                  <h2 className={styles.sectionTitle}>تنظیمات برنامه</h2>
+                  <h2 className={styles.sectionTitle}>
+                    {selectedTemplate ? "تنظیمات قالب انتخاب‌شده" : "تنظیم سریع برنامه"}
+                  </h2>
                   <p className={styles.sectionDescription}>
-                    مربی می تواند قبل از تولید موارد قابل تغییر را اصلاح کند.
+                    {selectedTemplate
+                      ? "قالب، چیدمان و اجرای حرکت‌ها را مشخص می‌کند."
+                      : "تعداد جلسه از درخواست، ویزیت یا اطلاعات شاگرد پر شده؛ تنظیم عضله و تنوع اختیاری است."}
                   </p>
                 </div>
                 {selectedTemplate ? (
                   <StatusBadge variant="info">قالب: {selectedTemplate.name}</StatusBadge>
-                ) : null}
+                ) : (
+                  <StatusBadge variant="success">بدون قالب</StatusBadge>
+                )}
               </div>
 
-              <div className={styles.formGrid}>
-                <FormField error={errors.templateId} label="قالب برنامه" required>
+              <details className={styles.formAdvancedDetails}>
+                <summary>انتخاب قالب دقیق (اختیاری)</summary>
+                <p>
+                  برای استفاده از یک تقسیم‌بندی و چیدمان ازپیش‌ساخته، قالب را انتخاب کنید؛ در غیر
+                  این صورت تنظیم سریع استفاده می‌شود.
+                </p>
+                <FormField label="قالب برنامه">
                   <Select
                     options={templateOptions}
-                    value={form.templateId}
+                    placeholder="بدون قالب؛ تنظیم سریع"
+                    value={form.templateId ?? ""}
                     onChange={(event) => {
+                      quickSettingsTouchedFor.current.add(form.studentId);
                       const template = rules?.templates.find(
                         (item) => item.id === event.target.value
                       );
@@ -1064,13 +1208,22 @@ export function ProgramGenerationPage({
                     }}
                   />
                 </FormField>
-                <FormField error={errors.daysPerWeek} label="تعداد روز تمرین" required>
+              </details>
+
+              {!selectedTemplate && quickSettingsNotice ? (
+                <p className={styles.sectionDescription} role="status">
+                  {quickSettingsNotice}
+                </p>
+              ) : null}
+
+              <div className={styles.formGrid}>
+                <FormField error={errors.daysPerWeek} label="جلسه در هفته" required>
                   <Input
                     min={1}
                     max={7}
                     type="number"
                     value={form.daysPerWeek}
-                    onChange={(event) => updateForm("daysPerWeek", Number(event.target.value))}
+                    onChange={(event) => handleDaysPerWeekChange(Number(event.target.value))}
                   />
                 </FormField>
                 <FormField label="هدف">
@@ -1100,78 +1253,186 @@ export function ProgramGenerationPage({
                     }}
                   />
                 </FormField>
-                {!selectedTemplate?.executionPlan ? (
+                {!selectedTemplate ? (
                   <>
                     <FormField
-                      hint="اختیاری؛ برای محدودکردن انتخاب حرکات به یک عضله و ناحیهٔ ساختاریافته."
-                      htmlFor="program-target-muscle"
-                      label="عضله هدف"
+                      hint="این گزینه فقط از بین حرکت‌های مجاز و متناسب با کاتالوگ انتخاب می‌کند."
+                      label="تنوع انتخاب حرکت"
                     >
                       <Select
-                        id="program-target-muscle"
-                        options={targetMuscleOptions}
-                        value={form.targetMuscle ?? ""}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            targetMuscle: event.target.value,
-                            targetRegion: event.target.value ? current.targetRegion : ""
-                          }))
-                        }
-                      />
-                    </FormField>
-                    {form.targetMuscle === "سینه" ? (
-                      <>
-                        <FormField
-                          hint="فقط حرکاتی انتخاب می‌شوند که همین ناحیه را در catalog ساختاریافته داشته باشند."
-                          htmlFor="program-target-region"
-                          label="ناحیه هدف"
-                        >
-                          <Select
-                            id="program-target-region"
-                            options={chestTargetRegionOptions}
-                            value={form.targetRegion ?? ""}
-                            onChange={(event) => updateForm("targetRegion", event.target.value)}
-                          />
-                        </FormField>
-                        <FormField
-                          hint="تعداد حرکت سینه در هر جلسه؛ فقط وقتی ناحیه هدف انتخاب شده باشد اعمال می‌شود."
-                          htmlFor="program-target-exercise-count"
-                          label="تعداد حرکت هدف"
-                        >
-                          <Input
-                            id="program-target-exercise-count"
-                            min={1}
-                            max={8}
-                            type="number"
-                            value={form.targetExerciseCount ?? 2}
-                            onChange={(event) =>
-                              updateForm("targetExerciseCount", Number(event.target.value))
-                            }
-                          />
-                        </FormField>
-                      </>
-                    ) : null}
-                    <FormField className={styles.fullField} label="اولویت عضلات">
-                      <Input
-                        value={form.musclePriorities.join("، ")}
+                        options={exerciseVarietyOptions}
+                        value={form.exerciseVariety ?? "balanced"}
                         onChange={(event) =>
                           updateForm(
-                            "musclePriorities",
-                            event.target.value
-                              .split(/[،,]/)
-                              .map((item) => item.trim())
-                              .filter(Boolean)
+                            "exerciseVariety",
+                            event.target.value as ProgramGenerationInput["exerciseVariety"]
                           )
                         }
                       />
                     </FormField>
-                    <FormField className={styles.fullField} label="توضیح یا دستور خاص مربی">
-                      <Textarea
-                        value={form.customInstructions}
-                        onChange={(event) => updateForm("customInstructions", event.target.value)}
-                      />
-                    </FormField>
+                    <div className={`${styles.fullField} ${styles.quickSplitSection}`}>
+                      <div>
+                        <h3>عضلات هر جلسه (اختیاری)</h3>
+                        <p className={styles.sectionDescription}>
+                          اگر خالی بماند، موتور با توجه به تعداد جلسه و اولویت‌های شاگرد تقسیم
+                          پیشنهادی می‌سازد. در هر جلسه می‌توانید هر تعداد عضله لازم است اضافه کنید.
+                        </p>
+                      </div>
+                      <div className={styles.quickSplitGrid}>
+                        {Array.from({ length: Math.max(0, Math.min(7, form.daysPerWeek)) }).map(
+                          (_, dayIndex) => {
+                            const selectedMuscles = form.sessionMuscles?.[dayIndex] ?? [];
+                            return (
+                              <div className={styles.quickSplitDay} key={`session-${dayIndex}`}>
+                                <strong>جلسهٔ {dayIndex + 1}</strong>
+                                {selectedMuscles.map((muscle, muscleIndex) => (
+                                  <div
+                                    className={styles.quickSplitRow}
+                                    key={`session-${dayIndex}-muscle-${muscleIndex}`}
+                                  >
+                                    <Select
+                                      aria-label={`عضله ${muscleIndex + 1} جلسه ${dayIndex + 1}`}
+                                      options={quickMuscleOptions.map((option) => ({
+                                        ...option,
+                                        disabled:
+                                          option.value !== muscle &&
+                                          selectedMuscles.includes(option.value)
+                                      }))}
+                                      placeholder="انتخاب عضله"
+                                      value={muscle}
+                                      onChange={(event) => {
+                                        const next = resizeSessionMuscles(
+                                          form.sessionMuscles,
+                                          form.daysPerWeek
+                                        );
+                                        next[dayIndex][muscleIndex] = event.target.value;
+                                        updateForm("sessionMuscles", next);
+                                      }}
+                                    />
+                                    <Button
+                                      aria-label={`حذف عضله ${muscleIndex + 1} از جلسه ${dayIndex + 1}`}
+                                      iconStart={<X size={16} />}
+                                      onClick={() => {
+                                        const next = resizeSessionMuscles(
+                                          form.sessionMuscles,
+                                          form.daysPerWeek
+                                        );
+                                        next[dayIndex].splice(muscleIndex, 1);
+                                        updateForm("sessionMuscles", next);
+                                      }}
+                                      size="sm"
+                                      variant="secondary"
+                                    />
+                                  </div>
+                                ))}
+                                {selectedMuscles.length === 0 ? (
+                                  <span className={styles.quickSplitAuto}>تقسیم خودکار</span>
+                                ) : null}
+                                {selectedMuscles.length < quickMuscleOptions.length &&
+                                !selectedMuscles.includes("") ? (
+                                  <Button
+                                    iconStart={<Plus size={16} />}
+                                    onClick={() => {
+                                      const next = resizeSessionMuscles(
+                                        form.sessionMuscles,
+                                        form.daysPerWeek
+                                      );
+                                      next[dayIndex].push("");
+                                      updateForm("sessionMuscles", next);
+                                    }}
+                                    size="sm"
+                                    variant="secondary"
+                                  >
+                                    افزودن عضله
+                                  </Button>
+                                ) : null}
+                              </div>
+                            );
+                          }
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+                {!selectedTemplate?.executionPlan ? (
+                  <>
+                    <details className={`${styles.formAdvancedDetails} ${styles.fullField}`}>
+                      <summary>تنظیمات تخصصی حرکت و اولویت‌ها (اختیاری)</summary>
+                      <div className={styles.formGrid}>
+                        <FormField
+                          hint="اختیاری؛ برای محدودکردن انتخاب حرکات به یک عضله و ناحیهٔ ساختاریافته."
+                          htmlFor="program-target-muscle"
+                          label="عضله هدف"
+                        >
+                          <Select
+                            id="program-target-muscle"
+                            options={targetMuscleOptions}
+                            value={form.targetMuscle ?? ""}
+                            onChange={(event) =>
+                              setForm((current) => ({
+                                ...current,
+                                targetMuscle: event.target.value,
+                                targetRegion: event.target.value ? current.targetRegion : ""
+                              }))
+                            }
+                          />
+                        </FormField>
+                        {form.targetMuscle === "سینه" ? (
+                          <>
+                            <FormField
+                              hint="فقط حرکاتی انتخاب می‌شوند که همین ناحیه را در catalog ساختاریافته داشته باشند."
+                              htmlFor="program-target-region"
+                              label="ناحیه هدف"
+                            >
+                              <Select
+                                id="program-target-region"
+                                options={chestTargetRegionOptions}
+                                value={form.targetRegion ?? ""}
+                                onChange={(event) => updateForm("targetRegion", event.target.value)}
+                              />
+                            </FormField>
+                            <FormField
+                              hint="تعداد حرکت سینه در هر جلسه؛ فقط وقتی ناحیه هدف انتخاب شده باشد اعمال می‌شود."
+                              htmlFor="program-target-exercise-count"
+                              label="تعداد حرکت هدف"
+                            >
+                              <Input
+                                id="program-target-exercise-count"
+                                min={1}
+                                max={8}
+                                type="number"
+                                value={form.targetExerciseCount ?? 2}
+                                onChange={(event) =>
+                                  updateForm("targetExerciseCount", Number(event.target.value))
+                                }
+                              />
+                            </FormField>
+                          </>
+                        ) : null}
+                        <FormField className={styles.fullField} label="اولویت عضلات">
+                          <Input
+                            value={form.musclePriorities.join("، ")}
+                            onChange={(event) =>
+                              updateForm(
+                                "musclePriorities",
+                                event.target.value
+                                  .split(/[،,]/)
+                                  .map((item) => item.trim())
+                                  .filter(Boolean)
+                              )
+                            }
+                          />
+                        </FormField>
+                        <FormField className={styles.fullField} label="توضیح یا دستور خاص مربی">
+                          <Textarea
+                            value={form.customInstructions}
+                            onChange={(event) =>
+                              updateForm("customInstructions", event.target.value)
+                            }
+                          />
+                        </FormField>
+                      </div>
+                    </details>
                   </>
                 ) : (
                   <p className={styles.sectionDescription}>
@@ -1354,31 +1615,19 @@ function programTitleForRequest(sections: ProgramRequest["sections"]): string {
   return "مکمل";
 }
 
-function defaultTrainingSystemSelection(
-  systems: TrainingSystem[],
-  level: TrainingLevel,
-  rules?: CoachRules
-): ProgramGenerationInput["trainingSystems"] {
-  const levelRule = rules?.levels.find((item) => item.id === level);
-  const allowedByRule = new Set(
-    (levelRule?.allowedTechniques ?? []).map((item) => item.replace(/‌/g, " ").trim().toLowerCase())
-  );
-
-  return systems
-    .filter((system) => {
-      if (system.handler_key === "partial_reps") return false;
-      if (system.allowed_levels.length && !system.allowed_levels.includes(level)) return false;
-      if (system.source === "coach_private") return false;
-      if (system.source === "coach_override") return system.enabled;
-      const aliases = [system.key, system.name].map((item) =>
-        item.replace(/‌/g, " ").trim().toLowerCase()
-      );
-      return (
-        (system.handler_key === "superset" && level === "intermediate") ||
-        aliases.some((item) => allowedByRule.has(item))
-      );
-    })
-    .map((system) => ({ key: system.key }));
+function sessionCountFromVisit(visit?: StudentVisit): number | undefined {
+  if (!visit) return undefined;
+  const snapshotSections = visit.formTemplateSnapshot.sections ?? [];
+  const fields = snapshotSections.flatMap((section) => section.fields ?? []);
+  const field = fields.find((item) => item.semanticKey === "sessions_per_week");
+  const rawValue = field ? visit.answers[field.key] : visit.answers.sessions_per_week;
+  if (typeof rawValue !== "number" && typeof rawValue !== "string") return undefined;
+  const normalized = String(rawValue).replace(/[۰-۹٠-٩]/g, (digit) => {
+    const code = digit.charCodeAt(0);
+    return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
+  });
+  const days = Number(normalized);
+  return Number.isInteger(days) && days >= 1 && days <= 7 ? days : undefined;
 }
 
 function trainingSystemVariants(system: TrainingSystem): string[] {
@@ -1431,9 +1680,6 @@ function validateForm(
   if (!form.programType) {
     errors.programType = "نوع برنامه باید مشخص شود.";
   }
-  if (!form.templateId) {
-    errors.templateId = "قالب برنامه باید انتخاب شود.";
-  }
   if (generatedSections.includes("supplement") && form.supplementSelection?.items.length) {
     if (!form.supplementSelection.confirmed || !form.supplementSelection.safety_reviewed) {
       errors.supplementSelection =
@@ -1455,8 +1701,11 @@ function validateForm(
   if (form.durationWeeks < 1) {
     errors.durationWeeks = "مدت برنامه باید معتبر باشد.";
   }
-  if (generatedSections.includes("workout") && form.daysPerWeek < 1) {
-    errors.daysPerWeek = "تعداد روز تمرین باید معتبر باشد.";
+  if (
+    generatedSections.includes("workout") &&
+    (!Number.isInteger(form.daysPerWeek) || form.daysPerWeek < 1 || form.daysPerWeek > 7)
+  ) {
+    errors.daysPerWeek = "تعداد جلسه باید عددی بین ۱ تا ۷ باشد.";
   }
   if (selectedTemplate && form.daysPerWeek && selectedTemplate.daysPerWeek !== form.daysPerWeek) {
     errors.daysPerWeek = `تعداد روز تمرین (${form.daysPerWeek}) با قالب «${selectedTemplate.name}» (${selectedTemplate.daysPerWeek} روز) هم‌خوان نیست.`;
