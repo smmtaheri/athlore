@@ -18,7 +18,7 @@ describe("structured template plans", () => {
     expect(plan.days.every((day) => day.muscles.length === 0 && day.blocks.length === 0)).toBe(
       true
     );
-    expect(validateTemplatePlans([withExecutionPlan(old, plan)])).toContain("عضلات و بلوک‌های");
+    expect(validateTemplatePlans([withExecutionPlan(old, plan)])).toContain("عضلات و حرکت‌های");
   });
 
   it("uses typed days and validates numeric prescription bounds before saving", () => {

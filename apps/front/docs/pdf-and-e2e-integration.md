@@ -74,7 +74,10 @@ movements and a coach recipe on the disposable mocked-SMS stack, edits a typed
 template through the coach UI on desktop/mobile, saves and reopens it, and then
 generates a real backend program to verify the exact fixed movements, rounds,
 rest and grouping. The template editor exposes text only for names/descriptions;
-day muscles, blocks, systems, repetitions/time, RIR and rest have typed controls.
+day muscles, movements, execution methods, repetitions/time, RIR and rest have typed controls.
+Coaches add a movement first; selecting a grouped system opens its companion
+movement selectors automatically. Internal execution blocks remain unchanged in
+the API and are not exposed as a separate concept in the editor.
 Legacy templates remain explicitly marked until the coach converts and reviews
 them. Conversion preserves old prose as non-executable description. Unknown
 legacy day labels require explicit muscle selection before saving.

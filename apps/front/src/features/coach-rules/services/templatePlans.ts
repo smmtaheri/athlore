@@ -102,14 +102,14 @@ export function validateTemplatePlans(templates: ProgramTemplate[]): string | nu
       return `پیش‌فرض‌های قالب «${template.name}» معتبر نیست.`;
     for (const [index, day] of plan.days.entries()) {
       if (!day.muscles.length || !day.blocks.length)
-        return `در قالب «${template.name}»، عضلات و بلوک‌های جلسهٔ ${index + 1} را مشخص کنید.`;
+        return `در قالب «${template.name}»، عضلات و حرکت‌های جلسهٔ ${index + 1} را مشخص کنید.`;
       for (const block of day.blocks) {
         if (
           (block.sets !== null && !integer(block.sets, 1, 30)) ||
           (block.rest_seconds !== null && !integer(block.rest_seconds, 0, 900)) ||
           (block.between_seconds !== null && !integer(block.between_seconds, 0, 900))
         )
-          return "ست یا استراحت بلوک معتبر نیست.";
+          return "ست یا استراحت حرکت معتبر نیست.";
         for (const slot of block.slots) {
           if (
             !day.muscles.includes(slot.muscle_key) ||

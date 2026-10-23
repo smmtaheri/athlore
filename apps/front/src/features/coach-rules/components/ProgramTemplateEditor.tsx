@@ -1,4 +1,4 @@
-import { cloneElement, useEffect, useId, useState, type ReactElement } from "react";
+import { cloneElement, Fragment, useEffect, useId, useState, type ReactElement } from "react";
 import { Copy, Plus, Trash2 } from "lucide-react";
 import { Button, Card, Checkbox, Input, Select, Switch, Textarea } from "../../../components/ui";
 import { appConfig } from "../../../app/config/appConfig";
@@ -141,7 +141,7 @@ function OrderActions({
   );
 }
 
-function BlockEditor({
+function MovementEditor({
   block,
   defaults,
   muscles,
@@ -170,13 +170,14 @@ function BlockEditor({
       between_seconds: null,
       slots: Array.from({ length: count }, (_, index) => ({
         ...(block.slots[index] ?? newSlot(muscles[0], defaults)),
-        reps_source: key ? "system" : "default"
+        reps_source:
+          block.slots[index]?.reps_source === "custom" ? "custom" : key ? "system" : "default"
       }))
     });
   };
-  return (
+  const executionControls = (
     <div className={styles.stack}>
-      <Field label="نوع بلوک / سیستم تمرینی">
+      <Field label="روش اجرای حرکت">
         <Select
           value={block.system_key ?? ""}
           options={[{ value: "", label: "حرکت تکی با ست معمولی" }, ...systemOptions]}
@@ -184,11 +185,11 @@ function BlockEditor({
         />
       </Field>
       {block.system_key && !system ? (
-        <p role="alert">سیستم این بلوک در دسترس نیست؛ سیستم معتبر انتخاب کنید.</p>
+        <p role="alert">روش اجرای قبلی در دسترس نیست؛ سیستم معتبر انتخاب کنید.</p>
       ) : null}
       {system ? (
         <p className={styles.hint}>
-          روش پایه: {system.execution_method || system.description} — تنظیمات همین بلوک تعریف اصلی
+          روش پایه: {system.execution_method || system.description} — تنظیمات این حرکت تعریف اصلی
           سیستم را تغییر نمی‌دهد.
         </p>
       ) : null}
@@ -197,7 +198,7 @@ function BlockEditor({
           <Checkbox
             label={
               block.system_key
-                ? "تغییر تعداد ست / دور سیستم در همین بلوک"
+                ? "تغییر تعداد ست / دور برای این حرکت‌ها"
                 : "تعداد ست متفاوت از پیش‌فرض"
             }
             checked={block.sets !== null}
@@ -217,7 +218,7 @@ function BlockEditor({
         </div>
         <div>
           <Checkbox
-            label="استراحت متفاوت در همین بلوک"
+            label="تنظیم استراحت"
             checked={block.rest_seconds !== null}
             onChange={(event) =>
               onChange({
@@ -256,6 +257,10 @@ function BlockEditor({
           </div>
         ) : null}
       </div>
+    </div>
+  );
+  return (
+    <div className={styles.stack}>
       {block.slots.map((slot, index) => {
         const update = (patch: Partial<typeof slot>) =>
           onChange({
@@ -268,90 +273,102 @@ function BlockEditor({
           )
         );
         return (
-          <fieldset className={styles.slot} key={index}>
-            <legend>حرکت {index + 1}</legend>
-            <div className={styles.actions}>
-              <OrderActions
-                index={index}
-                total={block.slots.length}
-                onMove={(offset) => onChange({ ...block, slots: move(block.slots, index, offset) })}
-              />
-            </div>
-            <div className={styles.grid}>
-              <Field label="عضلهٔ حرکت">
-                <Select
-                  value={slot.muscle_key}
-                  options={[
-                    { value: "", label: "انتخاب عضله" },
-                    ...muscles.map((key) => ({
-                      value: key,
-                      label: references.muscles.find((m) => m.key === key)?.name ?? key
-                    }))
-                  ]}
-                  onChange={(e) => update({ muscle_key: e.target.value, exercise_id: null })}
-                />
-              </Field>
-              <Field label="انتخاب حرکت">
-                <Select
-                  value={slot.exercise_id ?? ""}
-                  options={[
-                    { value: "", label: "انتخاب خودکار از کاتالوگ مجاز" },
-                    ...choices.map((e) => ({ value: e.id, label: e.name })),
-                    ...(slot.exercise_id && !choices.some((e) => e.id === slot.exercise_id)
-                      ? [
-                          {
-                            value: slot.exercise_id,
-                            label: "حرکت قبلی در دسترس نیست؛ دوباره انتخاب کنید"
-                          }
-                        ]
-                      : [])
-                  ]}
-                  onChange={(e) => update({ exercise_id: e.target.value || null })}
-                />
-              </Field>
-              <Field label="منبع تکرار / زمان">
-                <Select
-                  value={slot.reps_source}
-                  options={[
-                    { value: "default", label: "پیش‌فرض قالب" },
-                    ...(system ? [{ value: "system", label: "دستور خود سیستم" }] : []),
-                    { value: "custom", label: "تنظیم اختصاصی این حرکت" }
-                  ]}
-                  onChange={(e) =>
-                    update({ reps_source: e.target.value as typeof slot.reps_source })
-                  }
-                />
-              </Field>
-              {slot.reps_source === "custom" ? (
-                <>
-                  <Field label="واحد اجرا">
-                    <Select
-                      value={slot.unit}
-                      options={[
-                        { value: "reps", label: "تکرار" },
-                        { value: "seconds", label: "ثانیه" }
-                      ]}
-                      onChange={(e) => update({ unit: e.target.value as typeof slot.unit })}
-                    />
-                  </Field>
-                  <Numeric
-                    label="حداقل تکرار / زمان"
-                    value={slot.minimum}
-                    min={1}
-                    max={slot.unit === "seconds" ? 3600 : 300}
-                    onChange={(minimum) => update({ minimum })}
+          <Fragment key={index}>
+            {index > 0 ? (
+              <p className={styles.hint}>
+                حرکت همراه {index} — با روش «{system?.name}» اجرا می‌شود.
+              </p>
+            ) : null}
+            <fieldset className={styles.slot}>
+              <legend>{index === 0 ? "انتخاب حرکت" : `حرکت همراه ${index}`}</legend>
+              {block.slots.length > 1 ? (
+                <div className={styles.actions}>
+                  <OrderActions
+                    index={index}
+                    total={block.slots.length}
+                    onMove={(offset) =>
+                      onChange({ ...block, slots: move(block.slots, index, offset) })
+                    }
                   />
-                  <Numeric
-                    label="حداکثر تکرار / زمان"
-                    value={slot.maximum}
-                    min={slot.minimum}
-                    max={slot.unit === "seconds" ? 3600 : 300}
-                    onChange={(maximum) => update({ maximum })}
-                  />
-                </>
+                </div>
               ) : null}
-            </div>
-          </fieldset>
+              <div className={styles.grid}>
+                <Field label="عضلهٔ حرکت">
+                  <Select
+                    value={slot.muscle_key}
+                    options={[
+                      { value: "", label: "انتخاب عضله" },
+                      ...muscles.map((key) => ({
+                        value: key,
+                        label: references.muscles.find((m) => m.key === key)?.name ?? key
+                      }))
+                    ]}
+                    onChange={(e) => update({ muscle_key: e.target.value, exercise_id: null })}
+                  />
+                </Field>
+                <Field label="انتخاب حرکت">
+                  <Select
+                    value={slot.exercise_id ?? ""}
+                    options={[
+                      { value: "", label: "انتخاب خودکار از کاتالوگ مجاز" },
+                      ...choices.map((e) => ({ value: e.id, label: e.name })),
+                      ...(slot.exercise_id && !choices.some((e) => e.id === slot.exercise_id)
+                        ? [
+                            {
+                              value: slot.exercise_id,
+                              label: "حرکت قبلی در دسترس نیست؛ دوباره انتخاب کنید"
+                            }
+                          ]
+                        : [])
+                    ]}
+                    onChange={(e) => update({ exercise_id: e.target.value || null })}
+                  />
+                </Field>
+                <Field label="منبع تکرار / زمان">
+                  <Select
+                    value={slot.reps_source}
+                    options={[
+                      { value: "default", label: "پیش‌فرض قالب" },
+                      ...(system ? [{ value: "system", label: "دستور خود سیستم" }] : []),
+                      { value: "custom", label: "تنظیم اختصاصی این حرکت" }
+                    ]}
+                    onChange={(e) =>
+                      update({ reps_source: e.target.value as typeof slot.reps_source })
+                    }
+                  />
+                </Field>
+                {slot.reps_source === "custom" ? (
+                  <>
+                    <Field label="واحد اجرا">
+                      <Select
+                        value={slot.unit}
+                        options={[
+                          { value: "reps", label: "تکرار" },
+                          { value: "seconds", label: "ثانیه" }
+                        ]}
+                        onChange={(e) => update({ unit: e.target.value as typeof slot.unit })}
+                      />
+                    </Field>
+                    <Numeric
+                      label="حداقل تکرار / زمان"
+                      value={slot.minimum}
+                      min={1}
+                      max={slot.unit === "seconds" ? 3600 : 300}
+                      onChange={(minimum) => update({ minimum })}
+                    />
+                    <Numeric
+                      label="حداکثر تکرار / زمان"
+                      value={slot.maximum}
+                      min={slot.minimum}
+                      max={slot.unit === "seconds" ? 3600 : 300}
+                      onChange={(maximum) => update({ maximum })}
+                    />
+                  </>
+                ) : null}
+              </div>
+            </fieldset>
+            {index === 0 ? executionControls : null}
+          </Fragment>
         );
       })}
     </div>
@@ -421,7 +438,8 @@ export function ProgramTemplateEditor({
         <div>
           <h2>قالب‌های برنامه</h2>
           <p className={styles.hint}>
-            جلسه‌ها، بلوک‌ها و مقدار اجرای هر حرکت را مشخص کنید. نام و توضیح، دستور اجرایی نیستند.
+            برای هر جلسه حرکت اضافه کنید و روش اجرای آن را انتخاب کنید؛ سوپرست و تری‌ست، جای
+            حرکت‌های همراه را خودکار باز می‌کنند. نام و توضیح، دستور اجرایی نیستند.
           </p>
         </div>
         <Button iconStart={<Plus size={18} />} onClick={add} disabled={!references}>
@@ -535,7 +553,7 @@ export function ProgramTemplateEditor({
                 <details>
                   <summary>پیش‌فرض‌های عددی قالب</summary>
                   <p className={styles.hint}>
-                    برای حرکت معمولی و مقدارهایی که سیستم تمرینی تعیین نکرده است؛ هر بلوک می‌تواند
+                    برای حرکت معمولی و مقدارهایی که سیستم تمرینی تعیین نکرده است؛ هر حرکت می‌تواند
                     تنظیم اختصاصی داشته باشد.
                   </p>
                   <Field label="پرکردن سریع پیش‌فرض‌ها">
@@ -646,7 +664,12 @@ export function ProgramTemplateEditor({
                       {day.blocks.map((block, blockIndex) => (
                         <section className={styles.block} key={blockIndex}>
                           <div className={styles.header}>
-                            <strong>بلوک {blockIndex + 1}</strong>
+                            <strong>
+                              حرکت {blockIndex + 1}
+                              {block.system_key
+                                ? ` — ${references.systems.find((system) => system.key === block.system_key)?.name ?? "روش اجرای انتخاب‌شده"}`
+                                : ""}
+                            </strong>
                             <div className={styles.actions}>
                               <OrderActions
                                 index={blockIndex}
@@ -672,7 +695,7 @@ export function ProgramTemplateEditor({
                                   })
                                 }
                               >
-                                تکثیر بلوک
+                                تکثیر حرکت و روش اجرا
                               </Button>
                               <Button
                                 size="sm"
@@ -684,11 +707,11 @@ export function ProgramTemplateEditor({
                                   })
                                 }
                               >
-                                حذف بلوک
+                                {block.slots.length > 1 ? "حذف حرکت و همراه‌ها" : "حذف حرکت"}
                               </Button>
                             </div>
                           </div>
-                          <BlockEditor
+                          <MovementEditor
                             block={block}
                             defaults={plan.defaults}
                             muscles={day.muscles}
@@ -715,7 +738,7 @@ export function ProgramTemplateEditor({
                           })
                         }
                       >
-                        افزودن بلوک
+                        افزودن حرکت
                       </Button>
                       {dayIndex > 0 ? (
                         <Button

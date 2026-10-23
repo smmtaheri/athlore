@@ -80,23 +80,36 @@ test("typed template editor saves executable blocks without free-text rules", as
   await page.getByLabel("نام قالب", { exact: true }).fill("قالب اجرایی تست");
   await page.getByRole("checkbox", { name: "سینه", exact: true }).check();
   await page.getByRole("checkbox", { name: "زیربغل", exact: true }).check();
-  await page.getByRole("button", { name: "افزودن بلوک", exact: true }).click();
+  await page.getByRole("button", { name: "افزودن حرکت", exact: true }).click();
+  await expect(page.getByLabel("انتخاب حرکت", { exact: true })).toHaveCount(1);
+  await page.getByLabel("انتخاب حرکت", { exact: true }).selectOption(ids[0]);
+  await page.getByLabel("منبع تکرار / زمان", { exact: true }).selectOption("custom");
+  await page.getByLabel("حداقل تکرار / زمان", { exact: true }).fill("12");
+  await page.getByLabel("حداکثر تکرار / زمان", { exact: true }).fill("15");
+  const method = page.getByRole("combobox", { name: "روش اجرای حرکت", exact: true });
+  await method.selectOption("tri_set");
+  await expect(page.getByLabel("انتخاب حرکت", { exact: true })).toHaveCount(3);
+  await method.selectOption("");
+  await expect(page.getByLabel("انتخاب حرکت", { exact: true })).toHaveCount(1);
+  await expect(page.getByLabel("انتخاب حرکت", { exact: true })).toHaveValue(ids[0]);
   await page
-    .getByRole("combobox", { name: "نوع بلوک / سیستم تمرینی", exact: true })
+    .getByRole("combobox", { name: "روش اجرای حرکت", exact: true })
     .selectOption(`pair-${unique}`);
+  await expect(page.getByLabel("انتخاب حرکت", { exact: true })).toHaveCount(2);
+  await expect(page.getByLabel("انتخاب حرکت", { exact: true }).nth(0)).toHaveValue(ids[0]);
+  await expect(page.getByLabel("منبع تکرار / زمان", { exact: true }).nth(0)).toHaveValue("custom");
+  await expect(page.getByLabel("حداقل تکرار / زمان", { exact: true })).toHaveValue("12");
   await page.getByLabel("عضلهٔ حرکت", { exact: true }).nth(0).selectOption("chest");
   await page.getByLabel("عضلهٔ حرکت", { exact: true }).nth(1).selectOption("back");
   await page.getByLabel("انتخاب حرکت", { exact: true }).nth(0).selectOption(ids[0]);
   await page.getByLabel("انتخاب حرکت", { exact: true }).nth(1).selectOption(ids[1]);
-  await page.getByLabel("منبع تکرار / زمان", { exact: true }).nth(0).selectOption("custom");
-  await page.getByLabel("حداقل تکرار / زمان", { exact: true }).fill("12");
-  await page.getByLabel("حداکثر تکرار / زمان", { exact: true }).fill("15");
-  await page.getByRole("checkbox", { name: "تغییر تعداد ست / دور سیستم در همین بلوک" }).check();
+  await page.getByRole("checkbox", { name: "تغییر تعداد ست / دور برای این حرکت‌ها" }).check();
   await page.getByLabel("تعداد ست / دور", { exact: true }).fill("4");
-  await page.getByRole("checkbox", { name: "استراحت متفاوت در همین بلوک" }).check();
+  await page.getByRole("checkbox", { name: "تنظیم استراحت", exact: true }).check();
   await page.getByLabel("استراحت بعد از دور (ثانیه)", { exact: true }).fill("120");
   await expect(page.getByLabel("قوانین خاص", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("تقسیم بندی روزها", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/بلوک/)).toHaveCount(0);
   await page.getByRole("button", { name: "ذخیره قوانین", exact: true }).click();
   await expect(page.getByText("قوانین مربی ذخیره شد.", { exact: true })).toBeVisible();
   await navigate("داشبورد");
