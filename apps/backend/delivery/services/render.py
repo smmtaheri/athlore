@@ -12,7 +12,7 @@ from django.utils import timezone
 from common.calendar import format_date, format_date_text
 
 # Bump when template structure or CSS layout changes in a meaningful way.
-RENDER_TEMPLATE_VERSION = "1.1.0"
+RENDER_TEMPLATE_VERSION = "1.2.0"
 RENDER_ENGINE_NAME = "weasyprint"
 RENDER_ENGINE_VERSION = "66"
 
@@ -94,7 +94,13 @@ def build_pdf_context(
                         "sets": _esc(ex_d.get("sets") or ""),
                         "reps": _esc(ex_d.get("reps") or ex_d.get("repetitions") or ""),
                         "rest": _esc(ex_d.get("rest") or ex_d.get("rest_seconds") or ""),
-                        "tempo": _esc(ex_d.get("tempo") or ex_d.get("intensity") or ""),
+                        "tempo": _esc(
+                            ex_d.get("tempo") or ex_d.get("rpe") or ex_d.get("intensity") or ""
+                        ),
+                        "supersetWithPrevious": bool(ex_d.get("supersetWithPrevious")),
+                        "trainingGroupName": _esc(ex_d.get("trainingGroupName") or ""),
+                        "supersetRestBetweenSeconds": ex_d.get("supersetRestBetweenSeconds"),
+                        "supersetRestAfterSeconds": ex_d.get("supersetRestAfterSeconds"),
                         "notes": _esc(ex_d.get("notes") or ex_d.get("coach_notes") or ""),
                     }
                 )

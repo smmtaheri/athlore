@@ -89,6 +89,7 @@ def serialize_template(t: ProgramTemplate) -> dict:
         "split": list(t.split or []),
         "muscle_priority_order": list(t.muscle_priority_order or []),
         "special_rules": list(t.special_rules or []),
+        "execution_plan": t.execution_plan or {},
         "is_active": t.is_active,
         "is_archived": t.is_archived,
         "sort_order": t.sort_order,
@@ -864,7 +865,7 @@ def get_coach_rules_aggregate(coach: CoachProfile) -> dict:
     }
 
 
-def _validate_template_payload(item: dict, *, require_name: bool = True) -> dict:
+def _validate_template_payload(item: dict, *, require_name: bool = True, coach=None) -> dict:
     if not isinstance(item, dict):
         raise ValidationError({"templates": ["Each template must be an object."]})
     name = str(item.get("name") or "").strip()
@@ -881,10 +882,26 @@ def _validate_template_payload(item: dict, *, require_name: bool = True) -> dict
     if days_int < 1 or days_int > 7:
         raise ValidationError({"templates": ["days_per_week must be 1-7."]})
     split = _as_str_list(item.get("split", []), "split")
-    if split and len(split) != days_int:
+    if split and len(split) != days_int and not item.get("execution_plan"):
         raise ValidationError(
             {"templates": [f"split length ({len(split)}) must equal days_per_week ({days_int})."]}
         )
+    execution_plan = item.get("execution_plan", {})
+    if not isinstance(execution_plan, dict):
+        raise ValidationError({"execution_plan": ["ساختار قالب باید یک شیء معتبر باشد."]})
+    if execution_plan:
+        from accounts.models import MuscleTaxonomy
+        from accounts.template_plans import validate_execution_plan
+        from programming.services.split_parser import TAXONOMY_MUSCLE_GROUPS
+
+        execution_plan = validate_execution_plan(
+            execution_plan, days_per_week=days_int, coach=coach, level=level
+        )
+        names = dict(MuscleTaxonomy.objects.values_list("key", "name"))
+        split = [
+            " و ".join(TAXONOMY_MUSCLE_GROUPS.get(key, names[key]) for key in day["muscles"])
+            for day in execution_plan["days"]
+        ]
     return {
         "name": name,
         "goal": str(item.get("goal") or "").strip(),
@@ -899,6 +916,7 @@ def _validate_template_payload(item: dict, *, require_name: bool = True) -> dict
             item.get("muscle_priority_order", []), "muscle_priority_order"
         ),
         "special_rules": _as_str_list(item.get("special_rules", []), "special_rules"),
+        "execution_plan": execution_plan,
         "is_active": bool(item.get("is_active", True)),
         "sort_order": int(item.get("sort_order") or 0),
     }
@@ -935,7 +953,7 @@ def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = F
         templates = _as_list(payload.get("templates", []))
         rule_set.templates.all().delete()
         for idx, raw in enumerate(templates):
-            data = _validate_template_payload(raw)
+            data = _validate_template_payload(raw, coach=coach)
             ProgramTemplate.objects.create(
                 rule_set=rule_set,
                 coach=coach,
@@ -1049,7 +1067,7 @@ def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = F
 @transaction.atomic
 def create_template(coach: CoachProfile, payload: dict) -> ProgramTemplate:
     rule_set = ensure_rule_set(coach)
-    data = _validate_template_payload(payload)
+    data = _validate_template_payload(payload, coach=coach)
     return ProgramTemplate.objects.create(rule_set=rule_set, coach=coach, **data)
 
 
@@ -1057,7 +1075,7 @@ def create_template(coach: CoachProfile, payload: dict) -> ProgramTemplate:
 def update_template(template: ProgramTemplate, payload: dict) -> ProgramTemplate:
     merged = serialize_template(template)
     merged.update(payload)
-    data = _validate_template_payload(merged)
+    data = _validate_template_payload(merged, coach=template.coach)
     for key, value in data.items():
         setattr(template, key, value)
     if "is_archived" in payload:

@@ -405,6 +405,7 @@ def build_input_snapshot(
             "days_per_week": template.days_per_week,
             "split": list(template.split or []),
             "muscle_priority_order": list(template.muscle_priority_order or []),
+            "execution_plan": template.execution_plan or {},
         },
         "rules_digest": hashlib.sha256(
             json.dumps(rules, ensure_ascii=False, sort_keys=True).encode("utf-8")
@@ -568,6 +569,27 @@ def _generate_document_body(
     apply_muscle = bool(request.get("apply_muscle_priority_rules", True))
     apply_catalog = bool(request.get("apply_exercise_catalog", True))
     apply_general = bool(request.get("apply_general_rules", True))
+    if template.execution_plan:
+        from rest_framework.exceptions import ValidationError
+
+        if request.get("training_systems") or any(
+            request.get(key) for key in ("target_muscle", "target_region", "exercise_count")
+        ):
+            raise ValidationError(
+                {
+                    "execution_plan": [
+                        "در این قالب، حرکت‌ها و سیستم‌ها از بلوک‌های قالب تعیین می‌شوند؛ تنظیمات موازی را حذف کنید."
+                    ]
+                }
+            )
+        if not apply_injury or not apply_level or not apply_catalog:
+            raise ValidationError(
+                {
+                    "execution_plan": [
+                        "در قالب ساختاریافته، فیلتر آسیب، سطح و کاتالوگ باید فعال باشد."
+                    ]
+                }
+            )
 
     title = str(request.get("title") or f"برنامه {template.name}").strip()
     duration_weeks = int(request.get("duration_weeks") or 4)

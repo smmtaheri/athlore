@@ -143,10 +143,19 @@ def _role_of_name(name: str, muscle: str) -> str:
 
 
 def _movement_class(name: str, muscle: str) -> str:
+    if _matches_any(name, ("جلوپا", "جلو پا", "پشت پا", "leg curl", "leg extension")):
+        return "isolation"
     role = _role_of_name(name, muscle)
     if role.startswith("core") or muscle in CORE_MUSCLES:
         return "core"
-    if muscle in ARM_MUSCLES or role in {"triceps", "biceps", "lateral", "rear_delt", "calf"}:
+    if muscle in ARM_MUSCLES or role in {
+        "triceps",
+        "biceps",
+        "lateral",
+        "rear_delt",
+        "calf",
+        "chest_accessory",
+    }:
         return "isolation"
     if role in {
         "compound_press",
@@ -827,6 +836,21 @@ def build_training_days(
     target_exercise_count: int | None = None,
     selected_training_systems: list[dict] | None = None,
 ) -> tuple[list[dict], dict]:
+    if template.execution_plan:
+        from programming.services.template_execution import build_template_days
+
+        return build_template_days(
+            coach=coach,
+            student=student,
+            template=template,
+            level=level,
+            catalog_by_name=catalog_by_name,
+            structured_catalog_by_name=structured_catalog_by_name,
+            excluded_catalog_by_name=excluded_catalog_by_name,
+            pref_by_exercise_id=pref_by_exercise_id,
+            forbidden=forbidden,
+            injury_alternative_map=injury_alternative_map,
+        )
     equipment_tokens = available_equipment_tokens(student.equipment)
     goals = student.goals or {}
     raw_region_inputs = [

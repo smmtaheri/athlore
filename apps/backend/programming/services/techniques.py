@@ -552,9 +552,7 @@ def _apply_recipe_grouping(
                 exercise["trainingGroupSize"] = size
                 exercise["supersetGroupId"] = group_id
                 exercise["supersetWithPrevious"] = group_index > 0
-                exercise["supersetPartnerName"] = (
-                    group[group_index + 1]["name"] if group_index + 1 < size else None
-                )
+                exercise["supersetPartnerName"] = group[(group_index + 1) % size]["name"]
                 exercise["supersetRestBetweenSeconds"] = grouping["rest_between_seconds"]
                 exercise["supersetRestAfterSeconds"] = grouping["rest_after_seconds"]
             applications.append((day, group))
@@ -563,8 +561,14 @@ def _apply_recipe_grouping(
     return len(applications), applications
 
 
-def _apply_recipe(days: list[dict], config: CoachTechnique) -> tuple[int, list[dict]]:
-    recipe = _recipe_for(config)
+def _apply_recipe(
+    days: list[dict], config: CoachTechnique, *, recipe_override=None
+) -> tuple[int, list[dict]]:
+    recipe = (
+        validate_training_recipe(recipe_override, allow_empty=False)
+        if recipe_override is not None
+        else _recipe_for(config)
+    )
     grouping = recipe.get("grouping")
     group_count, groups = _apply_recipe_grouping(days, config, grouping) if grouping else (0, [])
     applications: list[dict] = []
@@ -622,11 +626,15 @@ def _apply_recipe(days: list[dict], config: CoachTechnique) -> tuple[int, list[d
                         _partial_reps_parameters(config).get("after_failure_reps", 3)
                     )
             steps = exercise_recipe["steps"]
-            instructions = _recipe_instructions(steps)
             if grouping and group_prescriptions and target != "last_set":
                 prescription = group_prescriptions[candidate_index % len(group_prescriptions)]
                 if prescription:
-                    _apply_recipe_prescriptions(exercise, [{"op": "prescribe", **prescription}])
+                    direct = [step for step in steps if step["op"] == "prescribe"]
+                    if direct:
+                        direct[-1].update(prescription)
+                    else:
+                        steps.insert(0, {"op": "prescribe", **prescription})
+            instructions = _recipe_instructions(steps)
             if target != "last_set":
                 _apply_recipe_prescriptions(exercise, steps)
             detail = "؛ ".join(instructions)

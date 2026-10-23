@@ -126,6 +126,10 @@
                 {% else %}
                   {{ ex.name }}
                 {% endif %}
+                {% if ex.trainingGroupName %}<div class="muted">{{ ex.trainingGroupName }}</div>{% endif %}
+                {% if ex.supersetRestBetweenSeconds != None and not ex.supersetWithPrevious %}
+                  <div class="muted">بین حرکت‌ها: {{ ex.supersetRestBetweenSeconds }} ثانیه؛ بعد از گروه: {{ ex.supersetRestAfterSeconds }} ثانیه</div>
+                {% endif %}
               </td>
               <td>{{ ex.sets }}</td>
               <td>{{ ex.reps }}</td>

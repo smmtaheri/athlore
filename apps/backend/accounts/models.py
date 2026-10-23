@@ -100,6 +100,7 @@ class ProgramTemplate(models.Model):
     split = models.JSONField(default=list, blank=True)
     muscle_priority_order = models.JSONField(default=list, blank=True)
     special_rules = models.JSONField(default=list, blank=True)
+    execution_plan = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
     is_archived = models.BooleanField(default=False)
     sort_order = models.IntegerField(default=0)

@@ -546,6 +546,60 @@ Partial section update: `{ "templates": [...] }` only · **200**
 
 Same ownership rules.
 
+### Executable program templates
+
+`ProgramTemplate.execution_plan` is an optional versioned object. An empty object
+preserves a legacy template; conversion is an explicit coach action, not a data
+migration that guesses the meaning of prose. New structured templates use:
+
+```json
+{
+  "version": 1,
+  "description": "Coach reference only; never interpreted as instructions",
+  "defaults": {"sets": 3, "minimum": 8, "maximum": 12, "rest_seconds": 90, "rir": 2},
+  "days": [{
+    "muscles": ["chest"],
+    "blocks": [{
+      "system_key": null, "sets": null, "rest_seconds": null, "between_seconds": null,
+      "slots": [{"muscle_key": "chest", "exercise_id": null, "unit": "reps",
+                 "minimum": 8, "maximum": 12, "reps_source": "default"}]
+    }]
+  }]
+}
+```
+
+- `days` length equals `days_per_week`; muscles are active taxonomy keys. Each
+  day has 1–30 ordered blocks, each containing 1–8 ordered exercise slots.
+- A null exercise ID selects from this coach's eligible catalog. A non-null ID
+  pins an active owned exercise. Generation still enforces injury, prohibition,
+  level and equipment filters. Missing eligible movements cause an explicit 400;
+  structured execution never substitutes hardcoded unnamed movements.
+- A null system key is straight sets with exactly one slot. A system key resolves
+  an enabled coach configuration or a public executable recipe, with compatible
+  level and exactly the recipe's group size. Manual-only systems are rejected.
+- Null block values inherit the system prescription, or template defaults when
+  the system does not prescribe that value. Explicit numeric block values
+  customize sets/rounds and rest without mutating the shared system. Intra-set
+  recipe pauses are distinct from rest between sets or between group members.
+- `reps_source` is `default`, `system`, or `custom`. Custom repetitions/time use
+  integer minimum/maximum and `unit=reps|seconds`; other modes inherit defaults
+  or recipe prescriptions. A custom base prescription does not replace the inner
+  mini-sets of a `last_set` system. RIR is a default when a recipe does not
+  prescribe a different effort.
+- Unknown fields, prose in numeric fields, invalid ranges, cross-coach exercises,
+  inactive taxonomy and unsupported recipes are rejected. Fixed choices cannot
+  bypass the eligibility checks. Auto selection avoids duplicate day slots;
+  fixed repetitions in distinct blocks and repeated exercises across days are
+  intentional and permitted.
+- `split` is derived from typed day muscles for existing consumers. Structured
+  execution uses the typed plan, not textual volume/intensity/special rules.
+  Global `training_systems` and targeted-exercise overrides cannot be combined
+  with a structured template. The generation UI presents the template's blocks
+  as the source of these settings.
+- Generation snapshots retain the execution plan. Final prescriptions synchronize
+  sets, repetitions and raw display strings; PDF context retains group names,
+  group rest and effort so the student receives the same executable content.
+
 ---
 
 ## 7. Programs
