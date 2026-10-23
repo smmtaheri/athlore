@@ -70,7 +70,9 @@ export function persianMessageForApiError(error: ApiError): string {
     case "validation_error":
       return error.message || "ورودی نامعتبر است.";
     case "not_found":
-      return "مورد درخواستی پیدا نشد.";
+      return /[\u0600-\u06ff]/.test(error.message)
+        ? error.message
+        : "مورد درخواستی پیدا نشد.";
     case "conflict":
       return error.message.includes("visit") ||
         error.message.includes("date") ||
