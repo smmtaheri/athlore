@@ -286,6 +286,8 @@ export function StudentVisitForm({
       ) : null}
 
       <StudentFormSection
+        collapsible
+        defaultOpen={mode === "create"}
         icon={Scale}
         title="۱. ارزیابی کلی"
         description="تاریخ و وزن فعلی را ثبت کنید و مقادیر پیشنهادی هدف، سطح و تعداد جلسه را بررسی کنید."
@@ -335,6 +337,7 @@ export function StudentVisitForm({
 
       {layout.conditions.length || layout.injuries.length ? (
         <StudentFormSection
+          collapsible
           icon={ShieldAlert}
           title="۲. شرایط و محدودیت‌های تمرین"
           description="انتخاب‌های این بخش در تولید برنامه استفاده می‌شوند؛ شرح متنی فقط برای بررسی مربی است."
@@ -364,6 +367,7 @@ export function StudentVisitForm({
 
       {photoPanel || layout.weakness.length || layout.muscleDetails.length ? (
         <StudentFormSection
+          collapsible
           icon={Target}
           title="۳. ارزیابی بدن و نقاط ضعف"
           description="عضلاتی که نیاز به تمرکز دارند را مشخص کنید؛ جزئیات فقط برای همان عضلات باز می‌شوند."
