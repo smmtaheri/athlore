@@ -18,6 +18,7 @@ export interface VisitDynamicFormProps {
   audience?: "athlete" | "coach";
   answers: VisitFormAnswers;
   coachNotes?: string;
+  collapsibleSections?: boolean;
   disabled?: boolean;
   notesLabel?: string;
   notesTitle?: string;
@@ -37,6 +38,7 @@ export function VisitDynamicForm({
   audience = "coach",
   answers,
   coachNotes = "",
+  collapsibleSections = false,
   disabled = false,
   notesLabel = "یادداشت خصوصی مربی",
   notesTitle = "یادداشت خصوصی مربی",
@@ -59,8 +61,15 @@ export function VisitDynamicForm({
         theme === "athlore_compact" ? styles.visitFormCompact : styles.visitFormStandard
       }`}
     >
-      {sections.map((section) => (
+      {sections.map((section, index) => (
         <StudentFormSection
+          collapsible={collapsibleSections}
+          defaultOpen={collapsibleSections && index === 0}
+          description={
+            collapsibleSections
+              ? "پاسخ به پرسش‌های این قالب؛ فقط موارد مربوط به این ویزیت را تکمیل کنید."
+              : undefined
+          }
           icon={ClipboardList}
           key={section.key}
           theme={theme}

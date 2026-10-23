@@ -64,48 +64,67 @@ function buildUrl(path: string, query?: ApiRequestOptions["query"]): string {
 }
 
 async function parseError(response: Response): Promise<ApiError> {
+  const statusCode = (status: number): string => {
+    if (status === 401) return "authentication_required";
+    if (status === 403) return "permission_denied";
+    if (status === 404) return "not_found";
+    if (status === 409) return "conflict";
+    if (status >= 500) return "server_error";
+    return "validation_error";
+  };
+  const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  const messageFrom = (value: unknown): string | undefined => {
+    if (typeof value === "string" && value.trim()) return value;
+    if (Array.isArray(value)) {
+      const messages = value.map(messageFrom).filter((item): item is string => Boolean(item));
+      return messages.length ? messages.join(" ") : undefined;
+    }
+    return undefined;
+  };
+  const detailsFrom = (value: Record<string, unknown>, excluded: string[]) =>
+    Object.fromEntries(Object.entries(value).filter(([key]) => !excluded.includes(key)));
+
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
-    if (response.status === 403) {
-      return new ApiError({
-        code: "permission_denied",
-        message:
-          "درخواست از سمت سرور رد شد؛ وضعیت فعال بودن شاگرد، مربی و دوره و دسترسی شبکه را بررسی کنید.",
-        status: response.status
-      });
-    }
     return new ApiError({
-      code: response.status >= 500 ? "server_error" : "malformed_response",
-      message: "پاسخ خطا قابل خواندن نبود.",
+      code: statusCode(response.status),
+      message: "",
       status: response.status
     });
   }
 
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "error" in payload &&
-    typeof (payload as { error: unknown }).error === "object" &&
-    (payload as { error: { code?: string; message?: string; details?: Record<string, unknown> } })
-      .error
-  ) {
-    const err = (
-      payload as { error: { code: string; message: string; details?: Record<string, unknown> } }
-    ).error;
+  const body = asRecord(payload);
+  const nestedError = asRecord(body?.error);
+  if (nestedError) {
+    const message = messageFrom(nestedError.message) ?? messageFrom(nestedError.detail) ?? "";
+    const code = messageFrom(nestedError.code) ?? statusCode(response.status);
     return new ApiError({
-      code: err.code || "server_error",
-      message: err.message || "خطا",
+      code,
+      message,
       status: response.status,
-      details: err.details || {}
+      details: asRecord(nestedError.details) ?? {}
     });
   }
 
+  // Accept the current envelope, DRF-style {detail, code}, field-error
+  // objects, and older {error: "...", code: "..."} responses.
+  const message =
+    messageFrom(body?.detail) ?? messageFrom(body?.message) ?? messageFrom(body?.error) ?? "";
+  const code = messageFrom(body?.code) ?? statusCode(response.status);
+  const details =
+    asRecord(body?.details) ??
+    (body ? detailsFrom(body, ["code", "detail", "error", "message"]) : {});
+
   return new ApiError({
-    code: "malformed_response",
-    message: "ساختار خطای سرور نامعتبر است.",
-    status: response.status
+    code,
+    message,
+    status: response.status,
+    details
   });
 }
 

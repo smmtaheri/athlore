@@ -228,6 +228,55 @@
   letter-spacing: 0;
 }
 
+.collapsibleSection {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.collapsibleSummary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.collapsibleSummary::-webkit-details-marker {
+  display: none;
+}
+
+.sectionHeaderText {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: var(--space-1);
+}
+
+.sectionTitle {
+  font-size: 1.0625rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.sectionDescription {
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+.sectionChevron {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  transition: transform var(--transition-fast);
+}
+
+.collapsibleSection[open] > .collapsibleSummary .sectionChevron {
+  transform: rotate(180deg);
+}
+
+.collapsibleContent {
+  display: grid;
+  gap: var(--space-4);
+}
+
 .sectionIcon {
   display: inline-flex;
   width: 36px;
@@ -330,6 +379,15 @@
   box-shadow: var(--shadow-md);
   padding: var(--space-4);
   backdrop-filter: blur(12px);
+}
+
+.visitForm .actionBar {
+  display: grid;
+  align-items: stretch;
+}
+
+.visitForm .actionBarButtons {
+  justify-content: flex-end;
 }
 
 .actionBarButtons {

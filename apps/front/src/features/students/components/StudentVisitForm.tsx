@@ -5,7 +5,7 @@ import {
   calendarPlaceholder
 } from "../../../shared/dates/calendar";
 import type { FormEvent } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   ClipboardCheck,
@@ -120,6 +120,7 @@ export function StudentVisitForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const submitErrorRef = useRef<HTMLDivElement>(null);
   const [submitIntent, setSubmitIntent] = useState<VisitSubmitIntent | "">("");
   const [values, setValues] = useState(() =>
     initialVisit
@@ -154,6 +155,14 @@ export function StudentVisitForm({
       status === "coach_review" ||
       status === "waiting_for_student" ||
       status === "finalized");
+
+  useEffect(() => {
+    if (!submitError) return;
+    const frame = window.requestAnimationFrame(() => {
+      submitErrorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [submitError]);
 
   const selectedTemplate = useMemo(
     () => formTemplates.find((item) => item.id === formTemplateId) ?? null,
@@ -228,6 +237,7 @@ export function StudentVisitForm({
         const field = document.querySelector<HTMLElement>(
           `[data-visit-field="${firstErrorField}"]`
         );
+        field?.closest("details")?.setAttribute("open", "");
         field?.focus();
       });
       return;
@@ -263,18 +273,19 @@ export function StudentVisitForm({
 
   return (
     <form className={styles.visitForm} noValidate onSubmit={(event) => handleSubmit(event, "save")}>
-      {submitError ? (
-        <div className={`${styles.alert} ${styles.alertError}`} role="alert">
-          {submitError}
-        </div>
-      ) : null}
       {feedback ? (
         <div className={`${styles.alert} ${styles.alertSuccess}`} role="status">
           {feedback}
         </div>
       ) : null}
 
-      <StudentFormSection icon={ClipboardList} title="قالب فرم ویزیت">
+      <StudentFormSection
+        collapsible
+        defaultOpen
+        description="قالب، پرسش‌های اختصاصی و وضعیت پاسخ شاگرد را مشخص می‌کند."
+        icon={ClipboardList}
+        title="قالب فرم ویزیت"
+      >
         <div className={styles.formGrid}>
           <FormField htmlFor="visit-form-template" label="قالب فرم ویزیت">
             <Select
@@ -321,7 +332,13 @@ export function StudentVisitForm({
         ) : null}
       </StudentFormSection>
 
-      <StudentFormSection icon={Scale} title="۱. وضعیت فعلی و وزن جدید">
+      <StudentFormSection
+        collapsible
+        defaultOpen
+        description="برای ثبت ویزیت، تاریخ و وزن فعلی لازم‌اند؛ بقیه موارد این بخش اختیاری است."
+        icon={Scale}
+        title="۱. وضعیت فعلی و وزن جدید"
+      >
         <div className={styles.formGrid}>
           <FormField
             error={errors.visitDate}
@@ -415,7 +432,12 @@ export function StudentVisitForm({
         </div>
       </StudentFormSection>
 
-      <StudentFormSection icon={Ruler} title="۲. اندازه های بدن (سانتی متر)">
+      <StudentFormSection
+        collapsible
+        description="اختیاری؛ اندازه‌ها را برای مقایسه روند بدن با ویزیت‌های قبلی وارد کنید."
+        icon={Ruler}
+        title="۲. اندازه‌های بدن (سانتی‌متر)"
+      >
         <div className={styles.formGrid}>
           <MeasurementField
             error={errors.chestCm}
@@ -460,7 +482,12 @@ export function StudentVisitForm({
         </div>
       </StudentFormSection>
 
-      <StudentFormSection icon={HeartPulse} title="۳. خواب، استرس و انرژی">
+      <StudentFormSection
+        collapsible
+        description="برای ارزیابی ریکاوری و تنظیم فشار تمرین دوره بعد؛ در صورت نیاز تکمیل کنید."
+        icon={HeartPulse}
+        title="۳. خواب، استرس و انرژی"
+      >
         <div className={styles.formGrid}>
           <FormField htmlFor="sleep-quality" label="کیفیت خواب">
             <Select
@@ -498,7 +525,12 @@ export function StudentVisitForm({
         </div>
       </StudentFormSection>
 
-      <StudentFormSection icon={ClipboardCheck} title="۴. میزان اجرای برنامه قبلی">
+      <StudentFormSection
+        collapsible
+        description="اگر شاگرد برنامه قبلی داشته، میزان اجرای تمرین و تغذیه را ثبت کنید."
+        icon={ClipboardCheck}
+        title="۴. میزان اجرای برنامه قبلی"
+      >
         <div className={styles.formGrid}>
           <PercentField
             error={errors.overallPercent}
@@ -531,7 +563,12 @@ export function StudentVisitForm({
         </div>
       </StudentFormSection>
 
-      <StudentFormSection icon={Dumbbell} title="۵. تغییرات شرایط تمرین">
+      <StudentFormSection
+        collapsible
+        description="فقط وقتی محل، زمان یا امکانات تمرین نسبت به قبل تغییر کرده است."
+        icon={Dumbbell}
+        title="۵. تغییرات شرایط تمرین"
+      >
         <FormField htmlFor="training-condition-changes" label="تغییرات شرایط تمرین">
           <Textarea
             id="training-condition-changes"
@@ -541,7 +578,12 @@ export function StudentVisitForm({
         </FormField>
       </StudentFormSection>
 
-      <StudentFormSection icon={ShieldAlert} title="۶. آسیب یا محدودیت جدید">
+      <StudentFormSection
+        collapsible
+        description="در صورت آسیب یا محدودیت تازه وارد کنید تا هنگام تولید برنامه لحاظ شود."
+        icon={ShieldAlert}
+        title="۶. آسیب یا محدودیت جدید"
+      >
         <div className={styles.formGrid}>
           <BooleanRadioGroup
             label="آسیب یا محدودیت جدید وجود دارد؟"
@@ -574,7 +616,12 @@ export function StudentVisitForm({
         </div>
       </StudentFormSection>
 
-      <StudentFormSection icon={Activity} title="۷. بازخورد و ارزیابی">
+      <StudentFormSection
+        collapsible
+        description="ارزیابی دوره و یادداشت مربی برای تصمیم بعدی؛ یادداشت خصوصی به شاگرد نمایش داده نمی‌شود."
+        icon={Activity}
+        title="۷. بازخورد و ارزیابی"
+      >
         <div className={styles.formGrid}>
           <FormField className={styles.wideField} htmlFor="student-feedback" label="بازخورد شاگرد">
             <Textarea
@@ -625,6 +672,7 @@ export function StudentVisitForm({
       {dynamicSections.length > 0 ? (
         <VisitDynamicForm
           answers={answers}
+          collapsibleSections
           disabled={answersReadOnly}
           onAnswersChange={setAnswers}
           respectCoachEditable
@@ -652,6 +700,11 @@ export function StudentVisitForm({
       ) : null}
 
       <div className={styles.actionBar}>
+        {submitError ? (
+          <div className={`${styles.alert} ${styles.alertError}`} ref={submitErrorRef} role="alert">
+            {submitError}
+          </div>
+        ) : null}
         <span className={styles.actionHint}>
           {photosUploading
             ? "عکس در حال آپلود است؛ بعد از مشخص‌شدن نتیجه می‌توانید ویزیت را ادامه دهید."

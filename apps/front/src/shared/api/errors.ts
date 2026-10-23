@@ -72,7 +72,9 @@ export function persianMessageForApiError(error: ApiError): string {
     case "not_found":
       return "مورد درخواستی پیدا نشد.";
     case "conflict":
-      return error.message.includes("visit") || error.message.includes("date")
+      return error.message.includes("visit") ||
+        error.message.includes("date") ||
+        error.message.includes("already exists")
         ? "برای این تاریخ قبلاً ویزیت ثبت شده است."
         : "این عملیات با وضعیت فعلی تداخل دارد.";
     case "coach_phone_already_exists":
@@ -88,7 +90,10 @@ export function persianMessageForApiError(error: ApiError): string {
     case "archived_student":
       return "شاگرد غیرفعال یا بایگانی شده است و امکان ساخت یا تغییر برنامه برای او وجود ندارد.";
     case "permission_denied":
-      return error.message || "اجازه انجام این عملیات داده نشد؛ وضعیت دسترسی و فعال بودن حساب را بررسی کنید.";
+      return (
+        error.message ||
+        "اجازه انجام این عملیات داده نشد؛ وضعیت دسترسی و فعال بودن حساب را بررسی کنید."
+      );
     case "archived_template":
       return "قالب برنامه بایگانی یا غیرفعال است.";
     case "generation_failed":
@@ -166,6 +171,17 @@ export function persianMessageForVisitApiError(error: ApiError): string {
     if (messages[0]) {
       return localizeFieldErrorMessage(key, messages[0]);
     }
+  }
+  if (error.status === 409) {
+    const message = error.message.toLowerCase();
+    if (
+      message.includes("visit") ||
+      message.includes("date") ||
+      message.includes("already exists")
+    ) {
+      return "برای این تاریخ قبلاً ویزیت ثبت شده است؛ تاریخ دیگری انتخاب کنید یا ویزیت همان روز را باز و ویرایش کنید.";
+    }
+    return "ثبت ویزیت با اطلاعات موجود تداخل دارد؛ تاریخ ویزیت را بررسی کنید و اگر برای همان روز ویزیتی دارید، آن را باز و ویرایش کنید.";
   }
   return persianMessageForApiError(error);
 }
