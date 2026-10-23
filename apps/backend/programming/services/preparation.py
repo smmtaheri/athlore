@@ -146,7 +146,10 @@ def prepare_from_visit(coach, actor, visit_id, operation_key, section_methods=No
         "apply_general_rules": True,
         "apply_muscle_priority_rules": True,
         "catalog_only": True,
-        "fail_on_missing_exercises": True,
+        # Visit preparation creates a coach-review draft. A missing catalog
+        # candidate for one target muscle should be reported in generation
+        # warnings, not prevent the entire draft from being created.
+        "fail_on_missing_exercises": False,
     }
     open_request = ProgramRequest.objects.filter(
         coach=coach,

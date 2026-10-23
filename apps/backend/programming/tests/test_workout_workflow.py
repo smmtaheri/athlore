@@ -107,6 +107,19 @@ class WorkoutWorkflowTests(TestCase):
         self.assertTrue(run.resulting_version.training["days"])
         self.assertTrue(any("قالب انتخاب‌شده دیگر در دسترس نبود" in item for item in run.warnings))
 
+    def test_visit_preparation_keeps_a_reviewable_draft_when_catalog_lacks_a_target(self):
+        visit = self.visit()
+        visit.program_settings["session_muscles"] = [
+            ["ساعد"], ["سینه"], ["زیربغل"], ["پا"]
+        ]
+        visit.save(update_fields=["program_settings", "updated_at"])
+
+        program, run = prepare_from_visit(self.coach, self.coach.user, visit.id, "missing-catalog")
+
+        self.assertTrue(run.resulting_version.training["days"])
+        self.assertTrue(any(item.startswith("missing_exercise_candidates:") for item in run.warnings))
+        self.assertEqual(run.status, GenerationRun.Status.SUCCEEDED)
+
     def test_progress_is_per_week_and_idempotent(self):
         program, _ = self.active_program()
         payload = {"week": 1, "day_id": "day-1", "exercise_id": "item-1", "completed_sets": [0, 1]}
