@@ -3,6 +3,7 @@ from rest_framework import serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.models import ProgramTemplate
 from common.permissions import (
     IsAuthenticatedCoach,
     IsAuthenticatedStudent,
@@ -76,6 +77,17 @@ class ProgramDefaultsView(APIView):
                         if key in saved
                     }
                 )
+        template_id = settings.get("template_id")
+        if template_id:
+            try:
+                template_id = serializers.UUIDField().run_validation(template_id)
+            except serializers.ValidationError:
+                settings.pop("template_id", None)
+            else:
+                if not ProgramTemplate.objects.filter(
+                    pk=template_id, coach=coach, is_active=True, is_archived=False
+                ).exists():
+                    settings.pop("template_id", None)
         return Response(settings)
 
     def put(self, request):

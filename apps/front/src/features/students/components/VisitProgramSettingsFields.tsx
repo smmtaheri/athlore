@@ -25,12 +25,16 @@ export function VisitProgramSettingsFields({
   const [templates, setTemplates] = useState<
     Array<{ id: string; name: string; daysPerWeek: number }>
   >([]);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
   useEffect(() => {
     let active = true;
     coachRulesRepository
       .get()
       .then((rules) => {
-        if (active) setTemplates(rules.templates);
+        if (active) {
+          setTemplates(rules.templates);
+          setTemplatesLoaded(true);
+        }
       })
       .catch(() => {
         if (active) setMessage("دریافت قالب‌های برنامه انجام نشد.");
@@ -47,6 +51,15 @@ export function VisitProgramSettingsFields({
       active = false;
     };
   }, []);
+  useEffect(() => {
+    if (
+      templatesLoaded &&
+      value.template_id &&
+      !templates.some((template) => template.id === value.template_id)
+    ) {
+      onChange({ ...value, template_id: undefined });
+    }
+  }, [onChange, templates, templatesLoaded, value]);
   const update = (changes: Partial<VisitProgramSettings>) => onChange({ ...value, ...changes });
   return (
     <>

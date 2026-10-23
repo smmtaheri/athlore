@@ -177,6 +177,17 @@ class WorkoutWorkflowTests(TestCase):
             with self.subTest(settings=settings), self.assertRaises(ValidationError):
                 validate_settings(settings)
 
+    def test_program_defaults_omit_template_id_when_template_was_deleted(self):
+        self.coach.program_defaults = {"template_id": str(uuid4())}
+        self.coach.save(update_fields=["program_defaults"])
+        client = APIClient()
+        client.force_authenticate(self.coach.user)
+
+        response = client.get("/api/v1/me/program-defaults/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("template_id", response.data)
+
     def test_student_cannot_list_or_download_an_unpublished_version_pdf(self):
         from delivery.models import PdfArtifact
 
