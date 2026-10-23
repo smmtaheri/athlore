@@ -65,10 +65,10 @@ def validate_execution_plan(value, *, days_per_week, coach=None, level="intermed
             invalid(f"عضلهٔ جلسهٔ {day_index} غیرفعال یا ناشناخته است.")
         blocks = day.get("blocks")
         if not isinstance(blocks, list) or not 1 <= len(blocks) <= 30:
-            invalid(f"جلسهٔ {day_index} باید ۱ تا ۳۰ بلوک داشته باشد.")
+            invalid(f"جلسهٔ {day_index} باید ۱ تا ۳۰ حرکت مستقل یا گروه حرکت داشته باشد.")
         normalized_blocks = []
         for block_index, block in enumerate(blocks, 1):
-            label = f"جلسهٔ {day_index}، بلوک {block_index}"
+            label = f"جلسهٔ {day_index}، حرکت {block_index}"
             fields(block, ("system_key", "sets", "rest_seconds", "between_seconds", "slots"), label)
             system_key = block.get("system_key") or None
             if system_key is not None and not isinstance(system_key, str):
@@ -134,7 +134,7 @@ def validate_execution_plan(value, *, days_per_week, coach=None, level="intermed
                 if source not in ("default", "system", "custom") or (
                     source == "system" and not system_key
                 ):
-                    invalid(f"{label}: تکرار از سیستم فقط برای بلوک دارای سیستم مجاز است.")
+                    invalid(f"{label}: برای استفاده از تکرار سیستم، روش اجرای حرکت را انتخاب کنید.")
                 unit = slot.get("unit", "reps")
                 if unit not in ("reps", "seconds"):
                     invalid(f"{label}: واحد اجرا باید تکرار یا ثانیه باشد.")

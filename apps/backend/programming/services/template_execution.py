@@ -88,7 +88,7 @@ def build_template_days(
         }
         evidence["split_resolved"].append({"title": day["title"], "muscles": day["targetMuscles"]})
         for block_index, block in enumerate(spec["blocks"], 1):
-            label = f"جلسهٔ {day_index}، بلوک {block_index}"
+            label = f"جلسهٔ {day_index}، حرکت {block_index}"
             config, recipe = None, None
             if block["system_key"]:
                 selections = normalize_training_system_selection(
