@@ -484,6 +484,7 @@ def serialize_visit_form_payload(
         "form_template_snapshot": snapshot,
         "form_template_name": (snapshot.get("name") or visit.form_template_key or ""),
         "answers": answers,
+        "program_settings": visit.program_settings,
         "answer_sources": dict(visit.answer_sources or {}),
         "status": visit.status,
         "coach_private_notes": visit.coach_private_notes,

@@ -155,19 +155,30 @@ test("unified visit keeps one source for weight, optional unknowns and private h
   await expect(page.getByLabel("زمان جلسه", { exact: true })).toHaveValue("60");
   const photos = page
     .locator("details")
-    .filter({ has: page.getByText("عکس‌های ارزیابی (اختیاری)", { exact: true }) });
+    .filter({ has: page.getByText("عکس‌های ارزیابی (اختیاری)", { exact: true }) })
+    .last();
   await expect(photos).not.toHaveAttribute("open");
   await expect(page.getByLabel("بالاسینه", { exact: true })).toHaveCount(0);
+  await page.getByRole("heading", { name: "۳. ارزیابی بدن و نقاط ضعف", exact: true }).click();
   await page.getByRole("checkbox", { name: "سینه", exact: true }).check();
   await page.getByLabel("بالاسینه", { exact: true }).selectOption("weak");
-  await page.getByRole("checkbox", { name: "بدون ضعف مشخص", exact: true }).check();
+  await expect(page.getByRole("checkbox", { name: "بدون ضعف مشخص", exact: true })).toHaveCount(0);
+  await page.getByRole("checkbox", { name: "سینه", exact: true }).uncheck();
   await expect(page.getByLabel("بالاسینه", { exact: true })).toHaveCount(0);
   await page.getByRole("checkbox", { name: "سینه", exact: true }).check();
   await page.getByLabel("بالاسینه", { exact: true }).selectOption("weak");
+  await page.getByRole("heading", { name: "۱. ارزیابی کلی", exact: true }).click();
   await page.getByLabel(/^وزن جدید/).fill("78");
-  await page.getByRole("button", { name: "ثبت و ادامه برای تولید برنامه", exact: true }).click();
-  await expect(page).toHaveURL(/\/programs\/new\?studentId=.*&visitId=/);
-  const visitId = new URL(page.url()).searchParams.get("visitId")!;
+  const savedResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/students/${student.id}/visits/`) &&
+      response.request().method() === "POST"
+  );
+  await page.getByRole("button", { name: "ثبت پیش‌نویس", exact: true }).click();
+  const saved = await savedResponse;
+  expect(saved.status(), await saved.text()).toBe(201);
+  const visitId = (await saved.json()).id;
+  await expect(page).toHaveURL(new RegExp(`/students/${student.id}/visits$`));
   const storedResponse = await request.get(`${api}/students/${student.id}/visits/${visitId}/`, {
     headers
   });
@@ -192,6 +203,7 @@ test("unified visit keeps one source for weight, optional unknowns and private h
   });
   expect(historical.status()).toBe(200);
   await navigate(`/students/${student.id}/visits/${visitId}/edit`);
+  await page.getByRole("heading", { name: "۱. ارزیابی کلی", exact: true }).click();
   await page.getByLabel(/^وزن جدید/).fill("77");
   await page.getByText("۶. بازخورد و یادداشت مربی", { exact: true }).click();
   await page.getByLabel("یادداشت خصوصی مربی", { exact: true }).fill("برداشت خصوصی جدید");

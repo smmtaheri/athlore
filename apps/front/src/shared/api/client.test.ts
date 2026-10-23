@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "./errors";
+import { ApiError, persianMessageForApiError } from "./errors";
 import { __resetApiClientStateForTests, apiRequest } from "./client";
 import {
   AUTH_SESSION_STORAGE_KEY,
@@ -124,12 +124,17 @@ describe("apiRequest", () => {
       })
     );
 
-    await expect(apiRequest("/me/visits/visit-1/", { method: "PATCH", body: {} })).rejects.toMatchObject({
+    const error = await apiRequest("/me/visits/visit-1/", { method: "PATCH", body: {} }).catch(
+      (error) => error
+    );
+    expect(error).toBeInstanceOf(ApiError);
+    if (!(error instanceof ApiError)) throw new Error("Expected an API error");
+    expect(error).toMatchObject({
       code: "permission_denied",
-      message:
-        "درخواست از سمت سرور رد شد؛ وضعیت فعال بودن شاگرد، مربی و دوره و دسترسی شبکه را بررسی کنید.",
+      message: "",
       status: 403
     });
+    expect(persianMessageForApiError(error)).toContain("اجازه انجام این عملیات داده نشد");
   });
 
   it("shares one refresh for concurrent 401s and retries once", async () => {

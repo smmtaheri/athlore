@@ -32,6 +32,7 @@ class CoachProfile(models.Model):
         default=ControlMode.BALANCED,
     )
     default_session_minutes = models.PositiveIntegerField(default=60)
+    program_defaults = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -349,6 +350,8 @@ class Exercise(models.Model):
     risk_tags = models.JSONField(default=list, blank=True)
     # Reference document (e.g. a coach-provided PDF/program name) this entry was imported from.
     source_document = models.CharField(max_length=255, blank=True, default="")
+    tutorial_url = models.URLField(max_length=1024, blank=True, default="")
+    execution_guide = models.JSONField(default=dict, blank=True)
     coach_notes = models.TextField(blank=True, default="")
     is_active = models.BooleanField(default=True)
     is_archived = models.BooleanField(default=False)

@@ -47,9 +47,17 @@ import {
 } from "./visitFormLayout";
 import { StudentFormSection } from "./StudentFormSection";
 import styles from "./students.module.css";
+import { VisitProgramSettingsFields } from "./VisitProgramSettingsFields";
+import { apiRequest } from "../../../shared/api/client";
+import type { VisitProgramSettings } from "../types/monthlyVisit";
 
 export type VisitSubmitIntent =
-  "generate-program" | "save" | "finalize" | "send-to-student" | "start-coach-review";
+  | "generate-program"
+  | "upload-program"
+  | "save"
+  | "finalize"
+  | "send-to-student"
+  | "start-coach-review";
 
 export interface StudentVisitFormProps {
   answerRevisions?: VisitAnswerRevision[];
@@ -104,6 +112,31 @@ export function StudentVisitForm({
 }: StudentVisitFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState("");
+  const [programSettings, setProgramSettings] = useState<VisitProgramSettings>(() => {
+    const settings = { ...initialVisit?.programSettings };
+    const methodField = initialVisit?.formTemplateSnapshot.sections
+      ?.flatMap((section) => section.fields)
+      .find((field) => field.semanticKey === "training_methods");
+    const methods = methodField ? initialVisit?.answers[methodField.key] : undefined;
+    if (settings.training_systems === undefined && Array.isArray(methods))
+      settings.training_systems = methods.map((key) => ({ key }));
+    if (programRequest) settings.sections = programRequest.sections;
+    return settings;
+  });
+  useEffect(() => {
+    if (initialVisit?.programSettings && Object.keys(initialVisit.programSettings).length) return;
+    let active = true;
+    apiRequest<VisitProgramSettings>("/me/program-defaults/", { query: { student_id: student.id } })
+      .then((defaults) => {
+        if (active) setProgramSettings((current) => ({ ...defaults, ...current }));
+      })
+      .catch(() =>
+        setSubmitError("پیش‌فرض‌های برنامه دریافت نشد؛ تنظیمات همین ویزیت را بررسی کنید.")
+      );
+    return () => {
+      active = false;
+    };
+  }, [initialVisit, student.id]);
   const submitErrorRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [submitIntent, setSubmitIntent] = useState<VisitSubmitIntent | "">("");
@@ -140,7 +173,8 @@ export function StudentVisitForm({
   const fields = dynamicSections.flatMap((section) => section.fields);
   const status = initialVisit?.status ?? initialStatus;
   const isFinalized = status === "finalized";
-  const answersReadOnly = status === "waiting_for_student" || status === "student_submitted";
+  const answersReadOnly =
+    isFinalized || status === "waiting_for_student" || status === "student_submitted";
   const canSend = !isFinalized;
   const canFinalize = status === "draft" || status === "coach_review";
   const showRevisions = answerRevisions.length > 0;
@@ -186,6 +220,19 @@ export function StudentVisitForm({
 
   const submit = async (intent: VisitSubmitIntent) => {
     if (photosUploading || submitIntent) return;
+    const invalid = formRef.current?.querySelector<HTMLInputElement>(
+      "input:invalid, select:invalid, textarea:invalid"
+    );
+    if (invalid) {
+      let parent = invalid.parentElement;
+      while (parent) {
+        if (parent instanceof HTMLDetailsElement) parent.open = true;
+        parent = parent.parentElement;
+      }
+      setSubmitError(invalid.validationMessage || "ورودی نامعتبر را اصلاح کنید.");
+      invalid.focus();
+      return;
+    }
     const nextErrors = validateStudentVisitForm(values);
     setErrors(nextErrors);
     setSubmitError("");
@@ -205,7 +252,14 @@ export function StudentVisitForm({
       const payload: StudentVisitInput = {
         ...visitFormValuesToInput(values),
         formTemplateId: formTemplateId || null,
-        status
+        status,
+        programSettings: {
+          exercise_variety: "varied",
+          duration_weeks: 4,
+          sections: ["workout"],
+          training_systems: [],
+          ...programSettings
+        }
       };
       if (!answersReadOnly) {
         const writableKeys = new Set(
@@ -410,16 +464,29 @@ export function StudentVisitForm({
         </StudentFormSection>
       ) : null}
 
-      {layout.methods.length ? (
+      {
         <StudentFormSection
           collapsible
-          description="اختیاری؛ این انتخاب‌ها در صفحه تولید برنامه پیشنهاد می‌شوند و قابل تغییرند."
+          description="انتخاب‌های نهایی همین دوره؛ بخش‌های بیشتر فقط در صورت نیاز باز شوند."
           icon={Dumbbell}
-          title="۴. سیستم‌های تمرینی دوره"
+          title="۴. تنظیم برنامهٔ این دوره"
         >
-          {renderFields(layout.methods)}
+          <VisitProgramSettingsFields
+            value={programSettings}
+            onChange={setProgramSettings}
+            disabled={answersReadOnly || isFinalized}
+            sessions={Number(
+              answers[
+                fields.find((field) => field.semanticKey === "sessions_per_week")?.key ?? ""
+              ] ?? student.trainingConditions.trainingDaysPerWeek
+            )}
+            level={String(
+              answers[fields.find((field) => field.semanticKey === "training_level")?.key ?? ""] ??
+                student.trainingBackground.level
+            )}
+          />
         </StudentFormSection>
-      ) : null}
+      }
 
       <StudentFormSection
         collapsible
@@ -637,7 +704,16 @@ export function StudentVisitForm({
               type="button"
               variant="success"
             >
-              ثبت و ادامه برای تولید برنامه
+              تأیید و ساخت پیش‌نویس برنامه
+            </Button>
+          ) : null}
+          {!answersReadOnly ? (
+            <Button
+              type="button"
+              disabled={Boolean(submitIntent)}
+              onClick={() => void submit("upload-program")}
+            >
+              آپلود برنامهٔ آماده
             </Button>
           ) : null}
         </div>

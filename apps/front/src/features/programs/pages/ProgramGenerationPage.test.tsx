@@ -444,6 +444,8 @@ describe("ProgramGenerationPage", () => {
     );
 
     const focus = await screen.findByRole("checkbox", { name: "سینه" });
+    // The fixture already prioritizes chest; prove this optional choice toggles.
+    if (focus instanceof HTMLInputElement && focus.checked) await user.click(focus);
     await user.click(focus);
 
     expect(focus).toBeChecked();

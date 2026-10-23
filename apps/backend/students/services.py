@@ -328,6 +328,7 @@ def create_visit(coach, student: Student, data: dict, *, actor=None) -> Visit:
         # Lifecycle always starts as a coach-side draft; use send-to-student /
         # finalize endpoints to progress it. Client-supplied status is ignored.
         status=Visit.Status.DRAFT,
+        program_settings=data.get("program_settings") or {},
     )
 
     template = vfs.resolve_form_template(coach, data)
@@ -388,6 +389,7 @@ def update_visit(visit: Visit, data: dict, *, actor=None) -> Visit:
         "new_injury_notes",
         "next_cycle_goal",
         "training_condition_changes",
+        "program_settings",
     ):
         if field in data:
             setattr(visit, field, data[field])

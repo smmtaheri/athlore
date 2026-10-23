@@ -28,6 +28,8 @@ type ExerciseTarget = {
 };
 
 type CatalogExercise = {
+  tutorial_url?: string;
+  execution_guide?: Record<string, string>;
   id: string;
   name: string;
   name_en: string;
@@ -169,6 +171,9 @@ function techniqueLogic(technique: Technique) {
 type SecondaryTarget = { muscle_key: string; region_key: string };
 
 type ExerciseDraft = {
+  tutorial_url: string;
+  execution_notes: string;
+  execution_guide: Record<string, string>;
   name: string;
   name_en: string;
   aliases: string;
@@ -187,6 +192,9 @@ type ExerciseDraft = {
 };
 
 const emptyDraft: ExerciseDraft = {
+  tutorial_url: "",
+  execution_notes: "",
+  execution_guide: {},
   name: "",
   name_en: "",
   aliases: "",
@@ -216,6 +224,9 @@ function exerciseFromRow(row: CatalogExercise, taxonomy: ExerciseTaxonomy): Exer
   const secondary = row.targets.filter((target) => target.role === "secondary");
   return {
     ...emptyDraft,
+    tutorial_url: row.tutorial_url ?? "",
+    execution_notes: row.execution_guide?.execution ?? "",
+    execution_guide: row.execution_guide ?? {},
     aliases: row.aliases.join(", "),
     coach_notes: row.coach_notes,
     equipment_keys: row.equipment_keys,
@@ -258,6 +269,8 @@ function exercisePayload(draft: ExerciseDraft) {
     equipment_keys: draft.equipment_keys,
     movement_pattern: draft.movement_pattern,
     source_document: draft.source_document,
+    tutorial_url: draft.tutorial_url,
+    execution_guide: { ...draft.execution_guide, execution: draft.execution_notes },
     coach_notes: draft.coach_notes,
     is_preferred: draft.is_preferred,
     is_prohibited: draft.is_prohibited,
@@ -899,6 +912,29 @@ export function StructuredCatalogSection() {
               <Input
                 value={draft.source_document}
                 onChange={(event) => setDraft({ ...draft, source_document: event.target.value })}
+              />
+            </FormField>
+            <FormField
+              label="لینک ویدئوی آموزش حرکت"
+              htmlFor="exercise-tutorial-url"
+              hint="لینک مستقیم فایل ویدئو؛ برای حرکت‌هایی که آموزش دارند."
+            >
+              <Input
+                id="exercise-tutorial-url"
+                type="url"
+                value={draft.tutorial_url}
+                onChange={(e) => setDraft({ ...draft, tutorial_url: e.target.value })}
+              />
+            </FormField>
+            <FormField
+              className={styles.fullField}
+              label="راهنمای اجرای قابل‌نمایش برای شاگرد"
+              htmlFor="exercise-execution-guide"
+            >
+              <Textarea
+                id="exercise-execution-guide"
+                value={draft.execution_notes}
+                onChange={(e) => setDraft({ ...draft, execution_notes: e.target.value })}
               />
             </FormField>
             <FormField label="اولویت">

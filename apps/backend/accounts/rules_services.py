@@ -7,6 +7,8 @@ import re
 import uuid
 from typing import Any
 
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import URLValidator
 from django.db import transaction
 from django.db.models import Prefetch
 from django.utils import timezone
@@ -169,6 +171,8 @@ def serialize_exercise(ex: Exercise, preference: CoachExercisePreference | None 
         "laterality": ex.laterality,
         "risk_tags": list(ex.risk_tags or []),
         "source_document": ex.source_document,
+        "tutorial_url": ex.tutorial_url,
+        "execution_guide": ex.execution_guide,
         "coach_notes": ex.coach_notes,
         "aliases": list(ex.aliases.order_by("alias").values_list("alias", flat=True)),
         "targets": [
@@ -1092,8 +1096,29 @@ def delete_template(template: ProgramTemplate) -> None:
     template.save(update_fields=["is_archived", "is_active", "updated_at"])
 
 
+def _validate_exercise_guide(payload):
+    url = payload.get("tutorial_url")
+    if url:
+        if not isinstance(url, str) or len(url) > 1024:
+            raise ValidationError({"tutorial_url": ["لینک ویدئو معتبر نیست."]})
+        try:
+            URLValidator(schemes=["https"])(url)
+        except DjangoValidationError as exc:
+            raise ValidationError(
+                {"tutorial_url": ["لینک HTTPS مستقیم ویدئو را وارد کنید."]}
+            ) from exc
+    guide = payload.get("execution_guide", {})
+    if (
+        not isinstance(guide, dict)
+        or set(guide) - {"execution", "tips", "mistakes"}
+        or any(not isinstance(value, str) or len(value) > 4000 for value in guide.values())
+    ):
+        raise ValidationError({"execution_guide": ["راهنمای اجرا باید متن ساختاریافته باشد."]})
+
+
 @transaction.atomic
 def create_exercise(coach: CoachProfile, payload: dict) -> Exercise:
+    _validate_exercise_guide(payload)
     name = str(payload.get("name") or "").strip()
     external_key = str(payload.get("external_key") or "").strip().lower()
     primary = str(payload.get("primary_muscle") or "").strip()
@@ -1139,6 +1164,8 @@ def create_exercise(coach: CoachProfile, payload: dict) -> Exercise:
         laterality=str(payload.get("laterality") or ""),
         risk_tags=_as_str_list(payload.get("risk_tags", []), "risk_tags"),
         source_document=str(payload.get("source_document") or ""),
+        tutorial_url=str(payload.get("tutorial_url") or ""),
+        execution_guide=payload.get("execution_guide") or {},
         coach_notes=str(payload.get("coach_notes") or ""),
         is_active=bool(payload.get("is_active", True)),
     )
@@ -1180,6 +1207,7 @@ def _upsert_preference(coach: CoachProfile, ex: Exercise, payload: dict) -> None
 
 @transaction.atomic
 def update_exercise(exercise: Exercise, payload: dict) -> Exercise:
+    _validate_exercise_guide(payload)
     if "name" in payload:
         exercise.name = str(payload["name"]).strip() or exercise.name
     if "name_en" in payload:
@@ -1216,6 +1244,10 @@ def update_exercise(exercise: Exercise, payload: dict) -> Exercise:
         exercise.risk_tags = _as_str_list(payload["risk_tags"], "risk_tags")
     if "source_document" in payload:
         exercise.source_document = str(payload["source_document"] or "")
+    if "tutorial_url" in payload:
+        exercise.tutorial_url = str(payload["tutorial_url"] or "")
+    if "execution_guide" in payload:
+        exercise.execution_guide = payload["execution_guide"] or {}
     if "coach_notes" in payload:
         exercise.coach_notes = str(payload["coach_notes"] or "")
     if "is_active" in payload:

@@ -79,9 +79,16 @@ class ProgramReadySmsTests(APITestCase):
 
     def finalize(self, version=None):
         version = version or self.version
-        return self.client.post(
+        response = self.client.post(
             f"/api/v1/programs/{version.program_id}/versions/{version.pk}/finalize/",
             {},
+            format="json",
+        )
+        if response.status_code != 200:
+            return response
+        return self.client.post(
+            f"/api/v1/programs/{version.program_id}/activate/",
+            {"version_id": str(version.id)},
             format="json",
         )
 

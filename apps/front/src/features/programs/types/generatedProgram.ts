@@ -11,6 +11,10 @@ export type ProgramPdfSectionMethod = "generated" | "uploaded" | "omitted";
 export type ProgramPdfSectionMethods = Partial<Record<ProgramPdfSection, ProgramPdfSectionMethod>>;
 
 export interface TrainingExercise {
+  exercise_id?: string;
+  locked?: boolean;
+  tutorial_url?: string;
+  execution_guide?: Record<string, string>;
   id: string;
   name: string;
   notes: string;
@@ -195,6 +199,10 @@ export interface GenerationEvidence {
 }
 
 export interface GeneratedProgram {
+  draftRevision?: string;
+  programVersionId?: string;
+  sectionMethods?: ProgramPdfSectionMethods;
+  durationWeeks?: number;
   createdAt: string;
   dateRange: string;
   /** Backend version IDs used while attaching uploaded PDFs or retrying PDF delivery. */

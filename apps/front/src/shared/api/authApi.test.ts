@@ -78,7 +78,7 @@ describe("API auth bootstrap", () => {
     }
   );
 
-  it("restores a new tab from the HttpOnly refresh cookie", async () => {
+  it("restores concurrent mounts from one HttpOnly refresh cookie exchange", async () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (String(url).includes("/auth/refresh/")) {
         return jsonResponse({ access: "access-from-cookie" });
@@ -106,7 +106,12 @@ describe("API auth bootstrap", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const session = await createApiAuthRepository().getSession();
+    const repository = createApiAuthRepository();
+    const [session, concurrent] = await Promise.all([
+      repository.getSession(),
+      repository.getSession()
+    ]);
+    expect(concurrent).toEqual(session);
 
     expect(session).toMatchObject({
       role: "coach",

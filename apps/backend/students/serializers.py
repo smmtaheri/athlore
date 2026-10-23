@@ -239,6 +239,7 @@ class VisitSerializer(serializers.ModelSerializer):
             "form_template_version",
             "form_template_snapshot",
             "answers",
+            "program_settings",
             "answer_sources",
             "status",
             "sent_at",
@@ -312,6 +313,13 @@ class VisitWriteSerializer(serializers.Serializer):
     training_condition_changes = serializers.CharField(required=False, allow_blank=True, default="")
     form_template_id = serializers.UUIDField(required=False, allow_null=True)
     answers = serializers.DictField(required=False)
+    program_settings = serializers.DictField(required=False)
+
+    def validate_program_settings(self, value):
+        from programming.services.preparation import validate_settings
+
+        return validate_settings(value)
+
     skip_form_template = serializers.BooleanField(required=False, default=False)
 
 

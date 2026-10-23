@@ -513,6 +513,7 @@ def _pick_for_roles(
     priority_boost: bool,
     variety_level: str = "stable",
     rng: random.Random | None = None,
+    previous_names: set[str] | None = None,
 ) -> list[str]:
     remaining = list(candidates)
     picked: list[str] = []
@@ -537,6 +538,9 @@ def _pick_for_roles(
         if variety_level in {"balanced", "varied"}:
             preferred_tier = matched[0] in preferred_names
             choice_pool = [name for name in matched if (name in preferred_names) == preferred_tier]
+            novel = [name for name in choice_pool if name not in (previous_names or set())]
+            if novel:
+                choice_pool = novel
             if variety_level == "balanced":
                 choice_pool = choice_pool[:3]
             choice = (rng or random).choice(choice_pool)
@@ -835,9 +839,7 @@ def _trim_day_to_budget(day_exercises: list[dict], budget: int) -> list[dict]:
     return day_exercises
 
 
-def _attach_session_duration_evidence(
-    days: list[dict], student: Any, evidence: dict
-) -> None:
+def _attach_session_duration_evidence(days: list[dict], student: Any, evidence: dict) -> None:
     raw_duration = (student.training_conditions or {}).get("session_duration_minutes")
     try:
         duration = int(raw_duration)
@@ -923,6 +925,8 @@ def build_training_days(
     selected_training_systems: list[dict] | None = None,
     exercise_variety: str = "stable",
     selection_seed: str = "",
+    avoid_exercise_names: list[str] | None = None,
+    catalog_only: bool = False,
 ) -> tuple[list[dict], dict]:
     if template.execution_plan:
         from programming.services.template_execution import build_template_days
@@ -1048,6 +1052,15 @@ def build_training_days(
     used |= _alias_names(coach, used)
     base_sets = _base_sets(level, template, coach=coach)
     selection_rng = random.Random(str(selection_seed or ""))
+    previous_names: set[str] = set(avoid_exercise_names or [])
+    previous_program = (
+        student.programs.filter(active_version__isnull=False).order_by("-updated_at").first()
+    )
+    if previous_program:
+        for previous_day in (previous_program.active_version.training or {}).get("days", []):
+            previous_names.update(
+                item.get("name", "") for item in previous_day.get("exercises", [])
+            )
 
     allow_superset = False
     if level_rule and level != "beginner":
@@ -1153,6 +1166,8 @@ def build_training_days(
                 apply_catalog=apply_catalog,
                 region_keys=(structured_region_filters or {}).get(muscle),
             )
+            if catalog_only:
+                candidates = [name for name in candidates if name in catalog_by_name]
             excluded_catalog_reasons: list[dict] = []
             region_filter = (structured_region_filters or {}).get(muscle) or set()
             strict_region = _has_structured_region_data(
@@ -1186,10 +1201,14 @@ def build_training_days(
                 excluded_catalog_by_name=excluded_catalog_by_name,
             )
             evidence["structured_catalog_excluded"].extend(excluded_catalog_reasons)
+            if catalog_only:
+                filtered = [name for name in filtered if name in catalog_by_name]
             if not filtered:
                 warnings.append(f"missing_exercise_candidates:{muscle}")
                 fallback_names = (
-                    [] if strict_region else _FALLBACK.get(muscle, ["حرکت جایگزین کنترل‌شده"])
+                    []
+                    if strict_region or catalog_only
+                    else _FALLBACK.get(muscle, ["حرکت جایگزین کنترل‌شده"])
                 )
                 for fallback in fallback_names:
                     if (
@@ -1213,6 +1232,7 @@ def build_training_days(
                 priority_boost=muscle in priority or muscle in weak,
                 variety_level=exercise_variety,
                 rng=selection_rng,
+                previous_names=previous_names,
             )
             for idx, name in enumerate(picked):
                 used.add(name)
@@ -1273,6 +1293,8 @@ def build_training_days(
                         "order": 0,
                         "name": name,
                         "exercise_id": str(ex_ref.id) if ex_ref else None,
+                        "tutorial_url": ex_ref.tutorial_url if ex_ref else "",
+                        "execution_guide": ex_ref.execution_guide if ex_ref else {},
                         "display_name": name,
                         "targetMuscle": muscle,
                         "sets": rx["sets"],

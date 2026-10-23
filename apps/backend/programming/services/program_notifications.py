@@ -42,6 +42,7 @@ def deliver_program_ready_sms(version_id) -> None:
         if (
             not settings.PROGRAM_READY_SMS_ENABLED
             or version.status != ProgramVersion.Status.FINALIZED
+            or program.active_version_id != version.id
             or program.archived_at
             or program.coach_id != student.coach_id
             or student.archived_at

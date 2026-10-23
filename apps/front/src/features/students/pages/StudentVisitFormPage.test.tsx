@@ -327,7 +327,8 @@ describe("StudentVisitFormPage", () => {
     expect(
       screen.queryByRole("group", { name: "آسیب یا محدودیت جدید وجود دارد؟" })
     ).not.toBeInTheDocument();
-    await user.click(neck);
+    // This athlete's profile already contains a neck injury.
+    if (neck instanceof HTMLInputElement && !neck.checked) await user.click(neck);
     await user.click(screen.getByRole("button", { name: "ثبت پیش‌نویس" }));
     await screen.findByText("ویزیت جدید ثبت شد.");
     const visits = JSON.parse(window.localStorage.getItem(STUDENT_VISITS_STORAGE_KEY) || "[]");

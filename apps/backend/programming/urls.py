@@ -27,8 +27,18 @@ from programming.views import (
     ProgramVersionStagedPdfView,
     StudentProgramListView,
 )
+from programming.workout_views import (
+    PrepareVisitProgramView,
+    ProgramDefaultsView,
+    RegenerateProgramView,
+    WorkoutProgressView,
+)
 
 urlpatterns = [
+    path("programs/<uuid:program_id>/regenerate/", RegenerateProgramView.as_view()),
+    path("visits/<uuid:visit_id>/prepare-program/", PrepareVisitProgramView.as_view()),
+    path("me/program-defaults/", ProgramDefaultsView.as_view()),
+    path("me/programs/<uuid:program_id>/workout-progress/", WorkoutProgressView.as_view()),
     path(
         "me/program-request-defaults/",
         MyProgramRequestDefaultsView.as_view(),

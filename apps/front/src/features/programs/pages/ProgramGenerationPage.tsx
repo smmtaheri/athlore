@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { apiRequest } from "../../../shared/api/client";
+import { programDetailFromApi } from "../../../shared/adapters/apiAdapters";
 import { ArrowRight, Eye, FileUp, Plus, RefreshCcw, Trash2, WandSparkles, X } from "lucide-react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import {
@@ -155,10 +157,10 @@ export function ProgramGenerationPage({
     () => (location.state as { visitSaved?: string } | null)?.visitSaved ?? ""
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [deliverySections, setDeliverySections] = useState<ProgramPdfSectionMethods>({
-    workout: "generated",
-    nutrition: "generated",
-    supplement: "generated"
+  const [deliverySections, setDeliverySections] = useState<ProgramPdfSectionMethods>(() => {
+    const method =
+      new URLSearchParams(location.search).get("mode") === "upload" ? "uploaded" : "generated";
+    return { workout: method, nutrition: method, supplement: method };
   });
   const [stagedPdfs, setStagedPdfs] = useState<
     Partial<Record<ProgramPdfSection, StagedProgramPdf>>
@@ -173,6 +175,8 @@ export function ProgramGenerationPage({
   const initialStudentId = searchParams.get("studentId") ?? "";
   const programRequestId = searchParams.get("programRequestId") ?? "";
   const initialVisitId = searchParams.get("visitId") ?? "";
+  const uploadMode = searchParams.get("mode") === "upload";
+  const [preparationKey] = useState(() => crypto.randomUUID());
   const [form, setForm] = useState<ProgramGenerationInput>({
     applyExerciseCatalog: true,
     applyGeneralRules: true,
@@ -303,6 +307,17 @@ export function ProgramGenerationPage({
             const visitDays = sessionCountFromVisit(visit);
             const visitGoal = goalFromVisit(visit);
             const visitLevel = levelFromVisit(visit);
+            if (uploadMode && visit?.programSettings) {
+              const settings = visit.programSettings;
+              setForm((current) => ({
+                ...current,
+                ...(settings.sections?.length && !programRequest
+                  ? { programType: programTypeForRequest(settings.sections) }
+                  : {}),
+                ...(settings.duration_weeks ? { durationWeeks: settings.duration_weeks } : {})
+              }));
+              if (settings.start_date) setStartDate(formatCalendarDate(settings.start_date));
+            }
             if (visitGoal || visitLevel) {
               setForm((current) =>
                 current.templateId
@@ -356,7 +371,8 @@ export function ProgramGenerationPage({
     status,
     trainingSystems,
     visitsRepo,
-    visitToPrefillId
+    visitToPrefillId,
+    uploadMode
   ]);
 
   useEffect(() => {
@@ -635,6 +651,10 @@ export function ProgramGenerationPage({
     if (!selectedStudent || !rules) {
       return;
     }
+    if (uploadMode && !selectedVisitId) {
+      setFeedback("برای تولید بخش‌های برنامه، ابتدا ویزیت مرجع را انتخاب کنید.");
+      return;
+    }
 
     const period = getProgramPeriod();
     const nextErrors = validateForm(
@@ -688,7 +708,23 @@ export function ProgramGenerationPage({
       };
       let savedProgram: GeneratedProgram;
       let warnings: string[] = [];
-      if (programsRepo.generate) {
+      if (uploadMode && selectedVisitId) {
+        const dto = await apiRequest<{ program: Record<string, unknown> }>(
+          `/visits/${selectedVisitId}/prepare-program/`,
+          {
+            method: "POST",
+            body: { operation_key: preparationKey, section_methods: deliverySections }
+          }
+        );
+        savedProgram = programDetailFromApi(dto.program);
+        if (form.title.trim() && savedProgram.title !== form.title.trim()) {
+          await apiRequest(`/programs/${savedProgram.id}/`, {
+            method: "PATCH",
+            body: { title: form.title.trim() }
+          });
+          savedProgram = { ...savedProgram, title: form.title.trim() };
+        }
+      } else if (programsRepo.generate) {
         const result = await programsRepo.generate(generationInput);
         savedProgram = result.program;
         warnings = result.warnings;
@@ -954,31 +990,40 @@ export function ProgramGenerationPage({
               </FormField>
             </ResponsiveGrid>
 
-            <ResponsiveGrid columns={2}>
-              <FormField error={errors.startDate} label="شروع برنامه" required>
-                <Input
-                  aria-label="شروع برنامه"
-                  inputMode="numeric"
-                  placeholder={calendarPlaceholder()}
-                  value={startDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                />
-              </FormField>
-              <FormField label="مدت برنامه (هفته)" required>
-                <Input
-                  min={1}
-                  max={52}
-                  type="number"
-                  value={form.durationWeeks}
-                  onChange={(event) => updateForm("durationWeeks", Number(event.target.value))}
-                />
-              </FormField>
-            </ResponsiveGrid>
-            <p className={styles.sectionDescription}>
-              {getProgramPeriod()
-                ? `بازهٔ ثبت‌شده: ${getProgramPeriod()?.label}`
-                : "تاریخ شروع را به تقویم انتخاب‌شده در تنظیمات وارد کنید."}
-            </p>
+            {uploadMode && generatedSections.length > 0 ? (
+              <p className={styles.sectionDescription}>
+                تاریخ شروع و مدت بخش‌های تولیدی از ویزیت مرجع خوانده می‌شود؛ تغییرش را در همان ویزیت
+                ثبت کنید.
+              </p>
+            ) : (
+              <>
+                <ResponsiveGrid columns={2}>
+                  <FormField error={errors.startDate} label="شروع برنامه" required>
+                    <Input
+                      aria-label="شروع برنامه"
+                      inputMode="numeric"
+                      placeholder={calendarPlaceholder()}
+                      value={startDate}
+                      onChange={(event) => setStartDate(event.target.value)}
+                    />
+                  </FormField>
+                  <FormField label="مدت برنامه (هفته)" required>
+                    <Input
+                      min={1}
+                      max={52}
+                      type="number"
+                      value={form.durationWeeks}
+                      onChange={(event) => updateForm("durationWeeks", Number(event.target.value))}
+                    />
+                  </FormField>
+                </ResponsiveGrid>
+                <p className={styles.sectionDescription}>
+                  {getProgramPeriod()
+                    ? `بازهٔ ثبت‌شده: ${getProgramPeriod()?.label}`
+                    : "تاریخ شروع را به تقویم انتخاب‌شده در تنظیمات وارد کنید."}
+                </p>
+              </>
+            )}
 
             {selectedStudent ? (
               <StudentSummary student={selectedStudent} visit={latestVisit} />
@@ -1005,7 +1050,7 @@ export function ProgramGenerationPage({
                     <div className={styles.deliveryMethodChoices}>
                       <Button
                         aria-pressed={method === "generated"}
-                        disabled={!rules}
+                        disabled={!rules || (uploadMode && !selectedVisitId)}
                         onClick={() => setSectionMethod(section.id, "generated")}
                         size="sm"
                         variant={method === "generated" ? "primary" : "secondary"}
@@ -1081,7 +1126,7 @@ export function ProgramGenerationPage({
             </div>
           </Card>
 
-          {generatedSections.length > 0 && !selectedTemplate?.executionPlan ? (
+          {generatedSections.length > 0 && !uploadMode && !selectedTemplate?.executionPlan ? (
             <Card className={styles.pageStack}>
               <div className={styles.sectionHeader}>
                 <div>
@@ -1203,7 +1248,7 @@ export function ProgramGenerationPage({
             </Card>
           ) : null}
 
-          {generatedSections.length > 0 ? (
+          {generatedSections.length > 0 && !uploadMode ? (
             <Card className={styles.pageStack}>
               <div className={styles.sectionHeader}>
                 <div>
@@ -1435,7 +1480,7 @@ export function ProgramGenerationPage({
             </Card>
           ) : null}
 
-          {generatedSections.length > 0 && !selectedTemplate?.executionPlan ? (
+          {generatedSections.length > 0 && !uploadMode && !selectedTemplate?.executionPlan ? (
             <Card className={styles.pageStack}>
               <div className={styles.sectionHeader}>
                 <div>

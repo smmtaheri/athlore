@@ -186,6 +186,7 @@ class Visit(models.Model):
     form_template_version = models.PositiveIntegerField(default=1)
     form_template_snapshot = models.JSONField(default=dict, blank=True)
     answers = models.JSONField(default=dict, blank=True)
+    program_settings = models.JSONField(default=dict, blank=True)
     answer_sources = models.JSONField(default=dict, blank=True)
     status = models.CharField(
         max_length=32,

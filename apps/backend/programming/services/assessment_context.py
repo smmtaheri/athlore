@@ -133,9 +133,7 @@ def extract_semantic_answers(
             continue
         value = answers[key]
         semantic_key = str(field.get("semantic_key") or "").strip()
-        empty_selection_is_an_answer = (
-            semantic_key in {"weak_muscles", "injuries"} and value == []
-        )
+        empty_selection_is_an_answer = semantic_key in {"weak_muscles", "injuries"} and value == []
         if not _is_answered(value) and not empty_selection_is_an_answer:
             continue
         if not semantic_key:
@@ -346,6 +344,7 @@ def merge_student_with_assessment(
                 if str(m).strip() and str(m).strip().lower() != "none"
             ]
             goals["weak_muscles"] = mapped
+            goals["muscle_priorities"] = []
             evidence_bits["assessment_overrides"].append("weak_muscles")
             evidence_bits["visit_overrides"].append("weak_muscles")
 

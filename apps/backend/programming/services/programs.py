@@ -53,7 +53,7 @@ def programs_for_student(student: Student):
             student=student,
             coach_id=student.coach_id,
             archived_at__isnull=True,
-            versions__status=ProgramVersion.Status.FINALIZED,
+            active_version__status=ProgramVersion.Status.FINALIZED,
         )
         .select_related("student", "active_version")
         .prefetch_related("versions")
@@ -208,7 +208,7 @@ def _latest_student_version(program: Program) -> ProgramVersion | None:
         active = next((v for v in finalized if v.id == program.active_version_id), None)
         if active:
             return active
-    return finalized[0]
+    return None
 
 
 def serialize_student_program_summary(
@@ -249,6 +249,7 @@ def serialize_student_program_detail(program: Program) -> dict:
         else None,
         "date_range_end": program.date_range_end.isoformat() if program.date_range_end else None,
         "program_version_id": str(version.id),
+        "section_methods": (version.pdf_settings or {}).get("deliverySections") or {},
         "delivery_source": version.delivery_source,
         "training": _deep_copy(version.training),
         "nutrition": _deep_copy(version.nutrition),
@@ -304,6 +305,7 @@ def serialize_program_detail(program: Program) -> dict:
         "date_range_label": program.date_range_label,
         "active_version_id": str(program.active_version_id) if program.active_version_id else None,
         "current_draft": serialize_version_detail(draft) if draft else None,
+        "draft_revision": draft.updated_at.isoformat() if draft else None,
         "latest_finalized_version": serialize_version_summary(latest_final)
         if latest_final
         else None,
@@ -727,8 +729,11 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
         if any(
             w.startswith("missing_exercise_candidates") for w in warnings
         ) and generation_data.get("fail_on_missing_exercises"):
+            missing = "، ".join(
+                w.split(":", 1)[1] for w in warnings if w.startswith("missing_exercise_candidates:")
+            )
             raise GenerationFailedError(
-                detail="Missing exercise candidates for one or more muscles."
+                detail=f"در کاتالوگ برای {missing} حرکت مجاز کافی نیست؛ بانک حرکت یا تقسیم جلسات را اصلاح کنید."
             )
 
         input_snapshot = build_input_snapshot(
@@ -951,6 +956,11 @@ def update_draft_version(version: ProgramVersion, payload: dict) -> ProgramVersi
     coaches can regenerate PDFs without opening a new draft.
     """
     version = ProgramVersion.objects.select_for_update().get(pk=version.pk)
+    previous_exercises = {
+        str(item.get("id")): item
+        for day in (version.training or {}).get("days", [])
+        for item in day.get("exercises", [])
+    }
     ensure_student_active(version.program.student)
     if version.status == ProgramVersion.Status.ARCHIVED:
         raise InvalidStateError(
@@ -1019,6 +1029,24 @@ def update_draft_version(version: ProgramVersion, payload: dict) -> ProgramVersi
             for ex in day.get("exercises") or []:
                 if not isinstance(ex, dict):
                     raise ValidationError({"training": ["Malformed exercise."]})
+                if "sets" in ex and (
+                    isinstance(ex["sets"], bool)
+                    or not isinstance(ex["sets"], int)
+                    or not 1 <= ex["sets"] <= 100
+                ):
+                    raise ValidationError(
+                        {"training": ["تعداد ست هر حرکت باید عدد صحیح بین ۱ و ۱۰۰ باشد."]}
+                    )
+                old = previous_exercises.get(str(ex.get("id")), {})
+                if any(ex.get(key) != old.get(key) for key in ("sets", "reps", "rest")):
+                    raw = f"{ex.get('sets', '')}×{ex.get('reps', '')}"
+                    ex["raw_prescription"] = raw
+                    ex["prescription"] = {
+                        **(ex.get("prescription") or {}),
+                        "sets": ex.get("sets"),
+                        "reps_text": ex.get("reps"),
+                        "raw_prescription": raw,
+                    }
                 ex_id = ex.get("exercise_id")
                 if ex_id:
                     if not Exercise.objects.filter(pk=ex_id, coach_id=version.coach_id).exists():
@@ -1052,9 +1080,6 @@ def finalize_version(version: ProgramVersion, *, actor) -> ProgramVersion:
     version.save(update_fields=["status", "finalized_at", "finalized_by", "updated_at"])
     version.program.updated_at = timezone.now()
     version.program.save(update_fields=["updated_at"])
-    from programming.services.program_notifications import schedule_program_ready_sms
-
-    schedule_program_ready_sms(version)
     return version
 
 
@@ -1065,8 +1090,18 @@ def activate_version(program: Program, version_id) -> Program:
     version = get_version_for_coach(program.coach, program, version_id)
     if version.status != ProgramVersion.Status.FINALIZED:
         raise InvalidStateError(detail="Only finalized versions can be activated.")
+    from delivery.models import PdfArtifact
     from programming.services import program_requests
 
+    methods = (version.pdf_settings or {}).get("deliverySections") or {}
+    required_sections = [key for key, method in methods.items() if method != "omitted"]
+    ready_sections = set(
+        PdfArtifact.objects.filter(program_version=version, status="ready").values_list(
+            "section", flat=True
+        )
+    )
+    if required_sections and not set(required_sections).issubset(ready_sections):
+        raise InvalidStateError(detail="فایل‌های این نسخه هنوز آماده نشده‌اند.", code="pdf_not_ready")
     program_requests.validate_activation_for_requests(program, version)
     program.active_version = version
     program.save(update_fields=["active_version", "updated_at"])
@@ -1074,6 +1109,9 @@ def activate_version(program: Program, version_id) -> Program:
     student.summary_current_program_title = program.title
     student.save(update_fields=["summary_current_program_title", "updated_at"])
     program_requests.reconcile_fulfillment(program)
+    from programming.services.program_notifications import schedule_program_ready_sms
+
+    schedule_program_ready_sms(version)
     return program
 
 

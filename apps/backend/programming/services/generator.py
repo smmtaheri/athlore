@@ -391,12 +391,16 @@ def build_input_snapshot(
             "injuries": student.injuries or {},
             "training_background": student.training_background or {},
             "training_conditions": student.training_conditions or {},
+            "equipment": student.equipment or {},
         },
         "visit": (
             {
                 "id": str(visit.id),
                 "visit_date": visit.visit_date.isoformat(),
                 "current_weight_kg": str(visit.current_weight_kg),
+                "answers": visit.answers or {},
+                "form_template_snapshot": visit.form_template_snapshot or {},
+                "program_settings": visit.program_settings or {},
             }
             if visit
             else None
@@ -491,7 +495,7 @@ def generate_document(
     student.equipment = merged["equipment"]
 
     try:
-        return _generate_document_body(
+        document, document_warnings = _generate_document_body(
             coach=coach,
             student=student,
             visit=visit,
@@ -502,6 +506,24 @@ def generate_document(
             assessment_evidence=merged.get("evidence") or {},
             assessment_ctx=assessment_ctx,
         )
+        items = [
+            item
+            for day in (document.get("training") or {}).get("days", [])
+            for item in day.get("exercises", [])
+        ]
+        catalog = {
+            str(row.id): row
+            for row in Exercise.objects.filter(
+                coach=coach,
+                id__in=[item["exercise_id"] for item in items if item.get("exercise_id")],
+            )
+        }
+        for item in items:
+            source = catalog.get(str(item.get("exercise_id")))
+            if source:
+                item["tutorial_url"] = source.tutorial_url
+                item["execution_guide"] = source.execution_guide
+        return document, document_warnings
     finally:
         student.goals = orig_goals
         student.injuries = orig_injuries
@@ -662,6 +684,8 @@ def _generate_document_body(
                 else "stable"
             ),
             selection_seed=str(request.get("seed") or ""),
+            avoid_exercise_names=request.get("avoid_exercise_names"),
+            catalog_only=bool(request.get("catalog_only")),
         )
         warnings.extend(train_warnings)
 
@@ -941,6 +965,8 @@ def _build_training(
     selected_training_systems: list[dict] | None = None,
     exercise_variety: str = "stable",
     selection_seed: str = "",
+    avoid_exercise_names: list[str] | None = None,
+    catalog_only: bool = False,
 ) -> tuple[dict, list[str], dict]:
     warnings: list[str] = []
     rule_set = ensure_rule_set(coach)
@@ -1075,11 +1101,12 @@ def _build_training(
         selected_training_systems=selected_training_systems,
         exercise_variety=exercise_variety,
         selection_seed=selection_seed,
+        avoid_exercise_names=avoid_exercise_names,
+        catalog_only=catalog_only,
         warnings=warnings,
     )
     warnings.extend(
-        item["message"]
-        for item in selection_evidence.get("session_duration_warnings", [])
+        item["message"] for item in selection_evidence.get("session_duration_warnings", [])
     )
 
     summary = f"{days_per_week} روز تمرین بر اساس {template.name} و سطح {_level_label(level)}"

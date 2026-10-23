@@ -18,6 +18,7 @@ export interface StudentVisitAdherence {
 }
 
 export interface StudentVisit {
+  programSettings?: VisitProgramSettings;
   adherence: StudentVisitAdherence;
   answerSources?: Record<string, string>;
   answers: VisitFormAnswers;
@@ -54,6 +55,16 @@ export interface StudentVisit {
   trainingConditionChanges: string;
   updatedAt: string;
   visitDate: string;
+}
+
+export interface VisitProgramSettings {
+  start_date?: string;
+  training_systems?: Array<{ key: string }>;
+  session_muscles?: string[][];
+  exercise_variety?: "stable" | "balanced" | "varied";
+  duration_weeks?: number;
+  template_id?: string;
+  sections?: Array<"workout" | "nutrition" | "supplement">;
 }
 
 export interface VisitAnswerRevision {

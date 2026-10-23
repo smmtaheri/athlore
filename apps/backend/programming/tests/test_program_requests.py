@@ -272,6 +272,7 @@ class ProgramRequestApiTests(TestCase):
             "injuries": self.student.injuries,
             "training_background": self.student.training_background,
             "training_conditions": self.student.training_conditions,
+            "equipment": self.student.equipment,
             "evidence": {},
         }
         generate_document(

@@ -252,6 +252,8 @@ export function visitFromApi(dto: Record<string, unknown>): StudentVisit {
           )
         : undefined,
     answers: visitFormAnswersFromApi(dto.answers),
+    programSettings: (dto.program_settings ??
+      {}) as import("../../features/students/types/monthlyVisit").VisitProgramSettings,
     bodyFatPercentage: dto.body_fat_percentage == null ? undefined : num(dto.body_fat_percentage),
     bodyFeeling: String(dto.body_feeling ?? ""),
     coachAssessment: String(dto.coach_assessment ?? ""),
@@ -376,6 +378,7 @@ export function visitInputToApi(input: Partial<StudentVisitInput>): Record<strin
   }
   if (input.formTemplateId !== undefined) body.form_template_id = input.formTemplateId;
   if (input.answers !== undefined) body.answers = input.answers;
+  if (input.programSettings !== undefined) body.program_settings = input.programSettings;
   if (input.status !== undefined) body.status = input.status;
   if (input.measurements) {
     body.measurements = {
@@ -983,6 +986,21 @@ export function programDetailFromApi(dto: Record<string, unknown>): GeneratedPro
     : undefined;
 
   return {
+    programVersionId: str(dto.program_version_id),
+    draftRevision: dto.draft_revision ? str(dto.draft_revision) : undefined,
+    sectionMethods: dto.section_methods as GeneratedProgram["sectionMethods"],
+    durationWeeks:
+      dto.date_range_start && dto.date_range_end
+        ? Math.max(
+            1,
+            Math.ceil(
+              (Date.parse(String(dto.date_range_end)) -
+                Date.parse(String(dto.date_range_start)) +
+                86400000) /
+                604800000
+            )
+          )
+        : 4,
     createdAt: String(dto.created_at ?? ""),
     dateRange: String(dto.date_range ?? dto.date_range_label ?? ""),
     deliverySource: dto.delivery_source === "uploaded_pdf" ? "uploaded_pdf" : "generated",

@@ -1013,3 +1013,50 @@ end date only creates a dashboard reminder; it never creates a request automatic
 ## 12. Related documents
 
 `domain-model.md` · `database-schema.md` · `auth-and-permissions.md` · `frontend-integration-plan.md`
+
+## 13. Visit-driven preparation and workout execution
+
+Visit create/update accepts a coach-only `program_settings` object: `training_systems`
+(objects with a system `key`), `session_muscles` (one muscle array per session),
+`exercise_variety` (`stable|balanced|varied`), `duration_weeks` (1–52), optional ISO
+`start_date`, `template_id`, and `sections` (`workout|nutrition|supplement`). Explicit
+empty system selections override defaults; missing values may inherit coach defaults.
+Student visit payloads do not expose these settings. Existing accounts and identities
+are not migrated or recreated.
+
+- `GET/PUT /me/program-defaults/`: coach defaults; GET accepts an owned `student_id`
+  to overlay that student's last published generation settings. UI never stores a
+  particular period's start date as a coach default.
+- `POST /visits/{visit_id}/prepare-program/`: coach-only canonical preparation.
+  Body `{ "operation_key": "client-generated-uuid" }`; optional `section_methods`
+  maps sections to `generated|uploaded|omitted` for mixed delivery. Returns 200 with
+  `{program, generation_run_id}`. Locking the owned visit makes retries with the same
+  operation key return the same draft rather than another Program. Pure uploaded
+  delivery continues through the existing staged-PDF/upload draft API.
+- `POST /programs/{id}/regenerate/`: body `{revision, day_id?, exercise_id?}`.
+  `revision` is the detail response's `draft_revision`. Regenerates within the same
+  draft; locked items and locked groups survive. A grouped member cannot be replaced
+  independently. A stale revision, changed assessment/rules, or unavailable safe
+  alternative returns 400 without mutating the draft. The new GenerationRun records
+  its seed, source snapshot and previous training for audit.
+- `GET /me/programs/{id}/workout-progress/`: student-owned, published generated
+  workouts only; returns `{version_id, sessions}`.
+- `PUT` on the same progress URL accepts `{version_id, week, day_id, exercise_id,
+  completed_sets: [0, 1]}`. Indices are zero-based; validates week/session/set limits,
+  merges only this exercise, and returns the updated session. One row is unique per
+  student/version/week/day. Repeated writes are idempotent. Cross-student access is
+  404; uploaded-only workout, stale version, and invalid set data are 400.
+
+Exercise CRUD accepts optional `tutorial_url` (direct HTTPS media URL) and
+`execution_guide` (`execution`, `tips`, `mistakes` strings). Generation snapshots the
+catalog media with its stable `exercise_id`; editing a draft movement name clears
+the old catalog media reference. Missing media is not invented. The CSP permits
+HTTPS media, not arbitrary remote scripts/frames.
+
+For new prepared programs, activation requires ready PDF artifacts for every
+non-omitted delivery section. Finalization alone does not publish or notify. After
+activation, request reconciliation and one program-ready notification are scheduled;
+the notification worker rechecks that this is still the active version. Student
+content and PDF endpoints expose only the active published version. Existing
+legacy activation clients without a section-method map retain their compatibility
+contract; the canonical UI always supplies the map.

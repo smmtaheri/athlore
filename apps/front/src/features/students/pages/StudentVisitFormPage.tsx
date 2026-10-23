@@ -26,6 +26,7 @@ import type {
   ProgramRequest
 } from "../../program-requests/types/programRequest";
 import styles from "../components/students.module.css";
+import { apiRequest } from "../../../shared/api/client";
 
 function answersLockedForStatus(status: StudentVisit["status"] | undefined): boolean {
   return status === "waiting_for_student" || status === "student_submitted";
@@ -182,9 +183,13 @@ export function StudentVisitFormPage({
       }
 
       const existingVisitId = visit?.id ?? (mode === "edit" ? visitId : undefined);
-      let savedVisit = existingVisitId
-        ? await visitsRepo.update(studentId, existingVisitId, payload)
-        : await visitsRepo.create(studentId, payload);
+      let savedVisit =
+        visit?.status === "finalized" &&
+        (intent === "generate-program" || intent === "upload-program")
+          ? visit
+          : existingVisitId
+            ? await visitsRepo.update(studentId, existingVisitId, payload)
+            : await visitsRepo.create(studentId, payload);
       const photoWarning = savedVisit.photoIssues?.length
         ? ` ${savedVisit.photoIssues.join(" ")}`
         : "";
@@ -226,14 +231,30 @@ export function StudentVisitFormPage({
       }
 
       if (intent === "generate-program") {
+        setVisit(savedVisit);
+        const storageKey = `athlore.prepare.pending.${savedVisit.id}`;
+        const operationKey = sessionStorage.getItem(storageKey) ?? crypto.randomUUID();
+        sessionStorage.setItem(storageKey, operationKey);
+        const result = await apiRequest<{ program: { id: string } }>(
+          `/visits/${savedVisit.id}/prepare-program/`,
+          { method: "POST", body: { operation_key: operationKey } }
+        );
+        sessionStorage.removeItem(storageKey);
+        navigate(`/programs/${result.program.id}`);
+        return;
+      }
+      if (intent === "upload-program") {
         const requestParams = programRequestId
           ? `&programRequestId=${encodeURIComponent(programRequestId)}`
           : "";
-        navigate(`/programs/new?studentId=${studentId}&visitId=${savedVisit.id}${requestParams}`, {
-          state: {
-            visitSaved: `ویزیت ذخیره شد و تولید برنامه در مرحله بعد تکمیل می شود.${photoWarning}`
+        navigate(
+          `/programs/new?studentId=${studentId}&visitId=${savedVisit.id}&mode=upload${requestParams}`,
+          {
+            state: {
+              visitSaved: `ویزیت ذخیره شد؛ فایل آمادهٔ برنامه را بارگذاری کنید.${photoWarning}`
+            }
           }
-        });
+        );
         return;
       }
 
@@ -270,7 +291,7 @@ export function StudentVisitFormPage({
           "پروفایل شاگرد",
           mode === "edit" ? "ویرایش ویزیت" : "ویزیت جدید"
         ]}
-        description="برای ثبت ویزیت، تاریخ و وزن جدید را وارد کنید؛ بقیه بخش‌ها اختیاری‌اند و با فلش باز می‌شوند. «ثبت و ادامه برای تولید برنامه» ویزیت را ذخیره و صفحه ساخت برنامه را باز می‌کند."
+        description="تاریخ، وزن و ارزیابی دوره را ثبت کنید؛ بخش‌ها با فلش باز می‌شوند. ساخت پیش‌نویس، برنامه را از همین ویزیت تولید می‌کند؛ برای برنامهٔ دستی هم مسیر آپلود PDF آماده است."
         title={mode === "edit" ? "ویرایش ویزیت" : "ویزیت جدید"}
       />
 

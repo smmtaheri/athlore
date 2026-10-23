@@ -93,18 +93,30 @@ await runPython(["manage.py", "migrate", "--noinput"], {
 const backend = preferUv
   ? spawn(
       "uv",
-      ["run", "python", "manage.py", "runserver", `127.0.0.1:${backendPort}`, "--noreload"],
+      [
+        "run",
+        "python",
+        "manage.py",
+        "runserver",
+        `127.0.0.1:${backendPort}`,
+        "--noreload",
+        "--nothreading"
+      ],
       {
         cwd: backendRoot,
         env: backendEnv,
         stdio: "inherit"
       }
     )
-  : spawn(backendPython, ["manage.py", "runserver", `127.0.0.1:${backendPort}`, "--noreload"], {
-      cwd: backendRoot,
-      env: backendEnv,
-      stdio: "inherit"
-    });
+  : spawn(
+      backendPython,
+      ["manage.py", "runserver", `127.0.0.1:${backendPort}`, "--noreload", "--nothreading"],
+      {
+        cwd: backendRoot,
+        env: backendEnv,
+        stdio: "inherit"
+      }
+    );
 children.push(backend);
 
 const frontend = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", frontendPort], {

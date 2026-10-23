@@ -72,7 +72,19 @@ function sessionFromMe(payload: MePayload, accessToken: string): ApiAuthSession 
   }).session;
 }
 
-async function bootstrapSessionFromRefreshCookie(): Promise<AuthSession | null> {
+let bootstrapPromise: Promise<AuthSession | null> | null = null;
+
+function bootstrapSessionFromRefreshCookie(): Promise<AuthSession | null> {
+  // Refresh tokens rotate. Concurrent mounts must share one cookie exchange.
+  if (!bootstrapPromise) {
+    bootstrapPromise = exchangeRefreshCookie().finally(() => {
+      bootstrapPromise = null;
+    });
+  }
+  return bootstrapPromise;
+}
+
+async function exchangeRefreshCookie(): Promise<AuthSession | null> {
   const refreshed = await apiRequest<{ access?: string }>("/auth/refresh/", {
     method: "POST",
     auth: false,

@@ -97,7 +97,9 @@ export function persianMessageForApiError(error: ApiError): string {
     case "archived_template":
       return "قالب برنامه بایگانی یا غیرفعال است.";
     case "generation_failed":
-      return "ساخت برنامه با خطا روبه‌رو شد.";
+      return /[\u0600-\u06ff]/.test(error.message)
+        ? error.message
+        : "ساخت برنامه با خطا روبه‌رو شد.";
     case "incompatible_template":
       return "قالب انتخاب‌شده با سطح یا تنظیمات درخواستی سازگار نیست.";
     case "server_error":
@@ -117,6 +119,14 @@ export function firstFieldError(error: ApiError, ...keys: string[]): string | un
     }
   }
   return undefined;
+}
+
+/** Preparation/regeneration validation should explain the actionable field. */
+export function persianMessageForProgramApiError(error: ApiError): string {
+  const detail = Object.values(error.fieldErrors)
+    .flat()
+    .find((message) => /[\u0600-\u06ff]/.test(message));
+  return detail ?? persianMessageForApiError(error);
 }
 
 const VISIT_FIELD_ERROR_KEYS = [

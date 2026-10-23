@@ -265,6 +265,25 @@ class ProgramReadySms(models.Model):
     sent_at = models.DateTimeField(null=True, blank=True)
 
 
+class WorkoutSession(models.Model):
+    """One student's execution of one prescribed day in one program week."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    version = models.ForeignKey(ProgramVersion, on_delete=models.PROTECT)
+    week = models.PositiveIntegerField()
+    day_id = models.CharField(max_length=160)
+    completed_sets = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "version", "week", "day_id"], name="unique_workout_session"
+            )
+        ]
+
+
 class GenerationRun(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
