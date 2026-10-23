@@ -20,9 +20,11 @@ import { studentsRepository, type StudentsRepository } from "../services/student
 import type { StudentVisit, StudentVisitInput, VisitAnswerRevision } from "../types/monthlyVisit";
 import type { Student } from "../types/student";
 import type { VisitFormTemplate } from "../types/visitForm";
-import { goalLabels, trainingLevelLabels } from "../types/options";
 import { programRequestRepository } from "../../program-requests/services/programRequestRepository";
-import type { ProgramAssessmentMode } from "../../program-requests/types/programRequest";
+import type {
+  ProgramAssessmentMode,
+  ProgramRequest
+} from "../../program-requests/types/programRequest";
 import styles from "../components/students.module.css";
 
 function answersLockedForStatus(status: StudentVisit["status"] | undefined): boolean {
@@ -63,6 +65,7 @@ export function StudentVisitFormPage({
   const [status, setStatus] = useState<"error" | "loaded" | "loading" | "notFound">("loading");
   const [student, setStudent] = useState<Student | undefined>();
   const [visit, setVisit] = useState<StudentVisit | undefined>();
+  const [programRequest, setProgramRequest] = useState<ProgramRequest | null>(null);
   const [photoSessionId] = useState(() => globalThis.crypto.randomUUID());
   const location = useLocation();
   const navigate = useNavigate();
@@ -95,9 +98,10 @@ export function StudentVisitFormPage({
       templatesRepo.list(),
       mode === "edit" && visitId
         ? visitsRepo.getById(studentId ?? "", visitId)
-        : Promise.resolve(null)
+        : Promise.resolve(null),
+      programRequestId ? programRequestRepository.getCoach(programRequestId) : Promise.resolve(null)
     ])
-      .then(async ([studentResult, visits, templates, visitResult]) => {
+      .then(async ([studentResult, visits, templates, visitResult, requestResult]) => {
         if (!isMounted) {
           return;
         }
@@ -108,6 +112,7 @@ export function StudentVisitFormPage({
         }
 
         setStudent(studentResult);
+        setProgramRequest(requestResult);
         setFormTemplates(templates.filter((item) => item.isActive));
         setLatestVisit(
           mode === "edit" ? visits.find((item) => item.id !== visitResult?.id) : visits[0]
@@ -137,7 +142,7 @@ export function StudentVisitFormPage({
     return () => {
       isMounted = false;
     };
-  }, [mode, studentId, studentsRepo, templatesRepo, visitId, visitsRepo]);
+  }, [mode, programRequestId, studentId, studentsRepo, templatesRepo, visitId, visitsRepo]);
 
   const goToVisits = () => navigate(`/students/${studentId}/visits`);
 
@@ -312,15 +317,6 @@ export function StudentVisitFormPage({
               </div>
             ) : null}
             <VisitStudentSummary student={student} />
-            <VisitPhotosPanel
-              audience="coach"
-              canUpload
-              onStagedChange={setHasStagedPhotos}
-              onUploadStateChange={setPhotosUploading}
-              sessionId={photoSessionId}
-              studentId={student.id}
-              visitId={visit?.id ?? null}
-            />
             <StudentVisitForm
               answerRevisions={answerRevisions}
               formTemplates={formTemplates}
@@ -330,7 +326,20 @@ export function StudentVisitFormPage({
               latestVisit={latestVisit}
               mode={mode}
               onCancel={goToVisits}
+              photoPanel={
+                <VisitPhotosPanel
+                  audience="coach"
+                  canUpload
+                  embedded
+                  onStagedChange={setHasStagedPhotos}
+                  onUploadStateChange={setPhotosUploading}
+                  sessionId={photoSessionId}
+                  studentId={student.id}
+                  visitId={visit?.id ?? null}
+                />
+              }
               photosUploading={photosUploading}
+              programRequest={programRequest}
               onSubmit={handleSubmit}
               student={student}
             />
@@ -354,8 +363,8 @@ function VisitStudentSummary({ student }: { student: Student }) {
             <StudentStatusBadge status={student.status} />
           </div>
           <p>
-            هدف: {goalLabels[student.goals.primaryGoal]} - سطح تمرین:{" "}
-            {trainingLevelLabels[student.trainingBackground.level]}
+            {student.phoneNumber || "شماره ثبت نشده"} · {student.age} سال · قد {student.heightCm}{" "}
+            سانتی‌متر
           </p>
         </div>
       </div>

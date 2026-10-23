@@ -27,7 +27,7 @@ interface VisitPhoto {
   uploaderRole: "coach" | "student";
 }
 
-type VisitPhotosPanelProps =
+type VisitPhotosPanelProps = { embedded?: boolean } & (
   | {
       audience: "coach";
       canUpload: boolean;
@@ -47,7 +47,8 @@ type VisitPhotosPanelProps =
       sessionId?: string;
       studentId?: never;
       visitId: string;
-    };
+    }
+);
 
 interface LocalPhotoSelection {
   file: File;
@@ -86,7 +87,7 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
   const [localSelections, setLocalSelections] = useState<
     Partial<Record<VisitPhotoPose, LocalPhotoSelection>>
   >({});
-  const [loading, setLoading] = useState(Boolean(visitId));
+  const [loadedPhotosPath, setLoadedPhotosPath] = useState<string | null>(null);
   const [uploadingPose, setUploadingPose] = useState<VisitPhotoPose | null>(null);
   const [removingPose, setRemovingPose] = useState<VisitPhotoPose | null>(null);
   const [committing, setCommitting] = useState(false);
@@ -107,11 +108,11 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
       ? coachVisitPhotosPath(props.studentId, visitId)
       : studentVisitPhotosPath(visitId)
     : null;
+  const loading = Boolean(photosPath && photosPath !== loadedPhotosPath);
   useEffect(() => {
     let current = true;
     if (!photosPath) return undefined;
 
-    setLoading(true);
     void apiRequest<{ results?: Record<string, unknown>[] }>(photosPath)
       .then((payload) => {
         if (current) setPhotos((payload.results ?? []).map(photoFromApi));
@@ -120,7 +121,7 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
         if (current) setError("دریافت عکس‌های ویزیت انجام نشد.");
       })
       .finally(() => {
-        if (current) setLoading(false);
+        if (current) setLoadedPhotosPath(photosPath);
       });
     return () => {
       current = false;
@@ -302,8 +303,9 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
   );
   const legacyPhotos = photos.filter((photo) => photo.pose === null);
 
+  const Container = props.embedded ? "div" : Card;
   return (
-    <Card>
+    <Container>
       <section aria-label="عکس‌های ویزیت" className={styles.panel}>
         <div className={styles.heading}>
           <div className={styles.title}>
@@ -515,6 +517,6 @@ export function VisitPhotosPanel(props: VisitPhotosPanelProps) {
           به همان ویزیت تعلق دارد.
         </p>
       </section>
-    </Card>
+    </Container>
   );
 }

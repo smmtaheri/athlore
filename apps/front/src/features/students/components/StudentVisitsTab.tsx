@@ -386,7 +386,14 @@ function VisitCard({ onDelete, onSelect, studentId, visit }: VisitCardProps) {
         />
         <StudentVisitMetric label="وضعیت" value={visitStatusLabels[visit.status]} />
         <StudentVisitMetric label="وزن" value={`${visit.currentWeightKg} کیلوگرم`} />
-        <StudentVisitMetric label="اجرای برنامه" value={`${visit.adherence.overallPercent}%`} />
+        <StudentVisitMetric
+          label="اجرای برنامه"
+          value={
+            visit.adherence.overallPercent == null
+              ? "ثبت نشده"
+              : `${visit.adherence.overallPercent}%`
+          }
+        />
       </div>
     </Card>
   );
@@ -492,9 +499,18 @@ export function VisitDetailsPanel({
       ) : null}
 
       <div className={styles.detailMetricGrid}>
-        <StudentVisitMetric label="کیفیت خواب" value={levelLabels[visit.sleepQuality]} />
-        <StudentVisitMetric label="میزان استرس" value={levelLabels[visit.stressLevel]} />
-        <StudentVisitMetric label="سطح انرژی" value={levelLabels[visit.dailyEnergyLevel]} />
+        <StudentVisitMetric
+          label="کیفیت خواب"
+          value={visit.sleepQuality ? levelLabels[visit.sleepQuality] : "ثبت نشده"}
+        />
+        <StudentVisitMetric
+          label="میزان استرس"
+          value={visit.stressLevel ? levelLabels[visit.stressLevel] : "ثبت نشده"}
+        />
+        <StudentVisitMetric
+          label="سطح انرژی"
+          value={visit.dailyEnergyLevel ? levelLabels[visit.dailyEnergyLevel] : "ثبت نشده"}
+        />
       </div>
 
       <div className={styles.detailBlock}>
@@ -562,7 +578,8 @@ function VisitsLoadingState() {
   );
 }
 
-function PercentBar({ value }: { value: number }) {
+function PercentBar({ value }: { value: number | null }) {
+  if (value == null) return <span className={styles.subtleText}>ثبت نشده</span>;
   return (
     <span className={styles.percentBarWrap}>
       <span>{value}%</span>
@@ -573,7 +590,7 @@ function PercentBar({ value }: { value: number }) {
   );
 }
 
-function LevelBadge({ level }: { level: VisitLevel }) {
+function LevelBadge({ level }: { level: VisitLevel | null }) {
   const variant = useMemo(() => {
     if (level === "good" || level === "low") {
       return "success";
@@ -586,7 +603,11 @@ function LevelBadge({ level }: { level: VisitLevel }) {
     return "warning";
   }, [level]);
 
-  return <StatusBadge variant={variant}>{levelLabels[level]}</StatusBadge>;
+  return (
+    <StatusBadge variant={level == null ? "neutral" : variant}>
+      {level ? levelLabels[level] : "ثبت نشده"}
+    </StatusBadge>
+  );
 }
 
 export function VisitStatusBadge({ status }: { status: VisitStatus }) {

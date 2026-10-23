@@ -51,10 +51,6 @@ export function VisitDynamicForm({
   showNotes = false,
   theme = "athlore"
 }: VisitDynamicFormProps) {
-  const setAnswer = (key: string, value: VisitFormAnswerValue) => {
-    onAnswersChange({ ...answers, [key]: value });
-  };
-
   return (
     <div
       className={`${styles.tabContentStack} ${
@@ -75,36 +71,16 @@ export function VisitDynamicForm({
           theme={theme}
           title={audience === "athlete" ? athleteFacingText(section.label) : section.label}
         >
-          <div className={styles.formGrid}>
-            {section.fields.map((field) => {
-              const displayedField =
-                audience === "athlete"
-                  ? {
-                      ...field,
-                      helpText: athleteFacingText(field.helpText),
-                      label: athleteFacingText(field.label),
-                      options: field.options.map((option) => ({
-                        ...option,
-                        label: athleteFacingText(option.label)
-                      }))
-                    }
-                  : field;
-              const fieldDisabled =
-                disabled ||
-                (respectStudentEditable && field.studentEditable !== true) ||
-                (respectCoachEditable && field.coachEditable === false);
-              return (
-                <VisitFormFieldControl
-                  disabled={fieldDisabled}
-                  field={displayedField}
-                  key={field.key}
-                  onChange={(value) => setAnswer(field.key, value)}
-                  showCoachHelpText={showCoachHelpText}
-                  value={answers[field.key]}
-                />
-              );
-            })}
-          </div>
+          <VisitDynamicFields
+            answers={answers}
+            audience={audience}
+            disabled={disabled}
+            fields={section.fields}
+            onAnswersChange={onAnswersChange}
+            respectCoachEditable={respectCoachEditable}
+            respectStudentEditable={respectStudentEditable}
+            showCoachHelpText={showCoachHelpText}
+          />
         </StudentFormSection>
       ))}
 
@@ -121,6 +97,51 @@ export function VisitDynamicForm({
           </FormField>
         </StudentFormSection>
       ) : null}
+    </div>
+  );
+}
+
+export function VisitDynamicFields({
+  answers,
+  audience = "coach",
+  disabled = false,
+  fields,
+  onAnswersChange,
+  respectCoachEditable = false,
+  respectStudentEditable = false,
+  showCoachHelpText = false
+}: Omit<VisitDynamicFormProps, "sections"> & { fields: VisitFormFieldDefinition[] }) {
+  return (
+    <div className={styles.formGrid}>
+      {fields.map((field) => {
+        const displayedField =
+          audience === "athlete"
+            ? {
+                ...field,
+                helpText: athleteFacingText(field.helpText),
+                label: athleteFacingText(field.label),
+                options: field.options.map((option) => ({
+                  ...option,
+                  label: athleteFacingText(option.label)
+                }))
+              }
+            : field;
+        return (
+          <div data-visit-answer={field.key} key={field.key}>
+            <VisitFormFieldControl
+              disabled={
+                disabled ||
+                (respectStudentEditable && field.studentEditable !== true) ||
+                (respectCoachEditable && field.coachEditable === false)
+              }
+              field={displayedField}
+              onChange={(value) => onAnswersChange({ ...answers, [field.key]: value })}
+              showCoachHelpText={showCoachHelpText}
+              value={answers[field.key]}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -215,7 +236,7 @@ function VisitFormFieldControl({
         <Switch
           checked={value === true}
           disabled={disabled}
-          label={value === true ? "بله" : "خیر"}
+          label={value === true ? "بله" : value === false ? "خیر" : "ثبت نشده"}
           onCheckedChange={(checked) => onChange(checked)}
         />
       </FormField>

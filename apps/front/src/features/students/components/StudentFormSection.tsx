@@ -54,6 +54,7 @@ export function StudentFormSection({
             </span>
             <h2>{title}</h2>
           </div>
+          {description ? <p className={styles.sectionDescription}>{description}</p> : null}
           {children}
         </>
       )}

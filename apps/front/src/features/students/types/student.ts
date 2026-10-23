@@ -20,6 +20,7 @@ export interface StudentTrainingBackground {
 }
 
 export interface StudentTrainingConditions {
+  environment?: string;
   cardioInterest: string;
   heavyTrainingInterest: string;
   sessionDurationMinutes: number;
@@ -35,6 +36,7 @@ export interface StudentInjuries {
 }
 
 export interface StudentEquipment {
+  availableEquipment?: string[];
   hasBarbell: boolean;
   hasCable: boolean;
   hasDumbbell: boolean;
@@ -63,11 +65,7 @@ export interface StudentListSummary {
 }
 
 export type StudentPortalStatus =
-  | "not_started"
-  | "pending_activation"
-  | "password_reset_required"
-  | "active"
-  | "disabled";
+  "not_started" | "pending_activation" | "password_reset_required" | "active" | "disabled";
 
 export interface StudentPortalAccess {
   accountActivated: boolean;

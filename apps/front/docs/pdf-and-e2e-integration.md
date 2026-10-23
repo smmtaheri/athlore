@@ -38,6 +38,13 @@ Never touches `coach-assistant-backend/db.sqlite3`.
 
 ## Artifacts (gitignored)
 
+- `e2e/visit-composer.spec.ts` exercises the unified visit form on desktop/mobile:
+  profile-prefilled executable settings, one canonical weight/date, collapsed optional
+  photos, conditional muscle details and deselection, null unassessed observations,
+  exact visit linkage into program generation, historical/private-note preservation,
+  duplicate-date feedback in the viewport, and horizontal-overflow checks. It uses the
+  same disposable mocked-SMS stack and never sends messages on shared Stage.
+
 - `artifacts/ui-review/p3-pdf-e2e/` — review screenshots + Persian PDF page PNGs
 - `artifacts/playwright-report/` — HTML report
 - Failure: screenshot / video / trace per Playwright config

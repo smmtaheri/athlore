@@ -81,6 +81,9 @@ export function studentFromApi(dto: Record<string, unknown>): Student {
     dietaryPreferences: asStringArray(dto.dietary_preferences),
     dietaryRestrictions: asStringArray(dto.dietary_restrictions),
     equipment: {
+      availableEquipment: Array.isArray(equipment.available_equipment)
+        ? asStringArray(equipment.available_equipment)
+        : undefined,
       hasBarbell: Boolean(equipment.has_barbell),
       hasCable: Boolean(equipment.has_cable),
       hasDumbbell: Boolean(equipment.has_dumbbell),
@@ -136,6 +139,10 @@ export function studentFromApi(dto: Record<string, unknown>): Student {
       trainingExperience: String(trainingBackground.training_experience ?? "")
     },
     trainingConditions: {
+      environment:
+        typeof trainingConditions.environment === "string"
+          ? trainingConditions.environment
+          : undefined,
       cardioInterest: String(trainingConditions.cardio_interest ?? ""),
       heavyTrainingInterest: String(trainingConditions.heavy_training_interest ?? ""),
       sessionDurationMinutes: num(trainingConditions.session_duration_minutes, 60),
@@ -155,6 +162,9 @@ export function studentInputToApi(input: StudentInput): Record<string, unknown> 
     dietary_restrictions: input.dietaryRestrictions ?? [],
     equipment: {
       has_barbell: input.equipment.hasBarbell,
+      ...(input.equipment.availableEquipment === undefined
+        ? {}
+        : { available_equipment: input.equipment.availableEquipment }),
       has_cable: input.equipment.hasCable,
       has_dumbbell: input.equipment.hasDumbbell,
       has_full_gym: input.equipment.hasFullGym,
@@ -203,6 +213,9 @@ export function studentInputToApi(input: StudentInput): Record<string, unknown> 
       training_experience: input.trainingBackground.trainingExperience
     },
     training_conditions: {
+      ...(input.trainingConditions.environment === undefined
+        ? {}
+        : { environment: input.trainingConditions.environment }),
       cardio_interest: input.trainingConditions.cardioInterest,
       heavy_training_interest: input.trainingConditions.heavyTrainingInterest,
       session_duration_minutes: input.trainingConditions.sessionDurationMinutes,
@@ -220,10 +233,12 @@ export function visitFromApi(dto: Record<string, unknown>): StudentVisit {
   const snapshot = visitFormTemplateSnapshotFromApi(dto.form_template_snapshot);
   return {
     adherence: {
-      nutritionPercent: num(adherence.nutrition_percent),
-      overallPercent: num(adherence.overall_percent),
-      supplementsPercent: num(adherence.supplements_percent),
-      trainingPercent: num(adherence.training_percent)
+      nutritionPercent:
+        adherence.nutrition_percent == null ? null : num(adherence.nutrition_percent),
+      overallPercent: adherence.overall_percent == null ? null : num(adherence.overall_percent),
+      supplementsPercent:
+        adherence.supplements_percent == null ? null : num(adherence.supplements_percent),
+      trainingPercent: adherence.training_percent == null ? null : num(adherence.training_percent)
     },
     answerSources:
       dto.answer_sources &&
@@ -244,7 +259,7 @@ export function visitFromApi(dto: Record<string, unknown>): StudentVisit {
     coachPrivateNotes: String(dto.coach_private_notes ?? ""),
     createdAt: String(dto.created_at ?? ""),
     currentWeightKg: num(dto.current_weight_kg),
-    dailyEnergyLevel: (dto.daily_energy_level as StudentVisit["dailyEnergyLevel"]) || "medium",
+    dailyEnergyLevel: (dto.daily_energy_level as StudentVisit["dailyEnergyLevel"]) || null,
     expiresAt: dto.expires_at == null ? null : str(dto.expires_at),
     finalizedAt: dto.finalized_at == null ? null : str(dto.finalized_at),
     formTemplateId: dto.form_template_id == null ? null : str(dto.form_template_id),
@@ -267,9 +282,9 @@ export function visitFromApi(dto: Record<string, unknown>): StudentVisit {
     previousWeightKg: num(dto.previous_weight_kg),
     photoIssues: Array.isArray(dto.photo_issues) ? dto.photo_issues.map(String) : [],
     sentAt: dto.sent_at == null ? null : str(dto.sent_at),
-    sleepQuality: (dto.sleep_quality as StudentVisit["sleepQuality"]) || "medium",
+    sleepQuality: (dto.sleep_quality as StudentVisit["sleepQuality"]) || null,
     status,
-    stressLevel: (dto.stress_level as StudentVisit["stressLevel"]) || "medium",
+    stressLevel: (dto.stress_level as StudentVisit["stressLevel"]) || null,
     studentFeedback: String(dto.student_feedback ?? ""),
     studentId: String(dto.student_id ?? ""),
     submittedByStudentAt:

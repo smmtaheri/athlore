@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router";
@@ -266,7 +266,9 @@ describe("StudentVisitFormPage", () => {
 
     renderVisitRoute("/students/mohammad-taheri/visits/visit-mohammad-1404-02-08/edit");
 
-    const assessment = await screen.findByLabelText("ارزیابی مربی");
+    await screen.findByLabelText("یادداشت خصوصی مربی");
+    await user.click(screen.getByText("۶. بازخورد و یادداشت مربی"));
+    const assessment = screen.getByLabelText("یادداشت خصوصی مربی");
     await user.clear(assessment);
     await user.type(assessment, "فرم حرکات بهتر شده است.");
     await user.click(screen.getByRole("button", { name: "ذخیره ویزیت" }));
@@ -317,21 +319,20 @@ describe("StudentVisitFormPage", () => {
     expect(screen.getByText("پیش‌نویس")).toBeInTheDocument();
   });
 
-  it("handles conditional new injury fields", async () => {
+  it("saves structured injury choices instead of a second non-executable injury form", async () => {
     const user = userEvent.setup();
     renderVisitRoute("/students/mohammad-taheri/visits/new");
 
-    const injuryGroup = await screen.findByRole("group", {
-      name: "آسیب یا محدودیت جدید وجود دارد؟"
-    });
-
-    expect(screen.queryByLabelText(/شرح آسیب/)).not.toBeInTheDocument();
-
-    await user.click(within(injuryGroup).getByLabelText("بله"));
-    expect(screen.getByLabelText(/شرح آسیب/)).toBeInTheDocument();
-
-    await user.click(within(injuryGroup).getByLabelText("خیر"));
-    expect(screen.queryByLabelText(/شرح آسیب/)).not.toBeInTheDocument();
+    const neck = await screen.findByRole("checkbox", { name: /^گردن$/ });
+    expect(
+      screen.queryByRole("group", { name: "آسیب یا محدودیت جدید وجود دارد؟" })
+    ).not.toBeInTheDocument();
+    await user.click(neck);
+    await user.click(screen.getByRole("button", { name: "ثبت پیش‌نویس" }));
+    await screen.findByText("ویزیت جدید ثبت شد.");
+    const visits = JSON.parse(window.localStorage.getItem(STUDENT_VISITS_STORAGE_KEY) || "[]");
+    expect(visits[0].answers.injuries).toEqual(["neck"]);
+    expect(visits[0].newInjuryNotes).toBe("");
   });
 
   it("shows repository error and not found states", async () => {

@@ -1,18 +1,12 @@
-import {
-  formatCalendarDateTime,
-  formatCalendarText,
-  calendarName,
-  calendarPlaceholder
-} from "../../../shared/dates/calendar";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Activity,
   ClipboardCheck,
-  ClipboardList,
   Dumbbell,
   HeartPulse,
   History,
+  ImagePlus,
+  MessageSquare,
   Ruler,
   Save,
   Scale,
@@ -20,18 +14,22 @@ import {
   ShieldAlert,
   Target
 } from "lucide-react";
+import { Button, FormField, Input, Select, StatusBadge, Textarea } from "../../../components/ui";
 import {
-  Button,
-  FormField,
-  Input,
-  Radio,
-  Select,
-  StatusBadge,
-  Textarea
-} from "../../../components/ui";
+  formatCalendarDateTime,
+  formatCalendarText,
+  calendarName,
+  calendarPlaceholder
+} from "../../../shared/dates/calendar";
+import type { ProgramRequest } from "../../program-requests/types/programRequest";
 import type { StudentVisit, StudentVisitInput, VisitAnswerRevision } from "../types/monthlyVisit";
 import type { Student } from "../types/student";
-import type { VisitFormAnswers, VisitFormTemplate, VisitStatus } from "../types/visitForm";
+import type {
+  VisitFormAnswers,
+  VisitFormFieldDefinition,
+  VisitFormTemplate,
+  VisitStatus
+} from "../types/visitForm";
 import { visitStatusLabels } from "../types/visitForm";
 import {
   createEmptyVisitFormValues,
@@ -40,8 +38,13 @@ import {
   validateStudentVisitForm,
   visitFormValuesToInput
 } from "../validation/studentVisitValidation";
-import { VisitDynamicForm } from "./VisitDynamicForm";
+import { VisitAnswersReadonly, VisitDynamicFields, VisitDynamicForm } from "./VisitDynamicForm";
 import { enabledSectionsFromTemplate } from "./visitFormUtils";
+import {
+  prefillVisitAnswers,
+  reconcileWeakMuscleAnswers,
+  visitFormLayout
+} from "./visitFormLayout";
 import { StudentFormSection } from "./StudentFormSection";
 import styles from "./students.module.css";
 
@@ -58,49 +61,29 @@ export interface StudentVisitFormProps {
   latestVisit?: StudentVisit;
   mode: "create" | "edit";
   onCancel: () => void;
+  photoPanel?: ReactNode;
   photosUploading?: boolean;
+  programRequest?: ProgramRequest | null;
   onSubmit: (input: StudentVisitInput, intent: VisitSubmitIntent) => Promise<void>;
   student: Student;
 }
 
 const levelOptions = [
+  { label: "ثبت نشده", value: "" },
   { label: "کم", value: "low" },
   { label: "متوسط", value: "medium" },
   { label: "خوب", value: "good" },
   { label: "زیاد", value: "high" }
-] as const;
-
-const bodyFeelingOptions = [
-  { label: "بهتر از قبل", value: "بهتر از قبل" },
-  { label: "مشابه قبل", value: "مشابه قبل" },
-  { label: "ضعیف تر از قبل", value: "ضعیف تر از قبل" }
-] as const;
-
-function visitStatusVariant(status: VisitStatus): "success" | "warning" | "neutral" | "info" {
-  if (status === "finalized") return "success";
-  if (status === "coach_review") return "info";
-  if (status === "student_submitted") return "warning";
-  if (status === "waiting_for_student") return "info";
-  return "neutral";
-}
+];
 
 function formatExpiry(value?: string | null): string {
-  if (!value) return "";
-  try {
-    return formatCalendarDateTime(value);
-  } catch {
-    return value;
-  }
+  return value ? formatCalendarDateTime(value) : "";
 }
 
 function formatRevisionValue(value: unknown): string {
-  if (value == null) return "—";
+  if (value == null) return "ثبت نشده";
   if (typeof value === "string") return formatCalendarText(value);
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
+  return JSON.stringify(value);
 }
 
 export function StudentVisitForm({
@@ -113,14 +96,16 @@ export function StudentVisitForm({
   latestVisit,
   mode,
   onCancel,
+  photoPanel,
   photosUploading = false,
+  programRequest,
   onSubmit,
   student
 }: StudentVisitFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [feedback, setFeedback] = useState("");
   const [submitError, setSubmitError] = useState("");
   const submitErrorRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const [submitIntent, setSubmitIntent] = useState<VisitSubmitIntent | "">("");
   const [values, setValues] = useState(() =>
     initialVisit
@@ -131,63 +116,34 @@ export function StudentVisitForm({
     () =>
       initialFormTemplateId ??
       initialVisit?.formTemplateId ??
-      formTemplates.find((t) => t.isDefault)?.id ??
+      formTemplates.find((item) => item.isDefault)?.id ??
       formTemplates[0]?.id ??
       ""
   );
-  const [answers, setAnswers] = useState<VisitFormAnswers>(
-    () => initialAnswers ?? initialVisit?.answers ?? {}
-  );
-  const status: VisitStatus = initialVisit?.status ?? initialStatus ?? "draft";
-  const isFinalized = status === "finalized";
-  const canSend =
-    !isFinalized &&
-    (status === "draft" ||
-      status === "waiting_for_student" ||
-      status === "student_submitted" ||
-      status === "coach_review");
-  const canStartReview = status === "student_submitted";
-  const canFinalize = !isFinalized && (status === "draft" || status === "coach_review");
-  const answersReadOnly = status === "waiting_for_student" || status === "student_submitted";
-  const showRevisions =
-    answerRevisions.length > 0 &&
-    (status === "student_submitted" ||
-      status === "coach_review" ||
-      status === "waiting_for_student" ||
-      status === "finalized");
-
-  useEffect(() => {
-    if (!submitError) return;
-    const frame = window.requestAnimationFrame(() => {
-      submitErrorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [submitError]);
-
-  const selectedTemplate = useMemo(
-    () => formTemplates.find((item) => item.id === formTemplateId) ?? null,
-    [formTemplateId, formTemplates]
-  );
-
-  const templateForSections = useMemo(() => {
-    if (
-      mode === "edit" &&
-      initialVisit?.formTemplateSnapshot?.sections?.length &&
-      !selectedTemplate
-    ) {
-      return initialVisit.formTemplateSnapshot;
-    }
-    if (selectedTemplate) {
-      return selectedTemplate;
-    }
-    return initialVisit?.formTemplateSnapshot;
-  }, [initialVisit, mode, selectedTemplate]);
-
+  const selectedTemplate = formTemplates.find((item) => item.id === formTemplateId);
+  const templateForSections =
+    mode === "edit" &&
+    initialVisit?.formTemplateSnapshot.sections?.length &&
+    formTemplateId === initialVisit.formTemplateId
+      ? initialVisit.formTemplateSnapshot
+      : (selectedTemplate ?? initialVisit?.formTemplateSnapshot);
   const dynamicSections = useMemo(
     () => enabledSectionsFromTemplate(templateForSections),
     [templateForSections]
   );
-
+  const [answers, setAnswers] = useState<VisitFormAnswers>(() =>
+    initialVisit
+      ? (initialAnswers ?? initialVisit.answers)
+      : { ...prefillVisitAnswers(student, dynamicSections, programRequest), ...initialAnswers }
+  );
+  const layout = visitFormLayout(dynamicSections, templateForSections?.key ?? "", answers);
+  const fields = dynamicSections.flatMap((section) => section.fields);
+  const status = initialVisit?.status ?? initialStatus;
+  const isFinalized = status === "finalized";
+  const answersReadOnly = status === "waiting_for_student" || status === "student_submitted";
+  const canSend = !isFinalized;
+  const canFinalize = status === "draft" || status === "coach_review";
+  const showRevisions = answerRevisions.length > 0;
   const templateOptions = formTemplates
     .filter((item) => item.isActive || item.id === formTemplateId)
     .map((item) => ({
@@ -195,154 +151,149 @@ export function StudentVisitForm({
       value: item.id
     }));
 
+  useEffect(() => {
+    if (!submitError) return;
+    const frame = window.requestAnimationFrame(() =>
+      submitErrorRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" })
+    );
+    return () => window.cancelAnimationFrame(frame);
+  }, [submitError]);
+
   const updateField = <TField extends keyof typeof values>(
     field: TField,
     value: (typeof values)[TField]
   ) => {
     setValues((current) => ({ ...current, [field]: value }));
     setErrors((current) => {
-      if (!current[field]) {
-        return current;
-      }
-
-      const nextErrors = { ...current };
-      delete nextErrors[field];
-      return nextErrors;
+      const next = { ...current };
+      delete next[field];
+      return next;
     });
   };
-
-  const handleTemplateChange = (nextId: string) => {
-    setFormTemplateId(nextId);
-    if (mode === "create") {
-      setAnswers({});
-    }
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>, intent: VisitSubmitIntent) => {
-    event.preventDefault();
-    await submit(intent);
-  };
+  const changeAnswers = (next: VisitFormAnswers) =>
+    setAnswers(reconcileWeakMuscleAnswers(answers, next, fields));
+  const renderFields = (items: VisitFormFieldDefinition[]) =>
+    items.length ? (
+      <VisitDynamicFields
+        answers={answers}
+        disabled={answersReadOnly}
+        fields={items}
+        onAnswersChange={changeAnswers}
+        respectCoachEditable
+        showCoachHelpText
+      />
+    ) : null;
 
   const submit = async (intent: VisitSubmitIntent) => {
     if (photosUploading || submitIntent) return;
     const nextErrors = validateStudentVisitForm(values);
     setErrors(nextErrors);
     setSubmitError("");
-    setFeedback("");
-
-    const firstErrorField = getFirstVisitErrorField(nextErrors);
-
-    if (firstErrorField) {
+    const firstError = getFirstVisitErrorField(nextErrors);
+    if (firstError) {
       window.requestAnimationFrame(() => {
-        const field = document.querySelector<HTMLElement>(
-          `[data-visit-field="${firstErrorField}"]`
+        const field = formRef.current?.querySelector<HTMLElement>(
+          `[data-visit-field="${firstError}"]`
         );
         field?.closest("details")?.setAttribute("open", "");
         field?.focus();
       });
       return;
     }
-
     setSubmitIntent(intent);
-
     try {
-      const base = visitFormValuesToInput(values);
       const payload: StudentVisitInput = {
-        ...base,
-        coachPrivateNotes: values.coachPrivateNotes,
+        ...visitFormValuesToInput(values),
         formTemplateId: formTemplateId || null,
         status
       };
-      // Backend rejects coach answer edits while waiting_for_student / student_submitted.
       if (!answersReadOnly) {
-        payload.answers = answers;
+        const writableKeys = new Set(
+          fields.filter((field) => field.coachEditable !== false).map((field) => field.key)
+        );
+        payload.answers = Object.fromEntries(
+          Object.entries(answers).filter(([key]) => writableKeys.has(key))
+        );
       }
       await onSubmit(payload, intent);
     } catch (error) {
       setSubmitError(
         error instanceof Error && error.message
           ? error.message
-          : "ذخیره ویزیت انجام نشد. لطفا دوباره تلاش کنید."
+          : "ذخیره ویزیت انجام نشد. دوباره تلاش کنید."
       );
     } finally {
       setSubmitIntent("");
     }
   };
-
-  const weightChange = Number(values.currentWeightKg || 0) - Number(values.previousWeightKg || 0);
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void submit("save");
+  };
+  const oldNotes = [
+    ["ارزیابی قبلی مربی", initialVisit?.coachAssessment],
+    ["یادداشت قبلی مربی", initialVisit?.coachNotes],
+    ["هدف متنی دوره بعد", initialVisit?.nextCycleGoal],
+    ["تغییرات متنی شرایط تمرین", initialVisit?.trainingConditionChanges],
+    ["شرح قبلی آسیب", initialVisit?.newInjuryNotes],
+    ["احساس کلی ثبت‌شده", initialVisit?.bodyFeeling]
+  ].filter(([, value]) => Boolean(value));
 
   return (
-    <form className={styles.visitForm} noValidate onSubmit={(event) => handleSubmit(event, "save")}>
-      {feedback ? (
-        <div className={`${styles.alert} ${styles.alertSuccess}`} role="status">
-          {feedback}
-        </div>
-      ) : null}
-
-      <StudentFormSection
-        collapsible
-        defaultOpen
-        description="قالب، پرسش‌های اختصاصی و وضعیت پاسخ شاگرد را مشخص می‌کند."
-        icon={ClipboardList}
-        title="قالب فرم ویزیت"
-      >
-        <div className={styles.formGrid}>
+    <form className={styles.visitForm} noValidate onSubmit={handleSubmit} ref={formRef}>
+      <div className={styles.visitFormMeta}>
+        <StatusBadge variant={isFinalized ? "success" : status === "draft" ? "neutral" : "info"}>
+          {visitStatusLabels[status]}
+        </StatusBadge>
+        <span>{templateForSections?.name ?? "فرم ویزیت"}</span>
+        {initialVisit?.expiresAt ? (
+          <span>مهلت پاسخ: {formatExpiry(initialVisit.expiresAt)}</span>
+        ) : null}
+        <details>
+          <summary>تغییر قالب ویزیت</summary>
           <FormField htmlFor="visit-form-template" label="قالب فرم ویزیت">
             <Select
-              disabled={templateOptions.length === 0 || isFinalized}
+              disabled={isFinalized || !templateOptions.length}
               id="visit-form-template"
-              onChange={(event) => handleTemplateChange(event.target.value)}
               options={
-                templateOptions.length > 0
+                templateOptions.length
                   ? templateOptions
                   : [{ label: "قالبی تعریف نشده", value: "" }]
               }
+              onChange={(event) => {
+                const id = event.target.value;
+                setFormTemplateId(id);
+                if (mode === "create")
+                  setAnswers(
+                    prefillVisitAnswers(
+                      student,
+                      enabledSectionsFromTemplate(formTemplates.find((item) => item.id === id)),
+                      programRequest
+                    )
+                  );
+              }}
               value={formTemplateId}
             />
           </FormField>
-          <FormField label="وضعیت ویزیت">
-            <div className={styles.profileNameRow}>
-              <StatusBadge variant={visitStatusVariant(status)}>
-                {visitStatusLabels[status]}
-              </StatusBadge>
-              {initialVisit?.expiresAt ? (
-                <span className={styles.actionHint}>
-                  انقضا: {formatExpiry(initialVisit.expiresAt)}
-                </span>
-              ) : null}
-            </div>
-          </FormField>
-        </div>
-        {status === "waiting_for_student" ? (
-          <p className={styles.actionHint}>
-            فرم برای شاگرد باز است؛ برای جلوگیری از تداخل، پاسخ‌های مشترک تا زمان ارسال شاگرد یا
-            شروع بررسی قفل هستند.
-          </p>
-        ) : null}
-        {status === "student_submitted" ? (
-          <p className={styles.actionHint}>
-            شاگرد فرم را ارسال کرده است. برای قفل کامل فرم شاگرد و شروع ویرایش، «شروع بررسی مربی» را
-            بزنید.
-          </p>
-        ) : null}
-        {status === "coach_review" ? (
-          <p className={styles.actionHint}>
-            فرم شاگرد قفل است و شما در حال بررسی/ویرایش فیلدهای مجاز مربی هستید.
-          </p>
-        ) : null}
-      </StudentFormSection>
+        </details>
+      </div>
+      {answersReadOnly ? (
+        <p className={styles.actionHint} role="status">
+          {status === "student_submitted"
+            ? "شاگرد پاسخ داده است؛ برای تغییر پاسخ‌ها «شروع بررسی مربی» را بزنید."
+            : "فرم برای شاگرد باز است؛ پاسخ‌های مشترک تا شروع بررسی قابل تغییر نیستند."}
+        </p>
+      ) : null}
 
       <StudentFormSection
-        collapsible
-        defaultOpen
-        description="برای ثبت ویزیت، تاریخ و وزن فعلی لازم‌اند؛ بقیه موارد این بخش اختیاری است."
         icon={Scale}
-        title="۱. وضعیت فعلی و وزن جدید"
+        title="۱. ارزیابی کلی"
+        description="تاریخ و وزن فعلی را ثبت کنید و مقادیر پیشنهادی هدف، سطح و تعداد جلسه را بررسی کنید."
       >
         <div className={styles.formGrid}>
           <FormField
             error={errors.visitDate}
-            hint={`تاریخ امروز به‌صورت پیش‌فرض ثبت شده؛ تاریخ ${calendarName()} را به شکل سال/ماه/روز وارد کنید.`}
+            hint={`تاریخ ${calendarName()} به شکل سال/ماه/روز`}
             htmlFor="visit-date"
             label="تاریخ ویزیت"
             required
@@ -358,21 +309,9 @@ export function StudentVisitForm({
               value={values.visitDate}
             />
           </FormField>
-
-          <FormField htmlFor="previous-weight" label="وزن قبلی">
-            <Input
-              disabled
-              id="previous-weight"
-              inputMode="decimal"
-              readOnly
-              type="number"
-              value={values.previousWeightKg}
-            />
-          </FormField>
-
           <FormField
             error={errors.currentWeightKg}
-            hint={`تغییر: ${formatSignedNumber(weightChange)} کیلوگرم`}
+            hint={`وزن ویزیت قبلی: ${values.previousWeightKg} کیلوگرم`}
             htmlFor="current-weight"
             label="وزن جدید (کیلوگرم)"
             required
@@ -387,311 +326,234 @@ export function StudentVisitForm({
               value={values.currentWeightKg}
             />
           </FormField>
+        </div>
+        {renderFields(layout.general)}
+        {programRequest?.goal ? (
+          <p className={styles.actionHint}>هدف اعلام‌شده در درخواست شاگرد: {programRequest.goal}</p>
+        ) : null}
+      </StudentFormSection>
 
-          <FormField
-            error={errors.bodyFatPercentage}
-            hint={
-              latestVisit?.bodyFatPercentage ? `قبلی: ${latestVisit.bodyFatPercentage}%` : undefined
-            }
-            htmlFor="body-fat"
-            label="درصد چربی (در صورت اندازه گیری)"
-          >
+      {layout.conditions.length || layout.injuries.length ? (
+        <StudentFormSection
+          icon={ShieldAlert}
+          title="۲. شرایط و محدودیت‌های تمرین"
+          description="انتخاب‌های این بخش در تولید برنامه استفاده می‌شوند؛ شرح متنی فقط برای بررسی مربی است."
+        >
+          {renderFields(layout.conditions)}
+          {student.injuries.hasInjury ? (
+            <p className={styles.visitContextNote}>
+              محدودیت ثبت‌شده در پروفایل: {student.injuries.injuryType || "آسیب یا محدودیت ثبت شده"}{" "}
+              — وضعیت فعلی را بررسی کنید.
+            </p>
+          ) : null}
+          {programRequest?.injuryNotes ? (
+            <p className={styles.visitContextNote}>
+              گزارش شاگرد: {programRequest.injuryNotes} — محدودیت فعال را در گزینه‌های زیر تأیید
+              کنید.
+            </p>
+          ) : null}
+          {renderFields(layout.injuries)}
+          {layout.injuries.length ? (
+            <p className={styles.actionHint}>
+              اگر وضعیت تغییر نکرده، انتخاب خالی اطلاعات پروفایل را حفظ می‌کند؛ «بدون آسیب فعال»
+              یعنی محدودیت قبلی دیگر فعال نیست.
+            </p>
+          ) : null}
+        </StudentFormSection>
+      ) : null}
+
+      {photoPanel || layout.weakness.length || layout.muscleDetails.length ? (
+        <StudentFormSection
+          icon={Target}
+          title="۳. ارزیابی بدن و نقاط ضعف"
+          description="عضلاتی که نیاز به تمرکز دارند را مشخص کنید؛ جزئیات فقط برای همان عضلات باز می‌شوند."
+        >
+          {photoPanel ? (
+            <details className={styles.visitPhotoDisclosure}>
+              <summary>
+                <ImagePlus aria-hidden size={18} />
+                عکس‌های ارزیابی (اختیاری)
+              </summary>
+              <p className={styles.actionHint}>
+                عکس برای مشاهده مربی است؛ تحلیل تصویری خودکار انجام نمی‌شود.
+              </p>
+              {photoPanel}
+            </details>
+          ) : null}
+          {student.goals.weakMuscles.length ? (
+            <p className={styles.visitContextNote}>
+              نقاط ضعف ثبت‌شده در پروفایل: {student.goals.weakMuscles.join("، ")}
+            </p>
+          ) : null}
+          {renderFields(layout.weakness)}
+          {layout.weakness.length ? (
+            <p className={styles.actionHint}>
+              انتخاب خالی، اولویت‌های پروفایل را حفظ می‌کند؛ «بدون ضعف مشخص» آن‌ها را برای این دوره
+              کنار می‌گذارد.
+            </p>
+          ) : null}
+          {layout.muscleDetails.length ? (
+            <VisitDynamicForm
+              answers={answers}
+              collapsibleSections
+              disabled={answersReadOnly}
+              onAnswersChange={changeAnswers}
+              respectCoachEditable
+              sections={layout.muscleDetails}
+              showCoachHelpText
+            />
+          ) : null}
+        </StudentFormSection>
+      ) : null}
+
+      {layout.methods.length ? (
+        <StudentFormSection
+          collapsible
+          description="اختیاری؛ این انتخاب‌ها در صفحه تولید برنامه پیشنهاد می‌شوند و قابل تغییرند."
+          icon={Dumbbell}
+          title="۴. سیستم‌های تمرینی دوره"
+        >
+          {renderFields(layout.methods)}
+        </StudentFormSection>
+      ) : null}
+
+      <StudentFormSection
+        collapsible
+        description="اختیاری؛ فقط اندازه‌های واقعاً اندازه‌گیری‌شده را وارد کنید. خواب و استرس برای پیگیری مربی ثبت می‌شوند."
+        icon={Ruler}
+        title="۵. اندازه‌گیری و پیگیری دوره قبل"
+      >
+        <div className={styles.formGrid}>
+          <FormField error={errors.bodyFatPercentage} htmlFor="body-fat" label="درصد چربی">
             <Input
               data-visit-field="bodyFatPercentage"
               id="body-fat"
               inputMode="decimal"
               invalid={Boolean(errors.bodyFatPercentage)}
-              onChange={(event) => updateField("bodyFatPercentage", event.target.value)}
               type="number"
+              onChange={(event) => updateField("bodyFatPercentage", event.target.value)}
               value={values.bodyFatPercentage}
             />
           </FormField>
-
-          <FormField htmlFor="body-feeling" label="احساس کلی نسبت به بدن">
-            <Select
-              id="body-feeling"
-              onChange={(event) => updateField("bodyFeeling", event.target.value)}
-              options={bodyFeelingOptions}
-              value={values.bodyFeeling}
-            />
-          </FormField>
-
-          <FormField htmlFor="overall-energy" label="سطح انرژی کلی">
-            <Select
-              id="overall-energy"
-              onChange={(event) =>
-                updateField(
-                  "dailyEnergyLevel",
-                  event.target.value as typeof values.dailyEnergyLevel
-                )
-              }
-              options={levelOptions}
-              value={values.dailyEnergyLevel}
-            />
-          </FormField>
+          {(
+            [
+              ["chestCm", "دور سینه"],
+              ["waistCm", "دور کمر"],
+              ["armCm", "دور بازو"],
+              ["thighCm", "دور ران"],
+              ["hipCm", "دور باسن"]
+            ] as const
+          ).map(([key, label]) => (
+            <FormField
+              error={errors[key]}
+              htmlFor={`visit-${key}`}
+              key={key}
+              label={`${label} (سانتی‌متر)`}
+            >
+              <Input
+                data-visit-field={key}
+                id={`visit-${key}`}
+                inputMode="decimal"
+                invalid={Boolean(errors[key])}
+                type="number"
+                onChange={(event) => updateField(key, event.target.value)}
+                value={values[key]}
+              />
+            </FormField>
+          ))}
+          {(
+            [
+              ["sleepQuality", "کیفیت خواب"],
+              ["stressLevel", "سطح استرس"],
+              ["dailyEnergyLevel", "سطح انرژی"]
+            ] as const
+          ).map(([key, label]) => (
+            <FormField htmlFor={`visit-${key}`} key={key} label={label}>
+              <Select
+                id={`visit-${key}`}
+                options={levelOptions}
+                onChange={(event) =>
+                  updateField(key, event.target.value as (typeof values)[typeof key])
+                }
+                value={values[key]}
+              />
+            </FormField>
+          ))}
         </div>
       </StudentFormSection>
 
-      <StudentFormSection
-        collapsible
-        description="اختیاری؛ اندازه‌ها را برای مقایسه روند بدن با ویزیت‌های قبلی وارد کنید."
-        icon={Ruler}
-        title="۲. اندازه‌های بدن (سانتی‌متر)"
-      >
-        <div className={styles.formGrid}>
-          <MeasurementField
-            error={errors.chestCm}
-            id="chest"
-            label="دور سینه"
-            onChange={(value) => updateField("chestCm", value)}
-            previousValue={latestVisit?.measurements.chestCm}
-            value={values.chestCm}
+      {layout.additional.length ? (
+        <StudentFormSection
+          collapsible
+          icon={HeartPulse}
+          title="اطلاعات تکمیلی ارزیابی"
+          description="داروها، مکمل‌های فعلی، مشاهدات وضعیتی و پرسش‌های اختصاصی قالب؛ متن آزاد دستور تولید برنامه نیست."
+        >
+          <VisitDynamicForm
+            answers={answers}
+            collapsibleSections
+            disabled={answersReadOnly}
+            onAnswersChange={changeAnswers}
+            respectCoachEditable
+            sections={layout.additional}
+            showCoachHelpText
           />
-          <MeasurementField
-            error={errors.waistCm}
-            id="waist"
-            label="دور کمر"
-            onChange={(value) => updateField("waistCm", value)}
-            previousValue={latestVisit?.measurements.waistCm}
-            value={values.waistCm}
-          />
-          <MeasurementField
-            error={errors.armCm}
-            id="arm"
-            label="دور بازو"
-            onChange={(value) => updateField("armCm", value)}
-            previousValue={latestVisit?.measurements.armCm}
-            value={values.armCm}
-          />
-          <MeasurementField
-            error={errors.thighCm}
-            id="thigh"
-            label="دور ران"
-            onChange={(value) => updateField("thighCm", value)}
-            previousValue={latestVisit?.measurements.thighCm}
-            value={values.thighCm}
-          />
-          <MeasurementField
-            error={errors.hipCm}
-            id="hip"
-            label="دور باسن"
-            onChange={(value) => updateField("hipCm", value)}
-            previousValue={latestVisit?.measurements.hipCm}
-            value={values.hipCm}
-          />
-        </div>
-      </StudentFormSection>
+        </StudentFormSection>
+      ) : null}
 
       <StudentFormSection
         collapsible
-        description="برای ارزیابی ریکاوری و تنظیم فشار تمرین دوره بعد؛ در صورت نیاز تکمیل کنید."
-        icon={HeartPulse}
-        title="۳. خواب، استرس و انرژی"
+        icon={MessageSquare}
+        title="۶. بازخورد و یادداشت مربی"
+        description="بازخورد شاگرد و برداشت خصوصی مربی؛ این متن‌ها خودکار به دستور تولید برنامه تبدیل نمی‌شوند."
       >
-        <div className={styles.formGrid}>
-          <FormField htmlFor="sleep-quality" label="کیفیت خواب">
-            <Select
-              id="sleep-quality"
-              onChange={(event) =>
-                updateField("sleepQuality", event.target.value as typeof values.sleepQuality)
-              }
-              options={levelOptions}
-              value={values.sleepQuality}
-            />
-          </FormField>
-          <FormField htmlFor="stress-level" label="سطح استرس">
-            <Select
-              id="stress-level"
-              onChange={(event) =>
-                updateField("stressLevel", event.target.value as typeof values.stressLevel)
-              }
-              options={levelOptions}
-              value={values.stressLevel}
-            />
-          </FormField>
-          <FormField htmlFor="daily-energy" label="سطح انرژی روزانه">
-            <Select
-              id="daily-energy"
-              onChange={(event) =>
-                updateField(
-                  "dailyEnergyLevel",
-                  event.target.value as typeof values.dailyEnergyLevel
-                )
-              }
-              options={levelOptions}
-              value={values.dailyEnergyLevel}
-            />
-          </FormField>
-        </div>
-      </StudentFormSection>
-
-      <StudentFormSection
-        collapsible
-        description="اگر شاگرد برنامه قبلی داشته، میزان اجرای تمرین و تغذیه را ثبت کنید."
-        icon={ClipboardCheck}
-        title="۴. میزان اجرای برنامه قبلی"
-      >
-        <div className={styles.formGrid}>
-          <PercentField
-            error={errors.overallPercent}
-            id="overall-adherence"
-            label="میزان پایبندی کلی به برنامه"
-            onChange={(value) => updateField("overallPercent", value)}
-            value={values.overallPercent}
-          />
-          <PercentField
-            error={errors.trainingPercent}
-            id="training-adherence"
-            label="میزان رعایت تمرینات"
-            onChange={(value) => updateField("trainingPercent", value)}
-            value={values.trainingPercent}
-          />
-          <PercentField
-            error={errors.nutritionPercent}
-            id="nutrition-adherence"
-            label="میزان رعایت تغذیه"
-            onChange={(value) => updateField("nutritionPercent", value)}
-            value={values.nutritionPercent}
-          />
-          <PercentField
-            error={errors.supplementsPercent}
-            id="supplements-adherence"
-            label="میزان رعایت مکمل ها"
-            onChange={(value) => updateField("supplementsPercent", value)}
-            value={values.supplementsPercent}
-          />
-        </div>
-      </StudentFormSection>
-
-      <StudentFormSection
-        collapsible
-        description="فقط وقتی محل، زمان یا امکانات تمرین نسبت به قبل تغییر کرده است."
-        icon={Dumbbell}
-        title="۵. تغییرات شرایط تمرین"
-      >
-        <FormField htmlFor="training-condition-changes" label="تغییرات شرایط تمرین">
+        <FormField htmlFor="student-feedback" label="بازخورد شاگرد">
           <Textarea
-            id="training-condition-changes"
-            onChange={(event) => updateField("trainingConditionChanges", event.target.value)}
-            value={values.trainingConditionChanges}
+            id="student-feedback"
+            onChange={(event) => updateField("studentFeedback", event.target.value)}
+            value={values.studentFeedback}
+          />
+        </FormField>
+        <FormField
+          hint="فقط مربی می‌بیند؛ به شاگرد نمایش داده نمی‌شود."
+          htmlFor="coach-private-notes"
+          label="یادداشت خصوصی مربی"
+        >
+          <Textarea
+            id="coach-private-notes"
+            onChange={(event) => updateField("coachPrivateNotes", event.target.value)}
+            value={values.coachPrivateNotes}
           />
         </FormField>
       </StudentFormSection>
 
-      <StudentFormSection
-        collapsible
-        description="در صورت آسیب یا محدودیت تازه وارد کنید تا هنگام تولید برنامه لحاظ شود."
-        icon={ShieldAlert}
-        title="۶. آسیب یا محدودیت جدید"
-      >
-        <div className={styles.formGrid}>
-          <BooleanRadioGroup
-            label="آسیب یا محدودیت جدید وجود دارد؟"
-            name="new-injury"
-            onChange={(checked) => updateField("hasNewInjury", checked)}
-            value={values.hasNewInjury}
-          />
-
-          {values.hasNewInjury ? (
-            <FormField
-              className={styles.wideField}
-              error={errors.newInjuryNotes}
-              htmlFor="new-injury-notes"
-              label="شرح آسیب یا محدودیت جدید"
-              required
-            >
-              <Textarea
-                data-visit-field="newInjuryNotes"
-                id="new-injury-notes"
-                invalid={Boolean(errors.newInjuryNotes)}
-                onChange={(event) => updateField("newInjuryNotes", event.target.value)}
-                value={values.newInjuryNotes}
-              />
-            </FormField>
-          ) : (
-            <p className={`${styles.actionHint} ${styles.wideField}`}>
-              با انتخاب «خیر»، مقدار این بخش به «بدون مورد جدید» ذخیره می شود.
+      {oldNotes.length || layout.historical.length ? (
+        <StudentFormSection
+          collapsible
+          icon={History}
+          title="اطلاعات ثبت‌شده قبلی"
+          description="اطلاعات فرم‌های قبلی حفظ شده‌اند؛ این فیلدهای تکراری دیگر محل تنظیم برنامه جدید نیستند."
+        >
+          {oldNotes.map(([label, value]) => (
+            <div className={styles.readonlyDetail} key={label}>
+              <span>{label}</span>
+              <p>{value}</p>
+            </div>
+          ))}
+          <VisitAnswersReadonly answers={answers} sections={layout.historical} />
+          {initialVisit?.adherence.overallPercent != null ? (
+            <p className={styles.actionHint}>
+              اجرای برنامه در سابقه: {initialVisit.adherence.overallPercent}٪
             </p>
-          )}
-        </div>
-      </StudentFormSection>
-
-      <StudentFormSection
-        collapsible
-        description="ارزیابی دوره و یادداشت مربی برای تصمیم بعدی؛ یادداشت خصوصی به شاگرد نمایش داده نمی‌شود."
-        icon={Activity}
-        title="۷. بازخورد و ارزیابی"
-      >
-        <div className={styles.formGrid}>
-          <FormField className={styles.wideField} htmlFor="student-feedback" label="بازخورد شاگرد">
-            <Textarea
-              id="student-feedback"
-              onChange={(event) => updateField("studentFeedback", event.target.value)}
-              value={values.studentFeedback}
-            />
-          </FormField>
-          <FormField className={styles.wideField} htmlFor="coach-assessment" label="ارزیابی مربی">
-            <Textarea
-              id="coach-assessment"
-              onChange={(event) => updateField("coachAssessment", event.target.value)}
-              value={values.coachAssessment}
-            />
-          </FormField>
-          <FormField
-            className={styles.wideField}
-            htmlFor="next-cycle-goal"
-            label="هدف یا تصمیم دوره بعد"
-          >
-            <Textarea
-              id="next-cycle-goal"
-              onChange={(event) => updateField("nextCycleGoal", event.target.value)}
-              value={values.nextCycleGoal}
-            />
-          </FormField>
-          <FormField className={styles.wideField} htmlFor="coach-notes" label="یادداشت مربی">
-            <Textarea
-              id="coach-notes"
-              onChange={(event) => updateField("coachNotes", event.target.value)}
-              value={values.coachNotes}
-            />
-          </FormField>
-          <FormField
-            className={styles.wideField}
-            htmlFor="coach-private-notes"
-            label="یادداشت خصوصی مربی"
-          >
-            <Textarea
-              id="coach-private-notes"
-              onChange={(event) => updateField("coachPrivateNotes", event.target.value)}
-              value={values.coachPrivateNotes}
-            />
-          </FormField>
-        </div>
-      </StudentFormSection>
-
-      {dynamicSections.length > 0 ? (
-        <VisitDynamicForm
-          answers={answers}
-          collapsibleSections
-          disabled={answersReadOnly}
-          onAnswersChange={setAnswers}
-          respectCoachEditable
-          sections={dynamicSections}
-          showCoachHelpText
-          theme={templateForSections?.theme}
-        />
+          ) : null}
+        </StudentFormSection>
       ) : null}
-
       {showRevisions ? (
-        <StudentFormSection icon={History} title="تاریخچه پاسخ‌ها">
+        <StudentFormSection collapsible icon={History} title="تاریخچه پاسخ‌ها">
           <ul className={styles.profileSummaryGrid}>
             {answerRevisions.map((revision) => (
               <li key={revision.id}>
-                <strong>{revision.fieldKey}</strong>
-                {" · "}
-                <span>{revision.source}</span>
-                {" · "}
-                <span>{formatExpiry(revision.createdAt)}</span>
+                <strong>{revision.fieldKey}</strong> · {formatExpiry(revision.createdAt)}
                 <div>{formatRevisionValue(revision.value)}</div>
               </li>
             ))}
@@ -707,50 +569,45 @@ export function StudentVisitForm({
         ) : null}
         <span className={styles.actionHint}>
           {photosUploading
-            ? "عکس در حال آپلود است؛ بعد از مشخص‌شدن نتیجه می‌توانید ویزیت را ادامه دهید."
-            : isFinalized
-              ? "ویزیت نهایی شده است؛ مربی می‌تواند اطلاعات را اصلاح کند و وضعیت نهایی حفظ می‌شود."
-              : status === "coach_review"
-                ? "فرم شاگرد قفل است؛ پس از بررسی، ویزیت را نهایی کنید."
-                : status === "student_submitted"
-                  ? "برای ویرایش پاسخ‌ها ابتدا بررسی مربی را شروع کنید."
-                  : mode === "edit"
-                    ? "تغییرات روی ویزیت انتخاب شده ذخیره می شود."
-                    : "پس از ثبت، ویزیت به صورت پیش‌نویس ذخیره می شود."}
+            ? "عکس در حال آپلود است؛ پس از پایان می‌توانید ثبت کنید."
+            : "ثبت پیش‌نویس فقط ویزیت را ذخیره می‌کند؛ «ثبت و ادامه برای تولید برنامه» صفحه ساخت برنامه را باز می‌کند."}
         </span>
         <div className={styles.actionBarButtons}>
-          <Button disabled={photosUploading} onClick={onCancel} type="button" variant="secondary">
+          <Button
+            disabled={photosUploading || Boolean(submitIntent)}
+            onClick={onCancel}
+            type="button"
+            variant="secondary"
+          >
             انصراف
           </Button>
-          {mode === "edit" || !isFinalized ? (
-            <Button
-              iconStart={<Save size={18} />}
-              disabled={photosUploading}
-              isLoading={submitIntent === "save"}
-              type="submit"
-              variant="secondary"
-            >
-              {mode === "edit" || initialVisit ? "ذخیره ویزیت" : "ثبت پیش‌نویس"}
-            </Button>
-          ) : null}
+          <Button
+            disabled={photosUploading || Boolean(submitIntent)}
+            iconStart={<Save size={18} />}
+            isLoading={submitIntent === "save"}
+            type="submit"
+            variant="secondary"
+          >
+            {mode === "edit" ? "ذخیره ویزیت" : "ثبت پیش‌نویس"}
+          </Button>
           {canSend ? (
             <Button
+              disabled={photosUploading || Boolean(submitIntent)}
               iconStart={<Send size={18} />}
-              disabled={photosUploading}
               isLoading={submitIntent === "send-to-student"}
-              onClick={() => submit("send-to-student")}
+              onClick={() => void submit("send-to-student")}
               type="button"
               variant="secondary"
             >
               ارسال برای شاگرد
             </Button>
           ) : null}
-          {canStartReview ? (
+          {status === "student_submitted" ? (
             <Button
+              disabled={photosUploading || Boolean(submitIntent)}
               iconStart={<ClipboardCheck size={18} />}
-              disabled={photosUploading}
               isLoading={submitIntent === "start-coach-review"}
-              onClick={() => submit("start-coach-review")}
+              onClick={() => void submit("start-coach-review")}
               type="button"
             >
               شروع بررسی مربی
@@ -758,21 +615,21 @@ export function StudentVisitForm({
           ) : null}
           {canFinalize ? (
             <Button
+              disabled={photosUploading || Boolean(submitIntent)}
               iconStart={<ClipboardCheck size={18} />}
-              disabled={photosUploading}
               isLoading={submitIntent === "finalize"}
-              onClick={() => submit("finalize")}
+              onClick={() => void submit("finalize")}
               type="button"
             >
               ذخیره و نهایی‌سازی
             </Button>
           ) : null}
-          {!isFinalized ? (
+          {!answersReadOnly ? (
             <Button
+              disabled={photosUploading || Boolean(submitIntent)}
               iconStart={<Target size={18} />}
-              disabled={photosUploading}
               isLoading={submitIntent === "generate-program"}
-              onClick={() => submit("generate-program")}
+              onClick={() => void submit("generate-program")}
               type="button"
               variant="success"
             >
@@ -783,91 +640,4 @@ export function StudentVisitForm({
       </div>
     </form>
   );
-}
-
-interface NumberFieldProps {
-  error?: string;
-  id: string;
-  label: string;
-  onChange: (value: string) => void;
-  previousValue?: number;
-  value: string;
-}
-
-function MeasurementField({ error, id, label, onChange, previousValue, value }: NumberFieldProps) {
-  return (
-    <FormField
-      error={error}
-      hint={previousValue === undefined ? undefined : `قبلی: ${previousValue}`}
-      htmlFor={`measurement-${id}`}
-      label={label}
-    >
-      <Input
-        data-visit-field={`${id}Cm`}
-        id={`measurement-${id}`}
-        inputMode="decimal"
-        invalid={Boolean(error)}
-        onChange={(event) => onChange(event.target.value)}
-        type="number"
-        value={value}
-      />
-    </FormField>
-  );
-}
-
-function PercentField({ error, id, label, onChange, value }: NumberFieldProps) {
-  return (
-    <FormField error={error} htmlFor={id} label={label}>
-      <Input
-        data-visit-field={idToField(id)}
-        id={id}
-        inputMode="numeric"
-        invalid={Boolean(error)}
-        max={100}
-        min={0}
-        onChange={(event) => onChange(event.target.value)}
-        type="number"
-        value={value}
-      />
-    </FormField>
-  );
-}
-
-interface BooleanRadioGroupProps {
-  label: string;
-  name: string;
-  onChange: (checked: boolean) => void;
-  value: boolean;
-}
-
-function BooleanRadioGroup({ label, name, onChange, value }: BooleanRadioGroupProps) {
-  return (
-    <fieldset className={styles.choiceFieldset}>
-      <legend className={styles.choiceLegend}>{label}</legend>
-      <div className={styles.choiceRow}>
-        <Radio checked={value} label="بله" name={name} onChange={() => onChange(true)} />
-        <Radio checked={!value} label="خیر" name={name} onChange={() => onChange(false)} />
-      </div>
-    </fieldset>
-  );
-}
-
-function idToField(id: string) {
-  return id
-    .replace("overall-adherence", "overallPercent")
-    .replace("training-adherence", "trainingPercent")
-    .replace("nutrition-adherence", "nutritionPercent")
-    .replace("supplements-adherence", "supplementsPercent");
-}
-
-function formatSignedNumber(value: number): string {
-  if (!Number.isFinite(value)) {
-    return "۰";
-  }
-
-  if (value > 0) {
-    return `+${value.toFixed(1)}`;
-  }
-
-  return value.toFixed(1);
 }

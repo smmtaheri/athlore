@@ -11,10 +11,10 @@ export interface StudentVisitMeasurements {
 }
 
 export interface StudentVisitAdherence {
-  overallPercent: number;
-  nutritionPercent: number;
-  supplementsPercent: number;
-  trainingPercent: number;
+  overallPercent: number | null;
+  nutritionPercent: number | null;
+  supplementsPercent: number | null;
+  trainingPercent: number | null;
 }
 
 export interface StudentVisit {
@@ -28,7 +28,7 @@ export interface StudentVisit {
   coachPrivateNotes: string;
   createdAt: string;
   currentWeightKg: number;
-  dailyEnergyLevel: VisitLevel;
+  dailyEnergyLevel: VisitLevel | null;
   expiresAt?: string | null;
   finalizedAt?: string | null;
   isExpired?: boolean;
@@ -45,9 +45,9 @@ export interface StudentVisit {
   previousWeightKg: number;
   photoIssues?: string[];
   sentAt?: string | null;
-  sleepQuality: VisitLevel;
+  sleepQuality: VisitLevel | null;
   status: VisitStatus;
-  stressLevel: VisitLevel;
+  stressLevel: VisitLevel | null;
   studentFeedback: string;
   studentId: string;
   submittedByStudentAt?: string | null;
@@ -108,7 +108,7 @@ export interface StudentVisitFormValues {
   coachNotes: string;
   coachPrivateNotes: string;
   currentWeightKg: string;
-  dailyEnergyLevel: VisitLevel;
+  dailyEnergyLevel: VisitLevel | "";
   hasNewInjury: boolean;
   hipCm: string;
   newInjuryNotes: string;
@@ -116,8 +116,8 @@ export interface StudentVisitFormValues {
   nutritionPercent: string;
   overallPercent: string;
   previousWeightKg: string;
-  sleepQuality: VisitLevel;
-  stressLevel: VisitLevel;
+  sleepQuality: VisitLevel | "";
+  stressLevel: VisitLevel | "";
   studentFeedback: string;
   supplementsPercent: string;
   thighCm: string;
