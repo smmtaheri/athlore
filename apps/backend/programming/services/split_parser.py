@@ -13,6 +13,7 @@ CANONICAL_MUSCLES: tuple[str, ...] = (
     "جلو بازو",
     "شکم",
     "ساق",
+    "ساعد",
 )
 
 TAXONOMY_MUSCLE_GROUPS: dict[str, str] = {
@@ -25,6 +26,7 @@ TAXONOMY_MUSCLE_GROUPS: dict[str, str] = {
     "biceps": "جلو بازو",
     "triceps": "پشت بازو",
     "calves": "ساق",
+    "forearms": "ساعد",
     "core": "شکم",
 }
 
@@ -57,6 +59,8 @@ MUSCLE_ALIASES: dict[str, str] = {
     "abdominals": "شکم",
     "calves": "ساق",
     "calf": "ساق",
+    "forearms": "ساعد",
+    "forearm": "ساعد",
 }
 
 # Longer Persian phrases first so "پشت بازو" wins over bare "پشت".
@@ -71,6 +75,7 @@ _PERSIAN_PHRASES: tuple[tuple[str, str], ...] = (
     ("سینه", "سینه"),
     ("شکم", "شکم"),
     ("اصلاحی", "شکم"),
+    ("ساعد", "ساعد"),
     ("ساق", "ساق"),
     ("پا", "پا"),
 )

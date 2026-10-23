@@ -71,6 +71,7 @@ MUSCLE_GROUP_OPTIONS = [
     _opt("abs", "شکم / Abs"),
     _opt("biceps", "جلو بازو / Biceps"),
     _opt("glutes", "باسن / Glutes"),
+    _opt("none", "ضعف مشخصی ثبت نشده"),
 ]
 
 DETAIL_STATUS_OPTIONS = [
@@ -104,13 +105,18 @@ POSTURE_OPTIONS = [
 
 TRAINING_METHOD_OPTIONS = [
     _opt("superset", "سوپرست"),
+    _opt("antagonist_superset", "سوپرست عضلات مخالف"),
     _opt("drop_set", "دراپ ست"),
+    _opt("rest_pause", "رست‌پاز"),
     _opt("tri_set", "تری‌ست"),
     _opt("giant_set", "جاینت ست"),
-    _opt("hundred_rep", "روش ۱۰۰ تکرار"),
-    _opt("hit", "HIT"),
-    _opt("gvt", "German Volume Training"),
-    _opt("final_pump", "پمپ نهایی"),
+    _opt("post_exhaustion", "پس‌خستگی"),
+    _opt("partial_reps", "تکرار نیمه"),
+    _opt("21s", "۲۱ تکرار"),
+    _opt("5_10_20", "۵-۱۰-۲۰"),
+    _opt("fst_7", "FST-7"),
+    _opt("100_reps", "۱۰۰ تکرار"),
+    _opt("gvt_10x10", "حجم آلمانی ۱۰×۱۰"),
 ]
 
 GOAL_OPTIONS = [
@@ -118,6 +124,27 @@ GOAL_OPTIONS = [
     _opt("lose_weight", "کاهش وزن"),
     _opt("maintain_weight", "حفظ وزن"),
     _opt("hypertrophy", "هایپرتروفی / حجم عضله"),
+]
+
+TRAINING_ENVIRONMENT_OPTIONS = [
+    _opt("gym", "باشگاه"),
+    _opt("home", "خانه"),
+    _opt("outdoors", "فضای باز"),
+    _opt("other", "محیط دیگر"),
+]
+
+EQUIPMENT_OPTIONS = [
+    _opt("full_gym", "باشگاه با تجهیزات کامل"),
+    _opt("bodyweight_only", "فقط وزن بدن"),
+    _opt("dumbbell", "دمبل"),
+    _opt("barbell", "هالتر"),
+    _opt("cable", "کابل"),
+    _opt("machines", "دستگاه"),
+    _opt("resistance_band", "کش تمرینی"),
+]
+
+SESSION_DURATION_OPTIONS = [
+    _opt(str(minutes), f"{minutes} دقیقه") for minutes in (30, 45, 60, 75, 90, 120)
 ]
 
 LEVEL_OPTIONS = [
@@ -221,6 +248,36 @@ ARMAN_VISIT_FORM_TEMPLATE: dict[str, Any] = {
                     semantic_key="sessions_per_week",
                     order=7,
                     prefill_from="student.training_conditions.training_days_per_week",
+                ),
+                _field(
+                    "training_environment",
+                    "محیط تمرین تأییدشده",
+                    field_type="single_select",
+                    semantic_key="training_environment",
+                    options=TRAINING_ENVIRONMENT_OPTIONS,
+                    order=13,
+                    prefill_from="student.training_conditions.environment",
+                    coach_help_text="مقدار درخواست شاگرد را بررسی و در صورت نیاز اصلاح کنید.",
+                ),
+                _field(
+                    "equipment_available",
+                    "وسایل تمرین در دسترس",
+                    field_type="multi_select",
+                    semantic_key="equipment_available",
+                    options=EQUIPMENT_OPTIONS,
+                    order=14,
+                    prefill_from="student.equipment.available_equipment",
+                    coach_help_text="انتخاب خالی یعنی نامشخص؛ محدودیت تازه‌ای اعمال نمی‌شود.",
+                ),
+                _field(
+                    "session_duration_minutes",
+                    "زمان قابل‌اختصاص برای هر جلسه",
+                    field_type="single_select",
+                    semantic_key="session_duration_minutes",
+                    options=SESSION_DURATION_OPTIONS,
+                    order=15,
+                    prefill_from="student.training_conditions.session_duration_minutes",
+                    coach_help_text="زمان نهایی شاگرد را تأیید کنید؛ حجم برآوردی برنامه با آن سنجیده می‌شود.",
                 ),
                 _field(
                     "calorie_target",
@@ -500,6 +557,7 @@ ARMAN_VISIT_FORM_TEMPLATE: dict[str, Any] = {
                     field_type="multi_select",
                     semantic_key="injuries",
                     options=[
+                        _opt("none", "آسیب یا محدودیت فعالی ندارم"),
                         _opt("neck", "گردن"),
                         _opt("back", "کمر"),
                         _opt("knee", "زانو"),
@@ -644,6 +702,7 @@ MINIMAL_VISIT_FORM_TEMPLATE: dict[str, Any] = {
                     field_type="multi_select",
                     semantic_key="injuries",
                     options=[
+                        _opt("none", "آسیب یا محدودیت فعالی ندارم"),
                         _opt("neck", "گردن"),
                         _opt("back", "کمر"),
                         _opt("knee", "زانو"),
@@ -670,6 +729,34 @@ MINIMAL_VISIT_FORM_TEMPLATE: dict[str, Any] = {
                     order=4,
                     student_visible=True,
                     student_editable=True,
+                ),
+                _field(
+                    "training_environment",
+                    "محیط تمرین تأییدشده",
+                    field_type="single_select",
+                    semantic_key="training_environment",
+                    options=TRAINING_ENVIRONMENT_OPTIONS,
+                    order=5,
+                    prefill_from="student.training_conditions.environment",
+                ),
+                _field(
+                    "equipment_available",
+                    "وسایل تمرین در دسترس",
+                    field_type="multi_select",
+                    semantic_key="equipment_available",
+                    options=EQUIPMENT_OPTIONS,
+                    order=6,
+                    prefill_from="student.equipment.available_equipment",
+                    coach_help_text="انتخاب خالی یعنی نامشخص؛ محدودیت تازه‌ای اعمال نمی‌شود.",
+                ),
+                _field(
+                    "session_duration_minutes",
+                    "زمان هر جلسه",
+                    field_type="single_select",
+                    semantic_key="session_duration_minutes",
+                    options=SESSION_DURATION_OPTIONS,
+                    order=7,
+                    prefill_from="student.training_conditions.session_duration_minutes",
                 ),
             ],
         ),

@@ -77,6 +77,7 @@ ROLE_PATTERNS: dict[str, tuple[str, ...]] = {
     "core_flexion": ("کرانچ", "crunch", "sit-up", "شکم سیم", "زیرشکم"),
     "core_stability": ("پلانک", "plank", "اصلاحی", "dead bug", "چرخش", "تنه"),
     "core": ("شکم", "کرانچ", "پلانک", "زیرشکم", "اصلاحی", "crunch", "plank", "dead bug"),
+    "forearm": ("ساعد", "مچ", "wrist", "forearm"),
 }
 
 MUSCLE_ROLES: dict[str, list[str]] = {
@@ -88,6 +89,7 @@ MUSCLE_ROLES: dict[str, list[str]] = {
     "جلو بازو": ["biceps", "biceps"],
     "شکم": ["core_flexion", "core_stability"],
     "ساق": ["calf"],
+    "ساعد": ["forearm"],
 }
 
 ARM_MUSCLES = frozenset({"پشت بازو", "جلو بازو"})
@@ -102,6 +104,7 @@ _FALLBACK: dict[str, list[str]] = {
     "جلو بازو": ["جلو بازو دمبل", "جلو بازو هالتر"],
     "شکم": ["کرانچ", "پلانک", "زیرشکم پا آویزان"],
     "ساق": ["ساق ایستاده"],
+    "ساعد": ["مچ دمبل", "ساعد هالتر"],
 }
 
 
@@ -268,6 +271,21 @@ def available_equipment_tokens(student_equipment: dict | None) -> set[str] | Non
     non-empty set → only those tokens.
     """
     equipment = student_equipment or {}
+    available = equipment.get("available_equipment")
+    if isinstance(available, list) and available:
+        selected = set(map(str, available))
+        if "full_gym" in selected:
+            return None
+        if "bodyweight_only" in selected:
+            return set()
+        labels = {
+            "dumbbell": "دمبل",
+            "barbell": "هالتر",
+            "cable": "کابل",
+            "machines": "دستگاه",
+            "resistance_band": "کش",
+        }
+        return {labels[item] for item in selected if item in labels}
     if not equipment:
         return None
     if any(equipment.get(k) for k in EQUIPMENT_FULL_GYM_KEYS):
@@ -714,7 +732,6 @@ def _superset_pair_allowed(
     if pairing_mode == "same_muscle_isolation":
         return (
             first_muscle == second_muscle
-            and first_muscle in {_canonical_muscle(item) for item in ARM_MUSCLES}
             and first_class == "isolation"
             and second_class == "isolation"
         )
@@ -749,13 +766,26 @@ def _apply_real_supersets(
     i = 0
     while i < len(day_exercises) - 1 and pairs_made < max_pairs:
         a = day_exercises[i]
-        b = day_exercises[i + 1]
-        if _superset_pair_allowed(
-            a,
-            b,
-            pairing_mode=pairing_mode,
-            allow_compound=allow_compound,
-        ):
+        if a.get("supersetGroupId"):
+            i += 1
+            continue
+        partner_index = next(
+            (
+                candidate_index
+                for candidate_index in range(i + 1, len(day_exercises))
+                if not day_exercises[candidate_index].get("supersetGroupId")
+                and _superset_pair_allowed(
+                    a,
+                    day_exercises[candidate_index],
+                    pairing_mode=pairing_mode,
+                    allow_compound=allow_compound,
+                )
+            ),
+            None,
+        )
+        if partner_index is not None:
+            b = day_exercises.pop(partner_index)
+            day_exercises.insert(i + 1, b)
             group_id = f"ss-{_stable_id(a['name'], b['name'], i)}"
             a["supersetGroupId"] = group_id
             a["supersetWithPrevious"] = False
@@ -805,6 +835,52 @@ def _trim_day_to_budget(day_exercises: list[dict], budget: int) -> list[dict]:
     return day_exercises
 
 
+def _attach_session_duration_evidence(
+    days: list[dict], student: Any, evidence: dict
+) -> None:
+    raw_duration = (student.training_conditions or {}).get("session_duration_minutes")
+    try:
+        duration = int(raw_duration)
+    except (TypeError, ValueError):
+        return
+    if not 15 <= duration <= 180:
+        return
+
+    estimates = []
+    for day in days:
+        ungrouped_sets = 0
+        grouped_sets: dict[str, int] = {}
+        for exercise in day.get("exercises", []):
+            sets = int(exercise.get("sets") or 0)
+            group_id = exercise.get("supersetGroupId") or exercise.get("trainingGroupId")
+            if group_id:
+                grouped_sets[group_id] = max(grouped_sets.get(group_id, 0), sets)
+            else:
+                ungrouped_sets += sets
+        estimated_minutes = (ungrouped_sets + sum(grouped_sets.values())) * 3
+        estimates.append(
+            {
+                "day_id": day.get("id"),
+                "day_title": day.get("title", ""),
+                "target_minutes": duration,
+                "estimated_minutes": estimated_minutes,
+                "over_target": estimated_minutes > duration,
+            }
+        )
+    evidence["session_duration"] = {"target_minutes": duration, "days": estimates}
+    evidence["session_duration_warnings"] = [
+        {
+            "day_id": item["day_id"],
+            "message": (
+                f"حجم «{item['day_title']}» حدود {item['estimated_minutes']} دقیقه برآورد می‌شود؛ "
+                f"زمان اعلام‌شده {item['target_minutes']} دقیقه است. حجم جلسه را بازبینی کنید."
+            ),
+        }
+        for item in estimates
+        if item["over_target"]
+    ]
+
+
 def _full_body_muscles(days_per_week: int, priority_order: list[str]) -> list[list[str]]:
     base = _unique(
         [normalize_muscle(m) for m in priority_order] + ["سینه", "زیربغل", "پا", "سرشانه"]
@@ -851,7 +927,7 @@ def build_training_days(
     if template.execution_plan:
         from programming.services.template_execution import build_template_days
 
-        return build_template_days(
+        days, evidence = build_template_days(
             coach=coach,
             student=student,
             template=template,
@@ -863,6 +939,8 @@ def build_training_days(
             forbidden=forbidden,
             injury_alternative_map=injury_alternative_map,
         )
+        _attach_session_duration_evidence(days, student, evidence)
+        return days, evidence
     equipment_tokens = available_equipment_tokens(student.equipment)
     goals = student.goals or {}
     raw_region_inputs = [
@@ -1018,6 +1096,15 @@ def build_training_days(
         style = day_style_target(target_muscles, coach=coach)
         per_muscle_targets = style.get("per_muscle") or {}
         day_budget = session_set_target(template.volume or "", level, coach=coach)
+        session_duration = (student.training_conditions or {}).get("session_duration_minutes")
+        try:
+            session_duration = int(session_duration)
+        except (TypeError, ValueError):
+            session_duration = 0
+        duration_cap = None
+        if 15 <= session_duration <= 180:
+            # Approximate three minutes per working set, including rest and transitions.
+            duration_cap = max(8, min(20, session_duration // 3))
         # Mild weak/strong session bias within a tight band.
         if any(m in weak for m in target_muscles if m not in ARM_MUSCLES | CORE_MUSCLES):
             day_budget += 1
@@ -1027,6 +1114,8 @@ def build_training_days(
         if strong_primary:
             day_budget -= 2
         day_budget = max(12 if strong_primary else 14, min(20, day_budget))
+        if duration_cap is not None:
+            day_budget = min(day_budget, duration_cap)
 
         day_exercises: list[dict] = []
         for muscle in target_muscles:
@@ -1301,4 +1390,5 @@ def build_training_days(
         selected_seen.add(name)
         selected_catalog.append(item)
     evidence["structured_catalog_selected"] = selected_catalog
+    _attach_session_duration_evidence(days, student, evidence)
     return days, evidence

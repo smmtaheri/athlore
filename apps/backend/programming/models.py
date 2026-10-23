@@ -191,7 +191,9 @@ class ProgramRequest(models.Model):
     sections = models.JSONField(default=list)
     completed_sections = models.JSONField(default=list, blank=True)
     sessions_per_week = models.PositiveSmallIntegerField(null=True, blank=True)
+    session_duration_minutes = models.PositiveSmallIntegerField(null=True, blank=True)
     training_environment = models.CharField(max_length=24, blank=True, default="")
+    equipment_available = models.JSONField(default=list, blank=True)
     assessment_mode = models.CharField(
         max_length=16,
         choices=AssessmentMode.choices,

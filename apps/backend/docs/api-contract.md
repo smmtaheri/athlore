@@ -757,7 +757,7 @@ Full historical version document (content immutable if `finalized` / `archived`)
 }
 ```
 
-For quick mode, `days_per_week` is taken from the submitted request first, then the linked open request, the selected visit's `sessions_per_week`, the student profile, and finally 4. `session_muscles` must contain one row per session; an empty row delegates the split to the engine. `exercise_variety` accepts `stable`, `balanced`, or `varied`; random choices are reproducible from the stored generation seed. `training_systems: []` explicitly means no special technique and suppresses the legacy implicit superset fallback. A supplied `template_id` preserves the existing exact-template behavior and ignores quick-only muscle/variety controls.
+For quick mode, an explicitly submitted `days_per_week` is treated as the coach's final confirmation. When it is omitted, the selected visit's `sessions_per_week` takes precedence over the linked request, then the student profile, and finally 4. `session_muscles` must contain one row per session; an empty row delegates the split to the engine. `exercise_variety` accepts `stable`, `balanced`, or `varied`; random exercise choices are reproducible from the stored generation seed. `training_systems: []` explicitly means no special technique and suppresses the legacy implicit superset fallback. Superset handlers search compatible eligible moves deterministically and group the selected pair together; failure to find a safe pair is recorded in technique evidence. A supplied `template_id` preserves the existing exact-template behavior and ignores quick-only muscle/variety controls.
 
 **Response `201`:**
 
@@ -912,8 +912,12 @@ end date only creates a dashboard reminder; it never creates a request automatic
   profile and most recently fulfilled request.
 - `GET|POST /api/v1/me/program-requests/` lists the student’s requests or submits a request.
   At least one of `workout`, `nutrition`, or `supplement` is required. The request captures
-  weekly training sessions, training environment, goal, injury/limitation updates, schedule,
-  sleep, and nutrition notes. A partial unique constraint allows at most one open request per
+  weekly training sessions, training environment, available equipment, minutes available per
+  session, goal, injury/limitation updates, schedule, sleep, and nutrition notes. Equipment
+  restrictions affect catalog filtering; in quick generation, session duration applies a
+  conservative approximate working-set cap. Exact templates stay intact and produce a warning
+  when their estimated session exceeds the reported time; neither estimate is a stopwatch
+  guarantee. A partial unique constraint allows at most one open request per
   student; retries return the existing request instead of creating duplicates.
 - `POST /api/v1/me/program-requests/{id}/cancel/` and `POST
   /api/v1/program-requests/{id}/cancel/` let the owning student or coach cancel any open request.

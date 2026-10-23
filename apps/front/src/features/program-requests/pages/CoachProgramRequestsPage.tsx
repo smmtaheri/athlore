@@ -25,6 +25,23 @@ const sectionLabels: Record<ProgramRequestSection, string> = {
   supplement: "مکمل"
 };
 
+const equipmentLabels: Record<string, string> = {
+  full_gym: "باشگاه کامل",
+  bodyweight_only: "فقط وزن بدن",
+  dumbbell: "دمبل",
+  barbell: "هالتر",
+  cable: "کابل",
+  machines: "دستگاه",
+  resistance_band: "کش"
+};
+
+const environmentLabels: Record<string, string> = {
+  gym: "باشگاه",
+  home: "خانه",
+  outdoors: "فضای باز",
+  other: "محیط دیگر"
+};
+
 export function CoachProgramRequestsPage() {
   const navigate = useNavigate();
   const [items, setItems] = useState<ProgramRequest[]>([]);
@@ -208,7 +225,24 @@ export function CoachProgramRequestsPage() {
                     {assessmentLabel(item.assessmentMode)}
                   </span>
                   <span>{purposeLabel(item.purpose)}</span>
+                  {item.trainingEnvironment ? (
+                    <span>
+                      محیط:{" "}
+                      {environmentLabels[item.trainingEnvironment] ?? item.trainingEnvironment}
+                    </span>
+                  ) : null}
                   {item.sessionsPerWeek ? <span>{item.sessionsPerWeek} جلسه در هفته</span> : null}
+                  {item.sessionDurationMinutes ? (
+                    <span>{item.sessionDurationMinutes} دقیقه برای هر جلسه</span>
+                  ) : null}
+                  {item.equipmentAvailable.length ? (
+                    <span>
+                      تجهیزات:{" "}
+                      {item.equipmentAvailable
+                        .map((value) => equipmentLabels[value] ?? value)
+                        .join("، ")}
+                    </span>
+                  ) : null}
                 </div>
                 {item.goal ? (
                   <p>

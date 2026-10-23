@@ -21,6 +21,9 @@ function mapRequest(value: unknown): ProgramRequest {
     coachNotes: String(dto.coach_notes ?? ""),
     completedSections: completed.map(String) as ProgramRequestSection[],
     createdAt: String(dto.created_at ?? ""),
+    equipmentAvailable: Array.isArray(dto.equipment_available)
+      ? dto.equipment_available.map(String)
+      : [],
     fulfilledAt: dto.fulfilled_at == null ? null : String(dto.fulfilled_at),
     goal: String(dto.goal ?? ""),
     id: String(dto.id ?? ""),
@@ -31,6 +34,8 @@ function mapRequest(value: unknown): ProgramRequest {
     purpose: String(dto.purpose ?? "next") as ProgramRequest["purpose"],
     readAt: dto.read_at == null ? null : String(dto.read_at),
     sections: sections.map(String) as ProgramRequestSection[],
+    sessionDurationMinutes:
+      dto.session_duration_minutes == null ? null : Number(dto.session_duration_minutes),
     sessionsPerWeek: dto.sessions_per_week == null ? null : Number(dto.sessions_per_week),
     sleepNotes: String(dto.sleep_notes ?? ""),
     startedAt: dto.started_at == null ? null : String(dto.started_at),
@@ -52,6 +57,8 @@ function toApi(draft: ProgramRequestDraft) {
     nutrition_notes: draft.nutritionNotes,
     purpose: draft.purpose,
     sections: draft.sections,
+    equipment_available: draft.equipmentAvailable,
+    session_duration_minutes: draft.sessionDurationMinutes,
     sessions_per_week: draft.sessionsPerWeek,
     sleep_notes: draft.sleepNotes,
     training_environment: draft.trainingEnvironment,
@@ -86,6 +93,11 @@ export function createApiProgramRequestRepository(): ProgramRequestRepository {
         sections: Array.isArray(dto.sections)
           ? (dto.sections.map(String) as ProgramRequestSection[])
           : ["workout"],
+        equipmentAvailable: Array.isArray(dto.equipment_available)
+          ? dto.equipment_available.map(String)
+          : [],
+        sessionDurationMinutes:
+          dto.session_duration_minutes == null ? null : Number(dto.session_duration_minutes),
         sessionsPerWeek: dto.sessions_per_week == null ? null : Number(dto.sessions_per_week),
         sleepNotes: String(dto.sleep_notes ?? ""),
         trainingEnvironment: String(dto.training_environment ?? ""),

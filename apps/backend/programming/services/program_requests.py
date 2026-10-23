@@ -60,12 +60,36 @@ def _apply_request_answers_to_profile(student: Student, data: dict) -> None:
         student.injuries = injuries
         changed.append("injuries")
     if "training_environment" in data:
-        conditions["environment"] = data["training_environment"]
+        if data["training_environment"]:
+            conditions["environment"] = data["training_environment"]
+        else:
+            conditions.pop("environment", None)
         student.training_conditions = conditions
         if "training_conditions" not in changed:
             changed.append("training_conditions")
+    if "session_duration_minutes" in data:
+        if data["session_duration_minutes"] is None:
+            conditions.pop("session_duration_minutes", None)
+        else:
+            conditions["session_duration_minutes"] = data["session_duration_minutes"]
+        student.training_conditions = conditions
+        if "training_conditions" not in changed:
+            changed.append("training_conditions")
+    if "equipment_available" in data:
+        selected_equipment = list(data["equipment_available"] or [])
+        # An empty selection means "not specified", not "erase known profile
+        # constraints". The explicit full_gym/bodyweight_only options express
+        # a confirmed choice when the student wants one.
+        if selected_equipment:
+            equipment = deepcopy(student.equipment or {})
+            equipment["available_equipment"] = selected_equipment
+            student.equipment = equipment
+            changed.append("equipment")
     if "sessions_per_week" in data:
-        conditions["training_days_per_week"] = data["sessions_per_week"]
+        if data["sessions_per_week"] is None:
+            conditions.pop("training_days_per_week", None)
+        else:
+            conditions["training_days_per_week"] = data["sessions_per_week"]
         student.training_conditions = conditions
         if "training_conditions" not in changed:
             changed.append("training_conditions")
@@ -108,6 +132,38 @@ def _active_sections(student: Student) -> list[str]:
     return [section for section in SECTIONS if section in sections]
 
 
+def _available_equipment_defaults(student: Student) -> list[str]:
+    equipment = student.equipment or {}
+    configured = equipment.get("available_equipment")
+    if isinstance(configured, list) and configured:
+        return list(configured)
+    if equipment.get("has_full_gym") or equipment.get("hasFullGym"):
+        return ["full_gym"]
+
+    legacy_flags = {
+        "has_dumbbell": "dumbbell",
+        "hasDumbbell": "dumbbell",
+        "has_barbell": "barbell",
+        "hasBarbell": "barbell",
+        "has_cable": "cable",
+        "hasCable": "cable",
+        "has_machines": "machines",
+        "hasMachines": "machines",
+        "has_resistance_band": "resistance_band",
+        "hasResistanceBand": "resistance_band",
+    }
+    selected = list(
+        dict.fromkeys(
+            token for key, token in legacy_flags.items() if equipment.get(key) is True
+        )
+    )
+    if selected:
+        return selected
+    if any(key in equipment for key in legacy_flags):
+        return ["bodyweight_only"]
+    return []
+
+
 def request_defaults(student: Student) -> dict:
     prior = (
         ProgramRequest.objects.filter(student=student, status=ProgramRequest.Status.FULFILLED)
@@ -122,8 +178,13 @@ def request_defaults(student: Student) -> dict:
         return {
             "purpose": ProgramRequest.Purpose.NEXT,
             "sections": prior.sections,
-            "sessions_per_week": prior.sessions_per_week,
-            "training_environment": prior.training_environment,
+            "sessions_per_week": prior.sessions_per_week
+            or conditions.get("training_days_per_week"),
+            "session_duration_minutes": prior.session_duration_minutes
+            or conditions.get("session_duration_minutes"),
+            "training_environment": prior.training_environment or conditions.get("environment", ""),
+            "equipment_available": list(prior.equipment_available or [])
+            or _available_equipment_defaults(student),
             "assessment_mode": ProgramRequest.AssessmentMode.ONLINE,
             "goal": prior.goal,
             "injury_notes": prior.injury_notes,
@@ -139,7 +200,9 @@ def request_defaults(student: Student) -> dict:
         ),
         "sections": _active_sections(student) or ["workout"],
         "sessions_per_week": conditions.get("training_days_per_week"),
+        "session_duration_minutes": conditions.get("session_duration_minutes"),
         "training_environment": conditions.get("environment", ""),
+        "equipment_available": _available_equipment_defaults(student),
         "assessment_mode": ProgramRequest.AssessmentMode.ONLINE,
         "goal": str(goals.get("secondary_goal") or goals.get("primary_goal") or ""),
         "injury_notes": str(injuries.get("student_notes") or ""),
@@ -158,7 +221,9 @@ def serialize_request(request: ProgramRequest, *, for_student: bool = False) -> 
         "sections": list(request.sections or []),
         "completed_sections": list(request.completed_sections or []),
         "sessions_per_week": request.sessions_per_week,
+        "session_duration_minutes": request.session_duration_minutes,
         "training_environment": request.training_environment,
+        "equipment_available": list(request.equipment_available or []),
         "assessment_mode": request.assessment_mode,
         "goal": request.goal,
         "injury_notes": request.injury_notes,
@@ -233,7 +298,9 @@ def create_request(
         purpose=data.get("purpose") or ProgramRequest.Purpose.NEXT,
         sections=sections,
         sessions_per_week=data.get("sessions_per_week"),
+        session_duration_minutes=data.get("session_duration_minutes"),
         training_environment=data.get("training_environment") or "",
+        equipment_available=list(data.get("equipment_available") or []),
         assessment_mode=mode,
         goal=(data.get("goal") or "").strip(),
         injury_notes=(data.get("injury_notes") or "").strip(),
@@ -246,6 +313,8 @@ def create_request(
                 "goal": (data.get("goal") or "").strip(),
                 "injury_notes": (data.get("injury_notes") or "").strip(),
                 "training_time_notes": (data.get("training_time_notes") or "").strip(),
+                "session_duration_minutes": data.get("session_duration_minutes"),
+                "equipment_available": list(data.get("equipment_available") or []),
                 "sleep_notes": (data.get("sleep_notes") or "").strip(),
                 "nutrition_notes": (data.get("nutrition_notes") or "").strip(),
             },

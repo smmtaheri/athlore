@@ -31,6 +31,16 @@ const sectionOptions: Array<{ id: ProgramRequestSection; label: string }> = [
   { id: "supplement", label: "مکمل" }
 ];
 
+const equipmentOptions = [
+  { value: "full_gym", label: "همهٔ تجهیزات باشگاه" },
+  { value: "bodyweight_only", label: "فقط وزن بدن" },
+  { value: "dumbbell", label: "دمبل" },
+  { value: "barbell", label: "هالتر" },
+  { value: "cable", label: "کابل" },
+  { value: "machines", label: "دستگاه" },
+  { value: "resistance_band", label: "کش تمرینی" }
+];
+
 const purposeLabels: Record<ProgramRequestPurpose, string> = {
   first: "اولین برنامه",
   next: "برنامهٔ دورهٔ بعد",
@@ -52,6 +62,8 @@ const emptyDraft: ProgramRequestDraft = {
   nutritionNotes: "",
   purpose: "next",
   sections: ["workout"],
+  equipmentAvailable: [],
+  sessionDurationMinutes: null,
   sessionsPerWeek: null,
   sleepNotes: "",
   trainingEnvironment: "",
@@ -136,6 +148,8 @@ export function StudentProgramRequestPage() {
         nutritionNotes: cancelled.nutritionNotes,
         purpose: cancelled.purpose,
         sections: cancelled.sections,
+        equipmentAvailable: cancelled.equipmentAvailable,
+        sessionDurationMinutes: cancelled.sessionDurationMinutes,
         sessionsPerWeek: cancelled.sessionsPerWeek,
         sleepNotes: cancelled.sleepNotes,
         trainingEnvironment: cancelled.trainingEnvironment,
@@ -284,6 +298,59 @@ export function StudentProgramRequestPage() {
                     placeholder="انتخاب کنید"
                     value={draft.trainingEnvironment}
                   />
+                </FormField>
+                <FormField label="زمان قابل‌اختصاص برای هر جلسه">
+                  <Select
+                    onChange={(event) =>
+                      update(
+                        "sessionDurationMinutes",
+                        event.target.value ? Number(event.target.value) : null
+                      )
+                    }
+                    options={[30, 45, 60, 75, 90, 120].map((minutes) => ({
+                      label: `${minutes} دقیقه`,
+                      value: String(minutes)
+                    }))}
+                    placeholder="تعیین نشده"
+                    value={
+                      draft.sessionDurationMinutes == null
+                        ? ""
+                        : String(draft.sessionDurationMinutes)
+                    }
+                  />
+                </FormField>
+                <FormField
+                  hint="انتخاب خالی یعنی هنوز مشخص نیست؛ در آن حالت محدودیت تازه‌ای اعمال نمی‌شود."
+                  label="وسایل در دسترس"
+                >
+                  <div className={styles.sectionGrid}>
+                    {equipmentOptions.map((option) => {
+                      const selected = draft.equipmentAvailable.includes(option.value);
+                      const exclusive = ["full_gym", "bodyweight_only"].includes(option.value);
+                      const hasExclusive = draft.equipmentAvailable.some((item) =>
+                        ["full_gym", "bodyweight_only"].includes(item)
+                      );
+                      return (
+                        <Checkbox
+                          checked={selected}
+                          disabled={
+                            !selected &&
+                            (exclusive ? draft.equipmentAvailable.length > 0 : hasExclusive)
+                          }
+                          key={option.value}
+                          label={option.label}
+                          onChange={(event) => {
+                            const next = event.target.checked
+                              ? exclusive
+                                ? [option.value]
+                                : [...draft.equipmentAvailable, option.value]
+                              : draft.equipmentAvailable.filter((item) => item !== option.value);
+                            update("equipmentAvailable", next);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
                 </FormField>
               </div>
             ) : null}

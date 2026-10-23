@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from itertools import combinations
 from typing import Any
 
 from rest_framework.exceptions import ValidationError
@@ -521,30 +522,33 @@ def _apply_recipe_grouping(
                 reverse=reverse,
             )
         day_groups = 0
-        index = 0
-        while index <= len(exercises) - size and day_groups < max_groups:
-            group = exercises[index : index + size]
-            allowed = True
-            for pair_index in range(len(group) - 1):
-                first, second = group[pair_index], group[pair_index + 1]
-                if mode == "alternating":
-                    allowed = bool(first.get("targetMuscle")) and (
-                        first.get("targetMuscle") != second.get("targetMuscle")
+        while day_groups < max_groups:
+            group = next(
+                (
+                    list(candidate)
+                    for candidate in combinations(exercises, size)
+                    if all(
+                        (
+                            bool(candidate[pair_index].get("targetMuscle"))
+                            and candidate[pair_index].get("targetMuscle")
+                            != candidate[pair_index + 1].get("targetMuscle")
+                            if mode == "alternating"
+                            else _superset_pair_allowed(
+                                candidate[pair_index],
+                                candidate[pair_index + 1],
+                                pairing_mode=mode,
+                                allow_compound=bool(grouping.get("allow_compound")),
+                            )
+                        )
+                        for pair_index in range(len(candidate) - 1)
                     )
-                else:
-                    allowed = _superset_pair_allowed(
-                        first,
-                        second,
-                        pairing_mode=mode,
-                        allow_compound=bool(grouping.get("allow_compound")),
-                    )
-                if not allowed:
-                    break
-            if not allowed:
-                index += 1
-                continue
+                ),
+                None,
+            )
+            if group is None:
+                break
 
-            group_id = f"ts-{config.key}-{day_groups + 1}-{index + 1}"
+            group_id = f"ts-{config.key}-{day_groups + 1}-{len(applications) + 1}"
             group_name = config.name
             for group_index, exercise in enumerate(group):
                 exercise["trainingGroupId"] = group_id
@@ -555,9 +559,24 @@ def _apply_recipe_grouping(
                 exercise["supersetPartnerName"] = group[(group_index + 1) % size]["name"]
                 exercise["supersetRestBetweenSeconds"] = grouping["rest_between_seconds"]
                 exercise["supersetRestAfterSeconds"] = grouping["rest_after_seconds"]
+
+            selected_ids = {id(exercise) for exercise in group}
+            day_exercises = day.get("exercises", [])
+            positions = [index for index, exercise in enumerate(day_exercises) if id(exercise) in selected_ids]
+            insertion_index = min(positions) if positions else len(day_exercises)
+            remaining_day_exercises = [
+                exercise for exercise in day_exercises if id(exercise) not in selected_ids
+            ]
+            day["exercises"] = (
+                remaining_day_exercises[:insertion_index]
+                + group
+                + remaining_day_exercises[insertion_index:]
+            )
             applications.append((day, group))
             day_groups += 1
-            index += size
+            exercises = [exercise for exercise in exercises if id(exercise) not in selected_ids]
+        for order_index, exercise in enumerate(day.get("exercises", []), start=1):
+            exercise["order"] = order_index
     return len(applications), applications
 
 

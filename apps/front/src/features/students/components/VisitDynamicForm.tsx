@@ -229,8 +229,13 @@ function VisitFormFieldControl({
                 onChange={() => {
                   if (checked) {
                     onChange(selected.filter((item) => item !== option.value));
+                  } else if (isExclusiveMultiSelectOption(option.value)) {
+                    onChange([option.value]);
                   } else {
-                    onChange([...selected, option.value]);
+                    onChange([
+                      ...selected.filter((item) => !isExclusiveMultiSelectOption(item)),
+                      option.value
+                    ]);
                   }
                 }}
               />
@@ -338,4 +343,8 @@ function VisitFormFieldControl({
       )}
     </FormField>
   );
+}
+
+function isExclusiveMultiSelectOption(value: string): boolean {
+  return ["none", "full_gym", "bodyweight_only"].includes(value);
 }

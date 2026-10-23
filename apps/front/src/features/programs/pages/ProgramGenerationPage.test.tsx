@@ -435,7 +435,7 @@ describe("ProgramGenerationPage", () => {
     expect(await screen.findByText("preview page")).toBeInTheDocument();
   });
 
-  it("exposes structured chest target region controls", async () => {
+  it("offers optional muscle focus without restricting exercise selection", async () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter initialEntries={["/programs/new?studentId=mohammad-taheri"]}>
@@ -443,15 +443,14 @@ describe("ProgramGenerationPage", () => {
       </MemoryRouter>
     );
 
-    const targetMuscle = await screen.findByLabelText("عضله هدف");
-    await user.selectOptions(targetMuscle, "سینه");
+    const focus = await screen.findByRole("checkbox", { name: "سینه" });
+    await user.click(focus);
 
-    const targetRegion = await screen.findByLabelText("ناحیه هدف");
-    await user.selectOptions(targetRegion, "inner_upper_chest");
-
-    expect(targetRegion).toHaveValue("inner_upper_chest");
-    expect(screen.getByLabelText("تعداد حرکت هدف")).toHaveValue(2);
-    expect(screen.getByRole("option", { name: "داخل زیرسینه" })).toBeInTheDocument();
+    expect(focus).toBeChecked();
+    expect(screen.queryByLabelText("عضله هدف")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/این‌ها تمرکز اضافهٔ همین برنامه‌اند و حرکت‌ها را حذف یا محدود نمی‌کنند/)
+    ).toBeInTheDocument();
   });
 
   it("sends the coach-selected partial-rep mode to program generation", async () => {

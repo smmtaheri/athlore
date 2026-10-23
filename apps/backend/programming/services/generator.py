@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from copy import deepcopy
 from decimal import Decimal
 from typing import Any
 
@@ -451,21 +452,43 @@ def generate_document(
     ) and not has_explicit_visit_context:
         context_visit = latest_visit_for_generation(student) or visit
     assessment_ctx = build_generation_context_from_visit(context_visit)
+    request_constraints = request.get("program_request_constraints") or {}
+    request_conditions = deepcopy(student.training_conditions or {})
+    request_equipment = deepcopy(student.equipment or {})
+    if "training_environment" in request_constraints:
+        environment = request_constraints["training_environment"]
+        if environment:
+            request_conditions["environment"] = environment
+        else:
+            request_conditions.pop("environment", None)
+    if "session_duration_minutes" in request_constraints:
+        duration = request_constraints["session_duration_minutes"]
+        if duration is None:
+            request_conditions.pop("session_duration_minutes", None)
+        else:
+            request_conditions["session_duration_minutes"] = duration
+    if "equipment_available" in request_constraints:
+        request_equipment["available_equipment"] = list(
+            request_constraints["equipment_available"] or []
+        )
     merged = merge_student_with_assessment(
         student_goals=student.goals or {},
         student_injuries=student.injuries or {},
         student_training_background=student.training_background or {},
-        student_training_conditions=student.training_conditions or {},
+        student_training_conditions=request_conditions,
+        student_equipment=request_equipment,
         assessment_ctx=assessment_ctx,
     )
     orig_goals = student.goals
     orig_injuries = student.injuries
     orig_bg = student.training_background
     orig_cond = student.training_conditions
+    orig_equipment = student.equipment
     student.goals = merged["goals"]
     student.injuries = merged["injuries"]
     student.training_background = merged["training_background"]
     student.training_conditions = merged["training_conditions"]
+    student.equipment = merged["equipment"]
 
     try:
         return _generate_document_body(
@@ -484,6 +507,7 @@ def generate_document(
         student.injuries = orig_injuries
         student.training_background = orig_bg
         student.training_conditions = orig_cond
+        student.equipment = orig_equipment
 
 
 def _generate_document_body(
@@ -1053,6 +1077,10 @@ def _build_training(
         selection_seed=selection_seed,
         warnings=warnings,
     )
+    warnings.extend(
+        item["message"]
+        for item in selection_evidence.get("session_duration_warnings", [])
+    )
 
     summary = f"{days_per_week} روز تمرین بر اساس {template.name} و سطح {_level_label(level)}"
     training_evidence = {
@@ -1078,6 +1106,12 @@ def _build_training(
         "structured_catalog_excluded": selection_evidence.get("structured_catalog_excluded", []),
         "techniques": selection_evidence.get("techniques", []),
         "exercise_variety": exercise_variety,
+        "session_duration_minutes": (student.training_conditions or {}).get(
+            "session_duration_minutes"
+        ),
+        "training_environment": (student.training_conditions or {}).get("environment", ""),
+        "available_equipment": (student.equipment or {}).get("available_equipment", []),
+        "session_duration_estimates": selection_evidence.get("session_duration"),
     }
     return {"summary": summary, "days": days}, warnings, training_evidence
 

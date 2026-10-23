@@ -19,6 +19,8 @@ export interface ProgramRequest {
   purpose: ProgramRequestPurpose;
   readAt: string | null;
   sections: ProgramRequestSection[];
+  equipmentAvailable: string[];
+  sessionDurationMinutes: number | null;
   sessionsPerWeek: number | null;
   sleepNotes: string;
   startedAt: string | null;
@@ -38,6 +40,8 @@ export interface ProgramRequestDraft {
   nutritionNotes: string;
   purpose: ProgramRequestPurpose;
   sections: ProgramRequestSection[];
+  equipmentAvailable: string[];
+  sessionDurationMinutes: number | null;
   sessionsPerWeek: number | null;
   sleepNotes: string;
   trainingEnvironment: string;

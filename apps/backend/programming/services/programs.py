@@ -616,6 +616,23 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
             **request_data,
             "program_request_id": str(program_request.id),
             "program_sections": selected_sections,
+            "program_request_constraints": {
+                **(
+                    {"training_environment": program_request.training_environment}
+                    if program_request.training_environment
+                    else {}
+                ),
+                **(
+                    {"session_duration_minutes": program_request.session_duration_minutes}
+                    if program_request.session_duration_minutes is not None
+                    else {}
+                ),
+                **(
+                    {"equipment_available": list(program_request.equipment_available)}
+                    if program_request.equipment_available
+                    else {}
+                ),
+            },
         }
         if program_request.visit_id:
             generation_data["visit_id"] = str(program_request.visit_id)
@@ -639,8 +656,8 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
             student=student,
             request_data=generation_data,
             requested_sessions=(
-                (program_request.sessions_per_week if request_id else None)
-                or _visit_sessions_per_week(visit)
+                _visit_sessions_per_week(visit)
+                or (program_request.sessions_per_week if request_id else None)
             ),
         )
         generation_data = {
