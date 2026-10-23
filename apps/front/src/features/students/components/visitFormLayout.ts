@@ -47,6 +47,8 @@ const muscleAliases: Record<string, string> = {
   "پشت بازو": "triceps",
   ساق: "calves",
   سینه: "chest",
+  "سینه بالا": "chest",
+  بالاسینه: "chest",
   پا: "quadriceps",
   چهارسر: "quadriceps",
   ساعد: "forearms",
@@ -62,6 +64,40 @@ const muscleAliases: Record<string, string> = {
 
 function muscleKey(value: string): string {
   return muscleAliases[value] ?? value;
+}
+
+function profileWeaknessChoices(student: Student, options: VisitFormFieldDefinition["options"]) {
+  const values = student.goals.weakMuscles.map((item) => item.trim()).filter(Boolean);
+  if (!values.length) return [];
+  const selected: string[] = [];
+  for (const value of values) {
+    const normalized = muscleKey(value);
+    const option = options.find(
+      (item) =>
+        item.value === value ||
+        item.value === normalized ||
+        item.label.trim().toLocaleLowerCase() === value.toLocaleLowerCase()
+    );
+    if (!option) return undefined;
+    if (!selected.includes(option.value)) selected.push(option.value);
+  }
+  return selected;
+}
+
+function profileInjuryChoices(student: Student, options: VisitFormFieldDefinition["options"]) {
+  if (!student.injuries.hasInjury) return [];
+  const value = student.injuries.injuryType.trim().toLocaleLowerCase();
+  const category = value.includes("neck") || value.includes("گردن")
+    ? "neck"
+    : value.includes("back") || value.includes("کمر")
+      ? "back"
+      : value.includes("knee") || value.includes("زانو")
+        ? "knee"
+        : value.includes("shoulder") || value.includes("شانه")
+          ? "shoulder"
+          : "other";
+  const option = options.find((item) => item.value === category) ?? options.find((item) => item.value === "other");
+  return option ? [option.value] : undefined;
 }
 
 export function visitFormLayout(
@@ -188,8 +224,6 @@ export function prefillVisitAnswers(
     session_duration_minutes: request
       ? request.sessionDurationMinutes
       : student.trainingConditions.sessionDurationMinutes
-    // Unanswered safety/focus fields inherit the complete backend profile.
-    // Prefilling a lossy subset could discard multiple injuries or region priorities.
   };
   const aliases: Record<string, string[]> = {
     hypertrophy: ["hypertrophy", "gain_weight"],
@@ -201,6 +235,19 @@ export function prefillVisitAnswers(
   for (const field of sections.flatMap((section) => section.fields)) {
     if (field.coachEditable === false) continue;
     let value = semanticValues[field.semanticKey];
+    if (field.type === "multi_select" && field.semanticKey === "weak_muscles") {
+      value = profileWeaknessChoices(student, field.options);
+      if (Array.isArray(value)) {
+        answers[field.key] = value;
+        continue;
+      }
+    } else if (field.type === "multi_select" && field.semanticKey === "injuries") {
+      value = profileInjuryChoices(student, field.options);
+      if (Array.isArray(value)) {
+        answers[field.key] = value;
+        continue;
+      }
+    }
     if (!hasVisitAnswer(value)) continue;
     if (field.type === "single_select") {
       const candidates = aliases[String(value)] ?? [String(value)];

@@ -114,18 +114,23 @@ export function VisitDynamicFields({
   return (
     <div className={styles.formGrid}>
       {fields.map((field) => {
+        const hidesLegacyNone =
+          field.semanticKey === "injuries" || field.semanticKey === "weak_muscles";
+        const selectableOptions = hidesLegacyNone
+          ? field.options.filter((option) => option.value !== "none")
+          : field.options;
         const displayedField =
           audience === "athlete"
             ? {
                 ...field,
                 helpText: athleteFacingText(field.helpText),
                 label: athleteFacingText(field.label),
-                options: field.options.map((option) => ({
+                options: selectableOptions.map((option) => ({
                   ...option,
                   label: athleteFacingText(option.label)
                 }))
               }
-            : field;
+            : { ...field, options: selectableOptions };
         return (
           <div data-visit-answer={field.key} key={field.key}>
             <VisitFormFieldControl
@@ -167,7 +172,10 @@ export function VisitAnswersReadonly({
             value !== undefined &&
             value !== null &&
             value !== "" &&
-            (!Array.isArray(value) || value.length > 0)
+            (!Array.isArray(value) ||
+              value.length > 0 ||
+              field.semanticKey === "injuries" ||
+              field.semanticKey === "weak_muscles")
           );
         });
         if (answeredFields.length === 0) return null;
@@ -244,7 +252,14 @@ function VisitFormFieldControl({
   }
 
   if (field.type === "multi_select") {
-    const selected = Array.isArray(value) ? value.map(String) : [];
+    const selected = Array.isArray(value)
+      ? value.map(String).filter((item) => {
+          return !(
+            item === "none" &&
+            (field.semanticKey === "injuries" || field.semanticKey === "weak_muscles")
+          );
+        })
+      : [];
     return (
       <FormField hint={hint || undefined} label={field.label} required={field.required}>
         <div className={styles.checkboxList}>

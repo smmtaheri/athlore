@@ -358,8 +358,8 @@ export function StudentVisitForm({
           {renderFields(layout.injuries)}
           {layout.injuries.length ? (
             <p className={styles.actionHint}>
-              اگر وضعیت تغییر نکرده، انتخاب خالی اطلاعات پروفایل را حفظ می‌کند؛ «بدون آسیب فعال»
-              یعنی محدودیت قبلی دیگر فعال نیست.
+              آسیب‌ها و محدودیت‌های فعال را انتخاب کنید؛ اگر چیزی انتخاب نشده باشد، برای این ویزیت
+              محدودیت فعالی ثبت نمی‌شود.
             </p>
           ) : null}
         </StudentFormSection>
@@ -392,8 +392,8 @@ export function StudentVisitForm({
           {renderFields(layout.weakness)}
           {layout.weakness.length ? (
             <p className={styles.actionHint}>
-              انتخاب خالی، اولویت‌های پروفایل را حفظ می‌کند؛ «بدون ضعف مشخص» آن‌ها را برای این دوره
-              کنار می‌گذارد.
+              عضلات نیازمند تمرکز را انتخاب کنید؛ اگر چیزی انتخاب نشده باشد، اولویت یا ضعف مشخصی
+              برای این ویزیت ثبت نمی‌شود.
             </p>
           ) : null}
           {layout.muscleDetails.length ? (

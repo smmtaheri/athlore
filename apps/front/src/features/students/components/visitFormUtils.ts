@@ -34,9 +34,12 @@ export function formatAnswerDisplay(
   }
 
   if (field.type === "multi_select") {
-    const selected = Array.isArray(value) ? value.map(String) : [];
+    const hidesLegacyNone = field.semanticKey === "injuries" || field.semanticKey === "weak_muscles";
+    const selected = Array.isArray(value)
+      ? value.map(String).filter((item) => !(hidesLegacyNone && item === "none"))
+      : [];
     if (selected.length === 0) {
-      return "ثبت نشده";
+      return hidesLegacyNone ? "موردی انتخاب نشده" : "ثبت نشده";
     }
     const labels = field.options
       .filter((option) => selected.includes(option.value))

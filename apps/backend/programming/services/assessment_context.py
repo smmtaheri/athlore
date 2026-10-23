@@ -132,9 +132,12 @@ def extract_semantic_answers(
         if not key or key not in answers:
             continue
         value = answers[key]
-        if not _is_answered(value):
-            continue
         semantic_key = str(field.get("semantic_key") or "").strip()
+        empty_selection_is_an_answer = (
+            semantic_key in {"weak_muscles", "injuries"} and value == []
+        )
+        if not _is_answered(value) and not empty_selection_is_an_answer:
+            continue
         if not semantic_key:
             custom[key] = value
             continue
@@ -334,7 +337,7 @@ def merge_student_with_assessment(
             evidence_bits["assessment_overrides"].append("equipment_available")
             evidence_bits["visit_overrides"].append("equipment_available")
 
-    if "weak_muscles" in exe and _is_answered(exe["weak_muscles"]):
+    if "weak_muscles" in exe:
         raw = exe["weak_muscles"]
         if isinstance(raw, list):
             mapped = [
@@ -351,7 +354,7 @@ def merge_student_with_assessment(
         evidence_bits["assessment_overrides"].append("muscle_detail")
         evidence_bits["visit_overrides"].append("muscle_detail")
 
-    if "injuries" in exe and _is_answered(exe["injuries"]):
+    if "injuries" in exe:
         raw = exe["injuries"]
         items = raw if isinstance(raw, list) else [raw]
         normalized_items = [str(item).strip().lower() for item in items]
@@ -365,9 +368,12 @@ def merge_student_with_assessment(
             injuries["has_injury"] = False
             injuries["injury_types"] = []
             injuries["injury_type"] = ""
-        if items or no_injury_selected:
-            evidence_bits["assessment_overrides"].append("injuries")
-            evidence_bits["visit_overrides"].append("injuries")
+        else:
+            injuries["has_injury"] = False
+            injuries["injury_types"] = []
+            injuries["injury_type"] = ""
+        evidence_bits["assessment_overrides"].append("injuries")
+        evidence_bits["visit_overrides"].append("injuries")
 
     if "training_methods" in exe and _is_answered(exe["training_methods"]):
         evidence_bits["training_methods"] = exe["training_methods"]

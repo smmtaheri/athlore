@@ -93,7 +93,7 @@ describe("unified visit composition", () => {
     ).toEqual(["muscle_detail.back.width"]);
   });
 
-  it("prefills only compatible profile choices, not unknown injury status or arbitrary text", () => {
+  it("prefills empty selections when the profile has no active injuries", () => {
     const result = prefillVisitAnswers(studentFixtures[1], [
       {
         ...sections[0],
@@ -101,15 +101,46 @@ describe("unified visit composition", () => {
           ...fields,
           field("injuries", "injuries", {
             type: "multi_select",
-            options: [{ value: "none", label: "بدون آسیب" }]
+            options: [
+              { value: "neck", label: "گردن" },
+              { value: "back", label: "کمر" },
+              { value: "knee", label: "زانو" }
+            ]
           })
         ]
       }
     ]);
     expect(result.sessions).toBe(studentFixtures[1].trainingConditions.trainingDaysPerWeek);
     expect(result.goal).toBeUndefined();
-    expect(result.injuries).toBeUndefined();
+    expect(result.injuries).toEqual([]);
     expect(result.full_name).toBeUndefined();
+  });
+
+  it("prefills matching profile weaknesses and injuries for the coach to review", () => {
+    const result = prefillVisitAnswers(studentFixtures[0], [
+      {
+        ...sections[0],
+        fields: [
+          field("weak", "weak_muscles", {
+            type: "multi_select",
+            options: [
+              { value: "chest", label: "سینه" },
+              { value: "triceps", label: "پشت بازو" }
+            ]
+          }),
+          field("injuries", "injuries", {
+            type: "multi_select",
+            options: [
+              { value: "neck", label: "گردن" },
+              { value: "back", label: "کمر" },
+              { value: "other", label: "سایر" }
+            ]
+          })
+        ]
+      }
+    ]);
+    expect(result.weak).toEqual(["chest", "triceps"]);
+    expect(result.injuries).toEqual(["neck"]);
   });
 
   it("retains required custom details and clears deselected athlete-editable details without writing private answers", () => {
@@ -125,7 +156,7 @@ describe("unified visit composition", () => {
     };
     const next = reconcileWeakMuscleAnswers(
       previous,
-      { ...previous, weak: ["none"] },
+      { ...previous, weak: [] },
       athleteFields,
       "athlete"
     );

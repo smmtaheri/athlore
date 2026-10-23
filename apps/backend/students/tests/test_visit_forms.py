@@ -554,6 +554,28 @@ class SemanticExtractionTests(TestCase):
         )
         self.assertEqual(merged["goals"]["weak_muscles"], [])
 
+    def test_empty_weakness_and_injury_selections_clear_profile_values(self):
+        visit = Visit(
+            visit_date=date(2026, 8, 1),
+            form_template_snapshot={"sections": ARMAN_VISIT_FORM_TEMPLATE["sections"]},
+            answers={"weak_muscles": [], "injuries": []},
+        )
+        context = build_generation_context_from_visit(visit)
+        self.assertEqual(context["executable"]["weak_muscles"], [])
+        self.assertEqual(context["executable"]["injuries"], [])
+
+        merged = merge_student_with_assessment(
+            student_goals={"weak_muscles": ["chest"]},
+            student_injuries={"has_injury": True, "injury_type": "back"},
+            student_training_background={},
+            student_training_conditions={},
+            student_equipment={},
+            assessment_ctx=context,
+        )
+        self.assertEqual(merged["goals"]["weak_muscles"], [])
+        self.assertFalse(merged["injuries"]["has_injury"])
+        self.assertEqual(merged["injuries"]["injury_type"], "")
+
     def test_missing_means_not_assessed(self):
         extracted = extract_semantic_answers(
             answers={"goal": "hypertrophy"},

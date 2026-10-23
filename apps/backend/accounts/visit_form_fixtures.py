@@ -71,7 +71,6 @@ MUSCLE_GROUP_OPTIONS = [
     _opt("abs", "شکم / Abs"),
     _opt("biceps", "جلو بازو / Biceps"),
     _opt("glutes", "باسن / Glutes"),
-    _opt("none", "ضعف مشخصی ثبت نشده"),
 ]
 
 DETAIL_STATUS_OPTIONS = [
@@ -557,7 +556,6 @@ ARMAN_VISIT_FORM_TEMPLATE: dict[str, Any] = {
                     field_type="multi_select",
                     semantic_key="injuries",
                     options=[
-                        _opt("none", "آسیب یا محدودیت فعالی ندارم"),
                         _opt("neck", "گردن"),
                         _opt("back", "کمر"),
                         _opt("knee", "زانو"),
@@ -702,7 +700,6 @@ MINIMAL_VISIT_FORM_TEMPLATE: dict[str, Any] = {
                     field_type="multi_select",
                     semantic_key="injuries",
                     options=[
-                        _opt("none", "آسیب یا محدودیت فعالی ندارم"),
                         _opt("neck", "گردن"),
                         _opt("back", "کمر"),
                         _opt("knee", "زانو"),
