@@ -10,6 +10,7 @@ from rest_framework.exceptions import ValidationError
 
 from accounts.models import CoachProfile, CoachTechnique, TrainingTechnique
 from accounts.training_recipes import validate_training_recipe
+from programming.services.split_parser import CANONICAL_MUSCLES, normalize_muscle
 
 PARTIAL_REP_VARIANTS = {
     "one_and_half": "تکرار یک‌ونیم: یک تکرار کامل و یک نیم‌تکرار",
@@ -87,6 +88,25 @@ def _partial_reps_parameters(config: CoachTechnique) -> dict[str, Any]:
     return defaults
 
 
+def normalize_training_system_muscles(value: Any) -> list[str]:
+    """An empty scope retains the existing whole-program behavior."""
+    if (
+        not isinstance(value, list)
+        or len(value) > len(CANONICAL_MUSCLES)
+        or any(not isinstance(muscle, str) for muscle in value)
+    ):
+        raise ValidationError({"training_systems": ["عضلات سیستم تمرینی معتبر نیستند."]})
+    muscles = list(dict.fromkeys(normalize_muscle(muscle) for muscle in value))
+    if any(muscle not in CANONICAL_MUSCLES for muscle in muscles):
+        raise ValidationError({"training_systems": ["عضلهٔ ناشناخته در سیستم تمرینی."]})
+    return muscles
+
+
+def _matches_system_muscles(exercise: dict, config: CoachTechnique) -> bool:
+    muscles = getattr(config, "_selected_muscles", [])
+    return not muscles or normalize_muscle(str(exercise.get("targetMuscle") or "")) in muscles
+
+
 def normalize_training_system_selection(
     coach: CoachProfile, level: str, value: Any
 ) -> list[dict[str, Any]] | None:
@@ -144,6 +164,8 @@ def normalize_training_system_selection(
             validate_training_recipe(recipe, allow_empty=False)
 
         selection: dict[str, Any] = {"key": key}
+        if isinstance(item, dict) and "muscles" in item:
+            selection["muscles"] = normalize_training_system_muscles(item["muscles"])
         if handler == "partial_reps":
             if variants is None:
                 variants = _partial_reps_parameters(
@@ -209,6 +231,7 @@ def _selected_configs(
             )
             config._platform_default = True
         config._selected_variants = selection.get("variants")
+        config._selected_muscles = selection.get("muscles", [])
         configs.append(config)
     return configs
 
@@ -243,9 +266,16 @@ def _apply_superset(days: list[dict], config: CoachTechnique) -> int:
     max_pairs = int(params.get("max_pairs") or config.max_per_session or 1)
     applied = 0
     for day in days:
-        before = sum(1 for exercise in day.get("exercises", []) if exercise.get("supersetGroupId"))
+        candidates = [
+            exercise
+            for exercise in day.get("exercises", [])
+            if _matches_system_muscles(exercise, config)
+            and not exercise.get("supersetGroupId")
+            and not exercise.get("techniques")
+        ]
+        before = sum(1 for exercise in candidates if exercise.get("supersetGroupId"))
         _apply_real_supersets(
-            day.get("exercises", []),
+            candidates,
             allow=True,
             max_pairs=max_pairs,
             pairing_mode=str(params.get("pairing_mode") or "same_muscle_isolation"),
@@ -253,7 +283,7 @@ def _apply_superset(days: list[dict], config: CoachTechnique) -> int:
             rest_between_exercises_seconds=int(params.get("rest_between_exercises_seconds") or 0),
             rest_after_pair_seconds=int(params.get("rest_after_pair_seconds") or 0),
         )
-        for exercise in day.get("exercises", []):
+        for exercise in candidates:
             if exercise.get("supersetGroupId"):
                 _append_technique(
                     exercise,
@@ -265,8 +295,21 @@ def _apply_superset(days: list[dict], config: CoachTechnique) -> int:
                         "parameters": params,
                     },
                 )
-        after = sum(1 for exercise in day.get("exercises", []) if exercise.get("supersetGroupId"))
+        after = sum(1 for exercise in candidates if exercise.get("supersetGroupId"))
         applied += max(0, (after - before) // 2)
+        # Keep scoped pairs adjacent in the full session, including other muscles.
+        groups: dict[str, list[dict]] = {}
+        for exercise in candidates:
+            if exercise.get("supersetGroupId"):
+                groups.setdefault(exercise["supersetGroupId"], []).append(exercise)
+        for group in groups.values():
+            selected_ids = {id(exercise) for exercise in group}
+            current = day.get("exercises", [])
+            insertion = min(i for i, exercise in enumerate(current) if id(exercise) in selected_ids)
+            remaining = [exercise for exercise in current if id(exercise) not in selected_ids]
+            day["exercises"] = remaining[:insertion] + group + remaining[insertion:]
+        for order_index, exercise in enumerate(day.get("exercises", []), start=1):
+            exercise["order"] = order_index
     return applied
 
 
@@ -279,6 +322,8 @@ def _apply_drop_set(days: list[dict], config: CoachTechnique) -> int:
     for day in days:
         day_applied = 0
         for exercise in reversed(day.get("exercises", [])):
+            if not _matches_system_muscles(exercise, config):
+                continue
             if limit and day_applied >= limit:
                 break
             if exercise.get("supersetGroupId") or exercise.get("techniques"):
@@ -326,7 +371,8 @@ def _apply_partial_reps(days: list[dict], config: CoachTechnique) -> tuple[int, 
         eligible = [
             exercise
             for exercise in day.get("exercises", [])
-            if str(exercise.get("targetMuscle") or "") != "شکم"
+            if _matches_system_muscles(exercise, config)
+            and str(exercise.get("targetMuscle") or "") != "شکم"
             and not exercise.get("supersetGroupId")
             and not exercise.get("dropSet")
             and not any(
@@ -383,11 +429,20 @@ def _apply_manual_system(days: list[dict], config: CoachTechnique) -> int:
     if not instruction:
         instruction = "روش اجرا ثبت نشده است؛ مربی پیش از ارسال برنامه باید آن را مشخص کند."
     note = f"سیستم تمرینی {config.name}: {instruction} (بازبینی مربی)"
+    applied = 0
+    muscles = getattr(config, "_selected_muscles", [])
+    if muscles:
+        note += f" — عضلات: {'، '.join(muscles)}"
     for day in days:
+        if muscles and not any(
+            _matches_system_muscles(exercise, config) for exercise in day.get("exercises", [])
+        ):
+            continue
         existing = str(day.get("notes") or "").strip()
         if note not in existing:
             day["notes"] = f"{existing} {note}".strip()
-    return len(days)
+        applied += 1
+    return applied
 
 
 def _recipe_for(config: CoachTechnique) -> dict[str, Any]:
@@ -506,7 +561,9 @@ def _apply_recipe_grouping(
         exercises = [
             exercise
             for exercise in day.get("exercises", [])
-            if not exercise.get("supersetGroupId") and not exercise.get("trainingGroupId")
+            if _matches_system_muscles(exercise, config)
+            and not exercise.get("supersetGroupId")
+            and not exercise.get("trainingGroupId")
         ]
         order = grouping.get("exercise_order", "generated")
         if order in {"isolation_first", "compound_first"}:
@@ -562,7 +619,11 @@ def _apply_recipe_grouping(
 
             selected_ids = {id(exercise) for exercise in group}
             day_exercises = day.get("exercises", [])
-            positions = [index for index, exercise in enumerate(day_exercises) if id(exercise) in selected_ids]
+            positions = [
+                index
+                for index, exercise in enumerate(day_exercises)
+                if id(exercise) in selected_ids
+            ]
             insertion_index = min(positions) if positions else len(day_exercises)
             remaining_day_exercises = [
                 exercise for exercise in day_exercises if id(exercise) not in selected_ids
@@ -605,7 +666,8 @@ def _apply_recipe(
             candidates = [
                 exercise
                 for exercise in day.get("exercises", [])
-                if not exercise.get("supersetGroupId")
+                if _matches_system_muscles(exercise, config)
+                and not exercise.get("supersetGroupId")
                 and not exercise.get("dropSet")
                 and not any(
                     item.get("key") == config.key for item in exercise.get("techniques", [])
@@ -749,6 +811,7 @@ def apply_structured_techniques(
         )
 
     for config in configurations:
+        evidence_start = len(evidence)
         base = config.base_technique
         handler = base.handler_key if base else ""
         parameters = _parameters(config)
@@ -861,4 +924,6 @@ def apply_structured_techniques(
                     "status": "coach_review_required" if applied_count else "saved_manual_only",
                 }
             )
+        for entry in evidence[evidence_start:]:
+            entry["muscles"] = list(getattr(config, "_selected_muscles", []))
     return days, evidence, handled_keys

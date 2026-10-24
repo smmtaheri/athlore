@@ -435,6 +435,9 @@ class WorkoutWorkflowTests(TestCase):
 
     def test_settings_reject_malformed_values_without_internal_errors(self):
         for settings in (
+            {"training_systems": [{"key": "drop_set", "muscles": "سینه"}]},
+            {"training_systems": [{"key": "drop_set", "muscles": ["unknown"]}]},
+            {"training_systems": [{"key": "drop_set", "muscles": [{}]}]},
             {"sections": [{}]},
             {"exercise_variety": {}},
             {"template_id": "bad"},
@@ -442,6 +445,24 @@ class WorkoutWorkflowTests(TestCase):
         ):
             with self.subTest(settings=settings), self.assertRaises(ValidationError):
                 validate_settings(settings)
+
+    def test_visit_preparation_preserves_target_muscles(self):
+        visit = self.visit()
+        visit.program_settings["training_systems"] = [
+            {"key": "drop_set", "muscles": ["سینه", "سرشانه"]}
+        ]
+        visit.save(update_fields=["program_settings", "updated_at"])
+        _, run = prepare_from_visit(self.coach, self.coach.user, visit.id, "scoped-systems")
+        self.assertEqual(
+            run.request["training_systems"], visit.program_settings["training_systems"]
+        )
+        targeted = []
+        for day in run.resulting_version.training["days"]:
+            for exercise in day["exercises"]:
+                if exercise.get("dropSet"):
+                    targeted.append(exercise["targetMuscle"])
+                    self.assertIn(exercise["targetMuscle"], ["سینه", "سرشانه"])
+        self.assertTrue(targeted)
 
     def test_program_defaults_omit_template_id_when_template_was_deleted(self):
         self.coach.program_defaults = {"template_id": str(uuid4())}

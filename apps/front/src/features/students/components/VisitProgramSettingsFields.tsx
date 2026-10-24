@@ -7,6 +7,18 @@ import type { VisitProgramSettings } from "../types/monthlyVisit";
 import { CalendarDateInput } from "../../../shared/dates/CalendarDateInput";
 import { coachRulesRepository } from "../../coach-rules/services/coachRulesRepository";
 
+const PROGRAM_MUSCLES = [
+  "سینه",
+  "زیربغل",
+  "پا",
+  "سرشانه",
+  "پشت بازو",
+  "جلو بازو",
+  "شکم",
+  "ساق",
+  "ساعد"
+];
+
 export function VisitProgramSettingsFields({
   value,
   onChange,
@@ -89,31 +101,67 @@ export function VisitProgramSettingsFields({
       </FormField>
       <FormField
         label="سیستم‌های تمرینی این دوره"
-        hint="انتخاب‌های همین ویزیت مبنای تولید هستند؛ خالی یعنی بدون سیستم خاص."
+        hint="هر سیستم را تیک بزنید و عضلاتش را انتخاب کنید؛ بدون انتخاب عضله، سیستم روی حرکات واجدشرایط کل دوره اعمال می‌شود. خالی یعنی بدون سیستم خاص. برای تعیین سیستم از همین‌جا، قالب دقیق را روی بدون قالب بگذارید."
       >
         {systems.map((system) => (
-          <Checkbox
-            key={system.key}
-            disabled={
-              disabled ||
-              Boolean(
-                system.allowed_levels.length &&
-                !(value.training_systems ?? []).some((item) => item.key === system.key) &&
-                !system.allowed_levels.includes(
-                  level === "professional" || level === "semi_professional" ? "advanced" : level
+          <div key={system.key}>
+            <Checkbox
+              disabled={
+                disabled ||
+                Boolean(
+                  system.allowed_levels.length &&
+                  !(value.training_systems ?? []).some((item) => item.key === system.key) &&
+                  !system.allowed_levels.includes(
+                    level === "professional" || level === "semi_professional" ? "advanced" : level
+                  )
                 )
-              )
-            }
-            label={`${system.name}${system.allowed_levels.length && !system.allowed_levels.includes(level === "professional" || level === "semi_professional" ? "advanced" : level) ? " — نامناسب برای سطح فعلی" : ""}`}
-            checked={(value.training_systems ?? []).some((item) => item.key === system.key)}
-            onChange={(e) =>
-              update({
-                training_systems: e.target.checked
-                  ? [...(value.training_systems ?? []), { key: system.key }]
-                  : (value.training_systems ?? []).filter((item) => item.key !== system.key)
-              })
-            }
-          />
+              }
+              label={`${system.name}${system.allowed_levels.length && !system.allowed_levels.includes(level === "professional" || level === "semi_professional" ? "advanced" : level) ? " — نامناسب برای سطح فعلی" : ""}`}
+              checked={(value.training_systems ?? []).some((item) => item.key === system.key)}
+              onChange={(e) =>
+                update({
+                  training_systems: e.target.checked
+                    ? [...(value.training_systems ?? []), { key: system.key }]
+                    : (value.training_systems ?? []).filter((item) => item.key !== system.key)
+                })
+              }
+            />
+            {(value.training_systems ?? []).some((item) => item.key === system.key) ? (
+              <fieldset disabled={disabled}>
+                <legend>عضلات هدف {system.name}</legend>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem 1rem" }}>
+                  {PROGRAM_MUSCLES.map((muscle) => (
+                    <Checkbox
+                      key={muscle}
+                      label={muscle}
+                      checked={
+                        value.training_systems
+                          ?.find((item) => item.key === system.key)
+                          ?.muscles?.includes(muscle) ?? false
+                      }
+                      onChange={(event) =>
+                        update({
+                          training_systems: (value.training_systems ?? []).map((item) =>
+                            item.key !== system.key
+                              ? item
+                              : {
+                                  ...item,
+                                  muscles: event.target.checked
+                                    ? [...(item.muscles ?? []), muscle]
+                                    : (item.muscles ?? []).filter((name) => name !== muscle)
+                                }
+                          )
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+                <small>
+                  فقط عضلهٔ اصلی حرکت ملاک است؛ قواعد ایمنی و جفت‌سازی سیستم همچنان رعایت می‌شوند.
+                </small>
+              </fieldset>
+            ) : null}
+          </div>
         ))}
       </FormField>
       <details>
@@ -151,17 +199,7 @@ export function VisitProgramSettingsFields({
           ? Array.from({ length: Math.max(1, Math.min(7, sessions || 4)) }, (_, dayIndex) => (
               <fieldset key={dayIndex}>
                 <legend>جلسهٔ {dayIndex + 1} — خالی یعنی تقسیم خودکار</legend>
-                {[
-                  "سینه",
-                  "زیربغل",
-                  "پا",
-                  "سرشانه",
-                  "پشت بازو",
-                  "جلو بازو",
-                  "شکم",
-                  "ساق",
-                  "ساعد"
-                ].map((muscle) => (
+                {PROGRAM_MUSCLES.map((muscle) => (
                   <Checkbox
                     key={muscle}
                     disabled={disabled}

@@ -445,6 +445,102 @@ class StructuredCatalogApiTests(APITestCase):
 
 @override_settings(PUBLIC_REGISTRATION_ENABLED=True)
 class StructuredCatalogGeneratorTests(APITestCase):
+    def test_system_scopes_limit_recipe_candidates_and_preserve_other_exercises(self):
+        from accounts.models import TrainingTechnique
+
+        for key in ("drop_set", "superset", "partial_reps"):
+            with self.subTest(key=key):
+                days = [
+                    {
+                        "id": "day-1",
+                        "exercises": [
+                            {
+                                "id": "chest-1",
+                                "name": "قفسه سینه دستگاه",
+                                "targetMuscle": "سینه",
+                                "sets": 3,
+                            },
+                            {
+                                "id": "legs",
+                                "name": "جلو پا دستگاه",
+                                "targetMuscle": "پا",
+                                "sets": 3,
+                            },
+                            {
+                                "id": "chest-2",
+                                "name": "کراس اور کابل",
+                                "targetMuscle": "سینه",
+                                "sets": 3,
+                            },
+                            {
+                                "id": "shoulders",
+                                "name": "نشر جانب دمبل",
+                                "targetMuscle": "سرشانه",
+                                "sets": 3,
+                            },
+                        ],
+                    }
+                ]
+                self.assertTrue(TrainingTechnique.objects.filter(key=key).exists())
+                result, evidence, _ = apply_structured_techniques(
+                    days,
+                    self.coach,
+                    "advanced",
+                    selected_systems=[{"key": key, "muscles": ["chest"]}],
+                )
+                self.assertEqual(evidence[0]["muscles"], ["سینه"])
+                self.assertGreater(evidence[0]["applied_count"], 0)
+                self.assertEqual(
+                    {item["id"] for item in result[0]["exercises"]},
+                    {"chest-1", "chest-2", "legs", "shoulders"},
+                )
+                for exercise in result[0]["exercises"]:
+                    if exercise["targetMuscle"] != "سینه":
+                        self.assertFalse(exercise.get("techniques"))
+                        self.assertFalse(exercise.get("supersetGroupId"))
+                if key == "superset":
+                    positions = [
+                        i
+                        for i, item in enumerate(result[0]["exercises"])
+                        if item.get("supersetGroupId")
+                    ]
+                    self.assertEqual(positions[1], positions[0] + 1)
+
+    def test_scoped_system_does_not_fall_back_to_another_muscle(self):
+        days, evidence, _ = apply_structured_techniques(
+            [{"exercises": [{"name": "جلو پا دستگاه", "targetMuscle": "پا", "sets": 3}]}],
+            self.coach,
+            "advanced",
+            selected_systems=[{"key": "drop_set", "muscles": ["سینه"]}],
+        )
+        self.assertEqual(evidence[0]["applied_count"], 0)
+        self.assertEqual(evidence[0]["status"], "no_eligible_exercise")
+        self.assertFalse(days[0]["exercises"][0].get("techniques"))
+
+    def test_legacy_superset_handler_preserves_scope_and_adjacency(self):
+        from accounts.models import TrainingTechnique
+
+        TrainingTechnique.objects.filter(key="superset").update(recipe={})
+        days, evidence, _ = apply_structured_techniques(
+            [
+                {
+                    "exercises": [
+                        {"name": "قفسه سینه دستگاه", "targetMuscle": "سینه", "sets": 3},
+                        {"name": "جلو پا دستگاه", "targetMuscle": "پا", "sets": 3},
+                        {"name": "کراس اور کابل", "targetMuscle": "سینه", "sets": 3},
+                    ]
+                }
+            ],
+            self.coach,
+            "advanced",
+            selected_systems=[{"key": "superset", "muscles": ["سینه"]}],
+        )
+        self.assertEqual(evidence[0]["applied_count"], 1)
+        self.assertEqual(
+            [item["targetMuscle"] for item in days[0]["exercises"]], ["سینه", "سینه", "پا"]
+        )
+        self.assertFalse(days[0]["exercises"][-1].get("techniques"))
+
     def _create_exercise(self, name: str, **flags):
         payload = {
             "name": name,

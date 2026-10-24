@@ -536,6 +536,13 @@ export function createApiProgramsRepository(): ProgramsRepository & {
           return [
             {
               key: value.key,
+              ...(Array.isArray(value.muscles)
+                ? {
+                    muscles: value.muscles.filter(
+                      (muscle): muscle is string => typeof muscle === "string"
+                    )
+                  }
+                : {}),
               ...(Array.isArray(value.variants)
                 ? {
                     variants: value.variants.filter(

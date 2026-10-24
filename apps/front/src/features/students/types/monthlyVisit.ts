@@ -59,7 +59,7 @@ export interface StudentVisit {
 
 export interface VisitProgramSettings {
   start_date?: string;
-  training_systems?: Array<{ key: string }>;
+  training_systems?: Array<{ key: string; muscles?: string[]; variants?: string[] }>;
   session_muscles?: string[][];
   exercise_variety?: "stable" | "balanced" | "varied";
   duration_weeks?: number;

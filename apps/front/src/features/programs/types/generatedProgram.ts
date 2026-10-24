@@ -305,7 +305,7 @@ export interface ProgramGenerationInput {
   targetMuscle?: string;
   targetRegion?: string;
   supplementSelection?: import("../../coach-rules/services/supplementCatalogRepository").SupplementSelection;
-  trainingSystems?: Array<{ key: string; variants?: string[] }>;
+  trainingSystems?: Array<{ key: string; variants?: string[]; muscles?: string[] }>;
   templateId?: string;
   title: string;
 }
@@ -314,7 +314,7 @@ export interface QuickGenerationSettings {
   daysPerWeek: number;
   exerciseVariety: "stable" | "balanced" | "varied";
   sessionMuscles: string[][];
-  trainingSystems: Array<{ key: string; variants?: string[] }>;
+  trainingSystems: Array<{ key: string; variants?: string[]; muscles?: string[] }>;
 }
 
 export interface StagedProgramPdf {

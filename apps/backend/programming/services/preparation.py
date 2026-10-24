@@ -12,6 +12,7 @@ from accounts.models import ProgramTemplate
 from programming.models import GenerationRun, ProgramRequest
 from programming.services import program_requests, programs
 from programming.services.assessment_context import build_generation_context_from_visit
+from programming.services.techniques import normalize_training_system_muscles
 from students.models import Visit
 
 
@@ -45,6 +46,9 @@ def validate_settings(data):
         )
     ):
         raise ValidationError({"training_systems": ["سیستم‌های انتخاب‌شده معتبر نیستند."]})
+    for method in methods:
+        if "muscles" in method:
+            method["muscles"] = normalize_training_system_muscles(method["muscles"])
     split = result.get("session_muscles", [])
     if (
         not isinstance(split, list)
@@ -199,7 +203,21 @@ def prepare_from_visit(coach, actor, visit_id, operation_key, section_methods=No
         request["level"] = level
     if settings.get("template_id"):
         request["template_id"] = settings["template_id"]
-        request.pop("training_systems")
+        if any(method.get("muscles") for method in methods):
+            if (
+                ProgramTemplate.objects.filter(pk=settings["template_id"], coach=coach)
+                .exclude(execution_plan={})
+                .exists()
+            ):
+                raise ValidationError(
+                    {
+                        "template_id": [
+                            "برای اعمال سیستم روی عضلات انتخاب‌شده، قالب دقیق را روی بدون قالب بگذارید."
+                        ]
+                    }
+                )
+        else:
+            request.pop("training_systems")
     if not open_request:
         # Establish the in-person request before taking the generation snapshot:
         # its profile defaults must not mutate the source after generation.

@@ -1700,8 +1700,11 @@ function trainingMethodsFromVisit(
   visit: StudentVisit | undefined,
   systems: TrainingSystem[],
   level: string
-): Array<{ key: string }> | null {
+): ProgramGenerationInput["trainingSystems"] | null {
   if (!visit) return null;
+  if (visit.programSettings?.training_systems !== undefined) {
+    return visit.programSettings.training_systems;
+  }
   const fields = (visit.formTemplateSnapshot.sections ?? []).flatMap(
     (section) => section.fields ?? []
   );
