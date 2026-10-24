@@ -268,6 +268,11 @@ class ProgramReadySms(models.Model):
 class WorkoutSession(models.Model):
     """One student's execution of one prescribed day in one program week."""
 
+    class Status(models.TextChoices):
+        IN_PROGRESS = "in_progress", "In progress"
+        COMPLETED = "completed", "Completed"
+        COMPLETED_PARTIAL = "completed_partial", "Completed with unfinished sets"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     version = models.ForeignKey(ProgramVersion, on_delete=models.PROTECT)
@@ -275,6 +280,8 @@ class WorkoutSession(models.Model):
     day_id = models.CharField(max_length=160)
     completed_sets = models.JSONField(default=dict, blank=True)
     set_logs = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=24, choices=Status.choices, default=Status.IN_PROGRESS)
+    finished_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

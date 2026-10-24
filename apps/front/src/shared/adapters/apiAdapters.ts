@@ -985,22 +985,28 @@ export function programDetailFromApi(dto: Record<string, unknown>): GeneratedPro
       }
     : undefined;
 
+  const training = (dto.training as GeneratedProgram["training"]) ?? undefined;
+  const scheduledWeeks = training?.schedule?.configured
+    ? training.schedule.weeks.length
+    : undefined;
+  const datedWeeks =
+    dto.date_range_start && dto.date_range_end
+      ? Math.max(
+          1,
+          Math.ceil(
+            (Date.parse(String(dto.date_range_end)) -
+              Date.parse(String(dto.date_range_start)) +
+              86400000) /
+              604800000
+          )
+        )
+      : undefined;
+
   return {
     programVersionId: str(dto.program_version_id),
     draftRevision: dto.draft_revision ? str(dto.draft_revision) : undefined,
     sectionMethods: dto.section_methods as GeneratedProgram["sectionMethods"],
-    durationWeeks:
-      dto.date_range_start && dto.date_range_end
-        ? Math.max(
-            1,
-            Math.ceil(
-              (Date.parse(String(dto.date_range_end)) -
-                Date.parse(String(dto.date_range_start)) +
-                86400000) /
-                604800000
-            )
-          )
-        : 4,
+    durationWeeks: scheduledWeeks ?? datedWeeks,
     createdAt: String(dto.created_at ?? ""),
     dateRange: String(dto.date_range ?? dto.date_range_label ?? ""),
     deliverySource: dto.delivery_source === "uploaded_pdf" ? "uploaded_pdf" : "generated",
@@ -1053,7 +1059,7 @@ export function programDetailFromApi(dto: Record<string, unknown>): GeneratedPro
       : undefined,
     supplements,
     title: String(dto.title ?? ""),
-    training: (dto.training as GeneratedProgram["training"]) ?? undefined,
+    training,
     updatedAt: String(dto.updated_at ?? ""),
     version: versionNum,
     ...(draft ? { draftId: String(draft.id) } : {}),

@@ -10,11 +10,56 @@ export type ProgramPdfSection = "workout" | "nutrition" | "supplement";
 export type ProgramPdfSectionMethod = "generated" | "uploaded" | "omitted";
 export type ProgramPdfSectionMethods = Partial<Record<ProgramPdfSection, ProgramPdfSectionMethod>>;
 
+export interface WorkoutScheduleSession {
+  day_id: string;
+  scheduled_on: string;
+}
+
+export interface WorkoutScheduleWeek {
+  week: number;
+  starts_on: string;
+  ends_on: string;
+  sessions: WorkoutScheduleSession[];
+}
+
+export interface WorkoutSchedule {
+  version: number;
+  configured: boolean;
+  start_date?: string;
+  end_date?: string;
+  weeks: WorkoutScheduleWeek[];
+}
+
+export interface ExerciseMedia {
+  key: string;
+  title: string;
+  preview_url: string;
+  poster_url: string;
+  reel_url: string;
+  education: {
+    description?: string;
+    steps?: Array<{ at_seconds: number; title: string; text: string }>;
+    tips?: string[];
+    mistakes?: Array<{ title: string; text: string }>;
+  };
+  attribution: {
+    author: string;
+    source_url: string;
+    license: string;
+    license_url: string;
+    changes: string;
+    disclaimer?: string;
+  };
+}
+
 export interface TrainingExercise {
   exercise_id?: string;
   locked?: boolean;
   tutorial_url?: string;
+  media?: ExerciseMedia | null;
   execution_guide?: Record<string, string>;
+  primary_muscle?: string;
+  seconds?: number;
   id: string;
   name: string;
   notes: string;
@@ -60,6 +105,7 @@ export interface TrainingDay {
 export interface TrainingProgram {
   days: TrainingDay[];
   summary: string;
+  schedule?: WorkoutSchedule;
 }
 
 export interface NutritionFood {

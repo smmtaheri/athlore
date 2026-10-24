@@ -1,12 +1,15 @@
 """Idempotent, version-scoped workout progress owned by the authenticated student."""
 
+from copy import deepcopy
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
+from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
 from programming.models import WorkoutSession
 from programming.services.programs import programs_for_student
+from programming.services.workout_schedule import ensure_workout_schedule
 
 
 def workout_version(student, program_id):
@@ -32,8 +35,44 @@ def serialize_progress(row):
         "day_id": row.day_id,
         "completed_sets": row.completed_sets,
         "set_logs": row.set_logs,
+        "status": row.status,
+        "finished_at": row.finished_at.isoformat() if row.finished_at else None,
         "updated_at": row.updated_at.isoformat(),
     }
+
+
+def workout_schedule_for_version(version):
+    training = deepcopy(version.training or {})
+    ensure_workout_schedule(
+        training, version.program.date_range_start, version.program.date_range_end
+    )
+    return training.get("schedule") or {"configured": False, "weeks": []}
+
+
+def _scheduled_day(version, week, day_id):
+    schedule = workout_schedule_for_version(version)
+    if not schedule.get("configured"):
+        raise ValidationError(
+            {"schedule": ["زمان‌بندی این برنامه مشخص نیست؛ مربی باید دورهٔ برنامه را تنظیم کند."]}
+        )
+    selected_week = next(
+        (item for item in schedule.get("weeks", []) if item.get("week") == week), None
+    )
+    if not selected_week:
+        raise ValidationError({"week": ["هفتهٔ تمرین معتبر نیست."]})
+    if not any(str(item.get("day_id")) == str(day_id) for item in selected_week.get("sessions", [])):
+        raise ValidationError({"day_id": ["این جلسه در زمان‌بندی این هفته وجود ندارد."]})
+    day = next(
+        (
+            item
+            for item in (version.training or {}).get("days", [])
+            if str(item.get("id")) == str(day_id)
+        ),
+        None,
+    )
+    if not day:
+        raise ValidationError({"day_id": ["جلسه در این نسخه وجود ندارد."]})
+    return day
 
 
 def _normalize_set_logs(raw_logs, completed_indices, exercise):
@@ -119,23 +158,9 @@ def save_progress(student, program_id, data):
     if data.get("version_id") and str(data["version_id"]) != str(version.id):
         raise ValidationError({"version_id": ["نسخهٔ برنامه تغییر کرده؛ صفحه را دوباره باز کنید."]})
     week = data.get("week")
-    max_weeks = (
-        max(1, ((version.program.date_range_end - version.program.date_range_start).days + 7) // 7)
-        if version.program.date_range_start and version.program.date_range_end
-        else 4
-    )
-    if isinstance(week, bool) or not isinstance(week, int) or not 1 <= week <= max_weeks:
+    if isinstance(week, bool) or not isinstance(week, int) or week < 1:
         raise ValidationError({"week": ["هفتهٔ تمرین معتبر نیست."]})
-    day = next(
-        (
-            day
-            for day in version.training.get("days", [])
-            if str(day.get("id")) == str(data.get("day_id"))
-        ),
-        None,
-    )
-    if not day:
-        raise ValidationError({"day_id": ["جلسه در این نسخه وجود ندارد."]})
+    day = _scheduled_day(version, week, data.get("day_id"))
     exercise = next(
         (
             item
@@ -182,7 +207,78 @@ def save_progress(student, program_id, data):
             item["completed"] = set_index in indices
         set_logs[exercise_id] = sorted(existing.values(), key=lambda item: item["set_index"])
 
+    changed = completed != row.completed_sets or set_logs != row.set_logs
     row.completed_sets = completed
     row.set_logs = set_logs
-    row.save(update_fields=["completed_sets", "set_logs", "updated_at"])
+    update_fields = ["completed_sets", "set_logs", "updated_at"]
+    if changed and row.status != WorkoutSession.Status.IN_PROGRESS:
+        row.status = WorkoutSession.Status.IN_PROGRESS
+        row.finished_at = None
+        update_fields.extend(["status", "finished_at"])
+    row.save(update_fields=update_fields)
+    return serialize_progress(row)
+
+
+@transaction.atomic
+def finish_workout_session(student, program_id, data):
+    from students.services import ensure_student_active
+
+    ensure_student_active(student)
+    version = workout_version(student, program_id)
+    if data.get("version_id") and str(data["version_id"]) != str(version.id):
+        raise ValidationError({"version_id": ["نسخهٔ برنامه تغییر کرده؛ صفحه را دوباره باز کنید."]})
+    week = data.get("week")
+    day_id = data.get("day_id")
+    if isinstance(week, bool) or not isinstance(week, int) or week < 1:
+        raise ValidationError({"week": ["هفتهٔ تمرین معتبر نیست."]})
+    day = _scheduled_day(version, week, day_id)
+    row, _ = WorkoutSession.objects.get_or_create(
+        student=student, version=version, week=week, day_id=str(day["id"])
+    )
+    row = WorkoutSession.objects.select_for_update().get(pk=row.pk)
+    if row.status in {
+        WorkoutSession.Status.COMPLETED,
+        WorkoutSession.Status.COMPLETED_PARTIAL,
+    }:
+        return serialize_progress(row)
+    completed = dict(row.completed_sets or {})
+    set_logs = dict(row.set_logs or {})
+    total_sets = 0
+
+    for exercise in day.get("exercises", []):
+        exercise_id = str(exercise.get("id") or "")
+        set_count = max(0, int(exercise.get("sets") or 0))
+        total_sets += set_count
+        if not exercise_id or exercise_id in completed or exercise_id in set_logs:
+            continue
+        indices = list(range(set_count))
+        completed[exercise_id] = indices
+        set_logs[exercise_id] = [
+            {
+                "set_index": index,
+                "completed": True,
+                "reps": None,
+                "weight_kg": None,
+                "rest_seconds": None,
+            }
+            for index in indices
+        ]
+
+    completed_count = 0
+    for exercise in day.get("exercises", []):
+        exercise_id = str(exercise.get("id") or "")
+        indices = completed.get(exercise_id, [])
+        if isinstance(indices, list):
+            completed_count += len(set(indices))
+    row.completed_sets = completed
+    row.set_logs = set_logs
+    row.status = (
+        WorkoutSession.Status.COMPLETED
+        if completed_count >= total_sets
+        else WorkoutSession.Status.COMPLETED_PARTIAL
+    )
+    row.finished_at = row.finished_at or timezone.now()
+    row.save(
+        update_fields=["completed_sets", "set_logs", "status", "finished_at", "updated_at"]
+    )
     return serialize_progress(row)

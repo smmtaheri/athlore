@@ -24,6 +24,7 @@ from programming.services.generator import (
     generate_document,
 )
 from programming.services.split_parser import CANONICAL_MUSCLES, normalize_muscle
+from programming.services.workout_schedule import ensure_workout_schedule
 from students.models import Student, Visit
 from students.services import ensure_student_active
 
@@ -244,6 +245,10 @@ def serialize_student_program_detail(program: Program) -> dict:
     if version is None:
         raise NotFound(detail="Not found.")
     training = _deep_copy(version.training)
+    if isinstance(training, dict):
+        ensure_workout_schedule(
+            training, program.date_range_start, program.date_range_end
+        )
     # Older finalized programs may predate exercise video URLs. Resolve only the
     # missing media from this coach's catalog, without mutating the immutable
     # program version or leaking another coach's catalog entries.
@@ -258,23 +263,37 @@ def serialize_student_program_detail(program: Program) -> dict:
         catalog_ids = {
             exercise.get("exercise_id")
             for exercise in exercises
-            if exercise.get("exercise_id") and not exercise.get("tutorial_url")
+            if exercise.get("exercise_id")
+            and (not exercise.get("media") or not exercise.get("primary_muscle"))
         }
         if catalog_ids:
-            catalog_urls = {
-                str(item.id): item.tutorial_url
-                for item in Exercise.objects.filter(
+            catalog_rows = {
+                str(item.id): item
+                for item in Exercise.objects.select_related("media_asset").filter(
                     coach_id=program.coach_id,
                     id__in=catalog_ids,
-                ).only("id", "tutorial_url")
-                if item.tutorial_url
-                and urlsplit(item.tutorial_url).scheme == "https"
-                and urlsplit(item.tutorial_url).netloc
+                )
             }
             for exercise in exercises:
-                catalog_url = catalog_urls.get(str(exercise.get("exercise_id")))
-                if catalog_url and not exercise.get("tutorial_url"):
+                catalog_row = catalog_rows.get(str(exercise.get("exercise_id")))
+                if not catalog_row:
+                    continue
+                catalog_url = catalog_row.tutorial_url
+                if (
+                    catalog_url
+                    and urlsplit(catalog_url).scheme == "https"
+                    and urlsplit(catalog_url).netloc
+                    and not exercise.get("tutorial_url")
+                ):
                     exercise["tutorial_url"] = catalog_url
+                if (
+                    not exercise.get("media")
+                    and catalog_row.media_asset_id
+                    and catalog_row.media_asset.is_active
+                ):
+                    exercise["media"] = catalog_row.media_asset.public_payload()
+                if not exercise.get("primary_muscle"):
+                    exercise["primary_muscle"] = catalog_row.primary_muscle
     return {
         **serialize_student_program_summary(program),
         "date_range_start": program.date_range_start.isoformat()
@@ -759,6 +778,8 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
             template=template,
             request=generation_data,
         )
+        if isinstance(document.get("training"), dict):
+            ensure_workout_schedule(document["training"], start, end)
         if any(
             w.startswith("missing_exercise_candidates") for w in warnings
         ) and generation_data.get("fail_on_missing_exercises"):

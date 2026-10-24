@@ -172,6 +172,11 @@ def serialize_exercise(ex: Exercise, preference: CoachExercisePreference | None 
         "risk_tags": list(ex.risk_tags or []),
         "source_document": ex.source_document,
         "tutorial_url": ex.tutorial_url,
+        "media": (
+            ex.media_asset.public_payload()
+            if ex.media_asset_id and ex.media_asset.is_active
+            else None
+        ),
         "execution_guide": ex.execution_guide,
         "coach_notes": ex.coach_notes,
         "aliases": list(ex.aliases.order_by("alias").values_list("alias", flat=True)),

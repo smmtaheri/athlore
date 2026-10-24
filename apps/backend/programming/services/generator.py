@@ -513,7 +513,7 @@ def generate_document(
         ]
         catalog = {
             str(row.id): row
-            for row in Exercise.objects.filter(
+            for row in Exercise.objects.select_related("media_asset").filter(
                 coach=coach,
                 id__in=[item["exercise_id"] for item in items if item.get("exercise_id")],
             )
@@ -523,6 +523,12 @@ def generate_document(
             if source:
                 item["tutorial_url"] = source.tutorial_url
                 item["execution_guide"] = source.execution_guide
+                item["primary_muscle"] = source.primary_muscle
+                item["media"] = (
+                    source.media_asset.public_payload()
+                    if source.media_asset_id and source.media_asset.is_active
+                    else None
+                )
         return document, document_warnings
     finally:
         student.goals = orig_goals

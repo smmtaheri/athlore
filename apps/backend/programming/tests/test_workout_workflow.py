@@ -21,7 +21,7 @@ from programming.services.programs import (
     serialize_student_program_detail,
 )
 from programming.services.regeneration import regenerate
-from programming.services.workouts import save_progress
+from programming.services.workouts import finish_workout_session, save_progress
 from students.models import Student, StudentProfile
 from students.services import create_visit
 
@@ -262,6 +262,52 @@ class WorkoutWorkflowTests(TestCase):
                 {**second_week, "set_logs": [{"set_index": 0, "completed": False}]},
             )
 
+    def test_finish_session_completes_untouched_exercises_and_preserves_explicit_partial_sets(self):
+        program, version = self.active_program()
+        version.training["days"][0]["exercises"].append({"id": "item-2", "sets": 2})
+        version.save(update_fields=["training", "updated_at"])
+        partial = {
+            "week": 1,
+            "day_id": "day-1",
+            "exercise_id": "item-1",
+            "completed_sets": [0],
+            "set_logs": [
+                {"set_index": 0, "completed": True, "reps": 10, "weight_kg": 30, "rest_seconds": None},
+                {"set_index": 1, "completed": False, "reps": 0, "weight_kg": 0, "rest_seconds": None},
+                {"set_index": 2, "completed": False, "reps": None, "weight_kg": None, "rest_seconds": None},
+            ],
+        }
+        save_progress(self.student, program.id, partial)
+        request = {"week": 1, "day_id": "day-1", "version_id": str(version.id)}
+
+        result = finish_workout_session(self.student, program.id, request)
+        first_finished_at = result["finished_at"]
+        repeated = finish_workout_session(self.student, program.id, request)
+
+        self.assertEqual(result["status"], WorkoutSession.Status.COMPLETED_PARTIAL)
+        self.assertEqual(repeated["finished_at"], first_finished_at)
+        self.assertEqual(WorkoutSession.objects.count(), 1)
+        self.assertEqual(result["completed_sets"]["item-1"], [0])
+        self.assertEqual(result["completed_sets"]["item-2"], [0, 1])
+        self.assertEqual(result["set_logs"]["item-1"][1]["reps"], 0)
+        self.assertFalse(result["set_logs"]["item-1"][1]["completed"])
+        self.assertEqual(
+            [item["completed"] for item in result["set_logs"]["item-2"]],
+            [True, True],
+        )
+
+    def test_finishing_an_untouched_session_completes_once(self):
+        program, version = self.active_program()
+        request = {"week": 1, "day_id": "day-1", "version_id": str(version.id)}
+
+        result = finish_workout_session(self.student, program.id, request)
+        repeated = finish_workout_session(self.student, program.id, request)
+
+        self.assertEqual(result["status"], WorkoutSession.Status.COMPLETED)
+        self.assertEqual(result["completed_sets"]["item-1"], [0, 1, 2])
+        self.assertEqual(repeated["finished_at"], result["finished_at"])
+        self.assertEqual(WorkoutSession.objects.count(), 1)
+
     def test_pdf_workout_does_not_accept_progress(self):
         program, version = self.active_program()
         version.pdf_settings = {"deliverySections": {"workout": "uploaded"}}
@@ -288,6 +334,44 @@ class WorkoutWorkflowTests(TestCase):
                 activate_version(program, version.id)
 
     def test_progress_api_owns_student_scope(self):
+        program, _ = self.active_program()
+        other_student = Student.objects.create(
+            coach=self.coach,
+            full_name="Other Athlete",
+            age=28,
+            gender="male",
+            height_cm=180,
+            weight_kg=80,
+        )
+        user = get_user_model().objects.create_user(username="workout-test-other-student")
+        StudentProfile.objects.create(
+            student=other_student,
+            user=user,
+            portal_enabled=True,
+            must_change_password=False,
+            account_activated_at=timezone.now(),
+        )
+        client = APIClient()
+        client.force_authenticate(user)
+        response = client.put(
+            f"/api/v1/me/programs/{program.id}/workout-progress/",
+            {
+                "week": 1,
+                "day_id": "day-1",
+                "exercise_id": "item-1",
+                "completed_sets": [0],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(WorkoutSession.objects.exists())
+
+        coach_client = APIClient()
+        coach_client.force_authenticate(self.coach.user)
+        response = coach_client.get(f"/api/v1/me/programs/{program.id}/workout-progress/")
+        self.assertEqual(response.status_code, 403)
+
+    def test_progress_api_rejects_sets_outside_the_prescribed_count(self):
         program, _ = self.active_program()
         user = get_user_model().objects.create_user(username="workout-test-student")
         StudentProfile.objects.filter(student=self.student).delete()

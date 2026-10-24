@@ -14,7 +14,12 @@ from programming.models import WorkoutSession
 from programming.services import programs
 from programming.services.preparation import prepare_from_visit, validate_settings
 from programming.services.regeneration import regenerate
-from programming.services.workouts import save_progress, serialize_progress, workout_version
+from programming.services.workouts import (
+    finish_workout_session,
+    save_progress,
+    serialize_progress,
+    workout_version,
+)
 
 
 class PrepareVisitProgramView(APIView):
@@ -110,4 +115,8 @@ class WorkoutProgressView(APIView):
 
     @transaction.atomic
     def put(self, request, program_id):
+        if request.data.get("action") == "finish_session":
+            return Response(
+                finish_workout_session(get_request_student(request), program_id, request.data)
+            )
         return Response(save_progress(get_request_student(request), program_id, request.data))

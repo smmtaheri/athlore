@@ -314,6 +314,51 @@ class EquipmentTaxonomy(models.Model):
         return self.name
 
 
+class ExerciseMediaAsset(models.Model):
+    """Platform-owned, reusable instructional media for an exact movement variant."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    key = models.SlugField(max_length=40, unique=True)
+    title_fa = models.CharField(max_length=160)
+    title_en = models.CharField(max_length=160, blank=True, default="")
+    author = models.CharField(max_length=160)
+    source_url = models.URLField(max_length=1024)
+    license_name = models.CharField(max_length=160)
+    license_url = models.URLField(max_length=1024)
+    changes = models.TextField(blank=True, default="")
+    preview_path = models.CharField(max_length=255)
+    poster_path = models.CharField(max_length=255)
+    reel_path = models.CharField(max_length=255)
+    education = models.JSONField(default=dict, blank=True)
+    disclaimer = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "title_fa"]
+
+    def __str__(self) -> str:
+        return self.title_fa
+
+    def public_payload(self) -> dict:
+        return {
+            "key": self.key,
+            "title": self.title_fa,
+            "preview_url": self.preview_path,
+            "poster_url": self.poster_path,
+            "reel_url": self.reel_path,
+            "education": self.education,
+            "attribution": {
+                "author": self.author,
+                "source_url": self.source_url,
+                "license": self.license_name,
+                "license_url": self.license_url,
+                "changes": self.changes,
+                "disclaimer": self.disclaimer,
+            },
+        }
+
+
 class Exercise(models.Model):
     """Coach-owned structured movement catalog entry."""
 
@@ -351,6 +396,13 @@ class Exercise(models.Model):
     # Reference document (e.g. a coach-provided PDF/program name) this entry was imported from.
     source_document = models.CharField(max_length=255, blank=True, default="")
     tutorial_url = models.URLField(max_length=1024, blank=True, default="")
+    media_asset = models.ForeignKey(
+        ExerciseMediaAsset,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="exercises",
+    )
     execution_guide = models.JSONField(default=dict, blank=True)
     coach_notes = models.TextField(blank=True, default="")
     is_active = models.BooleanField(default=True)
