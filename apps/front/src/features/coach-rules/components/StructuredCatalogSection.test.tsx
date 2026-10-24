@@ -355,6 +355,74 @@ describe("StructuredCatalogSection", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("حرکت ذخیره شد.");
   });
 
+  it("saves the three public lesson sections independently and preserves private notes", async () => {
+    apiRequestMock.mockClear();
+    render(<StructuredCatalogSection />);
+    const row = (await screen.findAllByText("پرس بالاسینه دمبل"))
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    fireEvent.click(within(row as HTMLElement).getByRole("button", { name: "ویرایش" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "اجرای درست" }), {
+      target: { value: "آماده‌سازی\nاجرای کنترل‌شده" }
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "نکات مهم" }), {
+      target: { value: "تنفس منظم" }
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "اشتباهات رایج" }), {
+      target: { value: "حرکت شتاب‌زده" }
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "توضیح مربی" }), {
+      target: { value: "یادداشت خصوصی" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "ذخیره حرکت" }));
+    await screen.findByRole("status");
+    const saved = apiRequestMock.mock.calls.find(
+      ([path, options]) => path === "/exercises/exercise-1/" && options?.method === "PATCH"
+    );
+    expect(saved?.[1].body.execution_guide).toEqual({
+      execution: "آماده‌سازی\nاجرای کنترل‌شده",
+      tips: "تنفس منظم",
+      mistakes: "حرکت شتاب‌زده"
+    });
+    expect(saved?.[1].body.coach_notes).toBe("یادداشت خصوصی");
+  });
+
+  it("shows library education in the editor without saving untouched defaults as overrides", async () => {
+    const base = apiRequestMock.getMockImplementation()!;
+    apiRequestMock.mockImplementation(async (path: string, options?: unknown) => {
+      const response = await base(path, options);
+      if (path === "/exercises/")
+        response.results[0].media = {
+          education: {
+            steps: [{ title: "آماده‌سازی", text: "راهنمای اولیه", at_seconds: 5 }],
+            tips: ["نکتهٔ اولیه"],
+            mistakes: []
+          }
+        };
+      return response;
+    });
+    apiRequestMock.mockClear();
+    render(<StructuredCatalogSection />);
+    const row = (await screen.findAllByText("پرس بالاسینه دمبل"))
+      .map((element) => element.closest("tr"))
+      .find(Boolean);
+    fireEvent.click(within(row as HTMLElement).getByRole("button", { name: "ویرایش" }));
+    expect(screen.getByRole("textbox", { name: "اجرای درست" })).toHaveValue(
+      "آماده‌سازی: راهنمای اولیه"
+    );
+    expect(screen.getByRole("textbox", { name: "نکات مهم" })).toHaveValue("نکتهٔ اولیه");
+    fireEvent.change(screen.getByRole("textbox", { name: "اجرای درست" }), {
+      target: { value: "" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "ذخیره حرکت" }));
+    await screen.findByRole("status");
+    const saved = apiRequestMock.mock.calls.find(
+      ([path, options]) => path === "/exercises/exercise-1/" && options?.method === "PATCH"
+    );
+    expect(saved?.[1].body.execution_guide).toEqual({ execution: "" });
+    expect(saved?.[1].body.default_guide).toBeUndefined();
+  });
+
   it.each([
     ["exercise_duplicate", "حرکتی با این نام برای این عضله قبلاً ثبت شده است."],
     ["exercise_validation_error", "تجهیزات انتخاب‌شده نامعتبر است؛ دوباره انتخاب کنید."],

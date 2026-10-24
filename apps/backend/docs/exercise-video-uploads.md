@@ -6,6 +6,26 @@ no owner; each uploaded immutable revision belongs to one coach and one target
 exercise. Another coach cannot inspect or alter its upload job, and catalog
 serialization refuses an asset owned by a different coach.
 
+## Coach-written movement education
+
+The exercise editor exposes three independent public text fields in
+`execution_guide`: `execution`, `tips`, and `mistakes` (up to 4,000 characters
+each). Each non-empty line becomes an item in the corresponding student lesson
+tab. The separate `coach_notes` field is never used as educational content.
+Coach text works without a video; the row's guide button still opens the lesson.
+
+Existing licensed media education remains the default for sections the coach
+has not overridden. The editor displays those defaults without silently copying
+them into the coach's saved overrides. An explicitly saved empty section hides
+the corresponding default text. Coach instructions override only their own
+section and are not assigned fabricated video cue timestamps.
+
+Like media, current public education resolves by exercise ID and program coach
+when students read existing programs. Catalog edits update the lesson without
+rewriting published prescriptions or workout progress. Foreign/missing catalog
+IDs do not expose another coach's current guide. Legacy rows without an exercise
+ID retain their existing snapshot; no name-based cross-catalog match is invented.
+
 ## API
 
 - `GET /api/v1/exercises/{exercise_id}/media/` returns `{media, media_upload}`.
@@ -66,6 +86,11 @@ supplied handoff ZIP byte-for-byte, including credits. They remain the bundled
 starter library; runtime uploads are stored in the persistent media volume,
 not in Git or frontend builds. No starter video import or separate DNS record
 is needed. The frontend and backend no longer rewrite asset keys to the demo host.
+The existence of a bundled file does not attach it to every exercise. Only exact
+seed mappings or explicitly uploaded/assigned media appear on a matching movement.
+Bundled `/media/workout/{key}-preview.mp4` URLs are same-origin static files;
+uploaded derivatives live under `/media/workout/uploads/`. Neither depends on a
+browser cache entry for persistence. Reloading fetches the current catalog links.
 
 The shared stage gateway forwards the isolated stage Nginx CSP, instead of
 appending the production CSP. `stage-gateway-up.sh` patches only the stage server

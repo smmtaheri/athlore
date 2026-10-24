@@ -1353,6 +1353,15 @@
   text-underline-offset: 2px;
 }
 
+button.workoutSourceLink {
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
 .workoutExerciseMeta {
   display: flex;
   flex-wrap: wrap;

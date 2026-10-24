@@ -183,8 +183,8 @@ type SecondaryTarget = { muscle_key: string; region_key: string };
 type ExerciseDraft = {
   tutorial_url: string;
   tutorial_source_url: string;
-  execution_notes: string;
   execution_guide: Record<string, string>;
+  default_guide: Record<string, string>;
   name: string;
   name_en: string;
   aliases: string;
@@ -205,8 +205,8 @@ type ExerciseDraft = {
 const emptyDraft: ExerciseDraft = {
   tutorial_url: "",
   tutorial_source_url: "",
-  execution_notes: "",
   execution_guide: {},
+  default_guide: {},
   name: "",
   name_en: "",
   aliases: "",
@@ -238,8 +238,16 @@ function exerciseFromRow(row: CatalogExercise, taxonomy: ExerciseTaxonomy): Exer
     ...emptyDraft,
     tutorial_url: row.tutorial_url ?? "",
     tutorial_source_url: row.tutorial_source_url ?? "",
-    execution_notes: row.execution_guide?.execution ?? "",
     execution_guide: row.execution_guide ?? {},
+    default_guide: {
+      execution: (row.media?.education.steps ?? [])
+        .map((step) => [step.title, step.text].filter(Boolean).join(": "))
+        .join("\n"),
+      tips: (row.media?.education.tips ?? []).join("\n"),
+      mistakes: (row.media?.education.mistakes ?? [])
+        .map((mistake) => [mistake.title, mistake.text].filter(Boolean).join(": "))
+        .join("\n")
+    },
     aliases: row.aliases.join(", "),
     coach_notes: row.coach_notes,
     equipment_keys: row.equipment_keys,
@@ -282,7 +290,7 @@ function exercisePayload(draft: ExerciseDraft) {
     equipment_keys: draft.equipment_keys,
     movement_pattern: draft.movement_pattern,
     source_document: draft.source_document,
-    execution_guide: { ...draft.execution_guide, execution: draft.execution_notes },
+    execution_guide: draft.execution_guide,
     coach_notes: draft.coach_notes,
     is_preferred: draft.is_preferred,
     is_prohibited: draft.is_prohibited,
@@ -1086,17 +1094,33 @@ export function StructuredCatalogSection() {
                 </FormField>
               )}
             </div>
-            <FormField
-              className={styles.fullField}
-              label="راهنمای اجرای قابل‌نمایش برای شاگرد"
-              htmlFor="exercise-execution-guide"
-            >
-              <Textarea
-                id="exercise-execution-guide"
-                value={draft.execution_notes}
-                onChange={(e) => setDraft({ ...draft, execution_notes: e.target.value })}
-              />
-            </FormField>
+            {(
+              [
+                ["execution", "اجرای درست"],
+                ["tips", "نکات مهم"],
+                ["mistakes", "اشتباهات رایج"]
+              ] as const
+            ).map(([key, label]) => (
+              <FormField
+                key={key}
+                className={styles.fullField}
+                label={label}
+                htmlFor={`exercise-guide-${key}`}
+                hint="برای شاگرد نمایش داده می‌شود؛ هر مورد را در یک خط بنویسید. پاک‌کردن متن این بخش، آموزش پیش‌فرض آن را هم پنهان می‌کند."
+              >
+                <Textarea
+                  id={`exercise-guide-${key}`}
+                  maxLength={4000}
+                  value={draft.execution_guide[key] ?? draft.default_guide[key] ?? ""}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      execution_guide: { ...draft.execution_guide, [key]: event.target.value }
+                    })
+                  }
+                />
+              </FormField>
+            ))}
             <FormField label="اولویت">
               <Input
                 min={0}
@@ -1105,8 +1129,13 @@ export function StructuredCatalogSection() {
                 onChange={(event) => setDraft({ ...draft, priority: Number(event.target.value) })}
               />
             </FormField>
-            <FormField className={styles.fullField} label="توضیح مربی">
+            <FormField
+              className={styles.fullField}
+              label="توضیح مربی"
+              htmlFor="exercise-coach-notes"
+            >
               <Textarea
+                id="exercise-coach-notes"
                 value={draft.coach_notes}
                 onChange={(event) => setDraft({ ...draft, coach_notes: event.target.value })}
               />

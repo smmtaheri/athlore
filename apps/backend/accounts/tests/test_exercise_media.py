@@ -168,6 +168,7 @@ class ExerciseMediaTests(APITestCase):
                             "id": "e2",
                             "exercise_id": str(self.other_exercise.id),
                             "media": {"key": "foreign"},
+                            "execution_guide": {"execution": "Foreign snapshot guide"},
                         },
                     ],
                 }
@@ -183,11 +184,25 @@ class ExerciseMediaTests(APITestCase):
         program.active_version = version
         program.save()
         before = deepcopy(training)
+        guide = {"execution": "Controlled movement", "tips": "Breathe", "mistakes": "Rushing"}
+        response = self.client.patch(
+            f"/api/v1/exercises/{self.exercise.pk}/",
+            {"execution_guide": guide, "coach_notes": "Private coach note"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
         exercises = serialize_student_program_detail(program)["training"]["days"][0]["exercises"]
+        self.assertEqual(exercises[0]["execution_guide"], guide)
+        self.assertNotIn("Private coach note", str(exercises))
+        self.assertEqual(exercises[1]["execution_guide"], {})
         self.assertEqual(exercises[0]["media"]["key"], "incline")
         self.assertTrue(exercises[0]["media"]["reel_url"].startswith("/media/workout/"))
         self.assertIsNone(exercises[1]["media"])
         remove_video(self.exercise)
+        self.exercise.execution_guide = {"execution": "", "tips": "", "mistakes": ""}
+        self.exercise.save(update_fields=["execution_guide"])
+        refreshed = serialize_student_program_detail(program)["training"]["days"][0]["exercises"][0]
+        self.assertEqual(refreshed["execution_guide"], self.exercise.execution_guide)
         self.assertIsNone(
             serialize_student_program_detail(program)["training"]["days"][0]["exercises"][0][
                 "media"
@@ -195,3 +210,25 @@ class ExerciseMediaTests(APITestCase):
         )
         version.refresh_from_db()
         self.assertEqual(version.training, before)
+
+    def test_coach_education_round_trip_validation_and_ownership(self):
+        url = f"/api/v1/exercises/{self.exercise.pk}/"
+        guide = {"execution": "Step one\nStep two", "tips": "Tip", "mistakes": "Mistake"}
+        self.assertEqual(
+            self.client.patch(url, {"execution_guide": guide}, format="json").status_code, 200
+        )
+        self.assertEqual(self.client.get(url).data["execution_guide"], guide)
+        for invalid in (
+            {"tips": ["not a string"]},
+            {"tips": "x" * 4001},
+            {"private": "not public"},
+        ):
+            with self.subTest(invalid_type=list(invalid)):
+                self.assertEqual(
+                    self.client.patch(url, {"execution_guide": invalid}, format="json").status_code,
+                    400,
+                )
+        self.client.force_authenticate(self.other_user)
+        self.assertEqual(
+            self.client.patch(url, {"execution_guide": guide}, format="json").status_code, 404
+        )

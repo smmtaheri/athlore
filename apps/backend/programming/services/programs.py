@@ -246,7 +246,7 @@ def serialize_student_program_detail(program: Program) -> dict:
     training = _deep_copy(version.training)
     if isinstance(training, dict):
         ensure_workout_schedule(training, program.date_range_start, program.date_range_end)
-    # Instructional media is live catalog data, not a frozen prescription.
+    # Instructional media and public education are live catalog data, not a frozen prescription.
     # Resolve replacements/removals for old programs without changing their
     # immutable training or progress, and only from this program's coach.
     if isinstance(training, dict):
@@ -278,12 +278,14 @@ def serialize_student_program_detail(program: Program) -> dict:
                         exercise["media"] = None
                         exercise["tutorial_url"] = ""
                         exercise["tutorial_source_url"] = ""
+                        exercise["execution_guide"] = {}
                     continue
                 from accounts.exercise_media_services import media_payload
 
                 exercise["tutorial_source_url"] = catalog_row.tutorial_source_url
                 exercise["tutorial_url"] = catalog_row.tutorial_url
                 exercise["media"] = media_payload(catalog_row)
+                exercise["execution_guide"] = _deep_copy(catalog_row.execution_guide or {})
                 if not exercise.get("primary_muscle"):
                     exercise["primary_muscle"] = catalog_row.primary_muscle
     return {

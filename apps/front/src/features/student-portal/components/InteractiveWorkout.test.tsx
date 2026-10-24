@@ -84,6 +84,27 @@ describe("InteractiveWorkout", () => {
   beforeEach(() => api.mockReset());
   afterEach(() => vi.restoreAllMocks());
 
+  it("opens all three coach lesson sections without a video and keeps sections separate", async () => {
+    api.mockResolvedValueOnce({ version_id: "version-1", sessions: [] });
+    const withGuide = structuredClone(program);
+    withGuide.training!.days[0].exercises[0].execution_guide = {
+      execution: "آماده‌سازی بدن\nحرکت کنترل‌شده",
+      tips: "تنفس منظم", mistakes: "اجرای شتاب‌زده"
+    };
+    render(<InteractiveWorkout program={withGuide} />);
+    await userEvent.click(await screen.findByRole("button", { name: "آموزش حرکت پرس سینه هالتر" }));
+    expect(screen.getByText("آماده‌سازی بدن")).toBeInTheDocument();
+    expect(screen.queryByText("تنفس منظم")).not.toBeInTheDocument();
+    expect(screen.queryByText("اجرای شتاب‌زده")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "نکات مهم" }));
+    expect(screen.getByText("تنفس منظم")).toBeInTheDocument();
+    expect(screen.queryByText("آماده‌سازی بدن")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "اشتباهات" }));
+    expect(screen.getByText("اجرای شتاب‌زده")).toBeInTheDocument();
+    expect(screen.queryByLabelText("ویدئوی پرس سینه هالتر")).not.toBeInTheDocument();
+    expect(api).toHaveBeenCalledTimes(1);
+  });
+
   it("uses the actual scheduled weeks and does not create progress on page load", async () => {
     api.mockResolvedValueOnce({ version_id: "version-1", sessions: [] });
     render(<InteractiveWorkout program={program} />);

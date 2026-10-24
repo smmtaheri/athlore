@@ -20,6 +20,7 @@ import type {
   TrainingExercise
 } from "../../programs/types/generatedProgram";
 import styles from "./studentPortal.module.css";
+import { exerciseEducation } from "./exerciseEducation";
 
 interface LoggedSet {
   set_index: number;
@@ -124,16 +125,6 @@ function createExerciseKey(week: number, dayId: string, exerciseId: string) {
 
 function getExerciseMedia(exercise: TrainingExercise): ExerciseMedia | null {
   return exercise.media && typeof exercise.media === "object" ? exercise.media : null;
-}
-
-function guideSteps(exercise: TrainingExercise) {
-  const steps = getExerciseMedia(exercise)?.education?.steps;
-  if (steps?.length) return steps;
-  return Object.entries(exercise.execution_guide ?? {}).map(([title, text], index) => ({
-    at_seconds: index * 7,
-    title,
-    text
-  }));
 }
 
 function useAccessibleDialog(onClose: () => void) {
@@ -783,6 +774,14 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
                           ) : (
                             <span>ویدئوی دقیق برای این حرکت ثبت نشده</span>
                           )}
+                          <button
+                            className={styles.workoutSourceLink}
+                            aria-label={`آموزش حرکت ${exercise.name}`}
+                            type="button"
+                            onClick={(event) => launchLesson(exercise, event.currentTarget)}
+                          >
+                            راهنمای حرکت
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1314,9 +1313,7 @@ function LessonDialog({
 }) {
   const dialogRef = useAccessibleDialog(onClose);
   const media = getExerciseMedia(exercise);
-  const steps = guideSteps(exercise);
-  const tips = media?.education?.tips ?? [];
-  const mistakes = media?.education?.mistakes ?? [];
+  const { steps, tips, mistakes, description, cues } = exerciseEducation(exercise);
   const durationSeconds = prescribedExerciseSeconds(exercise);
   const prior = index > 0 ? exercises[index - 1] : null;
   const next = index < exercises.length - 1 ? exercises[index + 1] : null;
@@ -1344,7 +1341,7 @@ function LessonDialog({
               {tab === "steps" ? (
                 <>
                   <h3>اجرای درست</h3>
-                  {media?.education?.description ? <p>{media.education.description}</p> : null}
+                  {description ? <p>{description}</p> : null}
                   {steps.length ? <ol>{steps.map((step) => <li key={`${step.at_seconds}-${step.title}`}><strong>{step.title}</strong>{step.text}</li>)}</ol> : <p>راهنمای اجرای عمومی برای این حرکت ثبت نشده است؛ دستور مربی را ملاک قرار بده.</p>}
                 </>
               ) : null}
@@ -1386,7 +1383,7 @@ function LessonDialog({
             exerciseName={exercise.name}
             poster={poster}
             source={source}
-            steps={steps}
+            steps={cues}
           />
           <footer className={styles.workoutLessonPlayerFooter}>
             <button disabled={!prior} onClick={() => prior && onSelect(prior)} type="button">‹ قبلی</button>
