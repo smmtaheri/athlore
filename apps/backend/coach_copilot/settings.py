@@ -169,6 +169,14 @@ NAJVA_TEMPLATE = os.environ.get("NAJVA_TEMPLATE", "athlore_otp")
 NAJVA_PROGRAM_READY_TEMPLATE = os.environ.get(
     "NAJVA_PROGRAM_READY_TEMPLATE", "athlore_program_ready"
 )
+NAJVA_VISIT_FINALIZED_TEMPLATE = os.environ.get(
+    "NAJVA_VISIT_FINALIZED_TEMPLATE", "athlore_visit_finalized"
+)
+VISIT_FINALIZED_SMS_ENABLED = os.environ.get("VISIT_FINALIZED_SMS_ENABLED", "false").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 PROGRAM_READY_SMS_ENABLED = os.environ.get("PROGRAM_READY_SMS_ENABLED", "false").lower() in {
     "1",
     "true",

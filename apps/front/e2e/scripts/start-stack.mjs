@@ -63,6 +63,7 @@ const backendEnv = {
   SMS_BACKEND: "mock",
   NAJVA_API_KEY: "",
   PROGRAM_READY_SMS_ENABLED: "true",
+  VISIT_FINALIZED_SMS_ENABLED: "true",
   PUBLIC_API_BASE_URL: `http://127.0.0.1:${backendPort}/api/v1`,
   CORS_ALLOWED_ORIGINS: `http://127.0.0.1:${frontendPort},http://localhost:${frontendPort}`,
   PUBLIC_REGISTRATION_ENABLED: "true"

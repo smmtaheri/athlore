@@ -340,6 +340,27 @@ class VisitAnswerRevision(models.Model):
         return f"{self.visit_id}:{self.field_key}@{self.created_at}"
 
 
+class VisitFinalizedSms(models.Model):
+    """One post-commit notification attempt for each finalized visit."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SENDING = "sending", "Sending"
+        SENT = "sent", "Accepted by provider"
+        FAILED = "failed", "Failed"
+        SKIPPED = "skipped", "Not eligible"
+
+    visit = models.OneToOneField(
+        Visit, primary_key=True, on_delete=models.CASCADE, related_name="finalized_sms"
+    )
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    provider_message_id = models.PositiveBigIntegerField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    attempted_at = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+
 class StudentProfile(models.Model):
     """Links an authenticated User to a Student for the student self-service portal."""
 

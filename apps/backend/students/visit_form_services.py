@@ -769,6 +769,9 @@ def start_coach_review(visit: Visit, *, actor=None) -> Visit:
 @transaction.atomic
 def finalize_visit(visit: Visit, *, actor=None) -> Visit:
     """Mark the coach's review complete; subsequent coach edits preserve finalized status."""
+    visit.status = (
+        Visit.objects.select_for_update().values_list("status", flat=True).get(pk=visit.pk)
+    )
     allowed = {Visit.Status.DRAFT, Visit.Status.COACH_REVIEW}
     if visit.status not in allowed:
         raise ValidationError(
@@ -778,4 +781,7 @@ def finalize_visit(visit: Visit, *, actor=None) -> Visit:
     visit.status = Visit.Status.FINALIZED
     visit.finalized_at = timezone.now()
     visit.save(update_fields=["status", "finalized_at", "updated_at"])
+    from students.visit_notifications import schedule_visit_finalized_sms
+
+    schedule_visit_finalized_sms(visit)
     return visit

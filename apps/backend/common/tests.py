@@ -9,8 +9,7 @@ class SmsBackendTests(SimpleTestCase):
     @override_settings(SMS_BACKEND="mock")
     @patch("common.sms.http.client.HTTPSConnection")
     def test_mock_backend_accepts_messages_without_network_access(self, connection):
-        # The visit template is covered at the transport boundary even before
-        # its notification trigger is implemented. New templates must use it too.
+        # All notification types share this transport, including future templates.
         for template in ("athlore_otp", "athlore_visit_finalized", "athlore_program_ready"):
             with self.subTest(template=template):
                 with self.assertLogs("common.sms", level="INFO") as logs:

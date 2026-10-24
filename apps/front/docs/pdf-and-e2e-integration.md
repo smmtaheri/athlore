@@ -55,7 +55,7 @@ Never touches `coach-assistant-backend/db.sqlite3`.
   that delivery test, including its recipients and scope. Permission for an
   earlier one-message test is not continuing permission for later QA runs.
 - This rule covers all three notification types: login OTP, visit-finalized
-  acknowledgement (once implemented), and program-ready notification. All must
+  acknowledgement, and program-ready notification. All must
   use the shared `common.sms.send_template_sms` transport so the isolated
   `SMS_BACKEND=mock` applies to every template, including future additions.
 - Never disable SMS globally on shared Stage to make agent tests safe. Do not
@@ -84,8 +84,9 @@ Never touches `coach-assistant-backend/db.sqlite3`.
   shared Stage can send a real SMS. Backend regression tests assert that the
   HTTPS connection is never constructed in mock mode.
 - The transport regression test in `apps/backend/common/tests.py` checks all
-  three template names without constructing an HTTPS connection. This is not
-  evidence that the new visit notification trigger is already implemented.
+  three template names without constructing an HTTPS connection. Visit trigger
+  regressions in `students/tests/test_visit_notifications.py` additionally check
+  post-commit delivery, deduplication, rollback, eligibility and provider failure.
 - The detailed request → visit → program → student PDF flow and its mandatory
   stage checklist are in
   [`product-flows/program-request-to-delivery.md`](./product-flows/program-request-to-delivery.md).

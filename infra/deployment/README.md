@@ -275,9 +275,9 @@ authorized send.
 
 Stage Compose enables `PROGRAM_READY_SMS_ENABLED` by default; production settings
 default to disabled and production Compose is unchanged. On shared Stage, the
-program-ready notification is a real Najva SMS. Set this flag to `false` in
-`.env.stage` to disable it when publishing test programs; automated no-SMS E2E
-runs should instead use the isolated mock configuration above.
+program-ready notification is a real Najva SMS. Agent-run QA must never disable
+shared Stage SMS globally; automated no-SMS E2E uses the isolated mock configuration
+above. A real delivery test requires explicit user authorization.
 
 ```env
 PROGRAM_READY_SMS_ENABLED=true
@@ -288,6 +288,25 @@ The template payload uses `token20` for the first name. A successful Stage
 `ProgramReadySms` row means Najva accepted the request, not that the handset
 received it. In isolated mock mode, the same row has a synthetic message ID
 beginning with `9000000000000000000` and does not indicate phone delivery.
+
+### Stage visit-finalized SMS
+
+Stage Compose enables `VISIT_FINALIZED_SMS_ENABLED=true` and defaults
+`NAJVA_VISIT_FINALIZED_TEMPLATE=athlore_visit_finalized`. The existing Najva key
+and sender are reused; the new template must be approved before deployment.
+Production Compose is unchanged and the Django setting defaults to disabled.
+The template receives `token20` as the student's first name and promises delivery
+within 72 hours; this notification does not schedule automatic program generation.
+
+Only coach finalization queues this SMS, not draft saves or student submission.
+The `VisitFinalizedSms` one-to-one record allows one attempt per visit, executed
+after transaction commit. Concurrent finalization is locked. Provider failure
+does not undo the visit; failed/uncertain sends are not retried automatically.
+Only active students with an enabled portal and active login are eligible.
+No backfill sends notifications for old visits. Migration `students.0021` creates
+the delivery table; normal deployment applies it, not this coding task.
+Isolated Playwright enables the trigger with `SMS_BACKEND=mock`, so it exercises
+the delivery path without any real SMS or shared-Stage configuration changes.
 
 Migration `programming.0003_programreadysms` stores one notification per newly
 finalized version; it does not backfill or message historical programs. Sends run
