@@ -2147,6 +2147,11 @@
 
   .workoutLessonDialog {
     height: calc(100dvh - 16px);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .workoutLessonInfo {
+    min-height: 0;
   }
 
   .workoutLessonStage {
