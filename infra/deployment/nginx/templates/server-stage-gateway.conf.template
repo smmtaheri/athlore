@@ -5,8 +5,12 @@
     listen 80;
     server_name ${STAGE_PUBLIC_DOMAIN} ${STAGE_COACH_DOMAIN} ${STAGE_STUDENT_DOMAIN};
 
-    include /etc/nginx/snippets/security-headers.conf;
-    include /etc/nginx/snippets/hsts.conf;
+    # Successful responses carry the isolated stage Nginx security policy.
+    # Appending the production policy would enforce two conflicting CSPs.
+    client_max_body_size 110m;
+    client_body_timeout 120s;
+    proxy_read_timeout 180s;
+    proxy_send_timeout 180s;
 
     # Stage must always serve the current build, including its HTML entrypoint.
     proxy_hide_header Cache-Control;

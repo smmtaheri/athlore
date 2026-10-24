@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 from datetime import timedelta
 from typing import Any
-from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 from django.db import transaction
@@ -247,9 +246,9 @@ def serialize_student_program_detail(program: Program) -> dict:
     training = _deep_copy(version.training)
     if isinstance(training, dict):
         ensure_workout_schedule(training, program.date_range_start, program.date_range_end)
-    # Older finalized programs may predate exercise video URLs. Resolve only the
-    # missing media from this coach's catalog, without mutating the immutable
-    # program version or leaking another coach's catalog entries.
+    # Instructional media is live catalog data, not a frozen prescription.
+    # Resolve replacements/removals for old programs without changing their
+    # immutable training or progress, and only from this program's coach.
     if isinstance(training, dict):
         exercises = [
             exercise
@@ -258,17 +257,13 @@ def serialize_student_program_detail(program: Program) -> dict:
             for exercise in day.get("exercises", [])
             if isinstance(exercise, dict)
         ]
-        catalog_ids = {
-            exercise.get("exercise_id")
-            for exercise in exercises
-            if exercise.get("exercise_id")
-            and (
-                not exercise.get("media")
-                or not exercise.get("primary_muscle")
-                or not exercise.get("tutorial_source_url")
-            )
-        }
-        if catalog_ids:
+        catalog_ids = set()
+        for exercise in exercises:
+            try:
+                catalog_ids.add(UUID(str(exercise.get("exercise_id"))))
+            except (ValueError, TypeError, AttributeError):
+                continue
+        if exercises:
             catalog_rows = {
                 str(item.id): item
                 for item in Exercise.objects.select_related("media_asset").filter(
@@ -279,32 +274,16 @@ def serialize_student_program_detail(program: Program) -> dict:
             for exercise in exercises:
                 catalog_row = catalog_rows.get(str(exercise.get("exercise_id")))
                 if not catalog_row:
+                    if exercise.get("exercise_id"):
+                        exercise["media"] = None
+                        exercise["tutorial_url"] = ""
+                        exercise["tutorial_source_url"] = ""
                     continue
-                catalog_url = catalog_row.tutorial_url
-                if (
-                    not exercise.get("tutorial_source_url")
-                    or exercise.get("tutorial_source_url")
-                    in {
-                        "https://www.dvidshub.net/video/636933/dumbbell-shoulder-press",
-                        "https://gravitus.com/guides/exercises/one-arm-cable-lateral-raise/",
-                        "https://www.youtube.com/watch?v=U_qMtEvHuQM",
-                    }
-                    and catalog_row.tutorial_source_url
-                ):
-                    exercise["tutorial_source_url"] = catalog_row.tutorial_source_url
-                if (
-                    catalog_url
-                    and urlsplit(catalog_url).scheme == "https"
-                    and urlsplit(catalog_url).netloc
-                    and not exercise.get("tutorial_url")
-                ):
-                    exercise["tutorial_url"] = catalog_url
-                if (
-                    not exercise.get("media")
-                    and catalog_row.media_asset_id
-                    and catalog_row.media_asset.is_active
-                ):
-                    exercise["media"] = catalog_row.media_asset.public_payload()
+                from accounts.exercise_media_services import media_payload
+
+                exercise["tutorial_source_url"] = catalog_row.tutorial_source_url
+                exercise["tutorial_url"] = catalog_row.tutorial_url
+                exercise["media"] = media_payload(catalog_row)
                 if not exercise.get("primary_muscle"):
                     exercise["primary_muscle"] = catalog_row.primary_muscle
     return {

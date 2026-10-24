@@ -251,6 +251,10 @@ describe("InteractiveWorkout", () => {
       "src",
       "https://cdn.example.test/bench.mp4"
     );
+    await userEvent.click(screen.getByRole("button", { name: "روشن‌کردن صدا" }));
+    expect(screen.getByLabelText("ویدئوی پرس سینه هالتر")).toHaveProperty("muted", false);
+    await userEvent.click(screen.getByRole("button", { name: "قطع صدا" }));
+    expect(screen.getByLabelText("ویدئوی پرس سینه هالتر")).toHaveProperty("muted", true);
   });
 
   it("preserves explicit zero and incomplete sets when saving set details", async () => {

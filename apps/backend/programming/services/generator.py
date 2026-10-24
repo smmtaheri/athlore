@@ -525,11 +525,9 @@ def generate_document(
                 item["tutorial_source_url"] = source.tutorial_source_url
                 item["execution_guide"] = source.execution_guide
                 item["primary_muscle"] = source.primary_muscle
-                item["media"] = (
-                    source.media_asset.public_payload()
-                    if source.media_asset_id and source.media_asset.is_active
-                    else None
-                )
+                from accounts.exercise_media_services import media_payload
+
+                item["media"] = media_payload(source)
         return document, document_warnings
     finally:
         student.goals = orig_goals

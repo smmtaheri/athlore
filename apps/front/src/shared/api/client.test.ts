@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, persianMessageForApiError } from "./errors";
-import { __resetApiClientStateForTests, apiRequest } from "./client";
+import { __resetApiClientStateForTests, apiRequest, apiUploadFormData } from "./client";
 import {
   AUTH_SESSION_STORAGE_KEY,
   clearAuthSession,
@@ -206,5 +206,65 @@ describe("apiRequest", () => {
   it("maps network failures", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     await expect(apiRequest("/me/")).rejects.toMatchObject({ code: "network_error" });
+  });
+
+  it("reports multipart upload progress and refreshes expired authentication before retrying", async () => {
+    const sent: Array<{ headers: Record<string, string>; body: FormData; credentials: boolean }> =
+      [];
+    class FakeUpload {
+      headers: Record<string, string> = {};
+      withCredentials = false;
+      status = 0;
+      responseText = "";
+      upload: {
+        onprogress?: (event: { lengthComputable: boolean; loaded: number; total: number }) => void;
+      } = {};
+      onload?: () => void;
+      onerror?: () => void;
+      onabort?: () => void;
+      open = vi.fn();
+      setRequestHeader(name: string, value: string) {
+        this.headers[name] = value;
+      }
+      getResponseHeader() {
+        return "application/json";
+      }
+      abort() {
+        this.onabort?.();
+      }
+      send(body: FormData) {
+        sent.push({ headers: this.headers, body, credentials: this.withCredentials });
+        this.status = sent.length === 1 ? 401 : 202;
+        this.responseText = JSON.stringify(
+          this.status === 401 ? { detail: "expired" } : { queued: true }
+        );
+        queueMicrotask(() => {
+          this.upload.onprogress?.({ lengthComputable: true, loaded: 5, total: 10 });
+          this.onload?.();
+        });
+      }
+    }
+    vi.stubGlobal("XMLHttpRequest", FakeUpload);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ access: "access-2" }) })
+    );
+    try {
+      const body = new FormData();
+      body.append("file", new File(["video"], "demo.mp4"));
+      const onUploadProgress = vi.fn();
+      await expect(
+        apiUploadFormData("/exercises/exercise-1/media/", body, { onUploadProgress })
+      ).resolves.toEqual({ queued: true });
+      expect(sent).toHaveLength(2);
+      expect(sent[0].headers.Authorization).toBe("Bearer access-1");
+      expect(sent[1].headers.Authorization).toBe("Bearer access-2");
+      expect(sent[0].headers["Content-Type"]).toBeUndefined();
+      expect(sent[1].body).toBe(body);
+      expect(sent.every((item) => item.credentials)).toBe(true);
+      expect(onUploadProgress).toHaveBeenCalledWith(50);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

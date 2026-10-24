@@ -316,3 +316,21 @@ for public use: anyone who knows an active account's phone can sign in. The
 shared Stage environment uses real Najva OTP; the six-digit test code belongs
 only to isolated E2E configuration. Remove the production fixed code before
 treating OTP as a secure production authentication method.
+## Exercise video processing
+
+`exercise-video-worker` uses the backend image (FFmpeg included), the existing
+database and persistent media volume. The normal stage deploy starts it after
+backend migrations and health. No separate subdomain, queue server or manual
+FFmpeg installation is required. Run one worker replica.
+
+Nginx serves only processed educational videos and posters from
+`/media/workout/uploads/{asset_id}/`. Original uploads, student photos and PDFs
+are not made public. Originals and older revisions are retained in media backups;
+monitor the volume's disk capacity as the video library grows.
+
+The shared stage route passes through the inner stage Nginx security headers.
+Its patch removes only redundant stage server-level CSP/HSTS includes, preserves
+the offline response headers and leaves production host policies unchanged.
+
+Detailed API, lifecycle and acceptance checks:
+[exercise video uploads](../../apps/backend/docs/exercise-video-uploads.md).

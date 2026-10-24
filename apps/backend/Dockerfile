@@ -13,6 +13,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.25 /uv /usr/local/bin/uv
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    ffmpeg \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
     libcairo2 \

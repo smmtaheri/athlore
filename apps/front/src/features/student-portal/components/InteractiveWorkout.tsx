@@ -122,32 +122,8 @@ function createExerciseKey(week: number, dayId: string, exerciseId: string) {
   return `${week}:${dayId}:${exerciseId}`;
 }
 
-const EXTERNAL_EXERCISE_MEDIA_BASE_URL =
-  "https://athlore-workout-motion.admirer135.chatgpt.site/assets";
-const EXTERNAL_EXERCISE_MEDIA_KEYS = new Set([
-  "bench",
-  "incline",
-  "row",
-  "shoulder",
-  "pullup",
-  "squat",
-  "deadlift",
-  "legraise",
-  "crunch",
-  "plank",
-]);
-
 function getExerciseMedia(exercise: TrainingExercise): ExerciseMedia | null {
-  const media = exercise.media && typeof exercise.media === "object" ? exercise.media : null;
-  if (!media || !EXTERNAL_EXERCISE_MEDIA_KEYS.has(media.key)) return media;
-
-  const assetBase = `${EXTERNAL_EXERCISE_MEDIA_BASE_URL}/${media.key}`;
-  return {
-    ...media,
-    preview_url: `${assetBase}-preview.mp4`,
-    poster_url: `${assetBase}.jpg`,
-    reel_url: `${assetBase}-reel.mp4`,
-  };
+  return exercise.media && typeof exercise.media === "object" ? exercise.media : null;
 }
 
 function guideSteps(exercise: TrainingExercise) {
@@ -1001,7 +977,11 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
         <div className={styles.workoutAttributionList}>
           {allMedia.map((media) => (
             <p key={media.key}>
-              <strong>{media.title}</strong> — {media.attribution.author} · {media.attribution.license} · {media.attribution.changes} · <a href={media.attribution.source_url} rel="noreferrer" target="_blank">منبع</a> · <a href={media.attribution.license_url} rel="noreferrer" target="_blank">مجوز</a>
+              <strong>{media.title}</strong> — {media.attribution.author}
+              {media.attribution.license ? <> · {media.attribution.license}</> : null}
+              {media.attribution.changes ? <> · {media.attribution.changes}</> : null}
+              {media.attribution.source_url ? <> · <a href={media.attribution.source_url} rel="noreferrer" target="_blank">منبع</a></> : null}
+              {media.attribution.license_url ? <> · <a href={media.attribution.license_url} rel="noreferrer" target="_blank">مجوز</a></> : null}
               {media.attribution.disclaimer ? <><br /><span>{media.attribution.disclaimer}</span></> : null}
             </p>
           ))}
@@ -1441,6 +1421,7 @@ function LessonVideo({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playing, setPlaying] = useState(true);
+  const [muted, setMuted] = useState(true);
   const [failed, setFailed] = useState(false);
   const embedId = youtubeId(source);
   const currentCue = [...steps].reverse().find((step) => step.at_seconds <= currentTime) ?? steps[0];
@@ -1467,7 +1448,7 @@ function LessonVideo({
           <video
             aria-label={`ویدئوی ${exerciseName}`}
             autoPlay
-            muted
+            muted={muted}
             playsInline
             poster={poster || undefined}
             preload="metadata"
@@ -1520,13 +1501,17 @@ function LessonVideo({
                 if (video.paused) void video.play().catch(() => setPlaying(false));
                 else video.pause();
               }} type="button">{playing ? <Pause size={14} /> : <Play size={14} />} {playing ? "مکث" : "پخش"}</button>
+              <button aria-pressed={!muted} onClick={() => {
+                const video = videoRef.current;
+                if (video) { video.muted = !video.muted; setMuted(video.muted); }
+              }} type="button">{muted ? "روشن‌کردن صدا" : "قطع صدا"}</button>
               <span aria-live="off">{steps.length ? `${steps.filter((step) => step.at_seconds <= currentTime).length || 1} نکتهٔ راهنما` : "آموزش عمومی موجود نیست"}</span>
             </div>
           </>
         ) : null}
         <div className={styles.workoutVideoControlActions}>
           <span>{failed ? "پخش ویدئو در دسترس نیست؛ تصویر ثابت نمایش داده شده است." : ""}</span>
-          <span>{embedId ? <a href={source} rel="noopener noreferrer" target="_blank">ویدئو از منبع اصلی پخش می‌شود؛ اگر باز نشد اینجا بزن</a> : attribution ? <a href={attribution.source_url} rel="noreferrer" target="_blank">منبع و مجوز ویدئو</a> : "ویدئوی ثبت‌شده برای این حرکت"}</span>
+          <span>{embedId ? <a href={source} rel="noopener noreferrer" target="_blank">ویدئو از منبع اصلی پخش می‌شود؛ اگر باز نشد اینجا بزن</a> : attribution?.source_url ? <a href={attribution.source_url} rel="noreferrer" target="_blank">منبع و مجوز ویدئو</a> : "ویدئوی ثبت‌شده برای این حرکت"}</span>
         </div>
       </div>
     </>

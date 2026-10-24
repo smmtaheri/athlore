@@ -182,6 +182,17 @@ for model in apps.get_models():
                 referenced.add(value)
                 if not field.storage.exists(value):
                     missing.add(value)
+# Published derivatives are path fields, while original uploads are FileFields.
+asset_model = next((model for model in apps.get_models() if model._meta.label_lower == "accounts.exercisemediaasset"), None)
+assets = asset_model.objects.filter(status="ready", owner__isnull=False) if asset_model is not None and hasattr(asset_model, "status") else []
+for asset in assets:
+    for value in (asset.preview_path, asset.poster_path, asset.reel_path):
+        if not value.startswith("/media/workout/uploads/"):
+            raise SystemExit("Unexpected exercise video path in restored DB")
+        relative = value.removeprefix("/media/")
+        referenced.add(relative)
+        if not (media / relative).is_file():
+            missing.add(relative)
 print(json.dumps({"model_counts": counts, "media_files_checked": len(inventory),
                   "referenced_files": len(referenced), "missing_file_references": len(missing)}))
 if missing:
@@ -324,6 +335,10 @@ def restore(args):
     overlay_path.write_text(json.dumps(overlay, indent=2) + "\n")
     compose = ["docker", "compose", "--project-directory", str(deployment), "--env-file", str(deployment / ".env"),
                "-p", args.project, "-f", str(deployment / "compose.yaml"), "-f", str(overlay_path)]
+    restored_services = capture(compose + ["config", "--services"]).splitlines()
+    if "exercise-video-worker" in restored_services:
+        overlay["services"]["exercise-video-worker"] = {"image": tags["backend"]}
+        overlay_path.write_text(json.dumps(overlay, indent=2) + "\n")
     run(compose + ["config", "--quiet"])
     run(compose + ["up", "-d", "--no-build", "--pull", "never", "postgres"])
 
@@ -343,7 +358,7 @@ def restore(args):
     command = 'exec pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner --no-acl --exit-on-error --single-transaction'
     with (snapshot / "postgres.dump").open("rb") as stream:
         run(compose + ["exec", "-T", "postgres", "sh", "-c", command], stdin=stream)
-    log("Restoring uploaded photos and generated PDFs into the fresh media volume.")
+    log("Restoring photos, PDFs, and exercise videos into the fresh media volume.")
     command = 'mkdir -p /data/media; test -z "$(ls -A /data/media)"; tar xzf - -C /data/media; chown -R 10001:10001 /data/media'
     with (snapshot / "media.tar.gz").open("rb") as stream:
         run(compose + ["run", "--rm", "-T", "--no-deps", "--pull", "never", "--user", "0", "--entrypoint", "sh", "backend", "-ec", command], stdin=stream)
@@ -359,6 +374,8 @@ def restore(args):
                    "project": args.project, "verified_at_utc": dt.datetime.now(dt.timezone.utc).isoformat()})
     (deployment / "restore-verification.json").write_text(json.dumps(report, indent=2) + "\n")
     log(f"Verified {report['media_files_checked']} media files and {report['referenced_files']} DB file references.")
+    if "exercise-video-worker" in restored_services:
+        run(compose + ["up", "-d", "--no-build", "--pull", "never", "exercise-video-worker"])
     log(f"Restore healthy: project={args.project}, checkout={target}. Switch CDN origin after browser QA.")
 
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Plus, Save, Trash2 } from "lucide-react";
 import {
@@ -18,6 +18,15 @@ import {
 import { apiRequest } from "../../../shared/api/client";
 import { exerciseSaveErrorMessage } from "../services/exerciseSaveErrors";
 import { ExerciseTaxonomyManager } from "./ExerciseTaxonomyManager";
+import { ExerciseVideoManager } from "./ExerciseVideoManager";
+import {
+  uploadExerciseVideo,
+  validateExerciseVideo,
+  videoErrorMessage,
+  videoIsPending,
+  videoStatusLabel
+} from "../services/exerciseMedia";
+import type { ExerciseVideoState } from "../services/exerciseMedia";
 import type { ExerciseTaxonomy } from "./exerciseTaxonomyTypes";
 import styles from "../../programs/components/programFlow.module.css";
 
@@ -27,7 +36,7 @@ type ExerciseTarget = {
   role: "primary" | "secondary";
 };
 
-type CatalogExercise = {
+type CatalogExercise = ExerciseVideoState & {
   tutorial_url?: string;
   tutorial_source_url?: string;
   execution_guide?: Record<string, string>;
@@ -273,8 +282,6 @@ function exercisePayload(draft: ExerciseDraft) {
     equipment_keys: draft.equipment_keys,
     movement_pattern: draft.movement_pattern,
     source_document: draft.source_document,
-    tutorial_url: draft.tutorial_url,
-    tutorial_source_url: draft.tutorial_source_url,
     execution_guide: { ...draft.execution_guide, execution: draft.execution_notes },
     coach_notes: draft.coach_notes,
     is_preferred: draft.is_preferred,
@@ -301,7 +308,52 @@ export function StructuredCatalogSection() {
   const [filters, setFilters] = useState({ equipment: "", level: "", muscle: "", region: "" });
   const [feedback, setFeedback] = useState("");
   const [isSavingExercise, setIsSavingExercise] = useState(false);
+  const [videoEditorId, setVideoEditorId] = useState<string>();
+  const [videoBusy, setVideoBusy] = useState(false);
+  const [videoPollError, setVideoPollError] = useState("");
+  const [newVideoFile, setNewVideoFile] = useState<File>();
+  const [newVideoProgress, setNewVideoProgress] = useState(0);
   const exerciseErrorRef = useRef<HTMLDivElement>(null);
+  const updateVideo = useCallback((id: string, state: ExerciseVideoState) => {
+    setExercises((current) => current.map((row) => (row.id === id ? { ...row, ...state } : row)));
+  }, []);
+  const pendingVideoIds = exercises
+    .filter(videoIsPending)
+    .map((row) => row.id)
+    .join(",");
+  useEffect(() => {
+    if (!pendingVideoIds) return undefined;
+    const controller = new AbortController();
+    let polling = false;
+    const poll = async () => {
+      if (polling) return;
+      polling = true;
+      try {
+        const values = await Promise.all(
+          pendingVideoIds.split(",").map(async (id) => ({
+            id,
+            value: await apiRequest<ExerciseVideoState>(`/exercises/${id}/media/`, {
+              signal: controller.signal
+            })
+          }))
+        );
+        if (!controller.signal.aborted) {
+          values.forEach(({ id, value }) => updateVideo(id, value));
+          setVideoPollError("");
+        }
+      } catch (error) {
+        if (!controller.signal.aborted)
+          setVideoPollError(`دریافت وضعیت ویدئو انجام نشد. ${videoErrorMessage(error)}`);
+      } finally {
+        polling = false;
+      }
+    };
+    const interval = window.setInterval(() => void poll(), 3000);
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+    };
+  }, [pendingVideoIds, updateVideo]);
 
   useEffect(() => {
     if (exerciseEditorOpen && feedback) exerciseErrorRef.current?.focus();
@@ -416,6 +468,7 @@ export function StructuredCatalogSection() {
     : taxonomy.equipment.filter((equipment) => standardExerciseEquipmentKeys.has(equipment.key));
 
   const saveExercise = async () => {
+    if (videoBusy) return;
     setFeedback("");
     const duplicate = exercises.some(
       (exercise) =>
@@ -443,6 +496,22 @@ export function StructuredCatalogSection() {
       setExercises((current) =>
         editingId ? current.map((item) => (item.id === dto.id ? dto : item)) : [dto, ...current]
       );
+      if (newVideoFile) {
+        try {
+          updateVideo(dto.id, await uploadExerciseVideo(dto.id, newVideoFile, setNewVideoProgress));
+        } catch (error) {
+          const savedDraft = exerciseFromRow(dto, taxonomy);
+          setEditingId(dto.id);
+          setDraft(savedDraft);
+          setExerciseBaseline(savedDraft);
+          setNewVideoFile(undefined);
+          setFeedback(
+            `حرکت ذخیره شد، اما ویدئو ارسال نشد. ${videoErrorMessage(error)} از بخش ویدئو دوباره انتخاب کنید.`
+          );
+          return;
+        }
+      }
+      setNewVideoFile(undefined);
       setDraft(emptyDraft);
       setEditingId(undefined);
       setExerciseEditorOpen(false);
@@ -465,6 +534,8 @@ export function StructuredCatalogSection() {
   };
 
   const startNewExercise = () => {
+    setNewVideoFile(undefined);
+    setNewVideoProgress(0);
     setFeedback("");
     setDraft(emptyDraft);
     setEditingId(undefined);
@@ -473,6 +544,7 @@ export function StructuredCatalogSection() {
   };
 
   const startEditingExercise = (row: CatalogExercise) => {
+    setNewVideoFile(undefined);
     setFeedback("");
     const nextDraft = exerciseFromRow(row, taxonomy);
     setEditingId(row.id);
@@ -482,9 +554,11 @@ export function StructuredCatalogSection() {
   };
 
   const closeExerciseEditor = () => {
+    if (videoBusy || isSavingExercise) return;
     setExerciseEditorOpen(false);
     setEditingId(undefined);
     setDraft(emptyDraft);
+    setNewVideoFile(undefined);
   };
 
   const startEditingTechnique = (row: Technique) => {
@@ -637,6 +711,11 @@ export function StructuredCatalogSection() {
         </div>
       ) : null}
       <Card className={styles.pageStack}>
+        {videoPollError ? (
+          <p className={styles.alertError} role="alert">
+            {videoPollError}
+          </p>
+        ) : null}
         <div className={styles.ruleCardHeader}>
           <div>
             <h2 className={styles.ruleCardTitle}>کاتالوگ حرکات</h2>
@@ -739,6 +818,23 @@ export function StructuredCatalogSection() {
                 )
               },
               {
+                id: "video",
+                header: "ویدئو",
+                cell: (row) => (
+                  <div className={styles.pageStack}>
+                    <small>{videoStatusLabel(row)}</small>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      aria-label={`ویدئوی ${row.name}`}
+                      onClick={() => setVideoEditorId(row.id)}
+                    >
+                      {row.media ? "مدیریت ویدئو" : "آپلود ویدئو"}
+                    </Button>
+                  </div>
+                )
+              },
+              {
                 id: "actions",
                 header: "عملیات",
                 cell: (row) => (
@@ -788,6 +884,12 @@ export function StructuredCatalogSection() {
                 <span>تجهیزات: {row.equipment_keys.join("، ") || "ثبت نشده"}</span>
               </div>
               <div className={styles.mobileCatalogActions}>
+                <div className={styles.fullField}>
+                  <small>{videoStatusLabel(row)}</small>
+                  <Button fullWidth onClick={() => setVideoEditorId(row.id)} variant="secondary">
+                    {row.media ? "مدیریت ویدئو" : "آپلود ویدئو"}
+                  </Button>
+                </div>
                 <Button fullWidth onClick={() => startEditingExercise(row)} variant="secondary">
                   ویرایش
                 </Button>
@@ -805,12 +907,41 @@ export function StructuredCatalogSection() {
         </div>
       </Card>
 
+      {videoEditorId ? (
+        <EditorDrawer
+          open
+          title={`ویدئوی ${exercises.find((row) => row.id === videoEditorId)?.name || "حرکت"}`}
+          onClose={() => {
+            if (!videoBusy) setVideoEditorId(undefined);
+          }}
+          footer={
+            <Button
+              disabled={videoBusy}
+              onClick={() => setVideoEditorId(undefined)}
+              variant="secondary"
+            >
+              بستن
+            </Button>
+          }
+        >
+          <ExerciseVideoManager
+            key={videoEditorId}
+            exerciseId={videoEditorId}
+            name={exercises.find((row) => row.id === videoEditorId)?.name || "حرکت"}
+            state={exercises.find((row) => row.id === videoEditorId) || {}}
+            onChange={updateVideo}
+            onBusyChange={setVideoBusy}
+          />
+        </EditorDrawer>
+      ) : null}
+
       <EditorDrawer
         footer={(requestClose) => (
           <>
             <Button
               iconStart={<Save size={17} />}
               isLoading={isSavingExercise}
+              disabled={videoBusy}
               onClick={() => void saveExercise()}
             >
               ذخیره حرکت
@@ -820,7 +951,9 @@ export function StructuredCatalogSection() {
             </Button>
           </>
         )}
-        hasUnsavedChanges={JSON.stringify(draft) !== JSON.stringify(exerciseBaseline)}
+        hasUnsavedChanges={
+          Boolean(newVideoFile) || JSON.stringify(draft) !== JSON.stringify(exerciseBaseline)
+        }
         onClose={closeExerciseEditor}
         open={exerciseEditorOpen}
         title={editingId ? "ویرایش حرکت" : "حرکت جدید"}
@@ -919,30 +1052,40 @@ export function StructuredCatalogSection() {
                 onChange={(event) => setDraft({ ...draft, source_document: event.target.value })}
               />
             </FormField>
-            <FormField
-              label="لینک ویدئوی آموزش حرکت"
-              htmlFor="exercise-tutorial-url"
-              hint="لینک مستقیم فایل ویدئو؛ برای حرکت‌هایی که آموزش دارند."
-            >
-              <Input
-                id="exercise-tutorial-url"
-                type="url"
-                value={draft.tutorial_url}
-                onChange={(e) => setDraft({ ...draft, tutorial_url: e.target.value })}
-              />
-            </FormField>
-            <FormField
-              label="لینک صفحهٔ منبع ویدئو"
-              htmlFor="exercise-tutorial-source-url"
-              hint="اگر فایل مستقیم در دسترس نیست، لینک صفحهٔ اصلی ویدئو را وارد کنید؛ ویدئو در سایت منبع باز می‌شود."
-            >
-              <Input
-                id="exercise-tutorial-source-url"
-                type="url"
-                value={draft.tutorial_source_url}
-                onChange={(e) => setDraft({ ...draft, tutorial_source_url: e.target.value })}
-              />
-            </FormField>
+            <div className={styles.fullField}>
+              {editingId ? (
+                <ExerciseVideoManager
+                  key={editingId}
+                  exerciseId={editingId}
+                  name={draft.name}
+                  state={exercises.find((row) => row.id === editingId) || {}}
+                  onChange={updateVideo}
+                  onBusyChange={setVideoBusy}
+                />
+              ) : (
+                <FormField
+                  label="ویدئوی آموزش حرکت — اختیاری"
+                  htmlFor="new-exercise-video"
+                  hint="فقط ویدئوی اصلی؛ پوستر و پیش‌نمایش خودکار ساخته می‌شوند. حداکثر ۱۰۰ مگابایت و دو دقیقه."
+                >
+                  <Input
+                    id="new-exercise-video"
+                    accept="video/mp4,video/quicktime,.mp4,.mov"
+                    type="file"
+                    disabled={isSavingExercise}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      const error = file ? validateExerciseVideo(file) : "";
+                      setFeedback(error);
+                      setNewVideoFile(error ? undefined : file);
+                    }}
+                  />
+                  {isSavingExercise && newVideoFile ? (
+                    <progress aria-label="پیشرفت ارسال ویدئو" max={100} value={newVideoProgress} />
+                  ) : null}
+                </FormField>
+              )}
+            </div>
             <FormField
               className={styles.fullField}
               label="راهنمای اجرای قابل‌نمایش برای شاگرد"

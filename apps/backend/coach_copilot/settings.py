@@ -139,7 +139,8 @@ STORAGES = {
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Private PDF artifacts use Django storage. Do not serve MEDIA publicly in product flows.
+# PDFs, photos and original videos stay private. Only processed educational
+# videos have a narrow public Nginx alias; never expose the whole MEDIA_ROOT.
 MEDIA_ROOT = Path(os.environ.get("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media")))
 MEDIA_URL = "/media/"
 PUBLIC_API_BASE_URL = os.environ.get("PUBLIC_API_BASE_URL", f"https://{PUBLIC_DOMAIN}/api/v1")

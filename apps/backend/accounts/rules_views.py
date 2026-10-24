@@ -1,4 +1,4 @@
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.response import Response
@@ -6,7 +6,14 @@ from rest_framework.views import APIView
 
 from accounts import rules_services
 from accounts.exercise_errors import ExerciseWriteAPIView
-from accounts.models import CoachTechnique, Exercise, MuscleRegion, MuscleTaxonomy, ProgramTemplate
+from accounts.models import (
+    CoachTechnique,
+    Exercise,
+    ExerciseMediaAsset,
+    MuscleRegion,
+    MuscleTaxonomy,
+    ProgramTemplate,
+)
 from common.pagination import StandardLimitOffsetPagination
 from common.permissions import IsAuthenticatedCoach, get_owned_object, get_request_coach
 
@@ -89,13 +96,22 @@ class ExerciseListCreateView(ExerciseWriteAPIView):
 
     def get(self, request):
         coach = get_request_coach(request)
-        qs = Exercise.objects.filter(coach=coach).prefetch_related(
-            "preferences",
-            "aliases",
-            "muscle_targets__muscle",
-            "muscle_targets__region",
-            "suitable_level_rows",
-            "equipment_rows__equipment",
+        qs = (
+            Exercise.objects.filter(coach=coach)
+            .select_related("media_asset")
+            .prefetch_related(
+                Prefetch(
+                    "media_uploads",
+                    queryset=ExerciseMediaAsset.objects.filter(owner=coach).order_by("-created_at"),
+                    to_attr="_media_uploads",
+                ),
+                "preferences",
+                "aliases",
+                "muscle_targets__muscle",
+                "muscle_targets__region",
+                "suitable_level_rows",
+                "equipment_rows__equipment",
+            )
         )
         include_archived = (request.query_params.get("include_archived") or "").lower() in {
             "1",

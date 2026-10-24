@@ -139,7 +139,7 @@ class WorkoutWorkflowTests(TestCase):
         )
         self.assertEqual(WorkoutSession.objects.get(week=1).completed_sets, {"item-1": [0, 1]})
 
-    def test_student_program_detail_resolves_missing_video_from_own_coach_catalog(self):
+    def test_student_program_detail_resolves_current_video_from_own_coach_catalog(self):
         program, version = self.active_program()
         exercise = Exercise.objects.create(
             coach=self.coach,
@@ -184,7 +184,7 @@ class WorkoutWorkflowTests(TestCase):
                 "https://www.dvidshub.net/video/636933/dumbbell-shoulder-press",
                 exercise.tutorial_source_url,
             ),
-            ("https://coach.example/custom-tutorial", "https://coach.example/custom-tutorial"),
+            ("https://coach.example/custom-tutorial", exercise.tutorial_source_url),
         ]:
             version.training["days"][0]["exercises"][0]["tutorial_source_url"] = old_source
             version.save(update_fields=["training"])

@@ -354,10 +354,49 @@ export async function apiDownload(
 }
 
 /** Multipart upload (Body Check photos, etc.). Do not set JSON Content-Type. */
+function uploadWithProgress(
+  url: string,
+  headers: Record<string, string>,
+  formData: FormData,
+  onProgress: (percent: number) => void,
+  signal?: AbortSignal
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const abort = () => xhr.abort();
+    const cleanup = () => signal?.removeEventListener("abort", abort);
+    if (signal?.aborted) {
+      reject(new Error("Upload aborted"));
+      return;
+    }
+    xhr.open("POST", url);
+    xhr.withCredentials = true;
+    Object.entries(headers).forEach(([name, value]) => xhr.setRequestHeader(name, value));
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    xhr.onload = () => {
+      cleanup();
+      resolve(
+        new Response(xhr.status === 204 ? null : xhr.responseText, {
+          status: xhr.status,
+          headers: { "Content-Type": xhr.getResponseHeader("Content-Type") || "" }
+        })
+      );
+    };
+    xhr.onerror = xhr.onabort = () => {
+      cleanup();
+      reject(new Error("Upload failed"));
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    xhr.send(formData);
+  });
+}
+
 export async function apiUploadFormData<T>(
   path: string,
   formData: FormData,
-  options: Omit<ApiRequestOptions, "body"> = {}
+  options: Omit<ApiRequestOptions, "body"> & { onUploadProgress?: (percent: number) => void } = {}
 ): Promise<T> {
   const method = options.method ?? "POST";
   const headers: Record<string, string> = {
@@ -374,13 +413,22 @@ export async function apiUploadFormData<T>(
 
   let response: Response;
   try {
-    response = await fetch(buildUrl(path, options.query), {
-      method,
-      headers,
-      body: formData,
-      signal: options.signal,
-      credentials: "include"
-    });
+    response =
+      options.onUploadProgress && method === "POST"
+        ? await uploadWithProgress(
+            buildUrl(path, options.query),
+            headers,
+            formData,
+            options.onUploadProgress,
+            options.signal
+          )
+        : await fetch(buildUrl(path, options.query), {
+            method,
+            headers,
+            body: formData,
+            signal: options.signal,
+            credentials: "include"
+          });
   } catch {
     throw new ApiError({
       code: "network_error",

@@ -24,6 +24,7 @@ from accounts.models import (
     EquipmentTaxonomy,
     Exercise,
     ExerciseEquipment,
+    ExerciseMediaAsset,
     ExerciseMuscleTarget,
     ExerciseSuitableLevel,
     GeneralRule,
@@ -151,6 +152,8 @@ def serialize_general_rule(r: GeneralRule) -> dict:
 
 
 def serialize_exercise(ex: Exercise, preference: CoachExercisePreference | None = None) -> dict:
+    from accounts.exercise_media_services import serialize_media
+
     pref = preference
     if pref is None:
         prefetched = getattr(ex, "_coach_preferences", None)
@@ -173,11 +176,7 @@ def serialize_exercise(ex: Exercise, preference: CoachExercisePreference | None 
         "source_document": ex.source_document,
         "tutorial_url": ex.tutorial_url,
         "tutorial_source_url": ex.tutorial_source_url,
-        "media": (
-            ex.media_asset.public_payload()
-            if ex.media_asset_id and ex.media_asset.is_active
-            else None
-        ),
+        **serialize_media(ex),
         "execution_guide": ex.execution_guide,
         "coach_notes": ex.coach_notes,
         "aliases": list(ex.aliases.order_by("alias").values_list("alias", flat=True)),
@@ -831,7 +830,13 @@ def get_coach_rules_aggregate(coach: CoachProfile) -> dict:
             preference=(getattr(ex, "_coach_preferences", None) or [None])[0],
         )
         for ex in coach.exercises.filter(is_archived=False)
+        .select_related("media_asset")
         .prefetch_related(
+            Prefetch(
+                "media_uploads",
+                queryset=ExerciseMediaAsset.objects.filter(owner=coach).order_by("-created_at"),
+                to_attr="_media_uploads",
+            ),
             Prefetch(
                 "preferences",
                 queryset=CoachExercisePreference.objects.filter(coach=coach),

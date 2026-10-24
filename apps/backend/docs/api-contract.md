@@ -1071,3 +1071,15 @@ the notification worker rechecks that this is still the active version. Student
 content and PDF endpoints expose only the active published version. Existing
 legacy activation clients without a section-method map retain their compatibility
 contract; the canonical UI always supplies the map.
+## Exercise instructional video uploads
+
+Coach-owned exercise media supports GET/POST/DELETE
+`/api/v1/exercises/{exercise_id}/media/` and POST
+`/api/v1/exercises/{exercise_id}/media/retry/`. Upload POST is multipart and
+returns 202 with `{media, media_upload}`. The current media stays active while
+its replacement is queued/processing. Catalog exercise DTOs include the same
+`media_upload` status. Student program reads resolve current media from their
+program coach's catalog, including replacements and removals.
+
+See [exercise-video-uploads.md](exercise-video-uploads.md) for limits, state
+transitions, ownership, storage, and the acceptance flow.
