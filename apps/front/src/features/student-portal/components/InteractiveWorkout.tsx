@@ -1372,6 +1372,7 @@ function LessonDialog({
 
         <div className={styles.workoutLessonPlayer}>
           <header className={styles.workoutLessonPlayerHeader}>
+            <button aria-label="بستن آموزش" className={`${styles.workoutDialogClose} ${styles.workoutLessonPlayerClose}`} onClick={onClose} type="button"><X size={19} /></button>
             <strong>Athlore</strong>
             <span>{persianDigits(index + 1)} از {persianDigits(exercises.length)}</span>
           </header>
