@@ -51,6 +51,19 @@ Never touches `coach-assistant-backend/db.sqlite3`.
 
 ## SMS safety for browser E2E
 
+- Agent-run QA/E2E must not send real SMS unless the user explicitly authorizes
+  that delivery test, including its recipients and scope. Permission for an
+  earlier one-message test is not continuing permission for later QA runs.
+- This rule covers all three notification types: login OTP, visit-finalized
+  acknowledgement (once implemented), and program-ready notification. All must
+  use the shared `common.sms.send_template_sms` transport so the isolated
+  `SMS_BACKEND=mock` applies to every template, including future additions.
+- Never disable SMS globally on shared Stage to make agent tests safe. Do not
+  edit its `.env`, Compose runtime, or provider settings. Mock only the disposable
+  test processes. Browser-only mocks do not stop server-side notifications.
+  If a deployed-Stage action could send an SMS and no isolated backend is
+  available, do not perform that action; report the limitation and request
+  explicit delivery-test authorization. Read-only Stage checks are still allowed.
 - Shared Stage intentionally uses real Najva delivery for OTP and
   program-ready notifications. Automated no-SMS E2E must run against an
   isolated disposable backend, database, and media volume—not the shared Stage
@@ -70,6 +83,9 @@ Never touches `coach-assistant-backend/db.sqlite3`.
   notification record and mock result, not handset receipt. Publishing on
   shared Stage can send a real SMS. Backend regression tests assert that the
   HTTPS connection is never constructed in mock mode.
+- The transport regression test in `apps/backend/common/tests.py` checks all
+  three template names without constructing an HTTPS connection. This is not
+  evidence that the new visit notification trigger is already implemented.
 - The detailed request → visit → program → student PDF flow and its mandatory
   stage checklist are in
   [`product-flows/program-request-to-delivery.md`](./product-flows/program-request-to-delivery.md).

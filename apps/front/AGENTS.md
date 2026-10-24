@@ -75,6 +75,13 @@ API base is configured via env (see `.env.example`). Prefer adapters in `src/sha
 
 ### QA (default)
 
+Agent-run QA/E2E must mock every SMS type (OTP, visit-finalized, program-ready,
+and future templates) on the disposable test backend. Never globally disable SMS
+on shared Stage or enable a fixed login code there. Do not trigger a live-Stage
+action that could send SMS without the user's explicit authorization for that
+delivery test. Earlier permission for a single message is not ongoing permission.
+See `docs/pdf-and-e2e-integration.md` for the isolated test setup.
+
 Unless the user explicitly says to skip / go fast:
 
 ```bash
