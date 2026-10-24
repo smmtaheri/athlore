@@ -179,6 +179,24 @@ class WorkoutWorkflowTests(TestCase):
         version.refresh_from_db()
         self.assertEqual(version.training["days"][0]["exercises"][0]["tutorial_url"], "")
 
+        for old_source, expected in [
+            (
+                "https://www.dvidshub.net/video/636933/dumbbell-shoulder-press",
+                exercise.tutorial_source_url,
+            ),
+            ("https://coach.example/custom-tutorial", "https://coach.example/custom-tutorial"),
+        ]:
+            version.training["days"][0]["exercises"][0]["tutorial_source_url"] = old_source
+            version.save(update_fields=["training"])
+            refreshed = serialize_student_program_detail(program)
+            self.assertEqual(
+                refreshed["training"]["days"][0]["exercises"][0]["tutorial_source_url"], expected
+            )
+            version.refresh_from_db()
+            self.assertEqual(
+                version.training["days"][0]["exercises"][0]["tutorial_source_url"], old_source
+            )
+
     def test_student_program_detail_does_not_resolve_another_coaches_video(self):
         program, version = self.active_program()
         other_user = get_user_model().objects.create_user(username="other-video-coach")
@@ -277,9 +295,27 @@ class WorkoutWorkflowTests(TestCase):
             "exercise_id": "item-1",
             "completed_sets": [0],
             "set_logs": [
-                {"set_index": 0, "completed": True, "reps": 10, "weight_kg": 30, "rest_seconds": None},
-                {"set_index": 1, "completed": False, "reps": 0, "weight_kg": 0, "rest_seconds": None},
-                {"set_index": 2, "completed": False, "reps": None, "weight_kg": None, "rest_seconds": None},
+                {
+                    "set_index": 0,
+                    "completed": True,
+                    "reps": 10,
+                    "weight_kg": 30,
+                    "rest_seconds": None,
+                },
+                {
+                    "set_index": 1,
+                    "completed": False,
+                    "reps": 0,
+                    "weight_kg": 0,
+                    "rest_seconds": None,
+                },
+                {
+                    "set_index": 2,
+                    "completed": False,
+                    "reps": None,
+                    "weight_kg": None,
+                    "rest_seconds": None,
+                },
             ],
         }
         save_progress(self.student, program.id, partial)

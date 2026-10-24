@@ -76,10 +76,9 @@
     {% if coach_name %}<div class="meta">مربی: {{ coach_name }}</div>{% endif %}
     {% if student_name %}<div class="meta">شاگرد: {{ student_name }}</div>{% endif %}
     <div class="meta">برنامه: {{ program_title }} · نوع: {{ program_type }}</div>
-    <div class="meta">شناسه برنامه: {{ program_id }} · شناسه نسخه: {{ program_version_id }}{% if pdf_artifact_id %} · PDF: {{ pdf_artifact_id }}{% endif %}</div>
     <div class="meta">بازه: {{ date_range }}</div>
     <div class="meta">نسخه نهایی: {{ version_label }}{% if finalized_at %} · {{ finalized_at }}{% endif %}</div>
-    <div class="badge">نسخه نهایی‌شده · Template {{ template_version }}</div>
+    <div class="badge">نسخه نهایی‌شده</div>
   </header>
 
   <section class="section">
@@ -92,7 +91,6 @@
       <ul>{% for item in limitations %}<li>{{ item }}</li>{% endfor %}</ul>
     {% endif %}
     {% if coach_notes %}<div class="meta">یادداشت PDF مربی: {{ coach_notes }}</div>{% endif %}
-    {% if student_coach_notes %}<div class="meta">یادداشت مربی روی شاگرد: {{ student_coach_notes }}</div>{% endif %}
     {% if contact_info %}<div class="meta">تماس: {{ contact_info }}</div>{% endif %}
   </section>
 

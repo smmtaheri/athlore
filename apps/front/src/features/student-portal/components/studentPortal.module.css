@@ -131,6 +131,10 @@
   font-weight: 800;
 }
 
+.headerTools {
+  margin-inline-start: auto;
+}
+
 .page {
   width: min(100%, var(--content-max-width));
   margin-inline: auto;
@@ -830,7 +834,7 @@
   grid-template-columns: minmax(0, 1fr) 272px;
   gap: 18px;
   align-items: start;
-  font-family: "Athlore Estedad", var(--font-family, sans-serif);
+  font-family: inherit;
 }
 
 .workoutHero {
@@ -842,7 +846,7 @@
   gap: 24px;
   overflow: hidden;
   border-radius: 20px;
-  background: linear-gradient(112deg, #2457dc 0%, #6047e7 62%, #8062ed 100%);
+  background: var(--color-primary-700, #1d4ed8);
   color: #fff;
   padding: 26px 30px;
   box-shadow: 0 12px 28px rgb(79 70 229 / 15%);
@@ -927,18 +931,30 @@
 }
 
 .workoutRing {
+  position: relative;
   display: grid;
   width: 82px;
   height: 82px;
   flex: 0 0 auto;
   align-content: center;
   justify-items: center;
-  border: 6px solid var(--color-primary-100);
-  border-inline-start-color: var(--color-primary-600, #2563eb);
+  background: conic-gradient(
+    var(--color-primary-600, #2563eb) var(--workout-progress, 0%),
+    var(--color-primary-100) 0
+  );
   border-radius: 50%;
 }
 
+.workoutRing::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: inherit;
+  background: var(--color-surface);
+}
+
 .workoutRing strong {
+  position: relative;
   color: var(--color-text-primary);
   font-size: 1.05rem;
 }
@@ -1111,7 +1127,11 @@
 
 .workoutExerciseList {
   display: grid;
-  gap: 10px;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
 }
 
 .workoutExerciseRow {
@@ -1120,12 +1140,23 @@
   grid-template-columns: minmax(120px, 176px) minmax(0, 1fr);
   gap: 14px;
   overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border-block-end: 1px solid var(--color-border);
   background: var(--color-surface);
   padding: 12px;
-  box-shadow: var(--shadow-sm);
   direction: ltr;
+}
+
+.workoutExerciseRow:last-child {
+  border-block-end: 0;
+}
+
+.workoutActionButton.workoutQuickComplete {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  justify-content: center;
+  padding: 0;
 }
 
 .workoutExerciseMedia {
@@ -1404,10 +1435,8 @@
 }
 
 .workoutTimerFab {
-  position: fixed;
+  position: relative;
   z-index: 45;
-  inset-inline-start: calc(var(--sidebar-width) + 18px);
-  inset-block-end: calc(16px + env(safe-area-inset-bottom));
   display: flex;
   min-height: 48px;
   align-items: center;
@@ -1427,8 +1456,10 @@
 .workoutTimerPanel {
   position: fixed;
   z-index: 46;
-  inset-inline-start: calc(var(--sidebar-width) + 18px);
-  inset-block-end: calc(74px + env(safe-area-inset-bottom));
+  inset-inline-end: 18px;
+  inset-block-start: 74px;
+  max-height: calc(100dvh - 90px);
+  overflow-y: auto;
   display: grid;
   width: min(340px, calc(100vw - 28px));
   gap: 12px;
@@ -1777,7 +1808,7 @@
 .workoutLessonStage {
   position: relative;
   display: grid;
-  min-height: 160px;
+  min-height: 0;
   overflow: hidden;
   place-items: center;
   background: #000;
@@ -1790,6 +1821,13 @@
   height: 100%;
   max-height: 56dvh;
   object-fit: contain;
+}
+
+.workoutLessonStage iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  border: 0;
 }
 
 .workoutLessonCue {
@@ -2030,12 +2068,13 @@
 
   .workoutLessonDialog {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(220px, 34dvh) minmax(0, 1fr);
+    grid-template-rows: auto minmax(250px, 1fr);
+    overflow-y: auto;
   }
 
   .workoutLessonPlayer {
     grid-row: 1;
-    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto auto auto;
     padding: 10px;
   }
 
@@ -2043,9 +2082,18 @@
     padding-block-end: 6px;
   }
 
+  .workoutLessonStage {
+    height: clamp(200px, 30dvh, 260px);
+  }
+
   .workoutLessonStage video,
   .workoutLessonStage img {
-    max-height: 30dvh;
+    min-height: 0;
+    max-height: 100%;
+  }
+
+  .workoutLessonCue {
+    display: none;
   }
 
   .workoutLessonInfo {

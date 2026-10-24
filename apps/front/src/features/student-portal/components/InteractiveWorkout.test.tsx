@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiRequest } from "../../../shared/api/client";
@@ -126,6 +126,52 @@ describe("InteractiveWorkout", () => {
     await userEvent.click(await screen.findByRole("button", { name: /بازکردن تایمر تمرین/ }));
 
     expect(await screen.findByRole("region", { name: "کنترل تایمر" })).toBeInTheDocument();
+  });
+
+  it("opens trusted YouTube sources only on demand in the privacy-enhanced player", async () => {
+    api.mockResolvedValueOnce({ version_id: "version-1", sessions: [] });
+    const withVideo = structuredClone(program);
+    withVideo.training!.days[0].exercises[0].tutorial_source_url =
+      "https://www.youtube.com/watch?v=8iPEnn-ltC8";
+    const { container } = render(<InteractiveWorkout program={withVideo} />);
+    expect(container.querySelector("iframe")).toBeNull();
+    await userEvent.click(await screen.findByRole("button", { name: "آموزش حرکت پرس سینه هالتر" }));
+    expect(screen.getByTitle("ویدئوی پرس سینه هالتر")).toHaveAttribute(
+      "src",
+      "https://www.youtube-nocookie.com/embed/8iPEnn-ltC8?playsinline=1&rel=0"
+    );
+    expect(screen.queryByRole("slider", { name: "موقعیت پخش ویدئو" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "بستن آموزش" }));
+    expect(screen.queryByTitle("ویدئوی پرس سینه هالتر")).not.toBeInTheDocument();
+  });
+
+  it("formats fractional video time as whole minutes and seconds", async () => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+    api.mockResolvedValueOnce({ version_id: "version-1", sessions: [] });
+    const withVideo = structuredClone(program);
+    withVideo.training!.days[0].exercises[0].tutorial_url = "/media/workout/bench-reel.mp4";
+    render(<InteractiveWorkout program={withVideo} />);
+    await userEvent.click(await screen.findByRole("button", { name: "آموزش حرکت پرس سینه هالتر" }));
+    const video = screen.getByLabelText("ویدئوی پرس سینه هالتر");
+    fireEvent.timeUpdate(video, { target: { currentTime: 61.774144 } });
+    expect(screen.getByText("۱:۰۱")).toBeInTheDocument();
+  });
+
+  it("places the timer in the shell header instead of over exercise controls", async () => {
+    const header = document.createElement("div");
+    header.id = "student-workout-tools";
+    document.body.appendChild(header);
+    api.mockResolvedValueOnce({ version_id: "version-1", sessions: [] });
+    const view = render(<InteractiveWorkout program={program} />);
+    try {
+      expect(header).toContainElement(
+        await screen.findByRole("button", { name: /بازکردن تایمر تمرین/ })
+      );
+    } finally {
+      view.unmount();
+      header.remove();
+    }
   });
 
   it("shows a save error and rolls back optimistic completion", async () => {

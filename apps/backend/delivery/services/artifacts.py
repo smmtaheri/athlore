@@ -440,6 +440,27 @@ def open_artifact_file(artifact: PdfArtifact) -> tuple[BytesIO, str, int]:
         raise InvalidStateError(detail="Artifact is deleted.", code="artifact_deleted")
     if artifact.status != PdfArtifact.Status.READY:
         raise InvalidStateError(detail="PDF is not ready.", code="not_ready")
+    # Replace generated files rendered before the student privacy boundary was fixed.
+    # Uploaded coach PDFs must remain byte-for-byte unchanged.
+    if (
+        artifact.source == PdfArtifact.Source.GENERATED
+        and artifact.template_version != RENDER_TEMPLATE_VERSION
+    ):
+        with transaction.atomic():
+            artifact = PdfArtifact.objects.select_for_update().get(pk=artifact.pk)
+            if artifact.template_version != RENDER_TEMPLATE_VERSION:
+                section = artifact.section or artifact.program_type
+                overrides = None
+                if section in {"workout", "nutrition", "supplement"}:
+                    overrides = {
+                        "includeTraining": section == "workout",
+                        "includeNutrition": section == "nutrition",
+                        "includeSupplements": section == "supplement"
+                        or (section == "nutrition" and not artifact.section),
+                    }
+                artifact = _render_into_artifact(artifact, pdf_settings_override=overrides)
+            if artifact.status != PdfArtifact.Status.READY:
+                raise InvalidStateError(detail="PDF regeneration failed.", code="render_failed")
     if not artifact.file:
         raise InvalidStateError(detail="PDF file is missing.", code="missing_file")
     try:

@@ -246,9 +246,7 @@ def serialize_student_program_detail(program: Program) -> dict:
         raise NotFound(detail="Not found.")
     training = _deep_copy(version.training)
     if isinstance(training, dict):
-        ensure_workout_schedule(
-            training, program.date_range_start, program.date_range_end
-        )
+        ensure_workout_schedule(training, program.date_range_start, program.date_range_end)
     # Older finalized programs may predate exercise video URLs. Resolve only the
     # missing media from this coach's catalog, without mutating the immutable
     # program version or leaking another coach's catalog entries.
@@ -283,7 +281,16 @@ def serialize_student_program_detail(program: Program) -> dict:
                 if not catalog_row:
                     continue
                 catalog_url = catalog_row.tutorial_url
-                if not exercise.get("tutorial_source_url"):
+                if (
+                    not exercise.get("tutorial_source_url")
+                    or exercise.get("tutorial_source_url")
+                    in {
+                        "https://www.dvidshub.net/video/636933/dumbbell-shoulder-press",
+                        "https://gravitus.com/guides/exercises/one-arm-cable-lateral-raise/",
+                        "https://www.youtube.com/watch?v=U_qMtEvHuQM",
+                    }
+                    and catalog_row.tutorial_source_url
+                ):
                     exercise["tutorial_source_url"] = catalog_row.tutorial_source_url
                 if (
                     catalog_url

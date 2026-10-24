@@ -81,8 +81,19 @@ function normalizeDigits(value: string): string {
 }
 
 function formatTime(seconds: number): string {
-  const value = `${Math.floor(Math.max(0, seconds) / 60)}:${String(Math.max(0, seconds) % 60).padStart(2, "0")}`;
+  const wholeSeconds = Number.isFinite(seconds) ? Math.floor(Math.max(0, seconds)) : 0;
+  const value = `${Math.floor(wholeSeconds / 60)}:${String(wholeSeconds % 60).padStart(2, "0")}`;
   return persianDigits(value);
+}
+
+function youtubeId(value?: string): string {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return "";
+    const id = url.hostname === "youtu.be" ? url.pathname.slice(1) : ["www.youtube.com", "youtube.com", "www.youtube-nocookie.com"].includes(url.hostname) ? url.searchParams.get("v") || url.pathname.match(/^\/(?:embed|shorts)\/([^/]+)/)?.[1] || "" : "";
+    return /^[\w-]{11}$/.test(id) ? id : "";
+  } catch { return ""; }
 }
 
 function parseRestSeconds(value: string): number | null {
@@ -631,7 +642,7 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
     );
   }
 
-  const lessonSource = activeExercise?.media?.reel_url || activeExercise?.tutorial_url || "";
+  const lessonSource = activeExercise?.media?.reel_url || activeExercise?.tutorial_url || (youtubeId(activeExercise?.tutorial_source_url) ? activeExercise?.tutorial_source_url : "") || "";
   const lessonPoster = activeExercise?.media?.poster_url || "";
   const lessonVideoIndex = activeExerciseIndex;
   const sessionFinished = current?.status === "completed" || current?.status === "completed_partial";
@@ -733,25 +744,26 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
                   .filter((item) => item.completed && item.weight_kg != null)
                   .at(-1)?.weight_kg;
                 const media = getExerciseMedia(exercise);
+                const embedId = youtubeId(exercise.tutorial_source_url);
                 const previewSource = media?.preview_url || exercise.tutorial_url || "";
-                const poster = media?.poster_url || "";
+                const poster = media?.poster_url || (embedId ? `https://i.ytimg.com/vi/${embedId}/hqdefault.jpg` : "");
                 const timedSeconds = prescribedExerciseSeconds(exercise);
                 return (
                   <article className={styles.workoutExerciseRow} key={exercise.id}>
                     <div className={styles.workoutExerciseMedia}>
-                      {previewSource ? (
+                      {previewSource || embedId ? (
                         <button
                           aria-label={`آموزش حرکت ${exercise.name}`}
                           className={styles.workoutPreviewButton}
                           onClick={(event) => launchLesson(exercise, event.currentTarget)}
                           type="button"
                         >
-                          <LoopingPreview
+                          {previewSource ? <LoopingPreview
                             enabled={motionEnabled}
                             paused={Boolean(lessonExerciseId)}
                             poster={poster}
                             source={previewSource}
-                          />
+                          /> : <img src={poster} alt="" loading="lazy" />}
                           <span className={styles.workoutPreviewPlay} aria-hidden>
                             <Play size={15} fill="currentColor" />
                           </span>
@@ -815,13 +827,13 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
                         <button
                           aria-label={isComplete ? `لغو ثبت کامل ${exercise.name}` : `ثبت همهٔ ست‌های ${exercise.name}`}
                           aria-pressed={isComplete}
-                          className={`${styles.workoutActionButton} ${isComplete ? styles.workoutActionButtonDone : styles.workoutActionButtonPrimary}`}
+                          className={`${styles.workoutActionButton} ${styles.workoutQuickComplete} ${isComplete ? styles.workoutActionButtonDone : ""}`}
                           disabled={!loaded || saving}
                           onClick={() => void toggleExerciseComplete(exercise)}
                           type="button"
                         >
                           {isComplete ? <CheckCircle2 size={16} /> : <Check size={16} />}
-                          {isComplete ? "ثبت شد" : "ثبت همهٔ ست‌ها"}
+                          <span className={styles.visuallyHidden}>{isComplete ? "ثبت شد" : "ثبت همهٔ ست‌ها"}</span>
                         </button>
                         <button
                           aria-label={`ویرایش ست‌های ${exercise.name}`}
@@ -880,9 +892,8 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
               <strong>{day?.title || "جلسهٔ تمرین"}</strong>
               <p className={styles.workoutAsideMuted}>{persianDigits(completedSetCount)} از {persianDigits(totalSets)} ست</p>
             </div>
-            <div className={styles.workoutRing} aria-label={`${persianDigits(sessionPercent)} درصد از ست‌ها`}>
+            <div className={styles.workoutRing} style={{ "--workout-progress": `${sessionPercent}%` } as CSSProperties} aria-label={`${persianDigits(sessionPercent)} درصد از ست‌ها`}>
               <strong>{persianDigits(`${sessionPercent}٪`)}</strong>
-              <span>ست‌های انجام‌شده</span>
             </div>
           </div>
           <div className={styles.workoutCourseProgress}>
@@ -974,6 +985,7 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
         </div>
       </details>
 
+      <WorkoutTimerControl>
       <button
         aria-label={
           timerOpen
@@ -992,6 +1004,7 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
           <span className={styles.workoutTimerFabCountdown}>{formatTime(timerRemaining)}</span>
         ) : null}
       </button>
+      </WorkoutTimerControl>
 
       {timerOpen ? (
         <TimerPanel
@@ -1328,7 +1341,7 @@ function LessonDialog({
                 <>
                   <h3>اجرای درست</h3>
                   {media?.education?.description ? <p>{media.education.description}</p> : null}
-                  {steps.length ? <ol>{steps.map((step, itemIndex) => <li key={`${step.at_seconds}-${step.title}`}><strong>{persianDigits(itemIndex + 1)}. {step.title}</strong>{step.text}</li>)}</ol> : <p>راهنمای اجرای عمومی برای این حرکت ثبت نشده است؛ دستور مربی را ملاک قرار بده.</p>}
+                  {steps.length ? <ol>{steps.map((step) => <li key={`${step.at_seconds}-${step.title}`}><strong>{step.title}</strong>{step.text}</li>)}</ol> : <p>راهنمای اجرای عمومی برای این حرکت ثبت نشده است؛ دستور مربی را ملاک قرار بده.</p>}
                 </>
               ) : null}
               {tab === "tips" ? (
@@ -1381,6 +1394,11 @@ function LessonDialog({
   );
 }
 
+function WorkoutTimerControl({ children }: { children: React.ReactNode }) {
+  const header = document.getElementById("student-workout-tools");
+  return header ? createPortal(children, header) : children;
+}
+
 function LessonVideo({
   attribution,
   exerciseName,
@@ -1399,6 +1417,7 @@ function LessonVideo({
   const [duration, setDuration] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [failed, setFailed] = useState(false);
+  const embedId = youtubeId(source);
   const currentCue = [...steps].reverse().find((step) => step.at_seconds <= currentTime) ?? steps[0];
 
   useEffect(() => {
@@ -1411,7 +1430,15 @@ function LessonVideo({
   return (
     <>
       <div className={styles.workoutLessonStage}>
-        {source && !failed ? (
+        {embedId ? (
+          <iframe
+            title={`ویدئوی ${exerciseName}`}
+            src={`https://www.youtube-nocookie.com/embed/${embedId}?playsinline=1&rel=0`}
+            allow="encrypted-media; fullscreen; picture-in-picture"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allowFullScreen
+          />
+        ) : source && !failed ? (
           <video
             aria-label={`ویدئوی ${exerciseName}`}
             autoPlay
@@ -1438,11 +1465,11 @@ function LessonVideo({
         ) : (
           <div className={styles.workoutNoVideo}><Dumbbell size={22} />ویدئوی دقیق این حرکت موجود نیست.</div>
         )}
-        {source && !failed && currentCue ? <div className={styles.workoutLessonCue}><strong>{currentCue.title}</strong><span>{currentCue.text}</span></div> : null}
+        {source && !embedId && !failed && currentCue ? <div className={styles.workoutLessonCue}><strong>{currentCue.title}</strong><span>{currentCue.text}</span></div> : null}
         <span className={styles.visuallyHidden}>{exerciseName}</span>
       </div>
       <div className={styles.workoutVideoControls}>
-        {source && !failed ? (
+        {source && !embedId && !failed ? (
           <>
             <div className={styles.workoutVideoTimeline}>
               <span>{formatTime(currentTime)}</span>
@@ -1474,7 +1501,7 @@ function LessonVideo({
         ) : null}
         <div className={styles.workoutVideoControlActions}>
           <span>{failed ? "پخش ویدئو در دسترس نیست؛ تصویر ثابت نمایش داده شده است." : ""}</span>
-          <span>{attribution ? <a href={attribution.source_url} rel="noreferrer" target="_blank">منبع و مجوز ویدئو</a> : "ویدئوی ثبت‌شده برای این حرکت"}</span>
+          <span>{embedId ? <a href={source} rel="noopener noreferrer" target="_blank">ویدئو از منبع اصلی پخش می‌شود؛ اگر باز نشد اینجا بزن</a> : attribution ? <a href={attribution.source_url} rel="noreferrer" target="_blank">منبع و مجوز ویدئو</a> : "ویدئوی ثبت‌شده برای این حرکت"}</span>
         </div>
       </div>
     </>

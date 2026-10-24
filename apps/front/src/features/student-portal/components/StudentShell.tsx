@@ -104,6 +104,7 @@ export function StudentShell() {
             variant="ghost"
           />
           <p className={styles.headerTitle}>{titleForPath(location.pathname)}</p>
+          <div id="student-workout-tools" className={styles.headerTools} />
         </header>
         <Outlet />
       </div>
