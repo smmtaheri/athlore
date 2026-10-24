@@ -1055,6 +1055,10 @@ are not migrated or recreated.
   set data are 400.
 
 Exercise CRUD accepts optional `tutorial_url` (direct HTTPS media URL) and
+`tutorial_source_url` (HTTPS page containing the matching exercise video). The
+source-page link is opened at its original site; Athlore does not copy or host
+that media. Both values are preserved in generated workout snapshots and in
+older program details when the catalog exercise is still available.
 `execution_guide` (`execution`, `tips`, `mistakes` strings). Generation snapshots the
 catalog media with its stable `exercise_id`; editing a draft movement name clears
 the old catalog media reference. Missing media is not invented. The CSP permits

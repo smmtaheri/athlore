@@ -146,6 +146,7 @@ class WorkoutWorkflowTests(TestCase):
             name="پرس سینه ویدئودار",
             primary_muscle="سینه",
             tutorial_url="https://media.example.test/bench.mp4",
+            tutorial_source_url="https://guide.example.test/bench-press",
         )
         version.training = {
             "days": [
@@ -170,6 +171,10 @@ class WorkoutWorkflowTests(TestCase):
         self.assertEqual(
             result["training"]["days"][0]["exercises"][0]["tutorial_url"],
             "https://media.example.test/bench.mp4",
+        )
+        self.assertEqual(
+            result["training"]["days"][0]["exercises"][0]["tutorial_source_url"],
+            "https://guide.example.test/bench-press",
         )
         version.refresh_from_db()
         self.assertEqual(version.training["days"][0]["exercises"][0]["tutorial_url"], "")

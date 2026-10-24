@@ -172,6 +172,7 @@ def serialize_exercise(ex: Exercise, preference: CoachExercisePreference | None 
         "risk_tags": list(ex.risk_tags or []),
         "source_document": ex.source_document,
         "tutorial_url": ex.tutorial_url,
+        "tutorial_source_url": ex.tutorial_source_url,
         "media": (
             ex.media_asset.public_payload()
             if ex.media_asset_id and ex.media_asset.is_active
@@ -1112,6 +1113,16 @@ def _validate_exercise_guide(payload):
             raise ValidationError(
                 {"tutorial_url": ["لینک HTTPS مستقیم ویدئو را وارد کنید."]}
             ) from exc
+    source_url = payload.get("tutorial_source_url")
+    if source_url:
+        if not isinstance(source_url, str) or len(source_url) > 1024:
+            raise ValidationError({"tutorial_source_url": ["لینک منبع ویدئو معتبر نیست."]})
+        try:
+            URLValidator(schemes=["https"])(source_url)
+        except DjangoValidationError as exc:
+            raise ValidationError(
+                {"tutorial_source_url": ["لینک منبع ویدئو باید HTTPS باشد."]}
+            ) from exc
     guide = payload.get("execution_guide", {})
     if (
         not isinstance(guide, dict)
@@ -1170,6 +1181,7 @@ def create_exercise(coach: CoachProfile, payload: dict) -> Exercise:
         risk_tags=_as_str_list(payload.get("risk_tags", []), "risk_tags"),
         source_document=str(payload.get("source_document") or ""),
         tutorial_url=str(payload.get("tutorial_url") or ""),
+        tutorial_source_url=str(payload.get("tutorial_source_url") or ""),
         execution_guide=payload.get("execution_guide") or {},
         coach_notes=str(payload.get("coach_notes") or ""),
         is_active=bool(payload.get("is_active", True)),
@@ -1251,6 +1263,8 @@ def update_exercise(exercise: Exercise, payload: dict) -> Exercise:
         exercise.source_document = str(payload["source_document"] or "")
     if "tutorial_url" in payload:
         exercise.tutorial_url = str(payload["tutorial_url"] or "")
+    if "tutorial_source_url" in payload:
+        exercise.tutorial_source_url = str(payload["tutorial_source_url"] or "")
     if "execution_guide" in payload:
         exercise.execution_guide = payload["execution_guide"] or {}
     if "coach_notes" in payload:

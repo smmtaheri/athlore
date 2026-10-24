@@ -264,7 +264,11 @@ def serialize_student_program_detail(program: Program) -> dict:
             exercise.get("exercise_id")
             for exercise in exercises
             if exercise.get("exercise_id")
-            and (not exercise.get("media") or not exercise.get("primary_muscle"))
+            and (
+                not exercise.get("media")
+                or not exercise.get("primary_muscle")
+                or not exercise.get("tutorial_source_url")
+            )
         }
         if catalog_ids:
             catalog_rows = {
@@ -279,6 +283,8 @@ def serialize_student_program_detail(program: Program) -> dict:
                 if not catalog_row:
                     continue
                 catalog_url = catalog_row.tutorial_url
+                if not exercise.get("tutorial_source_url"):
+                    exercise["tutorial_source_url"] = catalog_row.tutorial_source_url
                 if (
                     catalog_url
                     and urlsplit(catalog_url).scheme == "https"

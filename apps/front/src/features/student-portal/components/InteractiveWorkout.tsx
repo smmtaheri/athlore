@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   Dumbbell,
+  ExternalLink,
   Pause,
   Play,
   RotateCcw,
@@ -758,7 +759,18 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
                       ) : (
                         <div className={styles.workoutNoVideo}>
                           {poster ? <img src={poster} alt="" /> : <Dumbbell size={20} aria-hidden />}
-                          <span>ویدئوی دقیق برای این حرکت ثبت نشده</span>
+                          {exercise.tutorial_source_url ? (
+                            <a
+                              className={styles.workoutSourceLink}
+                              href={exercise.tutorial_source_url}
+                              rel="noopener noreferrer"
+                              target="_blank"
+                            >
+                              ویدئو در منبع اصلی <ExternalLink size={13} aria-hidden />
+                            </a>
+                          ) : (
+                            <span>ویدئوی دقیق برای این حرکت ثبت نشده</span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -963,13 +975,22 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
       </details>
 
       <button
-        aria-label={timerOpen ? "بستن پنل تایمر" : "بازکردن تایمر تمرین"}
+        aria-label={
+          timerOpen
+            ? "بستن پنل تایمر"
+            : `بازکردن تایمر تمرین${activeTimer ? `، ${formatTime(timerRemaining)}` : ""}`
+        }
         className={styles.workoutTimerFab}
         onClick={() => setTimerOpen((open) => !open)}
         type="button"
       >
         <Clock3 size={18} />
-        {activeTimer ? formatTime(timerRemaining) : "تایمر"}
+        <span className={styles.workoutTimerFabLabel}>
+          {activeTimer ? formatTime(timerRemaining) : "تایمر"}
+        </span>
+        {activeTimer ? (
+          <span className={styles.workoutTimerFabCountdown}>{formatTime(timerRemaining)}</span>
+        ) : null}
       </button>
 
       {timerOpen ? (

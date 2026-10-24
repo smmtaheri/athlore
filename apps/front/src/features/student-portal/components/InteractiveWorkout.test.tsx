@@ -96,6 +96,38 @@ describe("InteractiveWorkout", () => {
     expect(api).toHaveBeenCalledWith("/me/programs/program-1/workout-progress/");
   });
 
+  it("links a source-only exercise tutorial without pretending it is hosted in Athlore", async () => {
+    api.mockResolvedValueOnce({ version_id: "version-1", sessions: [] });
+    const withSourceLink = {
+      ...program,
+      training: {
+        ...program.training!,
+        days: program.training!.days.map((day) => ({
+          ...day,
+          exercises: day.exercises.map((exercise) => ({
+            ...exercise,
+            tutorial_source_url: "https://example.test/guide/bench"
+          }))
+        }))
+      }
+    };
+    render(<InteractiveWorkout program={withSourceLink} />);
+
+    const sourceLink = await screen.findByRole("link", { name: "ویدئو در منبع اصلی" });
+    expect(sourceLink).toHaveAttribute("href", "https://example.test/guide/bench");
+    expect(sourceLink).toHaveAttribute("target", "_blank");
+    expect(screen.queryByText("ویدئوی دقیق برای این حرکت ثبت نشده")).not.toBeInTheDocument();
+  });
+
+  it("opens the timer panel from its floating mobile control", async () => {
+    api.mockResolvedValueOnce({ version_id: "version-1", sessions: [] });
+    render(<InteractiveWorkout program={program} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /بازکردن تایمر تمرین/ }));
+
+    expect(await screen.findByRole("region", { name: "کنترل تایمر" })).toBeInTheDocument();
+  });
+
   it("shows a save error and rolls back optimistic completion", async () => {
     api.mockResolvedValueOnce({
       version_id: "version-1",
@@ -104,7 +136,9 @@ describe("InteractiveWorkout", () => {
     api.mockRejectedValueOnce(new Error("offline"));
     render(<InteractiveWorkout program={program} />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "ثبت همهٔ ست‌های پرس سینه هالتر" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "ثبت همهٔ ست‌های پرس سینه هالتر" })
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent("ثبت عملکرد انجام نشد");
     expect(screen.getByText("۱ از ۳ ست · ناقص یا ثبت‌شده")).toBeInTheDocument();
@@ -115,7 +149,9 @@ describe("InteractiveWorkout", () => {
     render(<InteractiveWorkout program={program} />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("نسخهٔ برنامه تغییر کرده");
-    expect(await screen.findByRole("button", { name: "ویرایش ست‌های پرس سینه هالتر" })).toBeDisabled();
+    expect(
+      await screen.findByRole("button", { name: "ویرایش ست‌های پرس سینه هالتر" })
+    ).toBeDisabled();
   });
 
   it("shows the prior week's per-set reps, weight, and rest history", async () => {
@@ -203,8 +239,12 @@ describe("InteractiveWorkout", () => {
     });
     render(<InteractiveWorkout program={program} />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "ویرایش ست‌های پرس سینه هالتر" }));
-    expect(await screen.findByRole("dialog", { name: "ثبت جزئیات پرس سینه هالتر" })).toBeInTheDocument();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "ویرایش ست‌های پرس سینه هالتر" })
+    );
+    expect(
+      await screen.findByRole("dialog", { name: "ثبت جزئیات پرس سینه هالتر" })
+    ).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "ذخیرهٔ ست‌ها" }));
 
     await waitFor(() => expect(api).toHaveBeenCalledTimes(2));
@@ -255,13 +295,17 @@ describe("InteractiveWorkout", () => {
     });
     render(<InteractiveWorkout program={program} />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "ویرایش ست‌های پرس سینه هالتر" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "ویرایش ست‌های پرس سینه هالتر" })
+    );
     await userEvent.click(screen.getByLabelText("ست ۱"));
     await userEvent.click(screen.getByRole("button", { name: "ذخیرهٔ ست‌ها" }));
     await waitFor(() => expect(api).toHaveBeenCalledTimes(2));
 
     now += 75_000;
-    await userEvent.click(await screen.findByRole("button", { name: "ویرایش ست‌های پرس سینه هالتر" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "ویرایش ست‌های پرس سینه هالتر" })
+    );
     await userEvent.click(screen.getByLabelText("ست ۲"));
     await userEvent.click(screen.getByRole("button", { name: "ذخیرهٔ ست‌ها" }));
 

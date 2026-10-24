@@ -29,6 +29,7 @@ type ExerciseTarget = {
 
 type CatalogExercise = {
   tutorial_url?: string;
+  tutorial_source_url?: string;
   execution_guide?: Record<string, string>;
   id: string;
   name: string;
@@ -172,6 +173,7 @@ type SecondaryTarget = { muscle_key: string; region_key: string };
 
 type ExerciseDraft = {
   tutorial_url: string;
+  tutorial_source_url: string;
   execution_notes: string;
   execution_guide: Record<string, string>;
   name: string;
@@ -193,6 +195,7 @@ type ExerciseDraft = {
 
 const emptyDraft: ExerciseDraft = {
   tutorial_url: "",
+  tutorial_source_url: "",
   execution_notes: "",
   execution_guide: {},
   name: "",
@@ -225,6 +228,7 @@ function exerciseFromRow(row: CatalogExercise, taxonomy: ExerciseTaxonomy): Exer
   return {
     ...emptyDraft,
     tutorial_url: row.tutorial_url ?? "",
+    tutorial_source_url: row.tutorial_source_url ?? "",
     execution_notes: row.execution_guide?.execution ?? "",
     execution_guide: row.execution_guide ?? {},
     aliases: row.aliases.join(", "),
@@ -270,6 +274,7 @@ function exercisePayload(draft: ExerciseDraft) {
     movement_pattern: draft.movement_pattern,
     source_document: draft.source_document,
     tutorial_url: draft.tutorial_url,
+    tutorial_source_url: draft.tutorial_source_url,
     execution_guide: { ...draft.execution_guide, execution: draft.execution_notes },
     coach_notes: draft.coach_notes,
     is_preferred: draft.is_preferred,
@@ -924,6 +929,18 @@ export function StructuredCatalogSection() {
                 type="url"
                 value={draft.tutorial_url}
                 onChange={(e) => setDraft({ ...draft, tutorial_url: e.target.value })}
+              />
+            </FormField>
+            <FormField
+              label="لینک صفحهٔ منبع ویدئو"
+              htmlFor="exercise-tutorial-source-url"
+              hint="اگر فایل مستقیم در دسترس نیست، لینک صفحهٔ اصلی ویدئو را وارد کنید؛ ویدئو در سایت منبع باز می‌شود."
+            >
+              <Input
+                id="exercise-tutorial-source-url"
+                type="url"
+                value={draft.tutorial_source_url}
+                onChange={(e) => setDraft({ ...draft, tutorial_source_url: e.target.value })}
               />
             </FormField>
             <FormField

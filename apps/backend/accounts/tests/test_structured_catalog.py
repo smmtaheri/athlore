@@ -86,6 +86,39 @@ class StructuredCatalogApiTests(APITestCase):
         )
         self.assertEqual(archived.status_code, 204)
 
+    def test_exercise_catalog_preserves_https_tutorial_source_link(self):
+        source_url = "https://example.test/exercises/dumbbell-press"
+        created = self.client.post(
+            "/api/v1/exercises/",
+            {
+                **self._exercise_payload("پرس دمبل با منبع"),
+                "tutorial_source_url": source_url,
+            },
+            format="json",
+            **auth_header(self.tokens_a),
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data["tutorial_source_url"], source_url)
+
+        patched = self.client.patch(
+            f"/api/v1/exercises/{created.data['id']}/",
+            {"tutorial_source_url": "https://example.test/exercises/updated"},
+            format="json",
+            **auth_header(self.tokens_a),
+        )
+        self.assertEqual(patched.status_code, 200, patched.data)
+        self.assertEqual(
+            patched.data["tutorial_source_url"], "https://example.test/exercises/updated"
+        )
+
+        invalid = self.client.patch(
+            f"/api/v1/exercises/{created.data['id']}/",
+            {"tutorial_source_url": "http://example.test/video"},
+            format="json",
+            **auth_header(self.tokens_a),
+        )
+        self.assertEqual(invalid.status_code, 400)
+
     def test_exercise_taxonomy_uses_coach_facing_level_labels(self):
         response = self.client.get("/api/v1/exercise-taxonomy/", **auth_header(self.tokens_a))
         self.assertEqual(response.status_code, 200)

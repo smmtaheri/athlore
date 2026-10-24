@@ -56,6 +56,7 @@ export interface TrainingExercise {
   exercise_id?: string;
   locked?: boolean;
   tutorial_url?: string;
+  tutorial_source_url?: string;
   media?: ExerciseMedia | null;
   execution_guide?: Record<string, string>;
   primary_muscle?: string;

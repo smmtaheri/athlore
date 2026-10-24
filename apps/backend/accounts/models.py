@@ -396,6 +396,7 @@ class Exercise(models.Model):
     # Reference document (e.g. a coach-provided PDF/program name) this entry was imported from.
     source_document = models.CharField(max_length=255, blank=True, default="")
     tutorial_url = models.URLField(max_length=1024, blank=True, default="")
+    tutorial_source_url = models.URLField(max_length=1024, blank=True, default="")
     media_asset = models.ForeignKey(
         ExerciseMediaAsset,
         on_delete=models.SET_NULL,

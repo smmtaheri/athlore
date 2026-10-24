@@ -522,6 +522,7 @@ def generate_document(
             source = catalog.get(str(item.get("exercise_id")))
             if source:
                 item["tutorial_url"] = source.tutorial_url
+                item["tutorial_source_url"] = source.tutorial_source_url
                 item["execution_guide"] = source.execution_guide
                 item["primary_muscle"] = source.primary_muscle
                 item["media"] = (
