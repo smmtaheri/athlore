@@ -6,6 +6,15 @@ no owner; each uploaded immutable revision belongs to one coach and one target
 exercise. Another coach cannot inspect or alter its upload job, and catalog
 serialization refuses an asset owned by a different coach.
 
+Playback is upload-only: the ready asset must belong to the exercise's coach,
+target that exact exercise and have an original upload. Shared seeded demo
+assets and legacy tutorial/source URLs are not playback alternatives. Student
+responses clear those legacy URLs, including in old programs. The browser also
+rejects media outside the generated `/media/workout/uploads/` paths and has no
+YouTube iframe, thumbnail or external-tutorial fallback. Attribution for a valid
+uploaded video is retained separately from playback. Public coach-written text
+remains available without video. No migration deletes historical links or files.
+
 ## Coach-written movement education
 
 The exercise editor exposes three independent public text fields in
@@ -76,21 +85,22 @@ not an automatic consequence of removing a video from an exercise.
 
 ## Existing programs and starter media
 
-On student program reads, media and tutorial links resolve from the program
+On student program reads, uploaded media resolves from the program
 coach's current catalog by `exercise_id`. Even a populated old snapshot cannot
 override a replacement or reintroduce a removed video. Missing/foreign IDs do not
 resolve another coach's media. Frozen prescriptions and progress remain intact.
 
 The existing ten demonstrations in `apps/front/public/media/workout/` match the
 supplied handoff ZIP byte-for-byte, including credits. They remain the bundled
-starter library; runtime uploads are stored in the persistent media volume,
+archived starter library, not automatically playable student videos; runtime
+uploads are stored in the persistent media volume,
 not in Git or frontend builds. No starter video import or separate DNS record
 is needed. The frontend and backend no longer rewrite asset keys to the demo host.
-The existence of a bundled file does not attach it to every exercise. Only exact
-seed mappings or explicitly uploaded/assigned media appear on a matching movement.
-Bundled `/media/workout/{key}-preview.mp4` URLs are same-origin static files;
-uploaded derivatives live under `/media/workout/uploads/`. Neither depends on a
-browser cache entry for persistence. Reloading fetches the current catalog links.
+Only the upload workflow makes a video playable on its matching movement.
+Bundled `/media/workout/{key}-preview.mp4` URLs remain stored static files but are
+not used as a fallback. Uploaded derivatives live under `/media/workout/uploads/`
+and do not depend on a browser cache entry for persistence. Reloading fetches
+the current coach-owned upload association.
 
 The shared stage gateway forwards the isolated stage Nginx CSP, instead of
 appending the production CSP. `stage-gateway-up.sh` patches only the stage server

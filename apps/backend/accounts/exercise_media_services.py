@@ -32,7 +32,11 @@ def media_payload(exercise):
     asset = exercise.media_asset
     if not asset or not asset.is_active or asset.status != ExerciseMediaAsset.Status.READY:
         return None
-    if asset.owner_id and asset.owner_id != exercise.coach_id:
+    if (
+        asset.owner_id != exercise.coach_id
+        or asset.upload_for_id != exercise.pk
+        or not asset.original_file
+    ):
         return None
     return asset.public_payload()
 

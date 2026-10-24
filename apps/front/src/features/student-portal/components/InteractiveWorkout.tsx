@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   Clock3,
   Dumbbell,
-  ExternalLink,
   Pause,
   Play,
   RotateCcw,
@@ -87,16 +86,6 @@ function formatTime(seconds: number): string {
   return persianDigits(value);
 }
 
-function youtubeId(value?: string): string {
-  if (!value) return "";
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:") return "";
-    const id = url.hostname === "youtu.be" ? url.pathname.slice(1) : ["www.youtube.com", "youtube.com", "www.youtube-nocookie.com"].includes(url.hostname) ? url.searchParams.get("v") || url.pathname.match(/^\/(?:embed|shorts)\/([^/]+)/)?.[1] || "" : "";
-    return /^[\w-]{11}$/.test(id) ? id : "";
-  } catch { return ""; }
-}
-
 function parseRestSeconds(value: string): number | null {
   const normalized = normalizeDigits(value);
   const clock = normalized.match(/^(\d{1,2}):(\d{1,2})$/);
@@ -124,7 +113,10 @@ function createExerciseKey(week: number, dayId: string, exerciseId: string) {
 }
 
 function getExerciseMedia(exercise: TrainingExercise): ExerciseMedia | null {
-  return exercise.media && typeof exercise.media === "object" ? exercise.media : null;
+  const media = exercise.media;
+  const prefix = "/media/workout/uploads/";
+  return media && media.reel_url?.startsWith(prefix) && media.preview_url?.startsWith(prefix)
+    && media.poster_url?.startsWith(prefix) ? media : null;
 }
 
 function useAccessibleDialog(onClose: () => void) {
@@ -633,8 +625,8 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
     );
   }
 
-  const lessonSource = activeExercise?.media?.reel_url || activeExercise?.tutorial_url || (youtubeId(activeExercise?.tutorial_source_url) ? activeExercise?.tutorial_source_url : "") || "";
-  const lessonPoster = activeExercise?.media?.poster_url || "";
+  const lessonSource = activeExercise ? getExerciseMedia(activeExercise)?.reel_url || "" : "";
+  const lessonPoster = activeExercise ? getExerciseMedia(activeExercise)?.poster_url || "" : "";
   const lessonVideoIndex = activeExerciseIndex;
   const sessionFinished = current?.status === "completed" || current?.status === "completed_partial";
 
@@ -735,14 +727,13 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
                   .filter((item) => item.completed && item.weight_kg != null)
                   .at(-1)?.weight_kg;
                 const media = getExerciseMedia(exercise);
-                const embedId = youtubeId(exercise.tutorial_source_url);
-                const previewSource = media?.preview_url || exercise.tutorial_url || "";
-                const poster = media?.poster_url || (embedId ? `https://i.ytimg.com/vi/${embedId}/hqdefault.jpg` : "");
+                const previewSource = media?.preview_url || "";
+                const poster = media?.poster_url || "";
                 const timedSeconds = prescribedExerciseSeconds(exercise);
                 return (
                   <article className={styles.workoutExerciseRow} key={exercise.id}>
                     <div className={styles.workoutExerciseMedia}>
-                      {previewSource || embedId ? (
+                      {previewSource ? (
                         <button
                           aria-label={`آموزش حرکت ${exercise.name}`}
                           className={styles.workoutPreviewButton}
@@ -762,18 +753,7 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
                       ) : (
                         <div className={styles.workoutNoVideo}>
                           {poster ? <img src={poster} alt="" /> : <Dumbbell size={20} aria-hidden />}
-                          {exercise.tutorial_source_url ? (
-                            <a
-                              className={styles.workoutSourceLink}
-                              href={exercise.tutorial_source_url}
-                              rel="noopener noreferrer"
-                              target="_blank"
-                            >
-                              ویدئو در منبع اصلی <ExternalLink size={13} aria-hidden />
-                            </a>
-                          ) : (
-                            <span>ویدئوی دقیق برای این حرکت ثبت نشده</span>
-                          )}
+                          <span>ویدئوی دقیق برای این حرکت ثبت نشده</span>
                           <button
                             className={styles.workoutSourceLink}
                             aria-label={`آموزش حرکت ${exercise.name}`}
@@ -1420,7 +1400,6 @@ function LessonVideo({
   const [playing, setPlaying] = useState(true);
   const [muted, setMuted] = useState(true);
   const [failed, setFailed] = useState(false);
-  const embedId = youtubeId(source);
   const currentCue = [...steps].reverse().find((step) => step.at_seconds <= currentTime) ?? steps[0];
 
   useEffect(() => {
@@ -1433,15 +1412,7 @@ function LessonVideo({
   return (
     <>
       <div className={styles.workoutLessonStage}>
-        {embedId ? (
-          <iframe
-            title={`ویدئوی ${exerciseName}`}
-            src={`https://www.youtube-nocookie.com/embed/${embedId}?playsinline=1&rel=0`}
-            allow="encrypted-media; fullscreen; picture-in-picture"
-            referrerPolicy="strict-origin-when-cross-origin"
-            allowFullScreen
-          />
-        ) : source && !failed ? (
+        {source && !failed ? (
           <video
             aria-label={`ویدئوی ${exerciseName}`}
             autoPlay
@@ -1468,11 +1439,11 @@ function LessonVideo({
         ) : (
           <div className={styles.workoutNoVideo}><Dumbbell size={22} />ویدئوی دقیق این حرکت موجود نیست.</div>
         )}
-        {source && !embedId && !failed && currentCue ? <div className={styles.workoutLessonCue}><strong>{currentCue.title}</strong><span>{currentCue.text}</span></div> : null}
+        {source && !failed && currentCue ? <div className={styles.workoutLessonCue}><strong>{currentCue.title}</strong><span>{currentCue.text}</span></div> : null}
         <span className={styles.visuallyHidden}>{exerciseName}</span>
       </div>
       <div className={styles.workoutVideoControls}>
-        {source && !embedId && !failed ? (
+        {source && !failed ? (
           <>
             <div className={styles.workoutVideoTimeline}>
               <span>{formatTime(currentTime)}</span>
@@ -1508,7 +1479,7 @@ function LessonVideo({
         ) : null}
         <div className={styles.workoutVideoControlActions}>
           <span>{failed ? "پخش ویدئو در دسترس نیست؛ تصویر ثابت نمایش داده شده است." : ""}</span>
-          <span>{embedId ? <a href={source} rel="noopener noreferrer" target="_blank">ویدئو از منبع اصلی پخش می‌شود؛ اگر باز نشد اینجا بزن</a> : attribution?.source_url ? <a href={attribution.source_url} rel="noreferrer" target="_blank">منبع و مجوز ویدئو</a> : "ویدئوی ثبت‌شده برای این حرکت"}</span>
+          <span>{attribution?.source_url ? <a href={attribution.source_url} rel="noreferrer" target="_blank">منبع و مجوز ویدئو</a> : "ویدئوی ثبت‌شده برای این حرکت"}</span>
         </div>
       </div>
     </>

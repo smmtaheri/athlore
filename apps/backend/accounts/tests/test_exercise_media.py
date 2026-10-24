@@ -11,7 +11,7 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from accounts.exercise_media_services import process_next_video, remove_video
+from accounts.exercise_media_services import media_payload, process_next_video, remove_video
 from accounts.models import CoachProfile, Exercise, ExerciseMediaAsset
 from programming.models import Program, ProgramVersion
 from programming.services.programs import serialize_student_program_detail
@@ -137,6 +137,9 @@ class ExerciseMediaTests(APITestCase):
         self.assertEqual(asset.status, "failed")
 
     def test_existing_program_resolves_current_owned_video_without_mutating_prescription(self):
+        self.upload()
+        self.assertTrue(process_next_video())
+        self.exercise.refresh_from_db()
         student = Student.objects.create(
             coach=self.coach,
             full_name="Athlete",
@@ -161,6 +164,8 @@ class ExerciseMediaTests(APITestCase):
                         {
                             "id": "e1",
                             "exercise_id": str(self.exercise.id),
+                            "tutorial_url": "https://legacy.test/video.mp4",
+                            "tutorial_source_url": "https://youtube.com/watch?v=legacy",
                             "sets": 3,
                             "media": {"key": "old", "reel_url": "https://stale.test/video.mp4"},
                         },
@@ -193,9 +198,11 @@ class ExerciseMediaTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         exercises = serialize_student_program_detail(program)["training"]["days"][0]["exercises"]
         self.assertEqual(exercises[0]["execution_guide"], guide)
+        self.assertEqual(exercises[0]["tutorial_url"], "")
+        self.assertEqual(exercises[0]["tutorial_source_url"], "")
         self.assertNotIn("Private coach note", str(exercises))
         self.assertEqual(exercises[1]["execution_guide"], {})
-        self.assertEqual(exercises[0]["media"]["key"], "incline")
+        self.assertEqual(exercises[0]["media"]["id"], str(self.exercise.media_asset_id))
         self.assertTrue(exercises[0]["media"]["reel_url"].startswith("/media/workout/"))
         self.assertIsNone(exercises[1]["media"])
         remove_video(self.exercise)
@@ -210,6 +217,21 @@ class ExerciseMediaTests(APITestCase):
         )
         version.refresh_from_db()
         self.assertEqual(version.training, before)
+
+    def test_shared_seeded_video_is_not_a_coach_upload(self):
+        self.assertIsNone(media_payload(self.exercise))
+
+    def test_upload_cannot_be_reused_on_a_different_exercise(self):
+        self.upload()
+        self.assertTrue(process_next_video())
+        self.exercise.refresh_from_db()
+        other = Exercise.objects.create(
+            coach=self.coach,
+            name="Other",
+            primary_muscle="پا",
+            media_asset=self.exercise.media_asset,
+        )
+        self.assertIsNone(media_payload(other))
 
     def test_coach_education_round_trip_validation_and_ownership(self):
         url = f"/api/v1/exercises/{self.exercise.pk}/"

@@ -139,7 +139,7 @@ class WorkoutWorkflowTests(TestCase):
         )
         self.assertEqual(WorkoutSession.objects.get(week=1).completed_sets, {"item-1": [0, 1]})
 
-    def test_student_program_detail_resolves_current_video_from_own_coach_catalog(self):
+    def test_student_program_detail_does_not_resolve_legacy_external_video_links(self):
         program, version = self.active_program()
         exercise = Exercise.objects.create(
             coach=self.coach,
@@ -170,27 +170,24 @@ class WorkoutWorkflowTests(TestCase):
 
         self.assertEqual(
             result["training"]["days"][0]["exercises"][0]["tutorial_url"],
-            "https://media.example.test/bench.mp4",
+            "",
         )
         self.assertEqual(
             result["training"]["days"][0]["exercises"][0]["tutorial_source_url"],
-            "https://guide.example.test/bench-press",
+            "",
         )
         version.refresh_from_db()
         self.assertEqual(version.training["days"][0]["exercises"][0]["tutorial_url"], "")
 
-        for old_source, expected in [
-            (
-                "https://www.dvidshub.net/video/636933/dumbbell-shoulder-press",
-                exercise.tutorial_source_url,
-            ),
-            ("https://coach.example/custom-tutorial", exercise.tutorial_source_url),
+        for old_source in [
+            "https://www.dvidshub.net/video/636933/dumbbell-shoulder-press",
+            "https://coach.example/custom-tutorial",
         ]:
             version.training["days"][0]["exercises"][0]["tutorial_source_url"] = old_source
             version.save(update_fields=["training"])
             refreshed = serialize_student_program_detail(program)
             self.assertEqual(
-                refreshed["training"]["days"][0]["exercises"][0]["tutorial_source_url"], expected
+                refreshed["training"]["days"][0]["exercises"][0]["tutorial_source_url"], ""
             )
             version.refresh_from_db()
             self.assertEqual(

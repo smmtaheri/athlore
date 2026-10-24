@@ -80,6 +80,17 @@ const program: GeneratedProgram = {
   }
 };
 
+function uploadedDemo() {
+  return {
+    key: "coach-upload", title: "Coach video",
+    reel_url: "/media/workout/uploads/test/video.mp4",
+    preview_url: "/media/workout/uploads/test/preview.mp4",
+    poster_url: "/media/workout/uploads/test/poster.jpg",
+    education: {},
+    attribution: { author: "Coach", source_url: "", license: "", license_url: "", changes: "" }
+  };
+}
+
 describe("InteractiveWorkout", () => {
   beforeEach(() => api.mockReset());
   afterEach(() => vi.restoreAllMocks());
@@ -117,7 +128,7 @@ describe("InteractiveWorkout", () => {
     expect(api).toHaveBeenCalledWith("/me/programs/program-1/workout-progress/");
   });
 
-  it("links a source-only exercise tutorial without pretending it is hosted in Athlore", async () => {
+  it.each(["https://example.test/guide/bench", "https://cdn.example.test/video.mp4", "/media/workout/bench-reel.mp4"])("never uses legacy tutorial URL %s and keeps the text guide available", async (source) => {
     api.mockResolvedValueOnce({ version_id: "version-1", sessions: [] });
     const withSourceLink = {
       ...program,
@@ -127,17 +138,16 @@ describe("InteractiveWorkout", () => {
           ...day,
           exercises: day.exercises.map((exercise) => ({
             ...exercise,
-            tutorial_source_url: "https://example.test/guide/bench"
+            tutorial_source_url: source,
+            tutorial_url: source
           }))
         }))
       }
     };
     render(<InteractiveWorkout program={withSourceLink} />);
 
-    const sourceLink = await screen.findByRole("link", { name: "ویدئو در منبع اصلی" });
-    expect(sourceLink).toHaveAttribute("href", "https://example.test/guide/bench");
-    expect(sourceLink).toHaveAttribute("target", "_blank");
-    expect(screen.queryByText("ویدئوی دقیق برای این حرکت ثبت نشده")).not.toBeInTheDocument();
+    expect(await screen.findByText("ویدئوی دقیق برای این حرکت ثبت نشده")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "ویدئو در منبع اصلی" })).not.toBeInTheDocument();
   });
 
   it("opens the timer panel from its floating mobile control", async () => {
@@ -149,7 +159,7 @@ describe("InteractiveWorkout", () => {
     expect(await screen.findByRole("region", { name: "کنترل تایمر" })).toBeInTheDocument();
   });
 
-  it("opens trusted YouTube sources only on demand in the privacy-enhanced player", async () => {
+  it("does not embed YouTube or request its thumbnails even when a legacy source exists", async () => {
     api.mockResolvedValueOnce({ version_id: "version-1", sessions: [] });
     const withVideo = structuredClone(program);
     withVideo.training!.days[0].exercises[0].tutorial_source_url =
@@ -157,10 +167,8 @@ describe("InteractiveWorkout", () => {
     const { container } = render(<InteractiveWorkout program={withVideo} />);
     expect(container.querySelector("iframe")).toBeNull();
     await userEvent.click(await screen.findByRole("button", { name: "آموزش حرکت پرس سینه هالتر" }));
-    expect(screen.getByTitle("ویدئوی پرس سینه هالتر")).toHaveAttribute(
-      "src",
-      "https://www.youtube-nocookie.com/embed/8iPEnn-ltC8?playsinline=1&rel=0"
-    );
+    expect(screen.queryByTitle("ویدئوی پرس سینه هالتر")).not.toBeInTheDocument();
+    expect(container.querySelector('img[src*="ytimg"]')).toBeNull();
     expect(screen.queryByRole("slider", { name: "موقعیت پخش ویدئو" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "بستن آموزش" }));
     expect(screen.queryByTitle("ویدئوی پرس سینه هالتر")).not.toBeInTheDocument();
@@ -171,7 +179,7 @@ describe("InteractiveWorkout", () => {
     vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
     api.mockResolvedValueOnce({ version_id: "version-1", sessions: [] });
     const withVideo = structuredClone(program);
-    withVideo.training!.days[0].exercises[0].tutorial_url = "/media/workout/bench-reel.mp4";
+    withVideo.training!.days[0].exercises[0].media = uploadedDemo();
     render(<InteractiveWorkout program={withVideo} />);
     await userEvent.click(await screen.findByRole("button", { name: "آموزش حرکت پرس سینه هالتر" }));
     const video = screen.getByLabelText("ویدئوی پرس سینه هالتر");
@@ -258,7 +266,7 @@ describe("InteractiveWorkout", () => {
           ...day,
           exercises: day.exercises.map((exercise) => ({
             ...exercise,
-            tutorial_url: "https://cdn.example.test/bench.mp4"
+            media: uploadedDemo()
           }))
         }))
       }
@@ -270,7 +278,7 @@ describe("InteractiveWorkout", () => {
     await userEvent.click(preview);
     expect(await screen.findByLabelText("ویدئوی پرس سینه هالتر")).toHaveAttribute(
       "src",
-      "https://cdn.example.test/bench.mp4"
+      "/media/workout/uploads/test/video.mp4"
     );
     await userEvent.click(screen.getByRole("button", { name: "روشن‌کردن صدا" }));
     expect(screen.getByLabelText("ویدئوی پرس سینه هالتر")).toHaveProperty("muted", false);

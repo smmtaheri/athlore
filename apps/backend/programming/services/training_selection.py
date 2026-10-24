@@ -1293,7 +1293,7 @@ def build_training_days(
                         "order": 0,
                         "name": name,
                         "exercise_id": str(ex_ref.id) if ex_ref else None,
-                        "tutorial_url": ex_ref.tutorial_url if ex_ref else "",
+                        "tutorial_url": "",
                         "execution_guide": ex_ref.execution_guide if ex_ref else {},
                         "display_name": name,
                         "targetMuscle": muscle,

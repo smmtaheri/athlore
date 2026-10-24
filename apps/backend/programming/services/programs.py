@@ -272,18 +272,16 @@ def serialize_student_program_detail(program: Program) -> dict:
                 )
             }
             for exercise in exercises:
+                exercise["tutorial_url"] = ""
+                exercise["tutorial_source_url"] = ""
                 catalog_row = catalog_rows.get(str(exercise.get("exercise_id")))
                 if not catalog_row:
+                    exercise["media"] = None
                     if exercise.get("exercise_id"):
-                        exercise["media"] = None
-                        exercise["tutorial_url"] = ""
-                        exercise["tutorial_source_url"] = ""
                         exercise["execution_guide"] = {}
                     continue
                 from accounts.exercise_media_services import media_payload
 
-                exercise["tutorial_source_url"] = catalog_row.tutorial_source_url
-                exercise["tutorial_url"] = catalog_row.tutorial_url
                 exercise["media"] = media_payload(catalog_row)
                 exercise["execution_guide"] = _deep_copy(catalog_row.execution_guide or {})
                 if not exercise.get("primary_muscle"):

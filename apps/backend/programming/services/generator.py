@@ -521,8 +521,8 @@ def generate_document(
         for item in items:
             source = catalog.get(str(item.get("exercise_id")))
             if source:
-                item["tutorial_url"] = source.tutorial_url
-                item["tutorial_source_url"] = source.tutorial_source_url
+                item["tutorial_url"] = ""
+                item["tutorial_source_url"] = ""
                 item["execution_guide"] = source.execution_guide
                 item["primary_muscle"] = source.primary_muscle
                 from accounts.exercise_media_services import media_payload
