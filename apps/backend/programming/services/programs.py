@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 from datetime import timedelta
 from typing import Any
+from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 from django.db import transaction
@@ -13,7 +14,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import NotFound, ValidationError
 
-from accounts.models import CoachProfile, ProgramTemplate
+from accounts.models import CoachProfile, Exercise, ProgramTemplate
 from accounts.rules_services import ensure_rule_set
 from common.exceptions import ConflictError, GenerationFailedError, InvalidStateError
 from programming.models import GenerationRun, Program, ProgramVersion
@@ -242,6 +243,38 @@ def serialize_student_program_detail(program: Program) -> dict:
     version = _latest_student_version(program)
     if version is None:
         raise NotFound(detail="Not found.")
+    training = _deep_copy(version.training)
+    # Older finalized programs may predate exercise video URLs. Resolve only the
+    # missing media from this coach's catalog, without mutating the immutable
+    # program version or leaking another coach's catalog entries.
+    if isinstance(training, dict):
+        exercises = [
+            exercise
+            for day in training.get("days", [])
+            if isinstance(day, dict)
+            for exercise in day.get("exercises", [])
+            if isinstance(exercise, dict)
+        ]
+        catalog_ids = {
+            exercise.get("exercise_id")
+            for exercise in exercises
+            if exercise.get("exercise_id") and not exercise.get("tutorial_url")
+        }
+        if catalog_ids:
+            catalog_urls = {
+                str(item.id): item.tutorial_url
+                for item in Exercise.objects.filter(
+                    coach_id=program.coach_id,
+                    id__in=catalog_ids,
+                ).only("id", "tutorial_url")
+                if item.tutorial_url
+                and urlsplit(item.tutorial_url).scheme == "https"
+                and urlsplit(item.tutorial_url).netloc
+            }
+            for exercise in exercises:
+                catalog_url = catalog_urls.get(str(exercise.get("exercise_id")))
+                if catalog_url and not exercise.get("tutorial_url"):
+                    exercise["tutorial_url"] = catalog_url
     return {
         **serialize_student_program_summary(program),
         "date_range_start": program.date_range_start.isoformat()
@@ -251,7 +284,7 @@ def serialize_student_program_detail(program: Program) -> dict:
         "program_version_id": str(version.id),
         "section_methods": (version.pdf_settings or {}).get("deliverySections") or {},
         "delivery_source": version.delivery_source,
-        "training": _deep_copy(version.training),
+        "training": training,
         "nutrition": _deep_copy(version.nutrition),
         "supplements": _deep_copy(version.supplements),
     }

@@ -60,19 +60,39 @@ const program: GeneratedProgram = {
 
 describe("InteractiveWorkout", () => {
   beforeEach(() => api.mockReset());
-  it("loads persisted sets, sends the active version, and rolls back failed changes", async () => {
+  it("loads saved set values and rolls back failed changes", async () => {
     api.mockResolvedValueOnce({
       version_id: "version-1",
-      sessions: [{ week: 1, day_id: "day-1", completed_sets: { "exercise-1": [0] } }]
+      sessions: [
+        {
+          week: 1,
+          day_id: "day-1",
+          completed_sets: { "exercise-1": [0] },
+          set_logs: {
+            "exercise-1": [
+              {
+                set_index: 0,
+                completed: true,
+                reps: 11,
+                weight_kg: 32.5,
+                rest_seconds: null
+              }
+            ]
+          }
+        }
+      ]
     });
     api.mockRejectedValueOnce(new Error("offline"));
     render(<InteractiveWorkout program={program} />);
-    const set = await screen.findByRole("button", { name: "ست 1 انجام شده" });
-    await waitFor(() => expect(set).toBeEnabled());
-    expect(set).toHaveAttribute("aria-pressed", "true");
-    await userEvent.click(set);
+    const reps = await screen.findByLabelText("تکرار واقعی ست ۱");
+    expect(reps).toHaveValue(11);
+    expect(screen.getByLabelText("وزنهٔ واقعی (کیلوگرم) ست ۱")).toHaveValue(32.5);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "علامت‌گذاری به‌عنوان ناقص" })).toBeEnabled()
+    );
+    await userEvent.click(screen.getByRole("button", { name: "علامت‌گذاری به‌عنوان ناقص" }));
     await screen.findByRole("alert");
-    expect(set).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("انجام‌شده")).toBeInTheDocument();
     expect(api).toHaveBeenLastCalledWith("/me/programs/program-1/workout-progress/", {
       method: "PUT",
       body: {
@@ -80,27 +100,28 @@ describe("InteractiveWorkout", () => {
         week: 1,
         day_id: "day-1",
         exercise_id: "exercise-1",
-        completed_sets: []
+        completed_sets: [],
+        set_logs: [
+          {
+            set_index: 0,
+            completed: false,
+            reps: 11,
+            weight_kg: 32.5,
+            rest_seconds: null
+          }
+        ]
       }
     });
   });
   it("keeps weeks independent and displays course progress", async () => {
     api.mockResolvedValueOnce({
       version_id: "version-1",
-      sessions: [{ week: 1, day_id: "day-1", completed_sets: { "exercise-1": [0] } }]
+      sessions: [{ week: 1, day_id: "day-1", completed_sets: { "exercise-1": [0] }, set_logs: {} }]
     });
     render(<InteractiveWorkout program={program} />);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "ست 1 انجام شده" })).toHaveAttribute(
-        "aria-pressed",
-        "true"
-      )
-    );
+    await waitFor(() => expect(screen.getByText("۱ از ۳ ست انجام شده")).toBeInTheDocument());
     await userEvent.selectOptions(screen.getByLabelText("هفتهٔ برنامه"), "2");
-    expect(screen.getByRole("button", { name: "ست 1 انجام نشده" })).toHaveAttribute(
-      "aria-pressed",
-      "false"
-    );
+    expect(screen.getByText("۰ از ۳ ست انجام شده")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "پیشرفت کل دوره" })).toHaveAttribute(
       "value",
       "8"
@@ -114,24 +135,37 @@ describe("InteractiveWorkout", () => {
     api.mockResolvedValueOnce({ version_id: "version-2", sessions: [] });
     render(<InteractiveWorkout program={program} />);
     expect(await screen.findByRole("alert")).toHaveTextContent("نسخهٔ برنامه تغییر کرده");
-    expect(screen.getByRole("button", { name: "ست 1 انجام نشده" })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "ثبت ست" })[0]).toBeDisabled();
   });
-  it("marks an exercise complete and reveals its own rest timer", async () => {
+  it("saves actual reps and weight, then starts the movement's rest timer", async () => {
     api.mockResolvedValueOnce({ version_id: "version-1", sessions: [] });
     api.mockResolvedValueOnce({
       week: 1,
       day_id: "day-1",
-      completed_sets: { "exercise-1": [0, 1, 2] }
+      completed_sets: { "exercise-1": [0] },
+      set_logs: {
+        "exercise-1": [
+          {
+            set_index: 0,
+            completed: true,
+            reps: 10,
+            weight_kg: 25,
+            rest_seconds: null
+          }
+        ]
+      }
     });
     render(<InteractiveWorkout program={program} />);
+    const reps = await screen.findByLabelText("تکرار واقعی ست ۱");
+    await waitFor(() => expect(reps).toBeEnabled());
+    await userEvent.type(reps, "10");
+    await userEvent.type(screen.getByLabelText("وزنهٔ واقعی (کیلوگرم) ست ۱"), "25");
+    await userEvent.click(screen.getAllByRole("button", { name: "ثبت ست" })[0]);
 
-    await userEvent.click(
-      await screen.findByRole("button", { name: "علامت‌گذاری حرکت به‌عنوان کامل" })
-    );
-
-    expect(await screen.findByText("این جلسه کامل شد. آفرین!")).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "تایمر استراحت پرس سینه" })).toBeInTheDocument();
-    expect(screen.getByText("۱:۳۰")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("group", { name: "تایمر استراحت پرس سینه" })
+    ).toBeInTheDocument();
+    expect(await screen.findByText("۱:۳۰")).toBeInTheDocument();
     expect(api).toHaveBeenLastCalledWith("/me/programs/program-1/workout-progress/", {
       method: "PUT",
       body: {
@@ -139,9 +173,55 @@ describe("InteractiveWorkout", () => {
         version_id: "version-1",
         day_id: "day-1",
         exercise_id: "exercise-1",
-        completed_sets: [0, 1, 2]
+        completed_sets: [0],
+        set_logs: [
+          {
+            set_index: 0,
+            completed: true,
+            reps: 10,
+            weight_kg: 25,
+            rest_seconds: null
+          }
+        ]
       }
     });
+  });
+  it("shows the prior week's set-by-set reps, weight and rest history", async () => {
+    api.mockResolvedValueOnce({
+      version_id: "version-1",
+      sessions: [
+        {
+          week: 1,
+          day_id: "day-1",
+          completed_sets: { "exercise-1": [0, 1] },
+          set_logs: {
+            "exercise-1": [
+              {
+                set_index: 0,
+                completed: true,
+                reps: 12,
+                weight_kg: 30,
+                rest_seconds: null
+              },
+              {
+                set_index: 1,
+                completed: true,
+                reps: 10,
+                weight_kg: 32.5,
+                rest_seconds: 88
+              }
+            ]
+          }
+        }
+      ]
+    });
+    render(<InteractiveWorkout program={program} />);
+    await userEvent.selectOptions(await screen.findByLabelText("هفتهٔ برنامه"), "2");
+    expect(screen.getByText("۲ ست از ۳ ست انجام شده بود.")).toBeInTheDocument();
+    expect(screen.getByText(/12 تکرار · 30 کیلوگرم/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/10 تکرار · 32.5 کیلوگرم · استراحت پیش از ست ۱:۲۸/)
+    ).toBeInTheDocument();
   });
   it("shows a clear video placeholder when the movement has no demo URL", async () => {
     api.mockResolvedValueOnce({ version_id: "version-1", sessions: [] });
@@ -167,7 +247,7 @@ describe("InteractiveWorkout", () => {
       }
     };
     render(<InteractiveWorkout program={withVideo} />);
-    expect(await screen.findByLabelText("ویدئوی آموزشی پرس سینه")).toHaveAttribute(
+    expect(await screen.findByLabelText("پیش‌نمایش ویدئوی پرس سینه")).toHaveAttribute(
       "src",
       "https://cdn.example.test/demo.mp4"
     );

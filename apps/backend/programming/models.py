@@ -274,6 +274,7 @@ class WorkoutSession(models.Model):
     week = models.PositiveIntegerField()
     day_id = models.CharField(max_length=160)
     completed_sets = models.JSONField(default=dict, blank=True)
+    set_logs = models.JSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

@@ -1040,12 +1040,19 @@ are not migrated or recreated.
   alternative returns 400 without mutating the draft. The new GenerationRun records
   its seed, source snapshot and previous training for audit.
 - `GET /me/programs/{id}/workout-progress/`: student-owned, published generated
-  workouts only; returns `{version_id, sessions}`.
+  workouts only; returns `{version_id, sessions}`. Each session includes completed
+  set indices and `set_logs` keyed by exercise id, with per-set completion, actual
+  reps, weight in kg, and actual rest seconds before that set when recorded.
 - `PUT` on the same progress URL accepts `{version_id, week, day_id, exercise_id,
-  completed_sets: [0, 1]}`. Indices are zero-based; validates week/session/set limits,
-  merges only this exercise, and returns the updated session. One row is unique per
-  student/version/week/day. Repeated writes are idempotent. Cross-student access is
-  404; uploaded-only workout, stale version, and invalid set data are 400.
+  completed_sets: [0, 1], set_logs: [{set_index, completed, reps, weight_kg,
+  rest_seconds}]}`. Indices are zero-based; actual reps and weight are optional for
+  legacy progress, weights are kg with at most two decimal places, and rest is the
+  elapsed time in seconds since the previous set's rest timer started. Validates
+  week/session/set limits, merges only this exercise, and returns the updated
+  session. Omitting `set_logs` remains backward-compatible with older clients.
+  One row is unique per student/version/week/day. Repeated writes are idempotent.
+  Cross-student access is 404; uploaded-only workout, stale version, and invalid
+  set data are 400.
 
 Exercise CRUD accepts optional `tutorial_url` (direct HTTPS media URL) and
 `execution_guide` (`execution`, `tips`, `mistakes` strings). Generation snapshots the

@@ -14,7 +14,12 @@ from rest_framework.test import APIClient
 from accounts.models import CoachProfile, Exercise
 from programming.models import GenerationRun, Program, ProgramVersion, WorkoutSession
 from programming.services.preparation import prepare_from_visit, validate_settings
-from programming.services.programs import activate_version, finalize_version, programs_for_student
+from programming.services.programs import (
+    activate_version,
+    finalize_version,
+    programs_for_student,
+    serialize_student_program_detail,
+)
 from programming.services.regeneration import regenerate
 from programming.services.workouts import save_progress
 from students.models import Student, StudentProfile
@@ -109,15 +114,15 @@ class WorkoutWorkflowTests(TestCase):
 
     def test_visit_preparation_keeps_a_reviewable_draft_when_catalog_lacks_a_target(self):
         visit = self.visit()
-        visit.program_settings["session_muscles"] = [
-            ["ساعد"], ["سینه"], ["زیربغل"], ["پا"]
-        ]
+        visit.program_settings["session_muscles"] = [["ساعد"], ["سینه"], ["زیربغل"], ["پا"]]
         visit.save(update_fields=["program_settings", "updated_at"])
 
         program, run = prepare_from_visit(self.coach, self.coach.user, visit.id, "missing-catalog")
 
         self.assertTrue(run.resulting_version.training["days"])
-        self.assertTrue(any(item.startswith("missing_exercise_candidates:") for item in run.warnings))
+        self.assertTrue(
+            any(item.startswith("missing_exercise_candidates:") for item in run.warnings)
+        )
         self.assertEqual(run.status, GenerationRun.Status.SUCCEEDED)
 
     def test_progress_is_per_week_and_idempotent(self):
@@ -133,6 +138,129 @@ class WorkoutWorkflowTests(TestCase):
             {"item-1": [0]},
         )
         self.assertEqual(WorkoutSession.objects.get(week=1).completed_sets, {"item-1": [0, 1]})
+
+    def test_student_program_detail_resolves_missing_video_from_own_coach_catalog(self):
+        program, version = self.active_program()
+        exercise = Exercise.objects.create(
+            coach=self.coach,
+            name="پرس سینه ویدئودار",
+            primary_muscle="سینه",
+            tutorial_url="https://media.example.test/bench.mp4",
+        )
+        version.training = {
+            "days": [
+                {
+                    "id": "day-1",
+                    "exercises": [
+                        {
+                            "id": "program-exercise-1",
+                            "exercise_id": str(exercise.id),
+                            "name": exercise.name,
+                            "tutorial_url": "",
+                            "sets": 3,
+                        }
+                    ],
+                }
+            ]
+        }
+        version.save(update_fields=["training", "updated_at"])
+
+        result = serialize_student_program_detail(program)
+
+        self.assertEqual(
+            result["training"]["days"][0]["exercises"][0]["tutorial_url"],
+            "https://media.example.test/bench.mp4",
+        )
+        version.refresh_from_db()
+        self.assertEqual(version.training["days"][0]["exercises"][0]["tutorial_url"], "")
+
+    def test_student_program_detail_does_not_resolve_another_coaches_video(self):
+        program, version = self.active_program()
+        other_user = get_user_model().objects.create_user(username="other-video-coach")
+        other_coach = CoachProfile.objects.create(user=other_user, display_name="Other Coach")
+        foreign_exercise = Exercise.objects.create(
+            coach=other_coach,
+            name="Private catalog video",
+            primary_muscle="سینه",
+            tutorial_url="https://media.example.test/private.mp4",
+        )
+        version.training = {
+            "days": [
+                {
+                    "id": "day-1",
+                    "exercises": [
+                        {
+                            "id": "program-exercise-1",
+                            "exercise_id": str(foreign_exercise.id),
+                            "name": foreign_exercise.name,
+                            "tutorial_url": "",
+                            "sets": 3,
+                        }
+                    ],
+                }
+            ]
+        }
+        version.save(update_fields=["training", "updated_at"])
+
+        result = serialize_student_program_detail(program)
+
+        self.assertEqual(result["training"]["days"][0]["exercises"][0]["tutorial_url"], "")
+
+    def test_progress_saves_actual_reps_weight_and_rest_per_set(self):
+        program, _ = self.active_program()
+        first_week = {
+            "week": 1,
+            "day_id": "day-1",
+            "exercise_id": "item-1",
+            "completed_sets": [0],
+            "set_logs": [
+                {
+                    "set_index": 0,
+                    "completed": True,
+                    "reps": 11,
+                    "weight_kg": "32.5",
+                    "rest_seconds": None,
+                },
+                {
+                    "set_index": 1,
+                    "completed": False,
+                    "reps": None,
+                    "weight_kg": None,
+                    "rest_seconds": None,
+                },
+            ],
+        }
+        result = save_progress(self.student, program.id, first_week)
+        self.assertEqual(result["set_logs"]["item-1"][0]["reps"], 11)
+        self.assertEqual(result["set_logs"]["item-1"][0]["weight_kg"], 32.5)
+
+        second_week = {
+            **first_week,
+            "week": 2,
+            "completed_sets": [0],
+            "set_logs": [
+                {
+                    "set_index": 0,
+                    "completed": True,
+                    "reps": 12,
+                    "weight_kg": 35,
+                    "rest_seconds": 96,
+                }
+            ],
+        }
+        result = save_progress(self.student, program.id, second_week)
+        self.assertEqual(result["set_logs"]["item-1"][0]["rest_seconds"], 96)
+        self.assertEqual(WorkoutSession.objects.count(), 2)
+        self.assertEqual(
+            WorkoutSession.objects.get(week=1).set_logs["item-1"][0]["weight_kg"], 32.5
+        )
+
+        with self.assertRaises(ValidationError):
+            save_progress(
+                self.student,
+                program.id,
+                {**second_week, "set_logs": [{"set_index": 0, "completed": False}]},
+            )
 
     def test_pdf_workout_does_not_accept_progress(self):
         program, version = self.active_program()
