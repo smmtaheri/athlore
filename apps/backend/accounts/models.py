@@ -314,6 +314,23 @@ class EquipmentTaxonomy(models.Model):
         return self.name
 
 
+EXTERNAL_EXERCISE_MEDIA_BASE_URL = (
+    "https://athlore-workout-motion.admirer135.chatgpt.site/assets"
+)
+EXTERNAL_EXERCISE_MEDIA_KEYS = {
+    "bench",
+    "incline",
+    "row",
+    "shoulder",
+    "pullup",
+    "squat",
+    "deadlift",
+    "legraise",
+    "crunch",
+    "plank",
+}
+
+
 class ExerciseMediaAsset(models.Model):
     """Platform-owned, reusable instructional media for an exact movement variant."""
 
@@ -341,12 +358,21 @@ class ExerciseMediaAsset(models.Model):
         return self.title_fa
 
     def public_payload(self) -> dict:
+        if self.key in EXTERNAL_EXERCISE_MEDIA_KEYS:
+            asset_base = f"{EXTERNAL_EXERCISE_MEDIA_BASE_URL}/{self.key}"
+            preview_url = f"{asset_base}-preview.mp4"
+            poster_url = f"{asset_base}.jpg"
+            reel_url = f"{asset_base}-reel.mp4"
+        else:
+            preview_url = self.preview_path
+            poster_url = self.poster_path
+            reel_url = self.reel_path
         return {
             "key": self.key,
             "title": self.title_fa,
-            "preview_url": self.preview_path,
-            "poster_url": self.poster_path,
-            "reel_url": self.reel_path,
+            "preview_url": preview_url,
+            "poster_url": poster_url,
+            "reel_url": reel_url,
             "education": self.education,
             "attribution": {
                 "author": self.author,

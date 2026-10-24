@@ -122,8 +122,32 @@ function createExerciseKey(week: number, dayId: string, exerciseId: string) {
   return `${week}:${dayId}:${exerciseId}`;
 }
 
+const EXTERNAL_EXERCISE_MEDIA_BASE_URL =
+  "https://athlore-workout-motion.admirer135.chatgpt.site/assets";
+const EXTERNAL_EXERCISE_MEDIA_KEYS = new Set([
+  "bench",
+  "incline",
+  "row",
+  "shoulder",
+  "pullup",
+  "squat",
+  "deadlift",
+  "legraise",
+  "crunch",
+  "plank",
+]);
+
 function getExerciseMedia(exercise: TrainingExercise): ExerciseMedia | null {
-  return exercise.media && typeof exercise.media === "object" ? exercise.media : null;
+  const media = exercise.media && typeof exercise.media === "object" ? exercise.media : null;
+  if (!media || !EXTERNAL_EXERCISE_MEDIA_KEYS.has(media.key)) return media;
+
+  const assetBase = `${EXTERNAL_EXERCISE_MEDIA_BASE_URL}/${media.key}`;
+  return {
+    ...media,
+    preview_url: `${assetBase}-preview.mp4`,
+    poster_url: `${assetBase}.jpg`,
+    reel_url: `${assetBase}-reel.mp4`,
+  };
 }
 
 function guideSteps(exercise: TrainingExercise) {
