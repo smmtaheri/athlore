@@ -141,7 +141,7 @@ services:
     security_opt:
       - no-new-privileges:true
     read_only: true
-    cpus: 1.5
+    cpus: 1.0
     mem_limit: 768m
     pids_limit: 128
     tmpfs:
