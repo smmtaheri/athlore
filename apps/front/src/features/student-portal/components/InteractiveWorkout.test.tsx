@@ -247,9 +247,18 @@ describe("InteractiveWorkout", () => {
       }
     };
     render(<InteractiveWorkout program={withVideo} />);
-    expect(await screen.findByLabelText("پیش‌نمایش ویدئوی پرس سینه")).toHaveAttribute(
+    const preview = await screen.findByRole("button", { name: "پخش ویدئوی پرس سینه" });
+    const previewVideo = preview.querySelector("video");
+    expect(previewVideo).toHaveAttribute("src", "https://cdn.example.test/demo.mp4");
+    expect(previewVideo).toHaveAttribute("autoplay");
+    expect(previewVideo).toHaveAttribute("loop");
+    expect(previewVideo).toHaveProperty("muted", true);
+    expect(previewVideo).not.toHaveAttribute("controls");
+    await userEvent.click(preview);
+    expect(await screen.findByLabelText("ویدئوی پرس سینه")).toHaveAttribute(
       "src",
       "https://cdn.example.test/demo.mp4"
     );
+    expect(screen.getByLabelText("ویدئوی پرس سینه")).toHaveAttribute("controls");
   });
 });

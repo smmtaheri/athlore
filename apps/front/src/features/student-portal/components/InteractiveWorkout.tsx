@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, CheckCircle2, Circle, Clock3, Dumbbell, Play, X } from "lucide-react";
-import { Button, Card, FormField, Input, Select } from "../../../components/ui";
+import { Button, Card, FormField, Input, Modal, Select } from "../../../components/ui";
 import { apiRequest } from "../../../shared/api/client";
 import type { GeneratedProgram, TrainingExercise } from "../../programs/types/generatedProgram";
 import styles from "./studentPortal.module.css";
@@ -91,8 +91,10 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(null);
+  const [activeVideo, setActiveVideo] = useState<{ name: string; url: string } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [failedVideos, setFailedVideos] = useState<string[]>([]);
+  const [videoDurations, setVideoDurations] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let active = true;
@@ -630,19 +632,34 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
                       <span>مربی می‌تواند لینک مستقیم ویدئو را در کاتالوگ همین حرکت ثبت کند.</span>
                     </div>
                   ) : (
-                    <video
-                      aria-label={`پیش‌نمایش ویدئوی ${exercise.name}`}
-                      className={styles.exerciseVideo}
-                      controls
-                      playsInline
-                      preload="metadata"
-                      src={exercise.tutorial_url}
-                      onError={() =>
-                        setFailedVideos((items) =>
-                          items.includes(exercise.id) ? items : [...items, exercise.id]
-                        )
+                    <button
+                      aria-label={`پخش ویدئوی ${exercise.name}`}
+                      className={styles.exerciseVideoPreview}
+                      onClick={() =>
+                        setActiveVideo({ name: exercise.name, url: exercise.tutorial_url! })
                       }
-                    />
+                      type="button"
+                    >
+                      <LoopingVideoPreview
+                        onDuration={(duration) =>
+                          setVideoDurations((items) => ({ ...items, [exercise.id]: duration }))
+                        }
+                        onError={() =>
+                          setFailedVideos((items) =>
+                            items.includes(exercise.id) ? items : [...items, exercise.id]
+                          )
+                        }
+                        source={exercise.tutorial_url!}
+                      />
+                      <span className={styles.videoPreviewPlay} aria-hidden>
+                        <Play size={16} fill="currentColor" />
+                      </span>
+                      {videoDurations[exercise.id] ? (
+                        <span className={styles.videoPreviewDuration}>
+                          {formatTime(Math.round(videoDurations[exercise.id]))}
+                        </span>
+                      ) : null}
+                    </button>
                   )}
                 </div>
               </div>
@@ -654,6 +671,22 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
         <CheckCircle2 size={16} /> تکرار، وزنه، استراحت و وضعیت هر ست برای همین هفته، جلسه و نسخهٔ
         برنامه ذخیره می‌شود.
       </p>
+      <Modal
+        onClose={() => setActiveVideo(null)}
+        open={Boolean(activeVideo)}
+        title={activeVideo ? `آموزش حرکت ${activeVideo.name}` : "آموزش حرکت"}
+      >
+        {activeVideo ? (
+          <video
+            aria-label={`ویدئوی ${activeVideo.name}`}
+            autoPlay
+            className={styles.exerciseVideoModal}
+            controls
+            playsInline
+            src={activeVideo.url}
+          />
+        ) : null}
+      </Modal>
     </section>
   );
 }
@@ -675,5 +708,56 @@ function ProgressSummary({
       </div>
       <progress aria-label={label} value={percent} max={100} />
     </div>
+  );
+}
+
+function LoopingVideoPreview({
+  onDuration,
+  onError,
+  source
+}: {
+  onDuration: (duration: number) => void;
+  onError: () => void;
+  source: string;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [visible, setVisible] = useState(() => typeof IntersectionObserver === "undefined");
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setVisible(entry.isIntersecting);
+        if (entry.isIntersecting) {
+          void video.play().catch(() => undefined);
+        } else {
+          video.pause();
+        }
+      },
+      { rootMargin: "120px 0px", threshold: 0.01 }
+    );
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [source]);
+
+  return (
+    <video
+      ref={videoRef}
+      aria-hidden="true"
+      autoPlay={visible}
+      className={styles.exerciseVideoThumbnail}
+      loop
+      muted
+      playsInline
+      preload={visible ? "metadata" : "none"}
+      src={source}
+      onLoadedMetadata={(event) => {
+        const { duration } = event.currentTarget;
+        if (Number.isFinite(duration) && duration > 0) onDuration(duration);
+      }}
+      onError={onError}
+    />
   );
 }
