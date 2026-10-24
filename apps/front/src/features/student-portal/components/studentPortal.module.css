@@ -541,6 +541,405 @@
   font-weight: 600;
 }
 
+.workoutExperience {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.workoutOverview {
+  display: grid;
+  gap: var(--space-5);
+  border-color: var(--color-primary-100);
+  background: linear-gradient(145deg, var(--color-surface), var(--color-primary-50));
+}
+
+.workoutOverviewHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.workoutHeading {
+  margin: 2px 0 0;
+  color: var(--color-text-primary);
+  font-size: clamp(1.25rem, 2.2vw, 1.75rem);
+  font-weight: 800;
+}
+
+.workoutSelectors {
+  display: grid;
+  width: min(100%, 420px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.workoutProgressGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.progressSummary {
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  padding: var(--space-3) var(--space-4);
+}
+
+.progressSummaryHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}
+
+.progressSummaryHeader strong {
+  color: var(--color-primary-700);
+  font-size: 0.9375rem;
+}
+
+.progressSummary progress {
+  width: 100%;
+  height: 9px;
+  accent-color: var(--color-primary-600, #4f46e5);
+}
+
+.workoutCompleteBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  border: 1px solid var(--color-success-200, #a7f3d0);
+  border-radius: var(--radius-md);
+  background: var(--color-success-50, #ecfdf5);
+  color: var(--color-success-700, #047857);
+  padding: var(--space-3) var(--space-4);
+  font-weight: 700;
+}
+
+.interactiveExerciseList {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.interactiveExerciseCard {
+  display: grid;
+  gap: var(--space-4);
+  overflow: hidden;
+  border-color: var(--color-border);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.interactiveExerciseComplete {
+  border-color: var(--color-success-200, #a7f3d0);
+  box-shadow: inset 4px 0 0 var(--color-success-500, #10b981);
+}
+
+.interactiveExerciseHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+  padding-block-end: var(--space-3);
+}
+
+.exerciseIdentity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.exerciseIdentity .eyebrow {
+  margin: 0;
+}
+
+.exerciseIndex {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.interactiveExerciseTitle {
+  overflow-wrap: anywhere;
+  margin: 2px 0 0;
+  color: var(--color-text-primary);
+  font-size: clamp(1rem, 1.7vw, 1.25rem);
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.exerciseStatus {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface-page);
+  color: var(--color-text-secondary);
+  padding: 6px 11px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.exerciseStatusComplete {
+  border-color: var(--color-success-200, #a7f3d0);
+  background: var(--color-success-50, #ecfdf5);
+  color: var(--color-success-700, #047857);
+}
+
+.interactiveExerciseBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.78fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.interactiveExerciseDetails {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.prescriptionChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.prescriptionChips span {
+  border: 1px solid var(--color-primary-100);
+  border-radius: 999px;
+  background: var(--color-primary-50);
+  color: var(--color-primary-800, var(--color-primary-700));
+  padding: 5px 10px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.trainingGroupNote,
+.exerciseCoachNote {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.8;
+}
+
+.trainingGroupNote {
+  border-inline-start: 3px solid var(--color-primary-400, #818cf8);
+  background: var(--color-primary-50);
+  padding: var(--space-2) var(--space-3);
+}
+
+.setCompletionBlock {
+  display: grid;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-page);
+  padding: var(--space-3);
+}
+
+.setCompletionHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+}
+
+.setCompletionHeader span {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.setButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.setButton {
+  display: inline-flex;
+  min-width: 78px;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  padding: 0 10px;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.setButton:hover:not(:disabled) {
+  border-color: var(--color-primary-300, #a5b4fc);
+  color: var(--color-primary-700);
+}
+
+.setButtonDone {
+  border-color: var(--color-primary-600, #4f46e5);
+  background: var(--color-primary-600, #4f46e5);
+  color: #fff;
+}
+
+.setButtonDone:hover:not(:disabled) {
+  background: var(--color-primary-700, #4338ca);
+  color: #fff;
+}
+
+.setButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.exerciseCompletionButton {
+  justify-self: start;
+}
+
+.inlineRestTimer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--color-primary-200, #c7d2fe);
+  border-radius: var(--radius-md);
+  background: linear-gradient(110deg, var(--color-primary-50), var(--color-surface));
+  padding: var(--space-3);
+  animation: timerReveal 180ms ease-out;
+}
+
+.inlineTimerInfo,
+.inlineTimerActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.inlineTimerInfo {
+  color: var(--color-primary-700);
+}
+
+.inlineTimerInfo > div {
+  display: grid;
+  gap: 2px;
+}
+
+.inlineTimerLabel {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+.inlineTimerValue {
+  color: var(--color-primary-800, var(--color-primary-700));
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.exerciseMedia {
+  min-width: 0;
+}
+
+.exerciseVideo,
+.videoPlaceholder {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  max-height: 360px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #111827;
+  object-fit: contain;
+}
+
+.videoPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: linear-gradient(145deg, var(--color-primary-50), var(--color-surface-page));
+  color: var(--color-text-secondary);
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.videoPlaceholder strong {
+  color: var(--color-text-primary);
+  font-size: 0.9375rem;
+}
+
+.videoPlaceholder > span:last-child {
+  max-width: 34ch;
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+.videoPlaceholderIcon {
+  display: inline-flex;
+  width: 52px;
+  height: 52px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-primary-700);
+  box-shadow: var(--shadow-sm);
+}
+
+.workoutSaveNote {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+}
+
+@keyframes timerReveal {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .exerciseList,
 .mealList {
   display: grid;
@@ -693,6 +1092,45 @@
   .exerciseRow,
   .mealRow {
     align-items: flex-start;
+  }
+
+  .workoutProgressGrid,
+  .workoutSelectors,
+  .interactiveExerciseBody {
+    grid-template-columns: 1fr;
+  }
+
+  .workoutOverviewHeader {
+    display: grid;
+  }
+
+  .interactiveExerciseHeader {
+    align-items: flex-start;
+  }
+
+  .exerciseStatus {
+    margin-inline-start: auto;
+  }
+
+  .exerciseCompletionButton {
+    width: 100%;
+  }
+
+  .inlineRestTimer,
+  .inlineTimerActions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .inlineTimerActions button {
+    width: 100%;
+  }
+
+  .exerciseVideo,
+  .videoPlaceholder {
+    aspect-ratio: 16 / 9;
+    max-height: none;
   }
 
   .exercisePrescription {
