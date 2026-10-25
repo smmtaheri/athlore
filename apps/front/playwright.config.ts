@@ -17,7 +17,7 @@ export default defineConfig({
   timeout: 180_000,
   expect: { timeout: 20_000 },
   use: {
-    baseURL: `http://127.0.0.1:${frontendPort}`,
+    baseURL: `http://localhost:${frontendPort}`,
     locale: "fa-IR",
     trace: "on-first-retry",
     screenshot: "only-on-failure",

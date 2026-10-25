@@ -1103,6 +1103,10 @@ def _build_training(
 
     summary = f"{days_per_week} روز تمرین بر اساس {template.name} و سطح {_level_label(level)}"
     training_evidence = {
+        "observed_weak_muscles": selection_evidence.get("observed_weak_muscles", []),
+        "generation_policy": selection_evidence.get("generation_policy", {}),
+        "prescription_version": selection_evidence.get("prescription_version"),
+        "weekly_primary_sets": selection_evidence.get("weekly_primary_sets", {}),
         "weak_muscles": selection_evidence.get("weak_muscles", []),
         "priority_muscles": selection_evidence.get("priority_muscles", []),
         "strong_muscles": selection_evidence.get("strong_muscles", []),
