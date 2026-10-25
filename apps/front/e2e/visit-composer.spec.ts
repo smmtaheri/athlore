@@ -167,7 +167,6 @@ test("unified visit keeps one source for weight, optional unknowns and private h
   await expect(page.getByLabel("بالاسینه", { exact: true })).toHaveCount(0);
   await page.getByRole("checkbox", { name: "سینه", exact: true }).check();
   await page.getByLabel("بالاسینه", { exact: true }).selectOption("weak");
-  await page.getByRole("heading", { name: "۱. ارزیابی کلی", exact: true }).click();
   await page.getByLabel(/^وزن جدید/).fill("78");
   const savedResponse = page.waitForResponse(
     (response) =>

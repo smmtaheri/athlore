@@ -1084,7 +1084,7 @@ def update_draft_version(version: ProgramVersion, payload: dict) -> ProgramVersi
                         {"training": ["تعداد ست هر حرکت باید عدد صحیح بین ۱ و ۱۰۰ باشد."]}
                     )
                 old = previous_exercises.get(str(ex.get("id")), {})
-                if any(ex.get(key) != old.get(key) for key in ("sets", "reps", "rest")):
+                if any(ex.get(key) != old.get(key) for key in ("sets", "reps", "rest", "rpe")):
                     raw = f"{ex.get('sets', '')}×{ex.get('reps', '')}"
                     ex["raw_prescription"] = raw
                     ex["prescription"] = {
@@ -1124,6 +1124,23 @@ def finalize_version(version: ProgramVersion, *, actor) -> ProgramVersion:
         return version  # idempotent
     if version.status != ProgramVersion.Status.DRAFT:
         raise InvalidStateError(detail="Only draft versions can be finalized.")
+    from programming.services.split_parser import normalize_muscle
+
+    for day in (version.training or {}).get("days", []):
+        required = {normalize_muscle(muscle) for muscle in day.get("targetMuscles", [])}
+        present = {
+            normalize_muscle(exercise.get("targetMuscle", ""))
+            for exercise in day.get("exercises", [])
+        }
+        missing = required - present
+        if missing:
+            raise ValidationError(
+                {
+                    "training": [
+                        f"پوشش عضلات جلسه ناقص است: {', '.join(sorted(missing))}. کاتالوگ یا پیش‌نویس را اصلاح کنید."
+                    ]
+                }
+            )
     from delivery.models import StagedProgramPdf
     from delivery.services.staged_program_pdfs import promote_staged_pdfs
 

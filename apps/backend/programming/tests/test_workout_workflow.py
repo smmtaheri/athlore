@@ -149,6 +149,8 @@ class WorkoutWorkflowTests(TestCase):
             any(item.startswith("missing_exercise_candidates:") for item in run.warnings)
         )
         self.assertEqual(run.status, GenerationRun.Status.SUCCEEDED)
+        with self.assertRaises(ValidationError):
+            finalize_version(run.resulting_version, actor=self.coach.user)
 
     def test_progress_is_per_week_and_idempotent(self):
         program, _ = self.active_program()

@@ -150,8 +150,13 @@ export function CoachRulesPage({
       setStatus("loaded");
       setFeedback(
         error instanceof ApiError
-          ? (firstFieldError(error, "execution_plan", "training_systems", "templates") ??
-              persianMessageForApiError(error))
+          ? (firstFieldError(
+              error,
+              "generation_rules",
+              "execution_plan",
+              "training_systems",
+              "templates"
+            ) ?? persianMessageForApiError(error))
           : "ذخیره قوانین انجام نشد. دوباره تلاش کنید."
       );
     }

@@ -952,7 +952,10 @@ def _save_rule(manager, raw, identity, **data):
         if row is None:
             raise ValidationError({"id": ["Rule does not belong to this collection; reload it."]})
     else:
-        row = manager.filter(**{identity: data[identity]}).first()
+        candidates = manager.filter(**{identity: data[identity]})
+        if manager.model is ProgramTemplate:
+            candidates = candidates.filter(is_archived=False)
+        row = candidates.first()
     if row is None:
         return manager.create(**data)
     for key, value in data.items():

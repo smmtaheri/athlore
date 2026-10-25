@@ -84,3 +84,11 @@ not an automatic guessed starting load or a sport-specific periodization plan.
 Sport/corrective programs and medical judgments are not introduced by this
 change. Do not advertise those as implemented or give all generated programs
 a blanket safety guarantee.
+
+Finalization rejects a draft whose declared session muscles are not covered by
+its actual exercises. A warning-only partial draft cannot be published as a
+complete program. The Stage catalog currently has no active primary-back rows;
+automatic full-body generation therefore requires catalog completion. QA can
+explicitly select `--available-catalog-split` (chest/triceps, legs/shoulders) to
+exercise publication with supported catalog muscles. This is a named test
+configuration, never an automatic fallback or a balanced full-body claim.

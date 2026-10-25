@@ -34,6 +34,11 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--coach-id", required=True)
         parser.add_argument("--confirm-stage", action="store_true")
+        parser.add_argument(
+            "--available-catalog-split",
+            action="store_true",
+            help="Explicit chest/triceps and legs/shoulders QA split, not the automatic full-body policy.",
+        )
 
     def handle(self, *args, **options):
         if not options["confirm_stage"] or not settings.PUBLIC_DOMAIN.startswith("stage."):
@@ -52,7 +57,7 @@ class Command(BaseCommand):
                 "common.sms.http.client.HTTPSConnection",
                 side_effect=AssertionError("SMS network forbidden"),
             ) as network:
-                report = self.run_flow(coach)
+                report = self.run_flow(coach, options["available_catalog_split"])
                 report["sms_network_connections"] = network.call_count
                 report["program_sms"] = list(
                     ProgramReadySms.objects.filter(version_id=report["version_id"]).values(
@@ -67,7 +72,7 @@ class Command(BaseCommand):
         self.stdout.write(json.dumps(report, ensure_ascii=False, default=str))
 
     @transaction.atomic
-    def run_flow(self, coach):
+    def run_flow(self, coach, available_catalog_split=False):
         key = uuid4().hex[:10]
         user = get_user_model().objects.create_user(username=f"stage-qa-{key}")
         user.set_unusable_password()
@@ -125,6 +130,9 @@ class Command(BaseCommand):
         from programming.services.program_requests import start_request
 
         request = ProgramRequest.objects.get(pk=request_id)
+        if available_catalog_split:
+            visit.program_settings["session_muscles"] = [["سینه", "پشت بازو"], ["پا", "سرشانه"]]
+            visit.save(update_fields=["program_settings"])
         start_request(request=request, visit_id=visit.id, assessment_mode="in_person")
         finalize_visit(visit, actor=coach.user)
         program, run = prepare_from_visit(coach, coach.user, visit.id, f"qa-{key}")

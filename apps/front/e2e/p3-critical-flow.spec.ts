@@ -20,13 +20,15 @@ async function registerViaUi(page: Page, email: string, fullName: string, phone:
 }
 
 async function accessToken(page: Page): Promise<string> {
-  const token = await page.evaluate(() => {
-    const raw =
-      sessionStorage.getItem("coach-assistant.auth.session.v3") ||
-      localStorage.getItem("coach-assistant.auth.session.v2");
-    if (!raw) return "";
-    const session = JSON.parse(raw) as { accessToken?: string; token?: string };
-    return session.accessToken || session.token || "";
+  const token = await page.evaluate(async () => {
+    const response = await fetch("/api/v1/auth/refresh/", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: "{}"
+    });
+    const session = await response.json();
+    return session.access || "";
   });
   expect(token).toBeTruthy();
   return token;
@@ -257,7 +259,7 @@ test.describe("P3 critical PDF flow", () => {
 
 test("invalid login shows Persian error", async ({ page }) => {
   await page.goto("/login");
-  await page.locator("#login-email").fill("bad@example.com");
+  await page.locator("#login-phone").fill("09121112233");
   await page.locator("#login-password").fill("wrong-password");
   await page.getByRole("button", { name: /ورود به داشبورد/i }).click();
   await expect(

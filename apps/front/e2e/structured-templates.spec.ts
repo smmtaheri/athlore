@@ -76,6 +76,7 @@ test("typed template editor saves executable blocks without free-text rules", as
     await page.getByRole("link", { name, exact: true }).filter({ visible: true }).click();
   };
   await navigate("قوانین مربی");
+  await page.getByText("قالب دقیق برنامه (اختیاری)", { exact: true }).click();
   await page.getByRole("button", { name: "افزودن قالب", exact: true }).click();
   await page.getByLabel("نام قالب", { exact: true }).fill("قالب اجرایی تست");
   await page.getByRole("checkbox", { name: "سینه", exact: true }).check();

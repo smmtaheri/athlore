@@ -50,11 +50,11 @@ test("coach supplement CRUD and consumption slots work without horizontal overfl
   });
   expect(templateResponse.status()).toBe(201);
   await page.goto("/login");
-  await page.locator("#login-email").fill(email);
+  await page.locator("#login-phone").fill(`+989${suffix.slice(-9)}`);
   await page.locator("#login-password").fill(password);
   await page.getByRole("button", { name: "ورود به داشبورد", exact: true }).click();
   await expect(page).toHaveURL(/dashboard/);
-  await page.goto("/coach-rules?section=supplementTemplates");
+  await page.goto("/coach-rules?section=nutritionTemplates");
   await page.getByRole("button", { name: "افزودن مکمل", exact: true }).click();
   const drawer = page.getByRole("dialog", { name: "افزودن مکمل", exact: true });
   await drawer.getByLabel("نام مکمل", { exact: true }).fill("QA Catalog Supplement");
