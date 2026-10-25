@@ -27,10 +27,13 @@ def validate_settings(data):
         "duration_weeks",
         "template_id",
         "sections",
+        "focus_muscles",
     }
     if set(data) - allowed:
         raise ValidationError({"program_settings": ["گزینهٔ ناشناخته در تنظیمات برنامه."]})
     result = deepcopy(data)
+    if "focus_muscles" in result:
+        result["focus_muscles"] = normalize_training_system_muscles(result["focus_muscles"])
     if result.get("start_date"):
         try:
             date.fromisoformat(result["start_date"])
@@ -115,9 +118,9 @@ def prepare_from_visit(coach, actor, visit_id, operation_key, section_methods=No
         ).exists()
     )
     if stale_template:
-        # A deleted/archived template is an optional preference, not a reason to
-        # make the visit's primary "prepare program" action fail with a 404.
-        settings.pop("template_id", None)
+        raise ValidationError(
+            {"template_id": ["قالب انتخاب‌شده در دسترس نیست؛ قالب را حذف یا دوباره انتخاب کنید."]}
+        )
     semantic = (build_generation_context_from_visit(visit) or {}).get("executable") or {}
     sections = settings.get("sections", ["workout"])
     methods = settings.get("training_systems", semantic.get("training_methods", []))
@@ -199,6 +202,7 @@ def prepare_from_visit(coach, actor, visit_id, operation_key, section_methods=No
             request[flag] = section_methods.get(section) == "generated"
     if "session_muscles" in settings:
         request["session_muscles"] = settings["session_muscles"]
+    request["muscle_priorities"] = settings.get("focus_muscles", [])
     if level:
         request["level"] = level
     if settings.get("template_id"):
@@ -238,12 +242,6 @@ def prepare_from_visit(coach, actor, visit_id, operation_key, section_methods=No
         request[key] = request[key].isoformat()
     program, run = programs.generate_program(coach, request)
     program_requests.link_program(program=program, actor=actor, visit_id=visit.id)
-    if stale_template:
-        run.warnings = [
-            *(run.warnings or []),
-            "قالب انتخاب‌شده دیگر در دسترس نبود؛ برنامه با تنظیمات خودکار ساخته شد.",
-        ]
-        run.save(update_fields=["warnings", "updated_at"])
     version = run.resulting_version
     version.pdf_settings = {
         **version.pdf_settings,

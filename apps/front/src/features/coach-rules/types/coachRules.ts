@@ -212,6 +212,7 @@ export interface SupplementTemplateSummary {
 }
 
 export interface CoachRules {
+  generationRules?: GenerationRules;
   exerciseCatalog?: StructuredExercise[];
   generalRules: GeneralCoachRules;
   injuries: InjuryRule[];
@@ -227,3 +228,15 @@ export interface CoachRules {
 }
 
 export type CoachRulesInput = CoachRules;
+
+export interface GenerationRules {
+  sets: number;
+  reps_min: number;
+  reps_max: number;
+  rest_seconds: number;
+  rir: number;
+  focus_extra_sets: number;
+  weakness_auto_focus: boolean;
+  warmup_minutes: number;
+  progression: "double_progression" | "maintain";
+}

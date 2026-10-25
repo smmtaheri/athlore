@@ -58,6 +58,7 @@ export interface StudentVisit {
 }
 
 export interface VisitProgramSettings {
+  focus_muscles?: string[];
   start_date?: string;
   training_systems?: Array<{ key: string; muscles?: string[]; variants?: string[] }>;
   session_muscles?: string[][];

@@ -344,7 +344,6 @@ def merge_student_with_assessment(
                 if str(m).strip() and str(m).strip().lower() != "none"
             ]
             goals["weak_muscles"] = mapped
-            goals["muscle_priorities"] = []
             evidence_bits["assessment_overrides"].append("weak_muscles")
             evidence_bits["visit_overrides"].append("weak_muscles")
 

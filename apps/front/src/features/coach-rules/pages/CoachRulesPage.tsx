@@ -21,7 +21,6 @@ import styles from "../../programs/components/programFlow.module.css";
 import { NutritionTemplatesSection } from "../components/NutritionTemplatesSection";
 import { StructuredCatalogSection } from "../components/StructuredCatalogSection";
 import { VisitFormTemplatesSection } from "../components/VisitFormTemplatesSection";
-import { SupplementTemplatesSection } from "../components/SupplementTemplatesSection";
 import { SupplementCatalogSection } from "../components/SupplementCatalogSection";
 import { TrainingSystemsSection } from "../components/TrainingSystemsSection";
 import { ProgramTemplateEditor } from "../components/ProgramTemplateEditor";
@@ -50,24 +49,19 @@ const sectionLabels: Record<CoachRuleSection, string> = {
   trainingSystems: "سیستم‌های تمرینی",
   general: "قوانین عمومی",
   injuries: "آسیب ها و محدودیت ها",
-  levels: "قوانین سطح تمرین",
+  levels: "قوانین تولید برنامه",
   muscles: "اولویت عضلات",
-  nutritionTemplates: "برنامه غذایی مرجع",
+  nutritionTemplates: "تغذیه و مکمل",
   supplementTemplates: "بانک مکمل‌ها",
   templates: "قالب های برنامه"
 };
 
 const sectionOrder: CoachRuleSection[] = [
-  "templates",
   "levels",
-  "injuries",
-  "muscles",
   "exercises",
   "trainingSystems",
-  "general",
-  "visitForms",
   "nutritionTemplates",
-  "supplementTemplates"
+  "visitForms"
 ];
 
 const levelOptions = [
@@ -168,15 +162,15 @@ export function CoachRulesPage({
     setFeedback("");
 
     try {
-      const nextRules = await repository.reset();
+      const nextRules = await repository.get();
       setRules(nextRules);
       setRulesDirty(false);
       setStatus("loaded");
-      setFeedback("قوانین به داده اولیه برگشت.");
+      setFeedback("آخرین قوانین ذخیره‌شده دوباره دریافت شد.");
       setConfirmReset(false);
     } catch {
       setStatus("loaded");
-      setFeedback("بازنشانی قوانین انجام نشد.");
+      setFeedback("دریافت دوبارهٔ قوانین انجام نشد.");
     }
   };
 
@@ -214,7 +208,7 @@ export function CoachRulesPage({
               onClick={() => setConfirmReset(true)}
               variant="secondary"
             >
-              بازنشانی
+              دریافت دوباره
             </Button>
             {!rulesDirty ? (
               <Button
@@ -228,7 +222,7 @@ export function CoachRulesPage({
           </div>
         }
         breadcrumb={["داشبورد", "قوانین مربی"]}
-        description="مدیریت قالب‌ها، آسیب‌ها، اولویت عضلات و کاتالوگ حرکات مربی"
+        description="یک محل برای قوانین تولید، حرکات، سیستم‌های تمرینی و فرم ویزیت"
         title="قوانین و سبک برنامه نویسی مربی"
       />
 
@@ -309,15 +303,16 @@ export function CoachRulesPage({
               onClick={resetRules}
               variant="danger"
             >
-              بازنشانی قوانین
+              دریافت آخرین نسخه
             </Button>
           </>
         }
         onClose={() => setConfirmReset(false)}
         open={confirmReset}
-        title="بازنشانی قوانین مربی"
+        title="دریافت دوبارهٔ قوانین"
       >
-        قوانین فعلی با داده اولیه جایگزین می شود.
+        تغییرات ذخیره‌نشده کنار گذاشته می‌شود و آخرین نسخهٔ ذخیره‌شده دریافت می‌شود. اطلاعات سرور
+        حذف یا بازنشانی نمی‌شود.
       </Modal>
     </PageContainer>
   );
@@ -349,7 +344,31 @@ function RulesSection({ rules, section, templatesRepository, updateRules }: Rule
     return <ProgramTemplateEditor rules={rules} updateRules={updateRules} />;
   }
   if (section === "levels") {
-    return <LevelRules rules={rules} updateRules={updateRules} />;
+    return (
+      <Stack gap="20px">
+        <GenerationPolicyEditor rules={rules} updateRules={updateRules} />
+        <details>
+          <summary>محدودیت‌های هر سطح</summary>
+          <LevelRules rules={rules} updateRules={updateRules} />
+        </details>
+        <details>
+          <summary>آسیب‌ها و محدودیت‌های ایمنی</summary>
+          <InjuryRules rules={rules} updateRules={updateRules} />
+        </details>
+        <details>
+          <summary>اولویت عضلات</summary>
+          <MuscleRules rules={rules} updateRules={updateRules} />
+        </details>
+        <details>
+          <summary>قالب دقیق برنامه (اختیاری)</summary>
+          <ProgramTemplateEditor rules={rules} updateRules={updateRules} />
+        </details>
+        <details>
+          <summary>یادداشت‌های مربی (غیراجرایی)</summary>
+          <GeneralRules rules={rules} updateRules={updateRules} />
+        </details>
+      </Stack>
+    );
   }
   if (section === "injuries") {
     return <InjuryRules rules={rules} updateRules={updateRules} />;
@@ -365,43 +384,81 @@ function RulesSection({ rules, section, templatesRepository, updateRules }: Rule
   }
   if (section === "nutritionTemplates") {
     return (
-      <NutritionTemplatesSection
-        onTemplatesChange={(nutritionTemplates) =>
-          updateRules((next) => ({ ...next, nutritionTemplates }))
-        }
-        repository={templatesRepository}
-        templates={rules.nutritionTemplates}
-      />
+      <Stack gap="20px">
+        <NutritionTemplatesSection
+          onTemplatesChange={(nutritionTemplates) =>
+            updateRules((next) => ({ ...next, nutritionTemplates }))
+          }
+          repository={templatesRepository}
+          templates={rules.nutritionTemplates}
+        />
+        <SupplementCatalogSection />
+      </Stack>
     );
   }
   if (section === "visitForms") {
     return <VisitFormTemplatesSection />;
   }
   if (section === "supplementTemplates") {
-    return (
-      <>
-        <SupplementCatalogSection />
-        <details>
-          <summary>قالب‌های مرجع قبلی</summary>
-          <SupplementTemplatesSection
-            onTemplatesChange={(supplementTemplates) =>
-              updateRules((next) => ({ ...next, supplementTemplates }))
-            }
-            repository={templatesRepository}
-            templates={rules.supplementTemplates}
-          />
-        </details>
-      </>
-    );
+    return <SupplementCatalogSection />;
   }
   return <GeneralRules rules={rules} updateRules={updateRules} />;
+}
+
+function GenerationPolicyEditor({ rules, updateRules }: RulesEditorProps) {
+  const policy = rules.generationRules;
+  if (!policy) return null;
+  const change = (values: Partial<typeof policy>) =>
+    updateRules((next) => ({ ...next, generationRules: { ...policy, ...values } }));
+  const fields = [
+    ["sets", "ست پایهٔ هر حرکت", 2, 5],
+    ["reps_min", "حداقل تکرار", 1, 30],
+    ["reps_max", "حداکثر تکرار", 1, 30],
+    ["rest_seconds", "استراحت بین ست‌ها (ثانیه)", 30, 300],
+    ["rir", "تکرار ذخیره (RIR)", 1, 5],
+    ["focus_extra_sets", "ست اضافه برای عضلهٔ مورد تمرکز", 0, 2],
+    ["warmup_minutes", "زمان گرم‌کردن (دقیقه)", 0, 20]
+  ] as const;
+  return (
+    <Card className={styles.pageStack}>
+      <SectionHeader
+        title="قوانین اجرایی تولید خودکار"
+        description="این اعداد مستقیماً دوز تمرین و سقف زمان را تعیین می‌کنند. سیستم تمرینی انتخاب‌شده می‌تواند روش اجرای حرکت را تغییر دهد؛ ایمنی همیشه مقدم است."
+      />
+      <div className={styles.threeColumnGrid}>
+        {fields.map(([key, label, min, max]) => (
+          <FormField key={key} label={label}>
+            <Input
+              type="number"
+              min={min}
+              max={max}
+              value={policy[key]}
+              onChange={(event) => change({ [key]: Number(event.target.value) })}
+            />
+          </FormField>
+        ))}
+      </div>
+      <Switch
+        checked={policy.weakness_auto_focus}
+        onCheckedChange={(checked) => change({ weakness_auto_focus: checked })}
+        label="ضعف ثبت‌شده خودکار اولویت این دوره باشد (پیش‌فرض: خاموش)"
+      />
+      <Switch
+        checked={policy.progression === "double_progression"}
+        onCheckedChange={(checked) =>
+          change({ progression: checked ? "double_progression" : "maintain" })
+        }
+        label="پیشرفت دوگانه: ابتدا افزایش تکرار، سپس وزنه با حفظ فرم و RIR"
+      />
+    </Card>
+  );
 }
 
 function LevelRules({ rules, updateRules }: RulesEditorProps) {
   return (
     <Card className={styles.pageStack}>
       <SectionHeader
-        description="حجم، شدت، حرکات ممنوع و تکنیک های مجاز هر سطح تمرینی."
+        description="حرکات ممنوع و تکنیک‌های مجاز هر سطح؛ دوز عددی از قوانین اجرایی بالا می‌آید."
         title="قوانین سطح تمرین"
       />
       <div className={styles.threeColumnGrid}>
@@ -434,18 +491,6 @@ function EditableLevelRule({
       <h3 className={styles.ruleCardTitle}>
         {levelOptions.find((item) => item.value === rule.id)?.label}
       </h3>
-      <FormField label="حجم تمرین">
-        <Input
-          value={rule.volume}
-          onChange={(event) => onChange({ ...rule, volume: event.target.value })}
-        />
-      </FormField>
-      <FormField label="شدت">
-        <Input
-          value={rule.intensity}
-          onChange={(event) => onChange({ ...rule, intensity: event.target.value })}
-        />
-      </FormField>
       <FormField label="حرکات ممنوع">
         <Textarea
           value={rule.forbiddenExercises.join("\n")}
@@ -587,7 +632,7 @@ function MuscleRules({ rules, updateRules }: RulesEditorProps) {
   return (
     <Card className={styles.pageStack}>
       <SectionHeader
-        description="تغییر ترتیب تمرین و افزایش حجم برای عضلات ضعیف یا اولویت دار."
+        description="افزایش حجم برای عضلات مورد تمرکز این دوره؛ ضعف به‌تنهایی اولویت خودکار نیست."
         title="اولویت عضلات"
       />
       <div className={styles.cardGrid}>
@@ -625,12 +670,6 @@ function EditableMuscleRule({
           onChange={(event) => onChange({ ...rule, muscle: event.target.value })}
         />
       </FormField>
-      <FormField label="تغییر ترتیب تمرین">
-        <Input
-          value={rule.orderChange}
-          onChange={(event) => onChange({ ...rule, orderChange: event.target.value })}
-        />
-      </FormField>
       <FormField label="افزایش حرکت">
         <Input
           type="number"
@@ -641,6 +680,8 @@ function EditableMuscleRule({
       <FormField label="افزایش ست">
         <Input
           type="number"
+          min={0}
+          max={2}
           value={rule.extraSets}
           onChange={(event) => onChange({ ...rule, extraSets: Number(event.target.value) })}
         />
@@ -659,8 +700,8 @@ function GeneralRules({ rules, updateRules }: RulesEditorProps) {
   return (
     <Card className={styles.pageStack}>
       <SectionHeader
-        description="قوانین عمومی فعال در تولید برنامه و توضیحات تکمیلی مربی."
-        title="قوانین عمومی"
+        description="این متن‌ها فقط یادداشت مربی‌اند؛ موتور آن‌ها را به دستور اجرایی تبدیل نمی‌کند. قوانین عددی را در بخش قوانین تولید تنظیم کنید."
+        title="یادداشت‌های مربی"
       />
       <div className={styles.cardGrid}>
         {rules.generalRules.items.map((rule) => (
@@ -772,9 +813,7 @@ function getSection(value: string | null): CoachRuleSection {
   if (value === "assessment") {
     return "visitForms";
   }
-  return sectionOrder.includes(value as CoachRuleSection)
-    ? (value as CoachRuleSection)
-    : "templates";
+  return sectionOrder.includes(value as CoachRuleSection) ? (value as CoachRuleSection) : "levels";
 }
 
 function splitLines(value: string) {

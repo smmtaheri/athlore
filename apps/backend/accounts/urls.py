@@ -71,16 +71,6 @@ urlpatterns = [
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
     path("coach-rules/", CoachRulesAggregateView.as_view(), name="coach-rules"),
     path(
-        "coach-rules/templates/",
-        ProgramTemplateListCreateView.as_view(),
-        name="coach-rules-templates",
-    ),
-    path(
-        "coach-rules/templates/<uuid:template_id>/",
-        ProgramTemplateDetailView.as_view(),
-        name="coach-rules-template-detail",
-    ),
-    path(
         "program-templates/",
         ProgramTemplateListCreateView.as_view(),
         name="program-templates",

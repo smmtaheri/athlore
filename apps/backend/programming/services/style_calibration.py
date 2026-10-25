@@ -34,21 +34,6 @@ DEFAULT_DAY_TARGETS: dict[tuple[str, ...], dict[str, Any]] = {
 }
 
 DEFAULT_SESSION_SETS = {"کم": 14, "متوسط": 18, "زیاد": 22}
-DEFAULT_SETS_PER_CLASS = {
-    "compound": 3,
-    "accessory": 3,
-    "isolation": 3,
-    "core": 3,
-}
-
-DEFAULT_RX_BY_CLASS: dict[str, list[tuple[str, int]]] = {
-    "compound": [("۸", 4), ("۱۰", 3), ("۸-۱۰", 4), ("۱۰", 4)],
-    "accessory": [("۱۲-۱۰", 4), ("۱۰", 3), ("۱۲", 3), ("۱۵-۱۰-۸-۱۵", 4)],
-    "isolation": [("۱۲", 3), ("۱۲-۱۰", 4), ("۱۵", 3), ("۱۲+۱۲", 3)],
-    "core": [("۱۵-۲۰", 3), ("۲۰", 3), ("۳۰ ثانیه", 3), ("۴۵ ثانیه", 3)],
-}
-
-REST_BUCKETS = (60, 75, 90, 120)
 
 
 def _key_for_muscles(muscles: list[str]) -> tuple[str, ...]:
@@ -100,31 +85,10 @@ def _normalize_day_targets(raw: dict | None) -> dict[tuple[str, ...], dict[str, 
     return out or {k: dict(v) for k, v in DEFAULT_DAY_TARGETS.items()}
 
 
-def _normalize_rx(raw: dict | None) -> dict[str, list[tuple[str, int]]]:
-    if not isinstance(raw, dict) or not raw:
-        return {k: list(v) for k, v in DEFAULT_RX_BY_CLASS.items()}
-    out: dict[str, list[tuple[str, int]]] = {}
-    for klass, items in raw.items():
-        parsed: list[tuple[str, int]] = []
-        if isinstance(items, list):
-            for item in items:
-                if isinstance(item, (list, tuple)) and len(item) >= 2:
-                    try:
-                        parsed.append((str(item[0]), int(item[1])))
-                    except (TypeError, ValueError):
-                        continue
-        if parsed:
-            out[str(klass)] = parsed
-    return out or {k: list(v) for k, v in DEFAULT_RX_BY_CLASS.items()}
-
-
 def platform_default_style_profile() -> dict[str, Any]:
     return {
         "day_targets": dict(DEFAULT_DAY_TARGETS),
         "session_sets": dict(DEFAULT_SESSION_SETS),
-        "sets_per_class": dict(DEFAULT_SETS_PER_CLASS),
-        "rx_by_class": {k: list(v) for k, v in DEFAULT_RX_BY_CLASS.items()},
-        "rest_buckets": REST_BUCKETS,
         "max_supersets_per_day": 1,
         "source": "platform_defaults",
     }
@@ -140,9 +104,11 @@ def load_style_profile(coach=None) -> dict[str, Any]:
             from accounts.models import CoachRuleSet
 
             # Always read from DB to avoid stale reverse-OneToOne cache.
-            row = CoachRuleSet.objects.filter(coach_id=coach_id).values_list(
-                "style_profile", flat=True
-            ).first()
+            row = (
+                CoachRuleSet.objects.filter(coach_id=coach_id)
+                .values_list("style_profile", flat=True)
+                .first()
+            )
             raw = row if isinstance(row, dict) else {}
         else:
             rule_set = getattr(coach, "rule_set", None)
@@ -155,17 +121,6 @@ def load_style_profile(coach=None) -> dict[str, Any]:
             profile["session_sets"] = {
                 str(k): int(v) for k, v in raw["session_sets"].items() if str(k)
             }
-        if isinstance(raw.get("sets_per_class"), dict) and raw["sets_per_class"]:
-            profile["sets_per_class"] = {
-                str(k): int(v) for k, v in raw["sets_per_class"].items() if str(k)
-            }
-        if raw.get("rx_by_class"):
-            profile["rx_by_class"] = _normalize_rx(raw.get("rx_by_class"))
-        if isinstance(raw.get("rest_buckets"), (list, tuple)) and raw["rest_buckets"]:
-            try:
-                profile["rest_buckets"] = tuple(int(x) for x in raw["rest_buckets"])
-            except (TypeError, ValueError):
-                pass
         if raw.get("max_supersets_per_day") is not None:
             try:
                 profile["max_supersets_per_day"] = int(raw["max_supersets_per_day"])
@@ -173,11 +128,6 @@ def load_style_profile(coach=None) -> dict[str, Any]:
                 pass
         profile["source"] = str(raw.get("source") or "coach_style_profile")
     return profile
-
-
-# Backward-compatible aliases (older imports / tests).
-def load_arman_style_profile() -> dict[str, Any]:
-    return load_style_profile(coach=None)
 
 
 def day_style_target(muscles: list[str], coach=None) -> dict[str, Any]:
@@ -211,22 +161,3 @@ def session_set_target(volume_text: str, level: str, coach=None) -> int:
     if "زیاد" in text or "بالا" in text or level == "advanced":
         return int(sets.get("زیاد", 22))
     return int(sets.get("متوسط", 18))
-
-
-def rest_bucket(movement: str, intensity: str, coach=None) -> str:
-    profile = load_style_profile(coach)
-    buckets = tuple(profile.get("rest_buckets") or REST_BUCKETS)
-    heavy = any(k in (intensity or "") for k in ("سنگین", "بالا", "شدید"))
-    if movement == "compound":
-        value = 120 if heavy else 90
-    elif movement == "accessory":
-        value = 90 if heavy else 75
-    elif movement == "isolation":
-        value = 75
-    elif movement == "core":
-        value = 60
-    else:
-        value = 90
-    if value not in buckets:
-        value = min(buckets, key=lambda b: abs(b - value))
-    return f"{value} ثانیه"

@@ -424,7 +424,7 @@ export function StudentVisitForm({
           collapsible
           icon={Target}
           title="۳. ارزیابی بدن و نقاط ضعف"
-          description="عضلاتی که نیاز به تمرکز دارند را مشخص کنید؛ جزئیات فقط برای همان عضلات باز می‌شوند."
+          description="ضعف مشاهده‌شده را ثبت کنید؛ تمرکز این دوره را جداگانه در تنظیم برنامه انتخاب کنید. جزئیات فقط برای عضلات انتخاب‌شده باز می‌شوند."
         >
           {photoPanel ? (
             <details className={styles.visitPhotoDisclosure}>

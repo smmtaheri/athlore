@@ -100,6 +100,28 @@ export function VisitProgramSettingsFields({
         ))}
       </FormField>
       <FormField
+        label="تمرکز این دوره"
+        hint="اختیاری؛ خالی یعنی برنامهٔ متعادل. ضعف مشاهده‌شده و آسیب جدا ثبت می‌شوند؛ محدودیت ایمنی همیشه مقدم است."
+      >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem 1rem" }}>
+          {PROGRAM_MUSCLES.map((muscle) => (
+            <Checkbox
+              key={muscle}
+              label={muscle}
+              disabled={disabled}
+              checked={(value.focus_muscles ?? []).includes(muscle)}
+              onChange={(event) =>
+                update({
+                  focus_muscles: event.target.checked
+                    ? [...(value.focus_muscles ?? []), muscle]
+                    : (value.focus_muscles ?? []).filter((item) => item !== muscle)
+                })
+              }
+            />
+          ))}
+        </div>
+      </FormField>
+      <FormField
         label="سیستم‌های تمرینی این دوره"
         hint="هر سیستم را تیک بزنید و عضلاتش را انتخاب کنید؛ بدون انتخاب عضله، سیستم روی حرکات واجدشرایط کل دوره اعمال می‌شود. خالی یعنی بدون سیستم خاص. برای تعیین سیستم از همین‌جا، قالب دقیق را روی بدون قالب بگذارید."
       >

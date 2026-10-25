@@ -1093,6 +1093,16 @@ def update_draft_version(version: ProgramVersion, payload: dict) -> ProgramVersi
                         "reps_text": ex.get("reps"),
                         "raw_prescription": raw,
                     }
+                    if ex["prescription"].get("version") == 2:
+                        ex["prescription"]["set_plan"] = [
+                            {
+                                "set": n + 1,
+                                "reps_text": ex.get("reps"),
+                                "rest": ex.get("rest"),
+                                "effort": ex.get("rpe"),
+                            }
+                            for n in range(ex.get("sets", 0))
+                        ]
                 ex_id = ex.get("exercise_id")
                 if ex_id:
                     if not Exercise.objects.filter(pk=ex_id, coach_id=version.coach_id).exists():

@@ -14,6 +14,7 @@ from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
+from accounts.generation_policy import coach_policy
 from accounts.models import (
     CoachExercisePreference,
     CoachNutritionTemplate,
@@ -863,6 +864,7 @@ def get_coach_rules_aggregate(coach: CoachProfile) -> dict:
     ]
     return {
         "updated_at": rule_set.updated_at.isoformat().replace("+00:00", "Z"),
+        "generation_rules": coach_policy(coach),
         "schema_version": rule_set.schema_version,
         "templates": templates,
         "levels": levels,
@@ -937,6 +939,28 @@ def _validate_template_payload(item: dict, *, require_name: bool = True, coach=N
     }
 
 
+def _save_rule(manager, raw, identity, **data):
+    """Preserve identity inside this owner-scoped collection; never recreate existing rows."""
+    row = None
+    raw_id = raw.get("id")
+    try:
+        parsed_id = uuid.UUID(str(raw_id)) if raw_id else None
+    except ValueError:
+        parsed_id = None
+    if parsed_id:
+        row = manager.filter(pk=parsed_id).first()
+        if row is None:
+            raise ValidationError({"id": ["Rule does not belong to this collection; reload it."]})
+    else:
+        row = manager.filter(**{identity: data[identity]}).first()
+    if row is None:
+        return manager.create(**data)
+    for key, value in data.items():
+        setattr(row, key, value)
+    row.save()
+    return row
+
+
 @transaction.atomic
 def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = False) -> dict:
     """Idempotent full or partial replace of coach rules aggregate."""
@@ -948,6 +972,7 @@ def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = F
             raise ValidationError({banned: ["Client-controlled ownership is not allowed."]})
 
     rule_set = ensure_rule_set(coach)
+    rule_set = CoachRuleSet.objects.select_for_update().get(pk=rule_set.pk)
     sections = set(payload.keys()) - {"updated_at", "schema_version"}
     known = {
         "templates",
@@ -955,6 +980,7 @@ def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = F
         "injuries",
         "muscle_priorities",
         "general_rules",
+        "generation_rules",
     }
     if not partial and not known.issubset(sections | known):
         # Full PUT expects the main sections; missing sections clear to empty.
@@ -963,30 +989,45 @@ def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = F
         raise ValidationError({"detail": "No updatable sections provided."})
 
     replace_all = not partial
+    if "generation_rules" in payload:
+        from accounts.generation_policy import validate_policy
+
+        rule_set.style_profile = {
+            **(rule_set.style_profile or {}),
+            "generation_rules": validate_policy(payload["generation_rules"]),
+        }
 
     if replace_all or "templates" in payload:
         templates = _as_list(payload.get("templates", []))
-        rule_set.templates.all().delete()
+        retained_templates = []
         for idx, raw in enumerate(templates):
             data = _validate_template_payload(raw, coach=coach)
-            ProgramTemplate.objects.create(
-                rule_set=rule_set,
+            row = _save_rule(
+                rule_set.templates,
+                raw,
+                "name",
                 coach=coach,
                 sort_order=data.pop("sort_order", idx),
                 **data,
             )
+            retained_templates.append(row.pk)
+        rule_set.templates.exclude(pk__in=retained_templates).update(
+            is_archived=True, is_active=False
+        )
 
     if replace_all or "levels" in payload:
         levels = _as_list(payload.get("levels", []))
-        rule_set.level_rules.all().delete()
+        retained_levels = []
         for raw in levels:
             if not isinstance(raw, dict):
                 raise ValidationError({"levels": ["Each level must be an object."]})
             level_key = str(raw.get("level_key") or raw.get("id") or "").strip()
             if level_key not in VALID_LEVELS:
                 raise ValidationError({"levels": [f"Invalid level_key: {level_key}"]})
-            LevelRule.objects.create(
-                rule_set=rule_set,
+            row = _save_rule(
+                rule_set.level_rules,
+                {"id": None},
+                "level_key",
                 coach=coach,
                 level_key=level_key,
                 intensity=str(raw.get("intensity") or ""),
@@ -1002,18 +1043,22 @@ def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = F
                 ),
                 coach_notes=str(raw.get("coach_notes") or ""),
             )
+            retained_levels.append(row.pk)
+        rule_set.level_rules.exclude(pk__in=retained_levels).delete()
 
     if replace_all or "injuries" in payload:
         injuries = _as_list(payload.get("injuries", []))
-        rule_set.injury_rules.all().delete()
+        retained_injuries = []
         for idx, raw in enumerate(injuries):
             if not isinstance(raw, dict):
                 raise ValidationError({"injuries": ["Each injury must be an object."]})
             name = str(raw.get("name") or "").strip()
             if not name:
                 raise ValidationError({"injuries": ["name is required."]})
-            InjuryRule.objects.create(
-                rule_set=rule_set,
+            row = _save_rule(
+                rule_set.injury_rules,
+                raw,
+                "name",
                 coach=coach,
                 name=name,
                 forbidden_exercises=_as_str_list(
@@ -1024,10 +1069,12 @@ def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = F
                 is_active=bool(raw.get("is_active", True)),
                 sort_order=int(raw.get("sort_order") or idx),
             )
+            retained_injuries.append(row.pk)
+        rule_set.injury_rules.exclude(pk__in=retained_injuries).delete()
 
     if replace_all or "muscle_priorities" in payload:
         priorities = _as_list(payload.get("muscle_priorities", []))
-        rule_set.muscle_priorities.all().delete()
+        retained_priorities = []
         for idx, raw in enumerate(priorities):
             if not isinstance(raw, dict):
                 raise ValidationError(
@@ -1036,8 +1083,10 @@ def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = F
             muscle = str(raw.get("muscle") or "").strip()
             if not muscle:
                 raise ValidationError({"muscle_priorities": ["muscle is required."]})
-            MusclePriority.objects.create(
-                rule_set=rule_set,
+            row = _save_rule(
+                rule_set.muscle_priorities,
+                raw,
+                "muscle",
                 coach=coach,
                 muscle=muscle,
                 extra_exercises=max(0, int(raw.get("extra_exercises") or 0)),
@@ -1046,13 +1095,15 @@ def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = F
                 notes=str(raw.get("notes") or ""),
                 sort_order=int(raw.get("sort_order") or idx),
             )
+            retained_priorities.append(row.pk)
+        rule_set.muscle_priorities.exclude(pk__in=retained_priorities).delete()
 
     if replace_all or "general_rules" in payload:
         general = payload.get("general_rules") or {}
         if not isinstance(general, dict):
             raise ValidationError({"general_rules": ["Must be an object."]})
         rule_set.general_extra_notes = str(general.get("extra_notes") or "")
-        rule_set.general_rules.all().delete()
+        retained_general = []
         items = _as_list(general.get("items", []))
         for idx, raw in enumerate(items):
             if not isinstance(raw, dict):
@@ -1063,8 +1114,10 @@ def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = F
             importance = str(raw.get("importance") or "medium").strip()
             if importance not in VALID_IMPORTANCE:
                 raise ValidationError({"general_rules": [f"Invalid importance: {importance}"]})
-            GeneralRule.objects.create(
-                rule_set=rule_set,
+            row = _save_rule(
+                rule_set.general_rules,
+                raw,
+                "title",
                 coach=coach,
                 title=title,
                 description=str(raw.get("description") or ""),
@@ -1073,9 +1126,11 @@ def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = F
                 is_active=bool(raw.get("is_active", True)),
                 sort_order=int(raw.get("order") or raw.get("sort_order") or idx),
             )
+            retained_general.append(row.pk)
+        rule_set.general_rules.exclude(pk__in=retained_general).delete()
 
     rule_set.updated_at = timezone.now()
-    rule_set.save(update_fields=["general_extra_notes", "updated_at"])
+    rule_set.save(update_fields=["general_extra_notes", "style_profile", "updated_at"])
     return get_coach_rules_aggregate(coach)
 
 

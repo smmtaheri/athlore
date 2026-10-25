@@ -247,7 +247,7 @@ class GenerationPriorityTests(APITestCase):
             student, request={"program_type": "supplement", "supplement_opt_in": True}
         )
         self.assertFalse(document["supplements"]["enabled"])
-        self.assertIn("no_reviewed_supplement_template", warnings)
+        self.assertIn("supplement_catalog_selection_required", warnings)
 
     # 9. supplement_opt_in required ------------------------------------------
     def test_supplement_opt_in_required(self):

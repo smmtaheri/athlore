@@ -16,7 +16,6 @@ from accounts.models import (
     CoachExercisePreference,
     CoachNutritionTemplate,
     CoachProfile,
-    CoachSupplementTemplate,
     Exercise,
     ExerciseAlias,
     ExerciseHistoricalUsage,
@@ -197,24 +196,6 @@ def _snapshot_template_meals(template: CoachNutritionTemplate) -> list[dict]:
                 "title": slot.get_slot_key_display(),
                 "notes": (chosen.notes if chosen is not None else "") or "",
                 "foods": foods,
-            }
-        )
-    return out
-
-
-def _snapshot_template_items(template: CoachSupplementTemplate) -> list[dict]:
-    out: list[dict] = []
-    for item in template.items.order_by("sort_order", "name"):
-        out.append(
-            {
-                "id": str(item.id),
-                "order": item.sort_order,
-                "name": item.name,
-                "amount": item.normalized_amount or item.quantity_text,
-                "timing": item.timing,
-                "instructions": item.instructions,
-                "warnings": item.warnings,
-                "notes": "",
             }
         )
     return out
@@ -484,6 +465,8 @@ def generate_document(
         assessment_ctx=assessment_ctx,
     )
     orig_goals = student.goals
+    if "muscle_priorities" in request:
+        merged["goals"]["muscle_priorities"] = list(request["muscle_priorities"])
     orig_injuries = student.injuries
     orig_bg = student.training_background
     orig_cond = student.training_conditions
@@ -805,6 +788,10 @@ def _generate_document_body(
         "training_days": days_per_week,
         "weak_muscles": training_evidence.get("weak_muscles", []),
         "priority_muscles": training_evidence.get("priority_muscles", []),
+        "observed_weak_muscles": training_evidence.get("observed_weak_muscles", []),
+        "generation_policy": training_evidence.get("generation_policy", {}),
+        "prescription_version": training_evidence.get("prescription_version"),
+        "weekly_primary_sets": training_evidence.get("weekly_primary_sets", {}),
         "strong_muscles": training_evidence.get("strong_muscles", []),
         "injury_rules_applied": training_evidence.get("injury_rules_applied", []),
         "excluded_injury": training_evidence.get("excluded_injury", []),
@@ -1247,27 +1234,5 @@ def _build_supplements(
             },
         )
 
-    goal = str((student.goals or {}).get("primary_goal") or "")
-    template, reason = _select_reviewed_template(CoachSupplementTemplate, coach, goal)
-    if template is None:
-        warnings.append("no_reviewed_supplement_template")
-        return (
-            base,
-            warnings,
-            {"selected_template_id": None, "selected_template_name": None, "reason": reason},
-        )
-
-    base["enabled"] = True
-    base["items"] = _snapshot_template_items(template)
-    template_name = str(getattr(template, "name", ""))
-    disclaimer = str(getattr(template, "medical_disclaimer", "") or SUPPLEMENT_DISCLAIMER)
-    base["notes"] = f"{disclaimer} بر اساس الگوی «{template_name}»."
-    return (
-        base,
-        warnings,
-        {
-            "selected_template_id": str(getattr(template, "id", "")),
-            "selected_template_name": template_name,
-            "reason": "selected",
-        },
-    )
+    warnings.append("supplement_catalog_selection_required")
+    return base, warnings, {"reason": "explicit_catalog_selection_required"}

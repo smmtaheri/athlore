@@ -581,6 +581,7 @@ export function coachRulesFromApi(dto: Record<string, unknown>): CoachRules {
   const nutritionTemplates = dto.nutrition_templates as Record<string, unknown>[] | undefined;
   const supplementTemplates = dto.supplement_templates as Record<string, unknown>[] | undefined;
   return {
+    generationRules: dto.generation_rules as CoachRules["generationRules"],
     generalRules: {
       extraNotes: String(general.extra_notes ?? ""),
       items: ((general.items as Record<string, unknown>[]) || []).map((item) => ({
@@ -668,9 +669,11 @@ export function coachRulesFromApi(dto: Record<string, unknown>): CoachRules {
 
 export function coachRulesToApi(rules: CoachRules): Record<string, unknown> {
   return {
+    ...(rules.generationRules ? { generation_rules: rules.generationRules } : {}),
     general_rules: {
       extra_notes: rules.generalRules.extraNotes,
       items: rules.generalRules.items.map((item) => ({
+        id: item.id,
         category: item.category,
         description: item.description,
         importance: item.importance,
@@ -680,6 +683,7 @@ export function coachRulesToApi(rules: CoachRules): Record<string, unknown> {
       }))
     },
     injuries: rules.injuries.map((item, index) => ({
+      id: item.id,
       alternatives: item.alternatives,
       forbidden_exercises: item.forbiddenExercises,
       is_active: item.isActive,
@@ -697,6 +701,7 @@ export function coachRulesToApi(rules: CoachRules): Record<string, unknown> {
       volume: item.volume
     })),
     muscle_priorities: rules.musclePriorities.map((item, index) => ({
+      id: item.id,
       extra_exercises: item.extraExercises,
       extra_sets: item.extraSets,
       muscle: item.muscle,
@@ -705,6 +710,7 @@ export function coachRulesToApi(rules: CoachRules): Record<string, unknown> {
       sort_order: index
     })),
     templates: rules.templates.map((item, index) => ({
+      id: item.id,
       ...(item.executionPlan ? { execution_plan: item.executionPlan } : {}),
       days_per_week: item.daysPerWeek,
       goal: item.goal,

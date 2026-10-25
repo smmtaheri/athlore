@@ -93,7 +93,7 @@ class TemplateExecutionTests(APITestCase):
 
     def save_plan(self, plan):
         return self.client.post(
-            "/api/v1/coach-rules/templates/",
+            "/api/v1/program-templates/",
             {
                 "name": "Typed plan",
                 "level": "intermediate",
@@ -253,7 +253,7 @@ class TemplateExecutionTests(APITestCase):
         legacy.execution_plan = {}
         legacy.save()
         response = self.client.patch(
-            f"/api/v1/coach-rules/templates/{legacy.id}/",
+            f"/api/v1/program-templates/{legacy.id}/",
             {"name": "Renamed"},
             format="json",
             **self.headers,

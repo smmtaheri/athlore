@@ -102,15 +102,40 @@ class WorkoutWorkflowTests(TestCase):
         self.assertEqual(run.request["training_systems"], [])
         self.assertFalse(programs_for_student(self.student).filter(pk=first.id).exists())
 
-    def test_missing_optional_template_falls_back_to_automatic_generation(self):
+    @override_settings(PUBLIC_DOMAIN="stage.athlore.ir")
+    def test_stage_audit_uses_real_lifecycle_and_no_sms_network(self):
+        import json
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        output = StringIO()
+        call_command(
+            "audit_stage_workout", coach_id=str(self.coach.pk), confirm_stage=True, stdout=output
+        )
+        report = json.loads(output.getvalue())
+        self.assertEqual(report["sms_network_connections"], 0)
+        self.assertEqual(report["request_status"], "fulfilled")
+        self.assertTrue(report["downloads"])
+
+    def test_visit_focus_is_an_independent_generation_input(self):
+        visit = self.visit()
+        visit.program_settings["focus_muscles"] = ["سینه"]
+        visit.save(update_fields=["program_settings"])
+        _, run = prepare_from_visit(self.coach, self.coach.user, visit.id, "focus-visit-test")
+        self.assertEqual(run.request["muscle_priorities"], ["سینه"])
+        evidence = run.output_snapshot["generator"]["evidence"]
+        self.assertEqual(evidence["priority_muscles"], ["سینه"])
+        self.assertEqual(evidence["prescription_version"], 2)
+        self.assertTrue(evidence["weekly_primary_sets"])
+
+    def test_missing_selected_template_requires_explicit_correction(self):
         visit = self.visit()
         visit.program_settings["template_id"] = str(uuid4())
         visit.save(update_fields=["program_settings", "updated_at"])
 
-        program, run = prepare_from_visit(self.coach, self.coach.user, visit.id, "stale-template")
-
-        self.assertTrue(run.resulting_version.training["days"])
-        self.assertTrue(any("قالب انتخاب‌شده دیگر در دسترس نبود" in item for item in run.warnings))
+        with self.assertRaises(ValidationError):
+            prepare_from_visit(self.coach, self.coach.user, visit.id, "stale-template")
 
     def test_visit_preparation_keeps_a_reviewable_draft_when_catalog_lacks_a_target(self):
         visit = self.visit()

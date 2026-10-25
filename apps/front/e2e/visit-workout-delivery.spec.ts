@@ -148,7 +148,8 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
   await page.locator("#login-password").fill(password);
   await page.getByRole("button", { name: "ورود به داشبورد", exact: true }).click();
   await expect(page).toHaveURL(/dashboard$/);
-  const fromVisitForm = testInfo.project.name === "mobile-chromium";
+  // A finalized visit is read-only for preparation; both viewports use its program entry.
+  const fromVisitForm = false;
   await page.evaluate(
     (path) => {
       history.pushState({}, "", path);

@@ -20,6 +20,7 @@ describe("CoachRulesPage", () => {
       </MemoryRouter>
     );
 
+    await user.click(await screen.findByText("قالب دقیق برنامه (اختیاری)"));
     expect(await screen.findByDisplayValue("فول بادی مبتدی ۳ روزه")).toBeInTheDocument();
     const nameInput = screen.getByDisplayValue("فول بادی مبتدی ۳ روزه");
     await user.clear(nameInput);
@@ -41,6 +42,7 @@ describe("CoachRulesPage", () => {
       </MemoryRouter>
     );
 
+    await user.click(await screen.findByText("آسیب‌ها و محدودیت‌های ایمنی"));
     expect(await screen.findByDisplayValue("گردن درد")).toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "کاتالوگ حرکات" }));
     expect((await screen.findAllByText("کاتالوگ حرکات")).length).toBeGreaterThan(0);
@@ -48,7 +50,6 @@ describe("CoachRulesPage", () => {
   });
 
   it("shows read-only empty state when no nutrition/supplement templates are returned", async () => {
-    const user = userEvent.setup();
     const repository = createCoachRulesRepository(window.localStorage);
     await repository.reset();
 
@@ -61,13 +62,8 @@ describe("CoachRulesPage", () => {
     expect(await screen.findAllByText("برنامه غذایی مرجع")).not.toHaveLength(0);
     expect(screen.getByText("قالب غذایی‌ای برای نمایش نیست")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "بانک مکمل‌ها" }));
-    await user.click(screen.getByText("قالب‌های مرجع قبلی"));
-    expect(
-      await screen.findByText(
-        "مصرف مکمل باید با توجه به وضعیت فردی، سوابق پزشکی و نظر متخصص واجد صلاحیت بررسی شود."
-      )
-    ).toBeInTheDocument();
+    expect(screen.getAllByRole("tab")).toHaveLength(5);
+    expect(screen.queryByText("قالب‌های مرجع قبلی")).not.toBeInTheDocument();
   });
 
   it("approves and activates a nutrition template needing coach review", async () => {

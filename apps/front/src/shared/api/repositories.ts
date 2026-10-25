@@ -338,20 +338,33 @@ export function createApiVisitFormTemplatesRepository(): VisitFormTemplatesRepos
 }
 
 export function createApiCoachRulesRepository(): CoachRulesRepository {
+  let savedBody: Record<string, unknown> | undefined;
+  const remember = (dto: Record<string, unknown>) => {
+    const rules = coachRulesFromApi(dto);
+    savedBody = coachRulesToApi(rules);
+    return rules;
+  };
   return {
     async get() {
       const dto = await apiRequest<Record<string, unknown>>("/coach-rules/");
-      return coachRulesFromApi(dto);
+      return remember(dto);
     },
     async reset() {
       return this.get();
     },
     async save(rules: CoachRules) {
+      const body = coachRulesToApi(rules);
+      const changes = Object.fromEntries(
+        Object.entries(body).filter(
+          ([key, value]) => JSON.stringify(value) !== JSON.stringify(savedBody?.[key])
+        )
+      );
+      if (!Object.keys(changes).length) return this.get();
       const dto = await apiRequest<Record<string, unknown>>("/coach-rules/", {
-        method: "PUT",
-        body: coachRulesToApi(rules)
+        method: "PATCH",
+        body: changes
       });
-      return coachRulesFromApi(dto);
+      return remember(dto);
     }
   };
 }
