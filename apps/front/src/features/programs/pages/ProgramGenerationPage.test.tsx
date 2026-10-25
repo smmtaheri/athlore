@@ -545,6 +545,8 @@ describe("ProgramGenerationPage", () => {
           }}
           trainingSystemsRepo={{
             list: async () => [system],
+            listPage: async () => ({ results: [system], count: 1, next: null }),
+            savePlatform: async () => system,
             remove: async () => undefined,
             save: async () => system
           }}

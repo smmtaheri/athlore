@@ -1,3 +1,5 @@
+import { useDebouncedSearch, usePagedList } from "../../../shared/api/usePagedList";
+import { PagedListFooter } from "../../../shared/api/PagedListFooter";
 import { Fragment, useEffect, useRef, useState, type DragEvent } from "react";
 import {
   ArrowDown,
@@ -164,7 +166,14 @@ const fieldTypeLabels: Record<VisitFormFieldType, string> = {
 export function VisitFormTemplatesSection({
   repository = visitFormTemplatesRepository
 }: VisitFormTemplatesSectionProps) {
-  const [templates, setTemplates] = useState<VisitFormTemplate[]>([]);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedSearch(search);
+  const [requestKey, setRequestKey] = useState(0);
+  const pages = usePagedList<VisitFormTemplate>(
+    (offset, signal) => repository.listPage(debouncedSearch, offset, signal),
+    JSON.stringify([debouncedSearch, requestKey])
+  );
+  const { items: templates, setItems: setTemplates } = pages;
   const [draft, setDraft] = useState<VisitFormTemplate | null>(null);
   const [baseline, setBaseline] = useState<VisitFormTemplate | null>(null);
   const [creating, setCreating] = useState(false);
@@ -174,31 +183,8 @@ export function VisitFormTemplatesSection({
   const [draggingFieldType, setDraggingFieldType] = useState<VisitFormFieldType | null>(null);
   const [feedback, setFeedback] = useState("");
   const [feedbackTone, setFeedbackTone] = useState<"error" | "success">("success");
-  const [status, setStatus] = useState<"error" | "loaded" | "loading" | "saving">("loading");
-  const [requestKey, setRequestKey] = useState(0);
+  const [status, setStatus] = useState<"error" | "loaded" | "loading" | "saving">("loaded");
   const listScrollPosition = useRef(0);
-
-  useEffect(() => {
-    let isMounted = true;
-    repository
-      .list()
-      .then((items) => {
-        if (!isMounted) {
-          return;
-        }
-        setTemplates(items);
-        setStatus("loaded");
-      })
-      .catch(() => {
-        if (isMounted) {
-          setStatus("error");
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [repository, requestKey]);
 
   const showFeedback = (message: string, tone: "error" | "success" = "success") => {
     setFeedback(message);
@@ -218,8 +204,10 @@ export function VisitFormTemplatesSection({
       id: "new-template",
       isActive: true,
       isDefault: templates.length === 0,
+      // eslint-disable-next-line react-hooks/purity -- Allocate keys only in this explicit create handler.
       key: `coach_form_${Date.now()}`,
       name: "فرم ویزیت جدید",
+      // eslint-disable-next-line react-hooks/purity -- This handler runs on click, not during render.
       sections: [{ fields: [], key: `section_${Date.now()}`, label: "بخش اول", order: 0 }],
       theme,
       version: 1
@@ -246,12 +234,14 @@ export function VisitFormTemplatesSection({
         description: sample.description,
         isActive: true,
         isDefault: false,
+        // eslint-disable-next-line react-hooks/purity -- Allocate a new key when the sample is selected.
         key: `${sample.key.slice(0, 58)}_${Date.now()}`,
         name,
         sections: structuredClone(sample.sections),
         theme: sample.theme
       });
       setTemplates((current) => [saved, ...current]);
+      pages.reload();
       setStartPanel(null);
       setStatus("loaded");
       if (openForEditing) {
@@ -303,7 +293,7 @@ export function VisitFormTemplatesSection({
   };
 
   const reload = () => {
-    setStatus("loading");
+    setStatus("loaded");
     setRequestKey((current) => current + 1);
   };
 
@@ -342,6 +332,7 @@ export function VisitFormTemplatesSection({
       );
       setStatus("loaded");
       leaveEditor();
+      pages.reload();
       showFeedback(creating ? "فرم ویزیت ساخته شد." : "تغییرات فرم ذخیره شد.");
     } catch {
       setStatus("loaded");
@@ -353,6 +344,7 @@ export function VisitFormTemplatesSection({
     try {
       const dup = await repository.duplicate(id);
       setTemplates((current) => [dup, ...current]);
+      pages.reload();
       beginEdit(dup);
       showFeedback("کپی ساخته شد؛ تغییرات را بررسی و ذخیره کنید.");
     } catch {
@@ -370,6 +362,7 @@ export function VisitFormTemplatesSection({
         }))
       );
       showFeedback("این فرم برای ویزیت‌های جدید پیش‌فرض شد.");
+      pages.reload();
     } catch {
       showFeedback("تغییر فرم پیش‌فرض انجام نشد.", "error");
     }
@@ -380,6 +373,7 @@ export function VisitFormTemplatesSection({
       const archived = await repository.archive(id);
       setTemplates((current) => current.map((item) => (item.id === id ? archived : item)));
       showFeedback("فرم بایگانی شد؛ ویزیت‌های قبلی آن حفظ می‌شوند.");
+      pages.reload();
     } catch {
       showFeedback("بایگانی فرم انجام نشد.", "error");
     }
@@ -879,7 +873,14 @@ export function VisitFormTemplatesSection({
           </div>
         ) : null}
 
-        {templates.length === 0 ? (
+        <FormField htmlFor="visit-form-search" label="جست‌وجوی فرم ویزیت">
+          <Input
+            id="visit-form-search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </FormField>
+        {!pages.loading && !pages.error && templates.length === 0 ? (
           <EmptyState
             description="هنوز قالب فرم ویزیتی نساخته‌اید."
             title="فهرست فرم‌ها خالی است"
@@ -939,6 +940,7 @@ export function VisitFormTemplatesSection({
             ))}
           </ul>
         )}
+        <PagedListFooter {...pages} />
       </Card>
     </div>
   );
@@ -1076,6 +1078,7 @@ function SectionEditor({
   const fields = [...section.fields].sort((a, b) => a.order - b.order);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Clear the transient drop marker when the parent ends a drag.
     if (!draggingFieldType) setDropPosition(null);
   }, [draggingFieldType]);
 
@@ -1400,9 +1403,7 @@ function SectionEditor({
                           { label: "خیر، فقط نزد مربی بماند", value: "no" }
                         ]}
                         value={
-                          Boolean(field.studentVisibleWhenFinalized ?? field.studentVisible)
-                            ? "yes"
-                            : "no"
+                          (field.studentVisibleWhenFinalized ?? field.studentVisible) ? "yes" : "no"
                         }
                       />
                     </FormField>

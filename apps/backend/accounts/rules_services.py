@@ -813,7 +813,7 @@ def serialize_supplement_template_summary(t: CoachSupplementTemplate) -> dict:
     }
 
 
-def get_coach_rules_aggregate(coach: CoachProfile) -> dict:
+def get_coach_rules_aggregate(coach: CoachProfile, *, include_catalogs: bool = True) -> dict:
     rule_set = ensure_rule_set(coach)
     templates = [
         serialize_template(t)
@@ -830,7 +830,11 @@ def get_coach_rules_aggregate(coach: CoachProfile) -> dict:
             ex,
             preference=(getattr(ex, "_coach_preferences", None) or [None])[0],
         )
-        for ex in coach.exercises.filter(is_archived=False)
+        for ex in (
+            coach.exercises.filter(is_archived=False)
+            if include_catalogs
+            else Exercise.objects.none()
+        )
         .select_related("media_asset")
         .prefetch_related(
             Prefetch(
@@ -871,8 +875,8 @@ def get_coach_rules_aggregate(coach: CoachProfile) -> dict:
         "injuries": injuries,
         "muscle_priorities": muscle_priorities,
         "exercise_catalog": exercises,
-        "exercise_taxonomy": serialize_taxonomy(),
-        "training_techniques": get_coach_techniques(coach),
+        "exercise_taxonomy": serialize_taxonomy() if include_catalogs else {},
+        "training_techniques": get_coach_techniques(coach) if include_catalogs else [],
         "general_rules": {
             "extra_notes": rule_set.general_extra_notes,
             "items": general_items,
@@ -965,7 +969,9 @@ def _save_rule(manager, raw, identity, **data):
 
 
 @transaction.atomic
-def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = False) -> dict:
+def replace_coach_rules(
+    coach: CoachProfile, payload: dict, *, partial: bool = False, include_catalogs: bool = True
+) -> dict:
     """Idempotent full or partial replace of coach rules aggregate."""
     if not isinstance(payload, dict):
         raise ValidationError({"detail": "Body must be an object."})
@@ -1134,7 +1140,7 @@ def replace_coach_rules(coach: CoachProfile, payload: dict, *, partial: bool = F
 
     rule_set.updated_at = timezone.now()
     rule_set.save(update_fields=["general_extra_notes", "style_profile", "updated_at"])
-    return get_coach_rules_aggregate(coach)
+    return get_coach_rules_aggregate(coach, include_catalogs=include_catalogs)
 
 
 @transaction.atomic

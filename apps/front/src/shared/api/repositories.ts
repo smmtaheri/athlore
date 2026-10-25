@@ -18,6 +18,7 @@ import {
   visitInputToApi
 } from "../adapters/apiAdapters";
 import type { CoachRules } from "../../features/coach-rules/types/coachRules";
+import { CATALOG_PAGE_SIZE, type ListPage } from "./usePagedList";
 import type { CoachRulesRepository } from "../../features/coach-rules/services/coachRulesRepository";
 import type { DashboardMetrics } from "../../features/dashboard/services/dashboardMetrics";
 import type {
@@ -317,6 +318,13 @@ export function createApiVisitFormTemplatesRepository(): VisitFormTemplatesRepos
         visitFormTemplateFromApi((item as Record<string, unknown>) || {})
       );
     },
+    async listPage(search, offset, signal) {
+      const dto = await apiRequest<ListPage<Record<string, unknown>>>("/visit-form-templates/", {
+        signal,
+        query: { search, offset, limit: CATALOG_PAGE_SIZE }
+      });
+      return { ...dto, results: dto.results.map(visitFormTemplateFromApi) };
+    },
     async reset() {
       return this.list();
     },
@@ -346,7 +354,9 @@ export function createApiCoachRulesRepository(): CoachRulesRepository {
   };
   return {
     async get() {
-      const dto = await apiRequest<Record<string, unknown>>("/coach-rules/");
+      const dto = await apiRequest<Record<string, unknown>>("/coach-rules/", {
+        query: { scope: "editor" }
+      });
       return remember(dto);
     },
     async reset() {
@@ -362,6 +372,7 @@ export function createApiCoachRulesRepository(): CoachRulesRepository {
       if (!Object.keys(changes).length) return this.get();
       const dto = await apiRequest<Record<string, unknown>>("/coach-rules/", {
         method: "PATCH",
+        query: { scope: "editor" },
         body: changes
       });
       return remember(dto);

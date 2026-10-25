@@ -1,4 +1,5 @@
-from django.db.models import Prefetch, Q
+from django.db.models import F, Prefetch, Q, Value
+from django.db.models.functions import Replace
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.response import Response
@@ -18,12 +19,29 @@ from common.pagination import StandardLimitOffsetPagination
 from common.permissions import IsAuthenticatedCoach, get_owned_object, get_request_coach
 
 
+def _catalog_search_text(value):
+    for source, target in (
+        ("ي", "ی"),
+        ("ى", "ی"),
+        ("ك", "ک"),
+        (" ", ""),
+        ("\u200c", ""),
+        ("\u200d", ""),
+    ):
+        value = Replace(value, Value(source), Value(target))
+    return value
+
+
 class CoachRulesAggregateView(APIView):
     permission_classes = [IsAuthenticatedCoach]
 
     def get(self, request):
         coach = get_request_coach(request)
-        return Response(rules_services.get_coach_rules_aggregate(coach))
+        return Response(
+            rules_services.get_coach_rules_aggregate(
+                coach, include_catalogs=request.query_params.get("scope") != "editor"
+            )
+        )
 
     def put(self, request):
         coach = get_request_coach(request)
@@ -32,7 +50,12 @@ class CoachRulesAggregateView(APIView):
 
     def patch(self, request):
         coach = get_request_coach(request)
-        data = rules_services.replace_coach_rules(coach, request.data, partial=True)
+        data = rules_services.replace_coach_rules(
+            coach,
+            request.data,
+            partial=True,
+            include_catalogs=request.query_params.get("scope") != "editor",
+        )
         return Response(data)
 
 
@@ -154,18 +177,31 @@ class ExerciseListCreateView(ExerciseWriteAPIView):
             )
         search = (request.query_params.get("search") or "").strip()
         if search:
-            qs = qs.filter(
-                Q(name__icontains=search)
-                | Q(name_en__icontains=search)
-                | Q(primary_muscle__icontains=search)
-                | Q(equipment__icontains=search)
-                | Q(aliases__alias__icontains=search)
+            fields = (
+                "name",
+                "name_en",
+                "primary_muscle",
+                "equipment",
+                "aliases__alias",
+                "muscle_targets__muscle__name",
+                "muscle_targets__muscle__name_en",
+                "muscle_targets__region__name",
+                "muscle_targets__region__name_en",
             )
+            normalized = search.translate(
+                str.maketrans({"ي": "ی", "ى": "ی", "ك": "ک", " ": "", "\u200c": "", "\u200d": ""})
+            )
+            predicates = Q()
+            for index, field in enumerate(fields):
+                alias = f"catalog_search_{index}"
+                qs = qs.alias(**{alias: _catalog_search_text(F(field))})
+                predicates |= Q(**{f"{alias}__icontains": normalized})
+            qs = qs.filter(predicates)
         preferred = request.query_params.get("is_preferred")
         if preferred is not None:
             flag = preferred.lower() in {"1", "true", "yes"}
             qs = qs.filter(preferences__coach=coach, preferences__is_preferred=flag)
-        qs = qs.order_by("primary_muscle", "name").distinct()
+        qs = qs.order_by("primary_muscle", "name", "pk").distinct()
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(qs, request, view=self)
         return paginator.get_paginated_response(
@@ -273,7 +309,20 @@ class TrainingTechniqueListCreateView(APIView):
 
     def get(self, request):
         coach = get_request_coach(request)
-        return Response(rules_services.get_coach_techniques(coach))
+        items = rules_services.get_coach_techniques(coach)
+        if "limit" not in request.query_params:
+            return Response(items)
+        search = (request.query_params.get("search") or "").strip().casefold()
+        if search:
+            items = [
+                item
+                for item in items
+                if search
+                in f"{item['name']} {item['key']} {item.get('description', '')}".casefold()
+            ]
+        paginator = StandardLimitOffsetPagination()
+        page = paginator.paginate_queryset(items, request, view=self)
+        return paginator.get_paginated_response(page)
 
     def post(self, request):
         coach = get_request_coach(request)

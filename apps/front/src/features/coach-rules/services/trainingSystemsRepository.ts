@@ -1,5 +1,6 @@
 import { appConfig } from "../../../app/config/appConfig";
 import { apiRequest } from "../../../shared/api/client";
+import { CATALOG_PAGE_SIZE, type ListPage } from "../../../shared/api/usePagedList";
 import type { TrainingRecipe, TrainingSystem } from "../types/coachRules";
 
 export interface TrainingSystemInput {
@@ -17,6 +18,11 @@ export interface TrainingSystemInput {
 
 export interface TrainingSystemsRepository {
   list(): Promise<TrainingSystem[]>;
+  savePlatform(
+    key: string,
+    input: Pick<TrainingSystemInput, "name" | "description" | "execution_method" | "recipe">
+  ): Promise<TrainingSystem>;
+  listPage(search: string, offset: number, signal: AbortSignal): Promise<ListPage<TrainingSystem>>;
   save(input: TrainingSystemInput, id?: string | null): Promise<TrainingSystem>;
   remove(id: string): Promise<void>;
 }
@@ -55,6 +61,25 @@ export function createTrainingSystemsRepository(): TrainingSystemsRepository {
       async list() {
         return structuredClone(items);
       },
+      async savePlatform(key, input) {
+        const current = items.find((item) => item.key === key);
+        if (!current) throw new Error("Unknown platform system.");
+        const saved = { ...current, ...input };
+        items = items.map((item) => (item.key === key ? saved : item));
+        return structuredClone(saved);
+      },
+      async listPage(search, offset) {
+        const matches = items.filter((item) =>
+          `${item.name} ${item.key} ${item.description}`
+            .toLowerCase()
+            .includes(search.toLowerCase())
+        );
+        return {
+          results: structuredClone(matches.slice(offset, offset + CATALOG_PAGE_SIZE)),
+          count: matches.length,
+          next: offset + CATALOG_PAGE_SIZE < matches.length ? "next" : null
+        };
+      },
       async save(input, id) {
         const current = id ? items.find((item) => item.id === id) : undefined;
         const next: TrainingSystem = {
@@ -80,6 +105,16 @@ export function createTrainingSystemsRepository(): TrainingSystemsRepository {
 
   return {
     list: () => apiRequest<TrainingSystem[]>("/training-techniques/"),
+    savePlatform: (key, input) =>
+      apiRequest<TrainingSystem>(`/training-techniques/platform/${encodeURIComponent(key)}/`, {
+        method: "PATCH",
+        body: input
+      }),
+    listPage: (search, offset, signal) =>
+      apiRequest<ListPage<TrainingSystem>>("/training-techniques/", {
+        signal,
+        query: { search, offset, limit: CATALOG_PAGE_SIZE }
+      }),
     save: (input, id) =>
       apiRequest<TrainingSystem>(id ? `/training-techniques/${id}/` : "/training-techniques/", {
         body: input,

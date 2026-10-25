@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useDebouncedSearch, usePagedList } from "../../../shared/api/usePagedList";
+import { PagedListFooter } from "../../../shared/api/PagedListFooter";
 import { Plus, Save, Trash2 } from "lucide-react";
 import {
   Button,
@@ -394,32 +396,20 @@ export function TrainingSystemsSection({
 }: {
   repository?: TrainingSystemsRepository;
 }) {
-  const [systems, setSystems] = useState<TrainingSystem[]>([]);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedSearch(search);
+  const pages = usePagedList<TrainingSystem>(
+    (offset, signal) => repository.listPage(debouncedSearch, offset, signal),
+    debouncedSearch
+  );
+  const { items: systems, setItems: setSystems, loading } = pages;
   const [draft, setDraft] = useState<Draft>();
+  const [globalEdit, setGlobalEdit] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TrainingSystem>();
   const [feedback, setFeedback] = useState("");
-  const [error, setError] = useState(false);
+  const error = pages.error;
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  const load = async () => {
-    try {
-      setSystems(await repository.list());
-      setError(false);
-    } catch {
-      setError(true);
-      setFeedback("دریافت سیستم‌های تمرینی انجام نشد.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronize remote catalog state on mount.
-    void load();
-    // Repository identity is stable for the lifetime of the page.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const load = async () => pages.reload();
 
   const updateDraft = (patch: Partial<Draft>) =>
     setDraft((current) => (current ? { ...current, ...patch } : current));
@@ -451,6 +441,18 @@ export function TrainingSystemsSection({
     setSaving(true);
     setFeedback("");
     try {
+      if (globalEdit) {
+        await repository.savePlatform(draft.key, {
+          name: draft.name.trim(),
+          description: draft.description,
+          execution_method: draft.execution_method,
+          recipe: draft.recipe
+        });
+        setDraft(undefined);
+        pages.reload();
+        setFeedback("تعریف مشترک سیستم برای همهٔ مربی‌ها ذخیره شد.");
+        return;
+      }
       const saved = await repository.save(
         {
           allowed_levels: draft.allowed_levels,
@@ -473,6 +475,7 @@ export function TrainingSystemsSection({
           : current.map((item, itemIndex) => (itemIndex === index ? saved : item));
       });
       setDraft(undefined);
+      pages.reload();
       setFeedback("سیستم تمرینی ذخیره شد؛ تعریف شخصی شما در تولید برنامه استفاده می‌شود.");
     } catch {
       setFeedback("ذخیره سیستم انجام نشد؛ مراحل و تنظیمات را بررسی کنید.");
@@ -486,8 +489,7 @@ export function TrainingSystemsSection({
     try {
       await repository.remove(deleteTarget.id);
       const wasOverride = deleteTarget.source === "coach_override";
-      if (wasOverride) await load();
-      else setSystems((current) => current.filter((item) => item.id !== deleteTarget.id));
+      await load();
       setDeleteTarget(undefined);
       setFeedback(
         wasOverride ? "تنظیم شخصی حذف شد و تعریف عمومی سیستم باقی ماند." : "سیستم تمرینی حذف شد."
@@ -545,7 +547,13 @@ export function TrainingSystemsSection({
               روش را انتخاب کنید؛ مراحل recipe به نسخهٔ برنامه و دستور شاگرد اضافه می‌شود.
             </p>
           </div>
-          <Button iconStart={<Plus size={18} />} onClick={() => setDraft(newDraft())}>
+          <Button
+            iconStart={<Plus size={18} />}
+            onClick={() => {
+              setGlobalEdit(false);
+              setDraft(newDraft());
+            }}
+          >
             سیستم جدید
           </Button>
         </div>
@@ -558,7 +566,13 @@ export function TrainingSystemsSection({
             {feedback}
           </div>
         ) : null}
-        {loading ? <p>در حال بارگذاری سیستم‌ها…</p> : null}
+        <FormField htmlFor="training-system-search" label="جست‌وجوی سیستم تمرینی">
+          <Input
+            id="training-system-search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </FormField>
         {!loading && systems.length === 0 ? (
           <EmptyState description="هنوز سیستمی ثبت نشده است." title="فهرست خالی است" />
         ) : null}
@@ -584,6 +598,7 @@ export function TrainingSystemsSection({
               <div className={styles.actions}>
                 <Button
                   onClick={() => {
+                    setGlobalEdit(false);
                     setFeedback("");
                     setDraft(draftFrom(system));
                   }}
@@ -591,6 +606,25 @@ export function TrainingSystemsSection({
                 >
                   {system.source === "platform" ? "تنظیم برای من" : "ویرایش"}
                 </Button>
+                {system.source !== "coach_private" ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setFeedback("");
+                      setGlobalEdit(true);
+                      setDraft(
+                        draftFrom({
+                          ...system,
+                          ...system.public_definition,
+                          id: null,
+                          source: "platform"
+                        })
+                      );
+                    }}
+                  >
+                    ویرایش برای همه
+                  </Button>
+                ) : null}
                 {system.id ? (
                   <Button
                     iconStart={<Trash2 size={16} />}
@@ -604,6 +638,7 @@ export function TrainingSystemsSection({
             </article>
           ))}
         </div>
+        <PagedListFooter {...pages} />
       </Card>
 
       {draft ? (
@@ -625,9 +660,21 @@ export function TrainingSystemsSection({
           }
           onClose={() => setDraft(undefined)}
           open
-          title={draft.id ? `ویرایش ${draft.name}` : "سیستم تمرینی جدید"}
+          title={
+            globalEdit
+              ? "ویرایش سیستم برای همهٔ مربی‌ها"
+              : draft.id
+                ? `ویرایش ${draft.name}`
+                : "سیستم تمرینی جدید"
+          }
         >
           <div className={styles.editor}>
+            {globalEdit ? (
+              <p className={styles.notice}>
+                این تغییر برای همهٔ مربی‌ها و برنامه‌های بعدی مشترک است؛ برنامه‌های قبلی تغییر
+                نمی‌کنند.
+              </p>
+            ) : null}
             <FormField
               className={styles.full}
               htmlFor="training-system-name"
@@ -859,38 +906,44 @@ export function TrainingSystemsSection({
               />
             </div>
 
-            <div className={styles.full}>
-              <strong>سطح مجاز؛ هیچ گزینه‌ای یعنی همهٔ سطح‌ها</strong>
-              <div className={styles.checks}>
-                {levels.map((level) => (
-                  <Checkbox
-                    checked={draft.allowed_levels.includes(level.key)}
-                    key={level.key}
-                    label={level.label}
-                    onChange={(event) => toggleLevel(level.key, event.target.checked)}
+            {!globalEdit ? (
+              <>
+                <div className={styles.full}>
+                  <strong>سطح مجاز؛ هیچ گزینه‌ای یعنی همهٔ سطح‌ها</strong>
+                  <div className={styles.checks}>
+                    {levels.map((level) => (
+                      <Checkbox
+                        checked={draft.allowed_levels.includes(level.key)}
+                        key={level.key}
+                        label={level.label}
+                        onChange={(event) => toggleLevel(level.key, event.target.checked)}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <FormField
+                  htmlFor="training-system-max-per-session"
+                  hint="صفر یعنی بدون سقف جداگانه."
+                  label="حداکثر اعمال در هر جلسه"
+                >
+                  <Input
+                    id="training-system-max-per-session"
+                    min={0}
+                    type="number"
+                    value={draft.max_per_session}
+                    onChange={(event) =>
+                      updateDraft({ max_per_session: Number(event.target.value) })
+                    }
                   />
-                ))}
-              </div>
-            </div>
-            <FormField
-              htmlFor="training-system-max-per-session"
-              hint="صفر یعنی بدون سقف جداگانه."
-              label="حداکثر اعمال در هر جلسه"
-            >
-              <Input
-                id="training-system-max-per-session"
-                min={0}
-                type="number"
-                value={draft.max_per_session}
-                onChange={(event) => updateDraft({ max_per_session: Number(event.target.value) })}
-              />
-            </FormField>
-            {draft.source !== "platform" || !draft.id ? (
-              <Switch
-                checked={draft.enabled}
-                label="فعال برای انتخاب در برنامه‌ها"
-                onCheckedChange={(enabled) => updateDraft({ enabled })}
-              />
+                </FormField>
+                {draft.source !== "platform" || !draft.id ? (
+                  <Switch
+                    checked={draft.enabled}
+                    label="فعال برای انتخاب در برنامه‌ها"
+                    onCheckedChange={(enabled) => updateDraft({ enabled })}
+                  />
+                ) : null}
+              </>
             ) : null}
             {feedback ? (
               <div className={styles.error} role="alert">

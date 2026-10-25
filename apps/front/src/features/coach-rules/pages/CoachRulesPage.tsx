@@ -88,8 +88,16 @@ export function CoachRulesPage({
   const [status, setStatus] = useState<"error" | "loaded" | "loading" | "saving">("loading");
   const [searchParams, setSearchParams] = useSearchParams();
   const section = getSection(searchParams.get("section"));
+  const independentSection = [
+    "exercises",
+    "trainingSystems",
+    "visitForms",
+    "supplementTemplates"
+  ].includes(section);
+  const needsRules = !independentSection && !rules;
 
   useEffect(() => {
+    if (!needsRules) return;
     let isMounted = true;
     repository
       .get()
@@ -110,7 +118,7 @@ export function CoachRulesPage({
     return () => {
       isMounted = false;
     };
-  }, [repository, requestKey]);
+  }, [repository, requestKey, needsRules]);
 
   const tabItems = useMemo(
     () =>
@@ -200,7 +208,7 @@ export function CoachRulesPage({
         actions={
           <div className={styles.toolbarActions}>
             <Button
-              disabled={exportingPdf || status === "loading"}
+              disabled={exportingPdf || (!independentSection && status === "loading")}
               iconStart={<FileDown size={18} />}
               isLoading={exportingPdf}
               onClick={exportRulesPdf}
@@ -208,14 +216,16 @@ export function CoachRulesPage({
             >
               خروجی PDF قوانین مربی
             </Button>
-            <Button
-              iconStart={<RefreshCcw size={18} />}
-              onClick={() => setConfirmReset(true)}
-              variant="secondary"
-            >
-              دریافت دوباره
-            </Button>
-            {!rulesDirty ? (
+            {!independentSection ? (
+              <Button
+                iconStart={<RefreshCcw size={18} />}
+                onClick={() => setConfirmReset(true)}
+                variant="secondary"
+              >
+                دریافت دوباره
+              </Button>
+            ) : null}
+            {!independentSection && !rulesDirty ? (
               <Button
                 iconStart={<Save size={18} />}
                 isLoading={status === "saving"}
@@ -232,8 +242,8 @@ export function CoachRulesPage({
       />
 
       <ContentSection>
-        {status === "loading" ? <RulesLoading /> : null}
-        {status === "error" ? (
+        {!independentSection && status === "loading" ? <RulesLoading /> : null}
+        {!independentSection && status === "error" ? (
           <Card padding="lg">
             <EmptyState
               action={
@@ -254,7 +264,7 @@ export function CoachRulesPage({
           </Card>
         ) : null}
 
-        {rules && status !== "loading" && status !== "error" ? (
+        {independentSection || (rules && status !== "loading" && status !== "error") ? (
           <Stack gap="20px">
             {feedback ? (
               <div
@@ -277,12 +287,22 @@ export function CoachRulesPage({
               />
             </Card>
 
-            <RulesSection
-              rules={rules}
-              section={section}
-              templatesRepository={templatesRepository}
-              updateRules={updateRules}
-            />
+            {section === "exercises" ? (
+              <StructuredCatalogSection />
+            ) : section === "trainingSystems" ? (
+              <TrainingSystemsSection />
+            ) : section === "visitForms" ? (
+              <VisitFormTemplatesSection />
+            ) : section === "supplementTemplates" ? (
+              <SupplementCatalogSection />
+            ) : rules ? (
+              <RulesSection
+                rules={rules}
+                section={section}
+                templatesRepository={templatesRepository}
+                updateRules={updateRules}
+              />
+            ) : null}
           </Stack>
         ) : null}
       </ContentSection>

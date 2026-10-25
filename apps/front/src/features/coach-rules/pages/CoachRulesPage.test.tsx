@@ -8,6 +8,24 @@ import type { NutritionSupplementTemplatesRepository } from "../services/nutriti
 import { CoachRulesPage } from "./CoachRulesPage";
 
 describe("CoachRulesPage", () => {
+  it("does not fetch the rules aggregate for an independent catalog tab", async () => {
+    const user = userEvent.setup();
+    const repository = createCoachRulesRepository(window.localStorage);
+    const get = vi.spyOn(repository, "get");
+    render(
+      <MemoryRouter initialEntries={["/coach-rules?section=exercises"]}>
+        <CoachRulesPage repository={repository} />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole("tab", { name: "کاتالوگ حرکات" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    expect(get).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("tab", { name: "قوانین تولید برنامه" }));
+    await screen.findByText("قالب دقیق برنامه (اختیاری)");
+    expect(get).toHaveBeenCalledTimes(1);
+  });
   it("loads Arman Vaezi fixtures and saves edited templates", async () => {
     const user = userEvent.setup();
     const storage = window.localStorage;

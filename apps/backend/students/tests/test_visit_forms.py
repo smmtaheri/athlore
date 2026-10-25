@@ -121,6 +121,21 @@ class VisitFormTemplateTests(TestCase):
         self.tpl_b, _ = ensure_visit_form_from_fixture(self.coach_b, MINIMAL_VISIT_FORM_TEMPLATE)
         self.client = APIClient()
 
+    def test_template_list_paginates_searches_and_isolates_coaches(self):
+        create_template(self.coach_a, {"key": "second", "name": "Searchable form", "sections": []})
+        self.client.force_authenticate(self.coach_a.user)
+        response = self.client.get("/api/v1/visit-form-templates/?limit=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertIsNotNone(response.data["next"])
+        response = self.client.get("/api/v1/visit-form-templates/?limit=1&search=Searchable")
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["name"], "Searchable form")
+        self.client.force_authenticate(self.coach_b.user)
+        response = self.client.get("/api/v1/visit-form-templates/?limit=1&search=Searchable")
+        self.assertEqual(response.data["count"], 0)
+
     def test_multiple_templates_and_single_default(self):
         second = create_template(
             self.coach_a,

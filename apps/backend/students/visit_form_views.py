@@ -6,6 +6,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from common.pagination import StandardLimitOffsetPagination
 from common.permissions import IsAuthenticatedCoach, get_request_coach
 from students import visit_form_services as svc
 
@@ -15,7 +16,15 @@ class VisitFormTemplateListCreateView(APIView):
 
     def get(self, request):
         coach = get_request_coach(request)
-        items = [svc.serialize_template(t) for t in svc.list_templates(coach)]
+        templates = svc.list_templates(coach)
+        search = (request.query_params.get("search") or "").strip()
+        if search:
+            templates = templates.filter(name__icontains=search)
+        if "limit" in request.query_params:
+            paginator = StandardLimitOffsetPagination()
+            page = paginator.paginate_queryset(templates, request, view=self)
+            return paginator.get_paginated_response([svc.serialize_template(t) for t in page])
+        items = [svc.serialize_template(t) for t in templates]
         return Response({"count": len(items), "results": items})
 
     def post(self, request):

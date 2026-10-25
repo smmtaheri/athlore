@@ -30,6 +30,16 @@ supplements, visit forms. Optional precise templates and safety/level/muscle
 settings are expandable sections inside generation rules. General prose is
 labelled non-executable notes. Reload does not claim to reset server data.
 
+Independent catalog tabs do not request the rules aggregate. The editor uses
+`GET/PATCH /coach-rules/?scope=editor`, excluding exercise, taxonomy and system
+catalogs from those responses. Exercise, training-system and visit-form lists
+request 20 records at a time and append on scroll (with an accessible load-more
+button). Search is debounced and performed by the server, not restricted to
+loaded rows. Query changes abort pending requests and replace the result set.
+The exercise list normalizes Persian/Arabic letter variants and spacing for
+names, aliases and target muscle/region labels. Training-system shared editing
+lives only in its dedicated tab, not a second editor below the exercise list.
+
 The frontend PATCHes only changed rule collections. The backend locks the
 aggregate, updates rows by owner-scoped ID and preserves IDs. New local rows
 have temporary non-UUID IDs; unknown UUIDs are errors. Omitted templates are

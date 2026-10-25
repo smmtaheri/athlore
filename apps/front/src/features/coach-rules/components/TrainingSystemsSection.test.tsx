@@ -6,11 +6,57 @@ import type { TrainingSystemsRepository } from "../services/trainingSystemsRepos
 import { TrainingSystemsSection } from "./TrainingSystemsSection";
 
 describe("TrainingSystemsSection", () => {
+  it("keeps shared editing in the dedicated systems tab", async () => {
+    const user = userEvent.setup();
+    const system: TrainingSystem = {
+      id: null,
+      key: "superset",
+      name: "سوپرست",
+      description: "گروه تمرینی",
+      execution_method: "پشت سر هم",
+      allowed_levels: [],
+      max_per_session: 0,
+      parameters: {},
+      enabled: true,
+      source: "platform",
+      base_technique_key: "superset",
+      handler_key: "superset",
+      handler_status: "implemented",
+      recipe: { version: 1, target: "all", steps: [{ op: "rest", seconds: 90 }] }
+    };
+    const repository: TrainingSystemsRepository = {
+      list: vi.fn(),
+      listPage: vi.fn(async () => ({ results: [system], count: 1, next: null })),
+      savePlatform: vi.fn(async () => system),
+      save: vi.fn(),
+      remove: vi.fn()
+    };
+    render(<TrainingSystemsSection repository={repository} />);
+    await user.click(await screen.findByRole("button", { name: "ویرایش برای همه" }));
+    expect(screen.getByText(/این تغییر برای همهٔ مربی‌ها/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("حداکثر اعمال در هر جلسه")).not.toBeInTheDocument();
+    await user.clear(screen.getByLabelText(/نام سیستم/));
+    await user.type(screen.getByLabelText(/نام سیستم/), "سوپرست مشترک");
+    await user.click(screen.getByRole("button", { name: "ذخیره سیستم" }));
+    await waitFor(() =>
+      expect(repository.savePlatform).toHaveBeenCalledWith(
+        "superset",
+        expect.objectContaining({
+          name: "سوپرست مشترک",
+          recipe: expect.objectContaining({ version: 1 })
+        })
+      )
+    );
+    expect(repository.save).not.toHaveBeenCalled();
+    expect(repository.list).not.toHaveBeenCalled();
+  });
   it("creates, edits, and deletes a coach-owned training system", async () => {
     const user = userEvent.setup();
     let systems: TrainingSystem[] = [];
     const repository: TrainingSystemsRepository = {
       list: vi.fn(async () => systems),
+      savePlatform: vi.fn(),
+      listPage: vi.fn(async () => ({ results: systems, count: systems.length, next: null })),
       save: vi.fn(async (input, id?: string | null) => {
         const saved: TrainingSystem = {
           ...input,

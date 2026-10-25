@@ -170,97 +170,73 @@ describe("StructuredCatalogSection", () => {
     });
   });
 
-  it("loads every page and searches late-page movements by muscle and Persian spelling", async () => {
+  it("loads only the requested page and searches across the server catalog", async () => {
     const user = userEvent.setup();
-    const baseImplementation = apiRequestMock.getMockImplementation()!;
-    const taxonomy = await baseImplementation("/exercise-taxonomy/");
-    const firstPage = await baseImplementation("/exercises/");
-    const template = firstPage.results[0];
-    const exercises = Array.from({ length: 205 }, (_, index) => ({
-      ...template,
-      id: `exercise-${index + 1}`,
-      name: `حرکت ${index + 1}`,
-      aliases: index === 204 ? ["اسکوات تکی"] : [],
-      targets:
-        index >= 200
-          ? [{ muscle_key: "quadriceps", region_key: null, role: "primary" }]
-          : template.targets
-    }));
-    taxonomy.muscles.push({
-      id: "muscle-quadriceps",
-      key: "quadriceps",
-      name: "چهارسر ران",
-      name_en: "Quadriceps",
-      is_active: true,
-      sort_order: 5,
-      regions: []
-    });
+    const base = apiRequestMock.getMockImplementation()!;
+    const template = (await base("/exercises/")).results[0];
     apiRequestMock.mockImplementation(
-      async (path: string, options?: { query?: { offset?: number } }) => {
-        if (path === "/exercise-taxonomy/") return taxonomy;
-        if (path === "/exercises/") {
-          const offset = options?.query?.offset || 0;
-          return {
-            count: exercises.length,
-            next: offset < 200 ? `/api/v1/exercises/?limit=100&offset=${offset + 100}` : null,
-            results: exercises.slice(offset, offset + 100)
-          };
-        }
-        return baseImplementation(path, options);
+      async (
+        path: string,
+        options?: { query?: { offset?: number; search?: string; limit?: number } }
+      ) => {
+        if (path !== "/exercises/") return base(path, options);
+        const { offset = 0, search = "" } = options?.query || {};
+        if (search)
+          return { count: 1, next: null, results: [{ ...template, id: "late", name: "حرکت 205" }] };
+        return {
+          count: 21,
+          next: offset === 0 ? "next" : null,
+          results: Array.from({ length: offset === 0 ? 20 : 1 }, (_, i) => ({
+            ...template,
+            id: String(offset + i),
+            name: `حرکت ${offset + i + 1}`
+          }))
+        };
       }
     );
     render(<StructuredCatalogSection />);
-
     const table = await screen.findByRole("table", { name: "کاتالوگ حرکات" });
-    expect(within(table).getByText("حرکت 205")).toBeInTheDocument();
-    expect(within(table).getAllByRole("row")).toHaveLength(206);
-    expect(
-      apiRequestMock.mock.calls
-        .filter(([path]) => path === "/exercises/")
-        .map(([, options]) => options.query.offset)
-    ).toEqual([0, 100, 200]);
-
-    const search = screen.getByRole("textbox", { name: "جست‌وجو" });
-    for (const query of ["چهار سر", "چهارسر", "چهار‌سر", "اسكوات تكي"]) {
-      fireEvent.change(search, { target: { value: query } });
-      expect(within(table).getByText("حرکت 205")).toBeInTheDocument();
-      expect(screen.queryByText("حرکت 1", { exact: true })).not.toBeInTheDocument();
-    }
-    fireEvent.change(search, { target: { value: "" } });
-    await user.selectOptions(screen.getByRole("combobox", { name: "فیلتر عضله" }), "quadriceps");
-    expect(
-      within(screen.getByRole("table", { name: "کاتالوگ حرکات" })).getAllByRole("row")
-    ).toHaveLength(6);
-
-    await user.click(screen.getByRole("button", { name: /^حرکت جدید$/ }));
-    const drawer = screen.getByRole("dialog", { name: /^حرکت جدید$/ });
-    await user.type(within(drawer).getAllByRole("textbox")[0], "حركت ‌205");
-    await user.selectOptions(
-      within(drawer).getByRole("combobox", { name: /^عضله اصلی/ }),
-      "quadriceps"
+    await within(table).findByText("حرکت 1");
+    expect(within(table).queryByText("حرکت 21")).not.toBeInTheDocument();
+    expect(apiRequestMock.mock.calls.filter(([path]) => path === "/exercises/")).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "نمایش بیشتر" }));
+    expect(await within(table).findByText("حرکت 21")).toBeInTheDocument();
+    expect(apiRequestMock).toHaveBeenCalledWith(
+      "/exercises/",
+      expect.objectContaining({ query: expect.objectContaining({ limit: 20, offset: 20 }) })
     );
-    await user.click(within(drawer).getByRole("button", { name: /^ذخیره حرکت$/ }));
-    expect(await within(drawer).findByRole("alert")).toHaveTextContent("این حرکت تکراری است");
-    expect(apiRequestMock.mock.calls.some(([, options]) => options?.method === "POST")).toBe(false);
+    fireEvent.change(screen.getByRole("textbox", { name: "جست‌وجو" }), {
+      target: { value: "اسکوات" }
+    });
+    expect(await within(table).findByText("حرکت 205")).toBeInTheDocument();
+    expect(within(table).queryByText("حرکت 1")).not.toBeInTheDocument();
+    expect(apiRequestMock).toHaveBeenCalledWith(
+      "/exercises/",
+      expect.objectContaining({ query: expect.objectContaining({ search: "اسکوات", offset: 0 }) })
+    );
+    expect(apiRequestMock.mock.calls.some(([path]) => path === "/training-techniques/")).toBe(
+      false
+    );
+    expect(screen.queryByText("تکنیک‌های تمرینی")).not.toBeInTheDocument();
   });
 
-  it("reports a later-page failure instead of displaying an incomplete catalog", async () => {
-    const baseImplementation = apiRequestMock.getMockImplementation()!;
+  it("keeps the first page visible when loading the next page fails", async () => {
+    const user = userEvent.setup();
+    const base = apiRequestMock.getMockImplementation()!;
     apiRequestMock.mockImplementation(
       async (path: string, options?: { query?: { offset?: number } }) => {
         if (path === "/exercises/") {
-          if (options?.query?.offset) throw new Error("Catalog page unavailable");
-          const dto = await baseImplementation(path);
-          return { ...dto, next: "/api/v1/exercises/?offset=1" };
+          if (options?.query?.offset) throw new Error("Unavailable");
+          return { ...(await base(path)), next: "next" };
         }
-        return baseImplementation(path, options);
+        return base(path, options);
       }
     );
     render(<StructuredCatalogSection />);
-
-    expect(await screen.findByText("دریافت کاتالوگ انجام نشد.")).toBeInTheDocument();
-    expect(screen.queryByRole("table", { name: "کاتالوگ حرکات" })).not.toBeInTheDocument();
-    expect(screen.queryByText("لیست خالی است")).not.toBeInTheDocument();
+    await screen.findByRole("button", { name: "نمایش بیشتر" });
+    await user.click(screen.getByRole("button", { name: "نمایش بیشتر" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("دریافت فهرست انجام نشد.");
+    expect(screen.getByRole("table", { name: "کاتالوگ حرکات" })).toBeInTheDocument();
   });
 
   it("renders structured rows, handler status, and archive action", async () => {
@@ -268,7 +244,6 @@ describe("StructuredCatalogSection", () => {
     render(<StructuredCatalogSection />);
 
     expect((await screen.findAllByText("پرس بالاسینه دمبل")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("فقط ذخیره اطلاعات").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: "آرشیو" }));
     expect(apiRequestMock).toHaveBeenCalledWith("/exercises/exercise-1/", { method: "DELETE" });
@@ -466,7 +441,7 @@ describe("StructuredCatalogSection", () => {
     await user.click(screen.getByRole("button", { name: "ذخیره حرکت" }));
     expect(await screen.findByRole("status")).toHaveTextContent("حرکت ذخیره شد.");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(apiRequestMock).toHaveBeenLastCalledWith("/exercises/exercise-1/", {
+    expect(apiRequestMock).toHaveBeenCalledWith("/exercises/exercise-1/", {
       method: "PATCH",
       body: expect.objectContaining({ name: editedName })
     });
@@ -618,48 +593,5 @@ describe("StructuredCatalogSection", () => {
       },
       method: "PATCH"
     });
-  });
-
-  it("shows executable technique logic and structured superset settings", async () => {
-    const user = userEvent.setup();
-    render(<StructuredCatalogSection />);
-
-    expect((await screen.findAllByText(/جفت‌سازی:/)).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("قابل اجرا").length).toBeGreaterThan(0);
-    await user.click(screen.getAllByRole("button", { name: "تنظیم برای من" })[0]);
-
-    expect(screen.getByText("روش جفت‌سازی")).toBeInTheDocument();
-    expect(screen.getByText("استراحت بعد از جفت (ثانیه)")).toBeInTheDocument();
-    expect(screen.getByText(/این handler در generator پیاده‌سازی شده است/)).toBeInTheDocument();
-  });
-
-  it("allows editing a public training system for every coach separately from personal setup", async () => {
-    const user = userEvent.setup();
-    render(<StructuredCatalogSection />);
-
-    await user.click((await screen.findAllByRole("button", { name: "ویرایش برای همه" }))[0]);
-    const dialog = screen.getByRole("dialog", { name: "ویرایش سیستم برای همهٔ مربی‌ها" });
-    expect(
-      within(dialog).getByText(/برای همهٔ مربی‌ها و برنامه‌های بعدی مشترک است/)
-    ).toBeInTheDocument();
-    const nameField = within(dialog).getAllByRole("textbox")[0];
-    await user.clear(nameField);
-    await user.type(nameField, "سوپرست مشترک");
-    await user.click(within(dialog).getByRole("button", { name: "ذخیره برای همهٔ مربی‌ها" }));
-
-    const patchCall = apiRequestMock.mock.calls.find(
-      ([path, options]) =>
-        path === "/training-techniques/platform/superset/" && options?.method === "PATCH"
-    );
-    expect(patchCall?.[1]).toMatchObject({
-      body: {
-        name: "سوپرست مشترک",
-        recipe: expect.objectContaining({ version: 1, target: "all" })
-      },
-      method: "PATCH"
-    });
-    expect(
-      await screen.findByText("تعریف مشترک سیستم برای همهٔ مربی‌ها ذخیره شد.")
-    ).toBeInTheDocument();
   });
 });

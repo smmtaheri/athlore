@@ -53,6 +53,7 @@ function createRepo(
     getById: vi.fn(async () => baseTemplate),
     getDefault: vi.fn(async () => baseTemplate),
     list: vi.fn(async () => [baseTemplate]),
+    listPage: vi.fn(async () => ({ results: [baseTemplate], count: 1, next: null })),
     reset: vi.fn(async () => [baseTemplate]),
     setDefault: vi.fn(async () => baseTemplate),
     update: vi.fn(async (id, input) => ({ ...baseTemplate, ...input, id })),

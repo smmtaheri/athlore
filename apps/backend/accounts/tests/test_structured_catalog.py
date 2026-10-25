@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import override_settings
 from rest_framework.test import APITestCase
@@ -21,6 +22,77 @@ class StructuredCatalogApiTests(APITestCase):
         coach_b = register(self.client, "structured-b@example.com", full_name="Coach B")
         self.tokens_a = coach_a.data["tokens"]
         self.tokens_b = coach_b.data["tokens"]
+
+    def test_editor_rules_omit_unrelated_catalogs(self):
+        with (
+            patch(
+                "accounts.rules_services.get_coach_techniques",
+                side_effect=AssertionError("Unrelated system catalog loaded"),
+            ),
+            patch(
+                "accounts.rules_services.serialize_exercise",
+                side_effect=AssertionError("Unrelated exercise loaded"),
+            ),
+            patch(
+                "accounts.rules_services.serialize_taxonomy",
+                side_effect=AssertionError("Unrelated taxonomy loaded"),
+            ),
+        ):
+            response = self.client.get(
+                "/api/v1/coach-rules/?scope=editor", **auth_header(self.tokens_a)
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data["exercise_catalog"], [])
+            self.assertEqual(response.data["training_techniques"], [])
+            saved = self.client.patch(
+                "/api/v1/coach-rules/?scope=editor",
+                {"general_rules": {"extra_notes": "", "items": []}},
+                format="json",
+                **auth_header(self.tokens_a),
+            )
+            self.assertEqual(saved.status_code, 200)
+
+    def test_catalog_server_pagination_and_normalized_search(self):
+        ids = []
+        for name in ("حرکت اول", "اسکوات تکی"):
+            response = self.client.post(
+                "/api/v1/exercises/",
+                self._exercise_payload(name),
+                format="json",
+                **auth_header(self.tokens_a),
+            )
+            self.assertEqual(response.status_code, 201)
+            ids.append(response.data["id"])
+        first = self.client.get("/api/v1/exercises/?limit=1", **auth_header(self.tokens_a))
+        self.assertEqual(first.data["count"], 2)
+        self.assertEqual(len(first.data["results"]), 1)
+        self.assertIsNotNone(first.data["next"])
+        for search in ("اسكوات تكي", "اسکوات‌تکی", "بالا سینه"):
+            result = self.client.get(
+                "/api/v1/exercises/", {"limit": 1, "search": search}, **auth_header(self.tokens_a)
+            )
+            self.assertEqual(result.status_code, 200)
+            self.assertGreater(result.data["count"], 0)
+        other = self.client.get(
+            "/api/v1/exercises/?limit=1&search=اسکوات", **auth_header(self.tokens_b)
+        )
+        self.assertEqual(other.data["count"], 0)
+
+    def test_system_catalog_pagination(self):
+        with patch(
+            "accounts.rules_services.get_coach_techniques",
+            return_value=[{"name": f"System {i}", "key": str(i)} for i in range(25)],
+        ):
+            response = self.client.get(
+                "/api/v1/training-techniques/?limit=20", **auth_header(self.tokens_a)
+            )
+            self.assertEqual(len(response.data["results"]), 20)
+            self.assertEqual(response.data["count"], 25)
+            response = self.client.get(
+                "/api/v1/training-techniques/?limit=20&search=System%2024",
+                **auth_header(self.tokens_a),
+            )
+            self.assertEqual(response.data["count"], 1)
 
     def _exercise_payload(self, name: str) -> dict:
         return {
