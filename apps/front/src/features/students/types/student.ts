@@ -104,6 +104,7 @@ export interface Student {
   /** Free-text notes. Does not affect generation — for coach/PDF reference only. */
   nutritionNotes?: string;
   phoneNumber?: string;
+  phoneCountry?: string;
   portalAccess?: StudentPortalAccess;
   preferences: StudentPreferences;
   /** Free-text notes. Does not affect generation — for coach/PDF reference only. */
@@ -147,6 +148,7 @@ export interface StudentFormValues {
   intensityPreference: string;
   nutritionNotes: string;
   phoneNumber: string;
+  phoneCountry?: string;
   primaryGoal: PrimaryGoal | "";
   relevantMedicalNotes: string;
   secondaryGoal: string;

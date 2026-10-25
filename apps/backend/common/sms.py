@@ -26,6 +26,13 @@ class SmsConfigurationError(SmsDeliveryUnavailable):
     )
 
 
+class InternationalSmsUnavailable(SmsDeliveryUnavailable):
+    default_code = "international_sms_unavailable"
+    default_detail = (
+        "ارسال پیامک به شماره‌های خارج از ایران هنوز پشتیبانی نمی‌شود؛ با رمز عبور وارد شوید."
+    )
+
+
 def sms_backend() -> str:
     backend = str(getattr(settings, "SMS_BACKEND", "najva") or "").strip().lower()
     if backend not in {"mock", "najva"}:
@@ -51,6 +58,9 @@ def send_template_sms(*, phone: str, template: str, tokens: dict[str, str]) -> i
         logger.info("Mock SMS accepted; no external delivery (template=%s)", template)
         return MOCK_MESSAGE_ID_BASE + time.time_ns() % 1_000_000_000
 
+    if not phone.startswith("+98"):
+        # Never strip a foreign calling code and deliver to an Iranian number.
+        raise InternationalSmsUnavailable()
     key, sender, template = configuration(template)
     query = urlencode(
         {"sender": sender, "receptor": "0" + phone[3:], "template": template, **tokens}

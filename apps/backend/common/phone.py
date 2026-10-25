@@ -1,13 +1,10 @@
-"""Canonical Iranian mobile phone normalization.
-
-All uniqueness checks must use normalize_iran_mobile(), never raw input.
-Canonical form: +989XXXXXXXXX (E.164 with Iran country code).
-"""
+"""Canonical E.164 mobile normalization, including existing Iranian input formats."""
 
 from __future__ import annotations
 
 import re
 
+import phonenumbers
 from rest_framework.exceptions import ValidationError
 
 # Persian / Arabic-Indic digits → ASCII
@@ -41,7 +38,7 @@ _CANONICAL_RE = re.compile(r"^\+989\d{9}$")
 
 
 class InvalidPhoneError(ValueError):
-    """Raised when a phone number cannot be normalized to a valid Iranian mobile."""
+    """Raised when a phone number cannot be normalized to a valid mobile."""
 
     def __init__(self, message: str = "شماره موبایل معتبر نیست."):
         super().__init__(message)
@@ -117,11 +114,70 @@ def normalize_iran_mobile_or_validation_error(
         raise ValidationError({field: [exc.message]}) from exc
 
 
+def normalize_mobile(raw: str | None, *, required: bool = True) -> str | None:
+    """Store all phones as E.164; unqualified legacy numbers still mean Iran.
+
+    Country-selecting clients submit a complete +calling-code number. Explicit
+    international numbers must already have their national trunk prefix removed.
+    """
+    text = _FORMATTING_RE.sub("", _to_ascii_digits(str(raw or "")).strip())
+    if not text:
+        if required:
+            raise InvalidPhoneError("شماره موبایل الزامی است.")
+        return None
+    if not re.fullmatch(r"\+?[0-9]+", text):
+        raise InvalidPhoneError("شماره موبایل فقط باید شامل رقم و پیش‌شمارهٔ کشور باشد.")
+    if text.startswith("0098") or not text.startswith("+") or text.startswith("+98"):
+        return normalize_iran_mobile(text, required=required)
+    if not re.fullmatch(r"\+[1-9][0-9]{7,14}", text):
+        raise InvalidPhoneError("شماره موبایل بین‌المللی معتبر نیست.")
+    try:
+        phone = phonenumbers.parse(text, None)
+    except phonenumbers.NumberParseException as exc:
+        raise InvalidPhoneError("کشور و شماره موبایل معتبر نیستند.") from exc
+    canonical = phonenumbers.format_number(phone, phonenumbers.PhoneNumberFormat.E164)
+    if (
+        canonical != text
+        or not phonenumbers.is_valid_number(phone)
+        or phonenumbers.number_type(phone)
+        not in {
+            phonenumbers.PhoneNumberType.MOBILE,
+            phonenumbers.PhoneNumberType.FIXED_LINE_OR_MOBILE,
+        }
+    ):
+        raise InvalidPhoneError(
+            "شماره موبایل برای کشور انتخاب‌شده معتبر نیست؛ صفر و کد کشور را دوباره وارد نکنید."
+        )
+    return canonical
+
+
+def normalize_mobile_or_validation_error(
+    raw: str | None, *, required: bool = True, field: str = "phone_number"
+) -> str | None:
+    try:
+        return normalize_mobile(raw, required=required)
+    except InvalidPhoneError as exc:
+        raise ValidationError({field: [exc.message]}) from exc
+
+
+def mobile_country(phone: str, country: str | None = None) -> str:
+    """Validate the selected region, including regions sharing a calling code."""
+    parsed = phonenumbers.parse(phone, None)
+    selected = str(country or phonenumbers.region_code_for_number(parsed) or "").upper()
+    if selected not in phonenumbers.SUPPORTED_REGIONS:
+        raise ValidationError({"phone_country": ["کشور شماره موبایل معتبر نیست."]})
+    if selected == "IR" and phone.startswith("+98"):
+        return selected
+    if not phonenumbers.is_valid_number_for_region(parsed, selected):
+        raise ValidationError({"phone_number": ["شماره موبایل با کشور انتخاب‌شده مطابقت ندارد."]})
+    return selected
+
+
 def phones_equivalent(a: str | None, b: str | None) -> bool:
     """True when both normalize to the same canonical mobile (non-empty)."""
     try:
-        na = normalize_iran_mobile(a, required=True)
-        nb = normalize_iran_mobile(b, required=True)
+        na = normalize_mobile(a, required=True)
+        nb = normalize_mobile(b, required=True)
     except InvalidPhoneError:
         return False
     return na == nb

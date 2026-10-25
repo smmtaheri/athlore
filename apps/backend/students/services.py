@@ -11,7 +11,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from accounts.models import CoachProfile
 from common.exceptions import ConflictError, InvalidStateError
 from common.permissions import get_owned_object
-from common.phone import normalize_iran_mobile_or_validation_error
+from common.phone import mobile_country, normalize_mobile_or_validation_error
 from students.models import Student, StudentProfile, Visit
 
 User = get_user_model()
@@ -86,7 +86,7 @@ def create_student(coach, data: dict) -> Student:
     goals = _validate_goals(data.get("goals"))
     training_background = _validate_training_background(data.get("training_background"))
     summary = data.pop("summary", {}) or {}
-    phone_canon = normalize_iran_mobile_or_validation_error(
+    phone_canon = normalize_mobile_or_validation_error(
         data.get("phone_number"),
         required=True,
         field="phone_number",
@@ -101,6 +101,7 @@ def create_student(coach, data: dict) -> Student:
         height_cm=data["height_cm"],
         weight_kg=data["weight_kg"],
         phone_number=phone_canon,
+        phone_country=mobile_country(phone_canon, data.get("phone_country")),
         status=data.get("status") or Student.Status.ACTIVE,
         coach_notes=data.get("coach_notes") or "",
         goals=goals,
@@ -143,6 +144,12 @@ def update_student(student: Student, data: dict) -> Student:
     if "training_background" in data:
         data["training_background"] = _validate_training_background(data.get("training_background"))
 
+    if "phone_number" in data or "phone_country" in data:
+        canonical = normalize_mobile_or_validation_error(
+            data.get("phone_number", student.phone_number)
+        )
+        data["phone_country"] = mobile_country(canonical, data.get("phone_country"))
+
     for field in (
         "full_name",
         "age",
@@ -150,6 +157,7 @@ def update_student(student: Student, data: dict) -> Student:
         "height_cm",
         "weight_kg",
         "phone_number",
+        "phone_country",
         "status",
         "coach_notes",
         "goals",
@@ -172,7 +180,7 @@ def update_student(student: Student, data: dict) -> Student:
             if field == "full_name" and value is not None:
                 value = str(value).strip()
             if field == "phone_number":
-                value = normalize_iran_mobile_or_validation_error(
+                value = normalize_mobile_or_validation_error(
                     value,
                     required=True,
                     field="phone_number",
@@ -244,15 +252,16 @@ def transfer_student(student: Student, new_coach: CoachProfile) -> Student:
 
 
 def set_student_phone(student: Student, phone_number: str) -> Student:
-    phone_canon = normalize_iran_mobile_or_validation_error(
+    phone_canon = normalize_mobile_or_validation_error(
         phone_number,
         required=True,
         field="phone_number",
     )
     _ensure_unique_student_phone(phone_canon, exclude_id=student.pk)
     student.phone_number = phone_canon
+    student.phone_country = mobile_country(phone_canon)
     try:
-        student.save(update_fields=["phone_number", "updated_at"])
+        student.save(update_fields=["phone_number", "phone_country", "updated_at"])
     except IntegrityError as exc:
         raise ConflictError(
             detail="این شماره موبایل قبلاً برای یک شاگرد ثبت شده است.",

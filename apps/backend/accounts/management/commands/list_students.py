@@ -3,7 +3,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand
 
 from accounts.admin_resolve import resolve_coach
-from common.phone import InvalidPhoneError, normalize_iran_mobile
+from common.phone import InvalidPhoneError, normalize_mobile
 from students.models import Student
 
 
@@ -36,7 +36,7 @@ class Command(BaseCommand):
             qs = qs.filter(phone_number__isnull=True)
         if options["phone"]:
             try:
-                phone = normalize_iran_mobile(options["phone"], required=True)
+                phone = normalize_mobile(options["phone"], required=True)
             except InvalidPhoneError as exc:
                 self.stderr.write(str(exc))
                 return

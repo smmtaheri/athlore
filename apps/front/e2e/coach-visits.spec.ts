@@ -1,3 +1,4 @@
+import { normalizeIranMobile } from "../src/shared/phone/iranMobile";
 import { expect, test } from "@playwright/test";
 
 test("recent visits expand and open the paginated history with exact visit details", async ({
@@ -60,7 +61,7 @@ test("recent visits expand and open the paginated history with exact visit detai
     }
   }
   await page.goto("/login");
-  await page.locator("#login-phone").fill(phone);
+  await page.locator("#login-phone").fill(normalizeIranMobile(phone).slice(3));
   await page.locator("#login-password").fill(password);
   await page.getByRole("button", { name: "ورود به داشبورد", exact: true }).click();
   await expect(page).toHaveURL(/dashboard/);

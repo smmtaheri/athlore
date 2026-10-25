@@ -1,3 +1,4 @@
+import { normalizeIranMobile } from "../src/shared/phone/iranMobile";
 import { expect, test } from "@playwright/test";
 
 // start-stack.mjs provides a disposable SQLite/media backend with mocked SMS
@@ -64,7 +65,7 @@ for (const role of ["coach", "student"] as const) {
       expectedUserId = pending.user.id;
       await context.clearCookies();
       await page.goto(`${origin.origin}/login`);
-      await page.getByLabel(/شماره موبایل/).fill(phone);
+      await page.getByLabel(/^شماره موبایل/).fill(normalizeIranMobile(phone).slice(3));
       await page.locator("#student-login-password").fill("InitialCode123!");
       await page.getByRole("button", { name: "ورود", exact: true }).click();
       await expect(
@@ -73,17 +74,14 @@ for (const role of ["coach", "student"] as const) {
       await page.locator("#setup-password").fill(password);
       await page.locator("#setup-password-confirm").fill(password);
       await page.getByRole("button", { name: "ثبت رمز جدید", exact: true }).click();
-      await expect(page.getByLabel(/شماره موبایل/)).toBeVisible();
+      await expect(page.getByLabel(/^شماره موبایل/)).toBeVisible();
     }
     await context.clearCookies();
 
     await page.goto(`${origin.origin}/login`);
-    await expect(page.getByLabel(/شماره موبایل/)).toHaveAttribute(
-      "placeholder",
-      "شماره موبایل؛ 09xxxxxxxxx"
-    );
-    await expect(page.getByLabel(/شماره موبایل/)).toHaveAccessibleDescription(/فقط شماره موبایل/);
-    await page.getByLabel(/شماره موبایل/).fill(phone.slice(1));
+    await expect(page.getByLabel(/^شماره موبایل/)).toHaveAttribute("placeholder", /مثلاً 9/);
+    await expect(page.getByLabel(/^شماره موبایل/)).toHaveAccessibleDescription(/بدون صفر اول/);
+    await page.getByLabel(/^شماره موبایل/).fill(phone.slice(1));
     await page.getByRole("button", { name: "ورود با کد یک‌بارمصرف", exact: true }).click();
     const code = page.getByLabel(/کد یک‌بارمصرف/);
     const send = page.getByRole("button", { name: "ارسال کد", exact: true });
@@ -116,7 +114,10 @@ for (const role of ["coach", "student"] as const) {
     await send.click();
     const delivered = await deliveryResponse;
     expect(delivered.status()).toBe(200);
-    expect(delivered.request().postDataJSON()).toEqual({ phone_number: phone.slice(1), role });
+    expect(delivered.request().postDataJSON()).toEqual({
+      phone_number: normalizeIranMobile(phone),
+      role
+    });
     await expect(code).toBeVisible();
     await expect(code).toBeFocused();
     await expect(page.getByRole("status")).toContainText("پیامک واقعی ارسال نمی‌شود");
@@ -170,7 +171,7 @@ for (const role of ["coach", "student"] as const) {
       window.localStorage.clear();
     });
     await page.goto(`${origin.origin}/login`);
-    await page.getByLabel(/شماره موبایل/).fill(phone);
+    await page.getByLabel(/^شماره موبایل/).fill(normalizeIranMobile(phone).slice(3));
     await page
       .locator(role === "coach" ? "#login-password" : "#student-login-password")
       .fill(password);

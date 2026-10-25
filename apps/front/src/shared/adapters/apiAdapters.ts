@@ -117,6 +117,7 @@ export function studentFromApi(dto: Record<string, unknown>): Student {
     },
     nutritionNotes: String(dto.nutrition_notes ?? ""),
     phoneNumber: dto.phone_number == null ? "" : String(dto.phone_number),
+    phoneCountry: String(dto.phone_country ?? "IR"),
     portalAccess: portalAccessFromApi(dto.portal_access),
     preferences: {
       dislikedTrainingStyles: String(preferences.disliked_training_styles ?? ""),
@@ -197,6 +198,7 @@ export function studentInputToApi(input: StudentInput): Record<string, unknown> 
     },
     nutrition_notes: input.nutritionNotes ?? "",
     phone_number: input.phoneNumber || null,
+    phone_country: input.phoneCountry ?? "IR",
     preferences: {
       disliked_training_styles: input.preferences.dislikedTrainingStyles,
       favorite_exercises: input.preferences.favoriteExercises,

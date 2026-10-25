@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 // Keep one visit-first flow, not the retired generation wizard or Web Storage tokens.
 test("invalid login shows Persian error", async ({ page }) => {
   await page.goto("/login");
-  await page.locator("#login-phone").fill("09121112233");
+  await page.locator("#login-phone").fill("9121112233");
   await page.locator("#login-password").fill("wrong-password");
   await page.getByRole("button", { name: "ورود به داشبورد", exact: true }).click();
   await expect(page.getByRole("alert").first()).toBeVisible();

@@ -1,3 +1,4 @@
+import { normalizeIranMobile } from "../src/shared/phone/iranMobile";
 import { expect, test } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 
@@ -144,7 +145,7 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
   const origin = new URL(baseURL!);
   origin.hostname = "localhost";
   await page.goto(`${origin.origin}/login`);
-  await page.locator("#login-phone").fill(phone);
+  await page.locator("#login-phone").fill(normalizeIranMobile(phone).slice(3));
   await page.locator("#login-password").fill(password);
   await page.getByRole("button", { name: "ورود به داشبورد", exact: true }).click();
   await expect(page).toHaveURL(/dashboard$/);
@@ -224,7 +225,7 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
   const athleteOrigin = new URL(baseURL!);
   athleteOrigin.hostname = "127.0.0.1";
   await athletePage.goto(`${athleteOrigin.origin}/login`);
-  await athletePage.getByLabel(/شماره موبایل/).fill(athletePhone);
+  await athletePage.getByLabel(/^شماره موبایل/).fill(normalizeIranMobile(athletePhone).slice(3));
   await athletePage.locator("#student-login-password").fill("WorkoutStudent-456!");
   await athletePage.getByRole("button", { name: "ورود", exact: true }).click();
   await expect(athletePage).not.toHaveURL(/login$/);

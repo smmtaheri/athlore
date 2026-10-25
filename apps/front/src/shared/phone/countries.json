@@ -1,0 +1,1713 @@
+{
+  "source": "python-phonenumbers 9.0.41",
+  "countries": [
+    {
+      "country": "AC",
+      "callingCode": "247",
+      "example": "40123",
+      "lengths": [5],
+      "main": false
+    },
+    {
+      "country": "AD",
+      "callingCode": "376",
+      "example": "312345",
+      "lengths": [6, 9],
+      "main": false
+    },
+    {
+      "country": "AE",
+      "callingCode": "971",
+      "example": "501234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "AF",
+      "callingCode": "93",
+      "example": "701234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "AG",
+      "callingCode": "1",
+      "example": "2684641234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "AI",
+      "callingCode": "1",
+      "example": "2642351234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "AL",
+      "callingCode": "355",
+      "example": "672123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "AM",
+      "callingCode": "374",
+      "example": "77123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "AO",
+      "callingCode": "244",
+      "example": "923123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "AR",
+      "callingCode": "54",
+      "example": "91123456789",
+      "lengths": [10, 11],
+      "main": false
+    },
+    {
+      "country": "AS",
+      "callingCode": "1",
+      "example": "6847331234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "AT",
+      "callingCode": "43",
+      "example": "664123456",
+      "lengths": [7, 8, 9, 10, 11, 12, 13],
+      "main": false
+    },
+    {
+      "country": "AU",
+      "callingCode": "61",
+      "example": "412345678",
+      "lengths": [9],
+      "main": true
+    },
+    {
+      "country": "AW",
+      "callingCode": "297",
+      "example": "5601234",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "AX",
+      "callingCode": "358",
+      "example": "412345678",
+      "lengths": [6, 7, 8, 9, 10],
+      "main": false
+    },
+    {
+      "country": "AZ",
+      "callingCode": "994",
+      "example": "401234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "BA",
+      "callingCode": "387",
+      "example": "61123456",
+      "lengths": [8, 9],
+      "main": false
+    },
+    {
+      "country": "BB",
+      "callingCode": "1",
+      "example": "2462501234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "BD",
+      "callingCode": "880",
+      "example": "1812345678",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "BE",
+      "callingCode": "32",
+      "example": "450001234",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "BF",
+      "callingCode": "226",
+      "example": "70123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "BG",
+      "callingCode": "359",
+      "example": "43012345",
+      "lengths": [8, 9],
+      "main": false
+    },
+    {
+      "country": "BH",
+      "callingCode": "973",
+      "example": "36001234",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "BI",
+      "callingCode": "257",
+      "example": "79561234",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "BJ",
+      "callingCode": "229",
+      "example": "0195123456",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "BL",
+      "callingCode": "590",
+      "example": "690001234",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "BM",
+      "callingCode": "1",
+      "example": "4413701234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "BN",
+      "callingCode": "673",
+      "example": "7123456",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "BO",
+      "callingCode": "591",
+      "example": "71234567",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "BQ",
+      "callingCode": "599",
+      "example": "3181234",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "BR",
+      "callingCode": "55",
+      "example": "11961234567",
+      "lengths": [10, 11],
+      "main": false
+    },
+    {
+      "country": "BS",
+      "callingCode": "1",
+      "example": "2423591234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "BT",
+      "callingCode": "975",
+      "example": "17123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "BW",
+      "callingCode": "267",
+      "example": "71123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "BY",
+      "callingCode": "375",
+      "example": "294911911",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "BZ",
+      "callingCode": "501",
+      "example": "6221234",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "CA",
+      "callingCode": "1",
+      "example": "5062345678",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "CC",
+      "callingCode": "61",
+      "example": "412345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "CD",
+      "callingCode": "243",
+      "example": "991234567",
+      "lengths": [7, 9],
+      "main": false
+    },
+    {
+      "country": "CF",
+      "callingCode": "236",
+      "example": "70012345",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "CG",
+      "callingCode": "242",
+      "example": "061234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "CH",
+      "callingCode": "41",
+      "example": "781234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "CI",
+      "callingCode": "225",
+      "example": "0123456789",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "CK",
+      "callingCode": "682",
+      "example": "71234",
+      "lengths": [5],
+      "main": false
+    },
+    {
+      "country": "CL",
+      "callingCode": "56",
+      "example": "221234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "CM",
+      "callingCode": "237",
+      "example": "671234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "CN",
+      "callingCode": "86",
+      "example": "13123456789",
+      "lengths": [11],
+      "main": false
+    },
+    {
+      "country": "CO",
+      "callingCode": "57",
+      "example": "3211234567",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "CR",
+      "callingCode": "506",
+      "example": "83123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "CU",
+      "callingCode": "53",
+      "example": "51234567",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "CV",
+      "callingCode": "238",
+      "example": "9911234",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "CW",
+      "callingCode": "599",
+      "example": "95181234",
+      "lengths": [7, 8],
+      "main": true
+    },
+    {
+      "country": "CX",
+      "callingCode": "61",
+      "example": "412345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "CY",
+      "callingCode": "357",
+      "example": "96123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "CZ",
+      "callingCode": "420",
+      "example": "601123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "DE",
+      "callingCode": "49",
+      "example": "15123456789",
+      "lengths": [10, 11],
+      "main": false
+    },
+    {
+      "country": "DJ",
+      "callingCode": "253",
+      "example": "77831001",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "DK",
+      "callingCode": "45",
+      "example": "34412345",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "DM",
+      "callingCode": "1",
+      "example": "7672251234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "DO",
+      "callingCode": "1",
+      "example": "8092345678",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "DZ",
+      "callingCode": "213",
+      "example": "551234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "EC",
+      "callingCode": "593",
+      "example": "991234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "EE",
+      "callingCode": "372",
+      "example": "51234567",
+      "lengths": [7, 8],
+      "main": false
+    },
+    {
+      "country": "EG",
+      "callingCode": "20",
+      "example": "1001234567",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "EH",
+      "callingCode": "212",
+      "example": "650123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "ER",
+      "callingCode": "291",
+      "example": "7123456",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "ES",
+      "callingCode": "34",
+      "example": "612345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "ET",
+      "callingCode": "251",
+      "example": "911234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "FI",
+      "callingCode": "358",
+      "example": "412345678",
+      "lengths": [6, 7, 8, 9, 10],
+      "main": true
+    },
+    {
+      "country": "FJ",
+      "callingCode": "679",
+      "example": "7012345",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "FK",
+      "callingCode": "500",
+      "example": "51234",
+      "lengths": [5],
+      "main": false
+    },
+    {
+      "country": "FM",
+      "callingCode": "691",
+      "example": "3501234",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "FO",
+      "callingCode": "298",
+      "example": "211234",
+      "lengths": [6],
+      "main": false
+    },
+    {
+      "country": "FR",
+      "callingCode": "33",
+      "example": "612345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "GA",
+      "callingCode": "241",
+      "example": "06031234",
+      "lengths": [7, 8],
+      "main": false
+    },
+    {
+      "country": "GB",
+      "callingCode": "44",
+      "example": "7400123456",
+      "lengths": [10],
+      "main": true
+    },
+    {
+      "country": "GD",
+      "callingCode": "1",
+      "example": "4734031234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "GE",
+      "callingCode": "995",
+      "example": "555123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "GF",
+      "callingCode": "594",
+      "example": "694201234",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "GG",
+      "callingCode": "44",
+      "example": "7781123456",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "GH",
+      "callingCode": "233",
+      "example": "231234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "GI",
+      "callingCode": "350",
+      "example": "57123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "GL",
+      "callingCode": "299",
+      "example": "221234",
+      "lengths": [6],
+      "main": false
+    },
+    {
+      "country": "GM",
+      "callingCode": "220",
+      "example": "3012345",
+      "lengths": [7, 9],
+      "main": false
+    },
+    {
+      "country": "GN",
+      "callingCode": "224",
+      "example": "601123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "GP",
+      "callingCode": "590",
+      "example": "690001234",
+      "lengths": [9],
+      "main": true
+    },
+    {
+      "country": "GQ",
+      "callingCode": "240",
+      "example": "222123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "GR",
+      "callingCode": "30",
+      "example": "6912345678",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "GT",
+      "callingCode": "502",
+      "example": "51234567",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "GU",
+      "callingCode": "1",
+      "example": "6713001234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "GW",
+      "callingCode": "245",
+      "example": "955012345",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "GY",
+      "callingCode": "592",
+      "example": "6091234",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "HK",
+      "callingCode": "852",
+      "example": "51234567",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "HN",
+      "callingCode": "504",
+      "example": "91234567",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "HR",
+      "callingCode": "385",
+      "example": "921234567",
+      "lengths": [8, 9],
+      "main": false
+    },
+    {
+      "country": "HT",
+      "callingCode": "509",
+      "example": "34101234",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "HU",
+      "callingCode": "36",
+      "example": "201234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "ID",
+      "callingCode": "62",
+      "example": "812345678",
+      "lengths": [9, 10, 11, 12],
+      "main": false
+    },
+    {
+      "country": "IE",
+      "callingCode": "353",
+      "example": "850123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "IL",
+      "callingCode": "972",
+      "example": "502345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "IM",
+      "callingCode": "44",
+      "example": "7924123456",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "IN",
+      "callingCode": "91",
+      "example": "8123456789",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "IO",
+      "callingCode": "246",
+      "example": "3801234",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "IQ",
+      "callingCode": "964",
+      "example": "7912345678",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "IR",
+      "callingCode": "98",
+      "example": "9123456789",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "IS",
+      "callingCode": "354",
+      "example": "6111234",
+      "lengths": [7, 9],
+      "main": false
+    },
+    {
+      "country": "IT",
+      "callingCode": "39",
+      "example": "3123456789",
+      "lengths": [9, 10],
+      "main": true
+    },
+    {
+      "country": "JE",
+      "callingCode": "44",
+      "example": "7797712345",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "JM",
+      "callingCode": "1",
+      "example": "8762101234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "JO",
+      "callingCode": "962",
+      "example": "790123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "JP",
+      "callingCode": "81",
+      "example": "9012345678",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "KE",
+      "callingCode": "254",
+      "example": "712123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "KG",
+      "callingCode": "996",
+      "example": "700123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "KH",
+      "callingCode": "855",
+      "example": "91234567",
+      "lengths": [8, 9],
+      "main": false
+    },
+    {
+      "country": "KI",
+      "callingCode": "686",
+      "example": "72001234",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "KM",
+      "callingCode": "269",
+      "example": "3212345",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "KN",
+      "callingCode": "1",
+      "example": "8697652917",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "KP",
+      "callingCode": "850",
+      "example": "1921234567",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "KR",
+      "callingCode": "82",
+      "example": "1020000000",
+      "lengths": [9, 10],
+      "main": false
+    },
+    {
+      "country": "KW",
+      "callingCode": "965",
+      "example": "50012345",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "KY",
+      "callingCode": "1",
+      "example": "3453231234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "KZ",
+      "callingCode": "7",
+      "example": "7710009998",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "LA",
+      "callingCode": "856",
+      "example": "2023123456",
+      "lengths": [9, 10],
+      "main": false
+    },
+    {
+      "country": "LB",
+      "callingCode": "961",
+      "example": "71123456",
+      "lengths": [7, 8],
+      "main": false
+    },
+    {
+      "country": "LC",
+      "callingCode": "1",
+      "example": "7582845678",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "LI",
+      "callingCode": "423",
+      "example": "660234567",
+      "lengths": [7, 9],
+      "main": false
+    },
+    {
+      "country": "LK",
+      "callingCode": "94",
+      "example": "712345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "LR",
+      "callingCode": "231",
+      "example": "770123456",
+      "lengths": [7, 9],
+      "main": false
+    },
+    {
+      "country": "LS",
+      "callingCode": "266",
+      "example": "50123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "LT",
+      "callingCode": "370",
+      "example": "61234567",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "LU",
+      "callingCode": "352",
+      "example": "628123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "LV",
+      "callingCode": "371",
+      "example": "21234567",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "LY",
+      "callingCode": "218",
+      "example": "912345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "MA",
+      "callingCode": "212",
+      "example": "650123456",
+      "lengths": [9],
+      "main": true
+    },
+    {
+      "country": "MC",
+      "callingCode": "377",
+      "example": "612345678",
+      "lengths": [8, 9],
+      "main": false
+    },
+    {
+      "country": "MD",
+      "callingCode": "373",
+      "example": "62112345",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "ME",
+      "callingCode": "382",
+      "example": "60123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "MF",
+      "callingCode": "590",
+      "example": "690001234",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "MG",
+      "callingCode": "261",
+      "example": "321234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "MH",
+      "callingCode": "692",
+      "example": "2351234",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "MK",
+      "callingCode": "389",
+      "example": "72345678",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "ML",
+      "callingCode": "223",
+      "example": "65012345",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "MM",
+      "callingCode": "95",
+      "example": "92123456",
+      "lengths": [7, 8, 9, 10],
+      "main": false
+    },
+    {
+      "country": "MN",
+      "callingCode": "976",
+      "example": "88123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "MO",
+      "callingCode": "853",
+      "example": "66123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "MP",
+      "callingCode": "1",
+      "example": "6702345678",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "MQ",
+      "callingCode": "596",
+      "example": "696201234",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "MR",
+      "callingCode": "222",
+      "example": "22123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "MS",
+      "callingCode": "1",
+      "example": "6644923456",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "MT",
+      "callingCode": "356",
+      "example": "96961234",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "MU",
+      "callingCode": "230",
+      "example": "52512345",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "MV",
+      "callingCode": "960",
+      "example": "7712345",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "MW",
+      "callingCode": "265",
+      "example": "991234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "MX",
+      "callingCode": "52",
+      "example": "2221234567",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "MY",
+      "callingCode": "60",
+      "example": "123456789",
+      "lengths": [9, 10],
+      "main": false
+    },
+    {
+      "country": "MZ",
+      "callingCode": "258",
+      "example": "821234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "NA",
+      "callingCode": "264",
+      "example": "811234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "NC",
+      "callingCode": "687",
+      "example": "751234",
+      "lengths": [6],
+      "main": false
+    },
+    {
+      "country": "NE",
+      "callingCode": "227",
+      "example": "93123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "NF",
+      "callingCode": "672",
+      "example": "381234",
+      "lengths": [6],
+      "main": false
+    },
+    {
+      "country": "NG",
+      "callingCode": "234",
+      "example": "8021234567",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "NI",
+      "callingCode": "505",
+      "example": "81234567",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "NL",
+      "callingCode": "31",
+      "example": "612345678",
+      "lengths": [9, 11],
+      "main": false
+    },
+    {
+      "country": "NO",
+      "callingCode": "47",
+      "example": "40612345",
+      "lengths": [8],
+      "main": true
+    },
+    {
+      "country": "NP",
+      "callingCode": "977",
+      "example": "9841234567",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "NR",
+      "callingCode": "674",
+      "example": "5551234",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "NU",
+      "callingCode": "683",
+      "example": "8884012",
+      "lengths": [4, 7],
+      "main": false
+    },
+    {
+      "country": "NZ",
+      "callingCode": "64",
+      "example": "211234567",
+      "lengths": [8, 9, 10],
+      "main": false
+    },
+    {
+      "country": "OM",
+      "callingCode": "968",
+      "example": "92123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "PA",
+      "callingCode": "507",
+      "example": "61234567",
+      "lengths": [7, 8],
+      "main": false
+    },
+    {
+      "country": "PE",
+      "callingCode": "51",
+      "example": "912345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "PF",
+      "callingCode": "689",
+      "example": "87123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "PG",
+      "callingCode": "675",
+      "example": "70123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "PH",
+      "callingCode": "63",
+      "example": "9051234567",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "PK",
+      "callingCode": "92",
+      "example": "3012345678",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "PL",
+      "callingCode": "48",
+      "example": "512345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "PM",
+      "callingCode": "508",
+      "example": "551234",
+      "lengths": [6, 9],
+      "main": false
+    },
+    {
+      "country": "PR",
+      "callingCode": "1",
+      "example": "7872345678",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "PS",
+      "callingCode": "970",
+      "example": "599123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "PT",
+      "callingCode": "351",
+      "example": "912345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "PW",
+      "callingCode": "680",
+      "example": "6201234",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "PY",
+      "callingCode": "595",
+      "example": "961456789",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "QA",
+      "callingCode": "974",
+      "example": "33123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "RE",
+      "callingCode": "262",
+      "example": "692123456",
+      "lengths": [9],
+      "main": true
+    },
+    {
+      "country": "RO",
+      "callingCode": "40",
+      "example": "712034567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "RS",
+      "callingCode": "381",
+      "example": "601234567",
+      "lengths": [8, 9, 10],
+      "main": false
+    },
+    {
+      "country": "RU",
+      "callingCode": "7",
+      "example": "9123456789",
+      "lengths": [10],
+      "main": true
+    },
+    {
+      "country": "RW",
+      "callingCode": "250",
+      "example": "720123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "SA",
+      "callingCode": "966",
+      "example": "512345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "SB",
+      "callingCode": "677",
+      "example": "7421234",
+      "lengths": [5, 7],
+      "main": false
+    },
+    {
+      "country": "SC",
+      "callingCode": "248",
+      "example": "2510123",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "SD",
+      "callingCode": "249",
+      "example": "911231234",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "SE",
+      "callingCode": "46",
+      "example": "701234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "SG",
+      "callingCode": "65",
+      "example": "81234567",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "SH",
+      "callingCode": "290",
+      "example": "51234",
+      "lengths": [5],
+      "main": true
+    },
+    {
+      "country": "SI",
+      "callingCode": "386",
+      "example": "31234567",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "SJ",
+      "callingCode": "47",
+      "example": "41234567",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "SK",
+      "callingCode": "421",
+      "example": "912123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "SL",
+      "callingCode": "232",
+      "example": "25123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "SM",
+      "callingCode": "378",
+      "example": "66661212",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "SN",
+      "callingCode": "221",
+      "example": "701234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "SO",
+      "callingCode": "252",
+      "example": "71123456",
+      "lengths": [7, 8, 9],
+      "main": false
+    },
+    {
+      "country": "SR",
+      "callingCode": "597",
+      "example": "7412345",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "SS",
+      "callingCode": "211",
+      "example": "977123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "ST",
+      "callingCode": "239",
+      "example": "9812345",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "SV",
+      "callingCode": "503",
+      "example": "70123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "SX",
+      "callingCode": "1",
+      "example": "7215205678",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "SY",
+      "callingCode": "963",
+      "example": "944567890",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "SZ",
+      "callingCode": "268",
+      "example": "76123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "TC",
+      "callingCode": "1",
+      "example": "6492311234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "TD",
+      "callingCode": "235",
+      "example": "63012345",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "TG",
+      "callingCode": "228",
+      "example": "90112345",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "TH",
+      "callingCode": "66",
+      "example": "812345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "TJ",
+      "callingCode": "992",
+      "example": "917123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "TK",
+      "callingCode": "690",
+      "example": "7290",
+      "lengths": [4, 5, 6, 7],
+      "main": false
+    },
+    {
+      "country": "TL",
+      "callingCode": "670",
+      "example": "77212345",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "TM",
+      "callingCode": "993",
+      "example": "66123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "TN",
+      "callingCode": "216",
+      "example": "20123456",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "TO",
+      "callingCode": "676",
+      "example": "7715123",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "TR",
+      "callingCode": "90",
+      "example": "5012345678",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "TT",
+      "callingCode": "1",
+      "example": "8682911234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "TV",
+      "callingCode": "688",
+      "example": "901234",
+      "lengths": [6, 7],
+      "main": false
+    },
+    {
+      "country": "TW",
+      "callingCode": "886",
+      "example": "912345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "TZ",
+      "callingCode": "255",
+      "example": "621234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "UA",
+      "callingCode": "380",
+      "example": "501234567",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "UG",
+      "callingCode": "256",
+      "example": "712345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "US",
+      "callingCode": "1",
+      "example": "2015550123",
+      "lengths": [10],
+      "main": true
+    },
+    {
+      "country": "UY",
+      "callingCode": "598",
+      "example": "94231234",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "UZ",
+      "callingCode": "998",
+      "example": "912345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "VA",
+      "callingCode": "39",
+      "example": "3123456789",
+      "lengths": [9, 10],
+      "main": false
+    },
+    {
+      "country": "VC",
+      "callingCode": "1",
+      "example": "7844301234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "VE",
+      "callingCode": "58",
+      "example": "4121234567",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "VG",
+      "callingCode": "1",
+      "example": "2843001234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "VI",
+      "callingCode": "1",
+      "example": "3406421234",
+      "lengths": [10],
+      "main": false
+    },
+    {
+      "country": "VN",
+      "callingCode": "84",
+      "example": "912345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "VU",
+      "callingCode": "678",
+      "example": "5912345",
+      "lengths": [7],
+      "main": false
+    },
+    {
+      "country": "WF",
+      "callingCode": "681",
+      "example": "821234",
+      "lengths": [6],
+      "main": false
+    },
+    {
+      "country": "WS",
+      "callingCode": "685",
+      "example": "7212345",
+      "lengths": [7, 10],
+      "main": false
+    },
+    {
+      "country": "XK",
+      "callingCode": "383",
+      "example": "43201234",
+      "lengths": [8],
+      "main": false
+    },
+    {
+      "country": "YE",
+      "callingCode": "967",
+      "example": "712345678",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "YT",
+      "callingCode": "262",
+      "example": "639012345",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "ZA",
+      "callingCode": "27",
+      "example": "711234567",
+      "lengths": [5, 6, 7, 8, 9],
+      "main": false
+    },
+    {
+      "country": "ZM",
+      "callingCode": "260",
+      "example": "955123456",
+      "lengths": [9],
+      "main": false
+    },
+    {
+      "country": "ZW",
+      "callingCode": "263",
+      "example": "712345678",
+      "lengths": [9],
+      "main": false
+    }
+  ]
+}

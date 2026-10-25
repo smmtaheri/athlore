@@ -6,7 +6,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from common.phone import normalize_iran_mobile
+from common.phone import normalize_mobile
 from common.sms import SmsDeliveryUnavailable, send_template_sms
 from programming.models import ProgramReadySms, ProgramVersion
 from students.models import Student, StudentProfile
@@ -55,7 +55,7 @@ def deliver_program_ready_sms(version_id) -> None:
                 status=ProgramReadySms.Status.SKIPPED, error_code="not_visible_in_portal"
             )
             return
-        phone = normalize_iran_mobile(student.phone_number, required=True)
+        phone = normalize_mobile(student.phone_number, required=True)
         message_id = send_template_sms(
             phone=phone,
             template=settings.NAJVA_PROGRAM_READY_TEMPLATE,

@@ -14,7 +14,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import CoachProfile, CoachRuleSet
 from common.exceptions import ConflictError
-from common.phone import InvalidPhoneError, normalize_iran_mobile
+from common.phone import InvalidPhoneError, normalize_mobile
 
 User = get_user_model()
 REFRESH_SESSION_STARTED_AT_CLAIM = "session_started_at"
@@ -133,7 +133,7 @@ def register_coach(
         raise ValueError("full_name is required")
 
     try:
-        phone_canon = normalize_iran_mobile(phone_number, required=True)
+        phone_canon = normalize_mobile(phone_number, required=True)
     except InvalidPhoneError as exc:
         raise ValueError(str(exc)) from exc
 
@@ -185,7 +185,7 @@ def create_coach_account(
     """Admin/management-path coach creation (ignores PUBLIC_REGISTRATION_ENABLED)."""
     email_norm = normalize_email(email)
     full_name = (full_name or "").strip()
-    phone_canon = normalize_iran_mobile(phone_number, required=True)
+    phone_canon = normalize_mobile(phone_number, required=True)
 
     if User.objects.filter(Q(email__iexact=email_norm) | Q(username__iexact=email_norm)).exists():
         raise ConflictError(detail="A user with this email already exists.")
@@ -222,7 +222,7 @@ def create_coach_account(
 
 
 def set_coach_phone(coach: CoachProfile, phone_number: str) -> CoachProfile:
-    phone_canon = normalize_iran_mobile(phone_number, required=True)
+    phone_canon = normalize_mobile(phone_number, required=True)
     if CoachProfile.objects.filter(phone_number=phone_canon).exclude(pk=coach.pk).exists():
         raise ConflictError(
             detail="این شماره موبایل قبلاً برای یک مربی ثبت شده است.",
@@ -280,7 +280,7 @@ def login_user(*, email: str | None = None, username: str | None = None, passwor
 
 def login_coach_by_phone(*, phone_number: str, password: str) -> dict:
     """Authenticate an existing coach account through its profile phone number."""
-    phone_canon = normalize_iran_mobile(phone_number, required=True)
+    phone_canon = normalize_mobile(phone_number, required=True)
     coach = CoachProfile.objects.select_related("user").filter(phone_number=phone_canon).first()
     if coach is None or not coach.user.is_active or not coach.user.check_password(password):
         raise PermissionError("Invalid credentials.")
@@ -291,7 +291,7 @@ def request_phone_login_code(*, phone_number: str, role: str, client_ip: str = "
     """Request a code from the explicitly configured provider; never fall back."""
     if not settings.LOGIN_OTP_ENABLED:
         raise PermissionError("Code login is disabled.")
-    phone_canon = normalize_iran_mobile(phone_number, required=True)
+    phone_canon = normalize_mobile(phone_number, required=True)
     if role not in {"coach", "student"}:
         raise PermissionError("Invalid role.")
     if settings.LOGIN_OTP_PROVIDER == "najva":
@@ -319,7 +319,7 @@ def login_by_phone(
     code: str = "",
 ) -> dict:
     """Authenticate a coach or active student portal using a phone credential."""
-    phone_canon = normalize_iran_mobile(phone_number, required=True)
+    phone_canon = normalize_mobile(phone_number, required=True)
     if method == "code" and settings.LOGIN_OTP_PROVIDER == "najva":
         from accounts.login_codes import verify_sms_code
 

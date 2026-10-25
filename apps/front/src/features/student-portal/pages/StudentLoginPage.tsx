@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { PhoneNumberInput } from "../../../shared/phone/PhoneNumberInput";
 import { Navigate, useNavigate } from "react-router";
 import { KeyRound, LogIn } from "lucide-react";
 import { Button, Card, FormField, Input, PageTitle } from "../../../components/ui";
 import { appConfig } from "../../../app/config/appConfig";
 import { studentPaths } from "../../../app/config/appOrigin";
 import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
-import { validateIranMobileInput } from "../../../shared/phone/iranMobile";
+import { validateMobileInput } from "../../../shared/phone/mobile";
 import { athleteFacingText } from "../../../shared/athleteWording";
 import { useAuth } from "../../auth";
 import { useCodeResendCooldown } from "../../auth/hooks/useCodeResendCooldown";
@@ -61,7 +62,7 @@ export function StudentLoginPage() {
   };
 
   const requestCode = async () => {
-    const phoneError = validateIranMobileInput(phoneNumber);
+    const phoneError = validateMobileInput(phoneNumber);
     if (phoneError) {
       setError(phoneError);
       return;
@@ -97,7 +98,7 @@ export function StudentLoginPage() {
     event.preventDefault();
     setError("");
     setInfo("");
-    const phoneError = validateIranMobileInput(phoneNumber);
+    const phoneError = validateMobileInput(phoneNumber);
     if (phoneError) {
       setError(phoneError);
       return;
@@ -238,27 +239,25 @@ export function StudentLoginPage() {
           ) : null}
           {info ? <div className={styles.infoAlert}>{info}</div> : null}
           <FormField htmlFor="student-login-phone" label="شماره موبایل" required>
-            <Input
+            <PhoneNumberInput
               autoComplete="tel"
               disabled={saving}
               id="student-login-phone"
               aria-describedby="student-login-phone-help"
               inputMode="tel"
-              onChange={(event) => {
-                setPhoneNumber(event.target.value);
+              onValueChange={(phone) => {
+                setPhoneNumber(phone);
                 setCodeRequest(null);
                 setSecondsRemaining(0);
                 setCode("");
                 setError("");
               }}
-              placeholder="شماره موبایل؛ 09xxxxxxxxx"
-              type="tel"
               value={phoneNumber}
             />
           </FormField>
           <p className={authStyles.loginMethodHint} id="student-login-phone-help">
-            فقط شماره موبایلی را وارد کنید که مربی در پروفایل شما ثبت کرده است، نه نام کاربری. شماره
-            با ۹…، ۰۹…، ۹۸۹… یا +۹۸۹… پذیرفته می‌شود.
+            کشور و شمارهٔ موبایلی را انتخاب کنید که مربی در پروفایل شما ثبت کرده است، نه نام کاربری.
+            برای شمارهٔ خارج از ایران فعلاً با رمز عبور وارد شوید.
           </p>
           {appConfig.loginOtpEnabled ? (
             <LoginMethodSelector

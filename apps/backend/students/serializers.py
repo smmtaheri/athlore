@@ -68,6 +68,7 @@ class StudentSerializer(serializers.ModelSerializer):
             "height_cm",
             "weight_kg",
             "phone_number",
+            "phone_country",
             "status",
             "coach_notes",
             "goals",

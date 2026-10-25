@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { PhoneNumberInput } from "../../../shared/phone/PhoneNumberInput";
 import { Link, useNavigate } from "react-router";
 import { LogIn, UserPlus } from "lucide-react";
 import { Button, Card, FormField, Input, PageTitle } from "../../../components/ui";
 import { appConfig } from "../../../app/config/appConfig";
 import { LoginMethodSelector, type LoginMethod } from "../components/LoginMethodSelector";
 import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
-import { validateIranMobileInput } from "../../../shared/phone/iranMobile";
+import { validateMobileInput } from "../../../shared/phone/mobile";
 import { useAuth } from "../context/AuthContext";
 import { useCodeResendCooldown } from "../hooks/useCodeResendCooldown";
 import type { LoginCodeRequestResult } from "../services/authRepository";
@@ -32,7 +33,7 @@ export function LoginPage() {
   const navigate = useNavigate();
 
   const requestCode = async () => {
-    const phoneError = validateIranMobileInput(phoneNumber);
+    const phoneError = validateMobileInput(phoneNumber);
     if (phoneError) {
       setErrors({ phoneNumber: phoneError });
       return;
@@ -62,7 +63,7 @@ export function LoginPage() {
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextErrors: AuthErrors = {};
-    const phoneError = validateIranMobileInput(phoneNumber);
+    const phoneError = validateMobileInput(phoneNumber);
     if (phoneError) nextErrors.phoneNumber = phoneError;
     const loginMethod = appConfig.loginOtpEnabled ? method : "password";
     if (loginMethod === "password" && !password) nextErrors.password = "رمز عبور الزامی است.";
@@ -122,27 +123,25 @@ export function LoginPage() {
           </div>
         ) : null}
         <FormField error={errors.phoneNumber} htmlFor="login-phone" label="شماره موبایل" required>
-          <Input
+          <PhoneNumberInput
             aria-describedby="login-phone-help"
             autoComplete="tel"
             disabled={saving}
             id="login-phone"
             inputMode="tel"
-            onChange={(event) => {
-              setPhoneNumber(event.target.value);
+            onValueChange={(phone) => {
+              setPhoneNumber(phone);
               setCodeRequest(null);
               setSecondsRemaining(0);
               setCode("");
               setErrors({});
             }}
-            placeholder="شماره موبایل؛ 09xxxxxxxxx"
-            type="tel"
             value={phoneNumber}
           />
         </FormField>
         <p className={styles.loginMethodHint} id="login-phone-help">
-          فقط شماره موبایل حساب خودتان را وارد کنید، نه نام کاربری یا ایمیل. شماره با ۹…، ۰۹…، ۹۸۹…
-          یا +۹۸۹… پذیرفته می‌شود.
+          کشور شمارهٔ حساب خود را انتخاب کنید و فقط شمارهٔ موبایل را وارد کنید، نه نام کاربری یا
+          ایمیل.
         </p>
         {appConfig.loginOtpEnabled ? (
           <LoginMethodSelector
@@ -310,12 +309,11 @@ export function RegisterPage() {
           label="شماره موبایل"
           required
         >
-          <Input
+          <PhoneNumberInput
             autoComplete="tel"
             id="register-phone"
             inputMode="tel"
-            onChange={(event) => setPhoneNumber(event.target.value)}
-            placeholder="مثلا ۰۹۱۲۱۲۳۴۵۶۷"
+            onValueChange={setPhoneNumber}
             value={phoneNumber}
           />
         </FormField>
@@ -378,7 +376,7 @@ function validateAuth(
     errors.email = "ایمیل معتبر وارد کنید.";
   }
   if (register) {
-    const phoneError = validateIranMobileInput(values.phoneNumber ?? "");
+    const phoneError = validateMobileInput(values.phoneNumber ?? "");
     if (phoneError) {
       errors.phoneNumber = phoneError;
     }

@@ -6,7 +6,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from common.phone import normalize_iran_mobile
+from common.phone import normalize_mobile
 from common.sms import SmsDeliveryUnavailable, send_template_sms
 from students.models import Student, StudentProfile, Visit, VisitFinalizedSms
 
@@ -47,7 +47,7 @@ def deliver_visit_finalized_sms(visit_id):
         first_name = next(iter(student.full_name.split()), "")
         first_name = first_name if 0 < len(first_name) <= 20 else "ورزشکار"
         message_id = send_template_sms(
-            phone=normalize_iran_mobile(student.phone_number, required=True),
+            phone=normalize_mobile(student.phone_number, required=True),
             template=settings.NAJVA_VISIT_FINALIZED_TEMPLATE,
             tokens={"token20": first_name},
         )

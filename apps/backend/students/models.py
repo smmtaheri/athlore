@@ -35,6 +35,7 @@ class Student(models.Model):
     # Canonical E.164 Iranian mobile (+989…). Globally unique when set.
     # Nullable only for legacy rows; new creates require a phone.
     phone_number = models.CharField(max_length=16, blank=True, null=True)
+    phone_country = models.CharField(max_length=2, default="IR")
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
     coach_notes = models.TextField(blank=True, default="")
 

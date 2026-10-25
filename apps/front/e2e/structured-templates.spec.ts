@@ -1,3 +1,4 @@
+import { normalizeIranMobile } from "../src/shared/phone/iranMobile";
 import { expect, test } from "@playwright/test";
 
 test("typed template editor saves executable blocks without free-text rules", async ({
@@ -66,7 +67,7 @@ test("typed template editor saves executable blocks without free-text rules", as
   const origin = new URL(baseURL!);
   origin.hostname = "localhost";
   await page.goto(`${origin.origin}/login`);
-  await page.getByLabel(/شماره موبایل/).fill(phone);
+  await page.getByLabel(/^شماره موبایل/).fill(normalizeIranMobile(phone).slice(3));
   await page.locator("#login-password").fill("TemplatesPass123!");
   await page.getByRole("button", { name: "ورود به داشبورد", exact: true }).click();
   await expect(page).toHaveURL(/dashboard$/);

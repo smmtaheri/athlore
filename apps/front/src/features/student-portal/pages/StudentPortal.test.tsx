@@ -149,7 +149,7 @@ describe("Student portal routes", () => {
       </AuthProvider>
     );
 
-    await user.type(await screen.findByLabelText(/شماره موبایل/), "9121111111");
+    await user.type(await screen.findByLabelText(/^شماره موبایل/), "9121111111");
     await user.type(screen.getByLabelText(/رمز عبور/), "Secret123!");
     await user.click(screen.getByRole("button", { name: "ورود" }));
     expect(await screen.findByText("student dashboard page")).toBeInTheDocument();
@@ -177,7 +177,7 @@ describe("Student portal routes", () => {
       </AuthProvider>
     );
 
-    await user.type(await screen.findByLabelText(/شماره موبایل/), "9121111111");
+    await user.type(await screen.findByLabelText(/^شماره موبایل/), "9121111111");
     await user.type(screen.getByLabelText(/^رمز عبور/), "must-change");
     await user.click(screen.getByRole("button", { name: "ورود" }));
 

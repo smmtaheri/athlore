@@ -181,6 +181,29 @@ The request uses `{ "phone_number", "role": "coach" | "student", "method": "pass
 or the configured code method. National `9…`, `09…`, `989…`, and `+989…` inputs normalize to the
 same stored number. Invalid credentials return a generic `401`.
 
+Country-selecting clients submit `phone_number` in E.164 (`+` plus calling code
+and national mobile number). Foreign mobile numbers are validated with
+`phonenumbers`; Iranian legacy input variants remain accepted for existing API
+clients. The UI defaults to Iran and collects only national digits beside a
+non-editable calling prefix. It rejects an extra trunk zero or repeated code.
+Students also persist ISO `phone_country` (for example `IR`, `TR`, `CA`), checked
+against the number; this preserves countries sharing a calling code. Migration
+`students.0022_student_phone_country` defaults existing records to `IR` without
+changing their phone numbers or authentication data.
+
+Password login supports international accounts. The current Najva transport
+fails explicitly with `international_sms_unavailable` for non-Iranian numbers;
+it never strips a foreign calling code into an Iranian receptor. Mock SMS
+supports every country on the isolated QA backend; shared Stage SMS settings
+are not changed. International real SMS requires separately verified provider
+support before enabling that transport.
+
+Frontend country calling codes, mobile lengths and examples are factual data
+exported from the locked Python dependency using
+`uv run python scripts/export_phone_countries.py`. Keep
+`apps/front/src/shared/phone/countries.json` in sync when updating that
+dependency. Full numbering-pattern validation is authoritative on the backend.
+
 Legacy `/api/v1/auth/login/` and `/api/v1/student/login/` always return `410` with
 `phone_login_required`, a phone-login instruction, and no tokens. Existing sessions are unaffected.
 Student activation requires only `initial_password`; the server allocates an internal username for
