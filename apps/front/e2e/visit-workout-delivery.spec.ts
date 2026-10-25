@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 
 // Runs against the disposable SQLite/media stack with SMS_BACKEND=mock only.
 test("visit prepares one draft, publishes a PDF and persists athlete set progress", async ({
@@ -34,6 +34,7 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
       height_cm: 180,
       weight_kg: 80,
       goals: { primary_goal: "hypertrophy" },
+      injuries: { has_injury: false },
       training_background: { level: "intermediate" },
       training_conditions: {
         training_days_per_week: 2,
@@ -70,19 +71,19 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
   });
   expect(sessionResponse.status(), await sessionResponse.text()).toBe(200);
   const athleteSession = await sessionResponse.json();
-  for (const [name, muscle] of [
-    ["پرس سینه دستگاه", "chest"],
-    ["پرس بالا سینه دمبل", "chest"],
-    ["قفسه سینه دستگاه", "chest"],
-    ["زیربغل سیمکش", "back"],
-    ["زیربغل قایقی", "back"],
-    ["زیربغل پول اور", "back"],
-    ["اسکوات دستگاه", "quadriceps"],
-    ["جلو پا دستگاه", "quadriceps"],
-    ["پشت پا دستگاه", "hamstrings"],
-    ["پرس سرشانه دستگاه", "shoulders"],
-    ["نشر جانب دمبل", "shoulders"],
-    ["نشر خم دمبل", "shoulders"]
+  for (const [name, muscle, equipment] of [
+    ["پرس سینه دستگاه", "chest", "machine"],
+    ["پرس بالا سینه دمبل", "chest", "dumbbell"],
+    ["قفسه سینه دستگاه", "chest", "machine"],
+    ["زیربغل سیمکش", "back", "cable"],
+    ["زیربغل قایقی", "back", "cable"],
+    ["زیربغل پول اور", "back", "cable"],
+    ["اسکوات دستگاه", "quadriceps", "machine"],
+    ["جلو پا دستگاه", "quadriceps", "machine"],
+    ["پشت پا دستگاه", "hamstrings", "machine"],
+    ["پرس سرشانه دستگاه", "shoulders", "machine"],
+    ["نشر جانب دمبل", "shoulders", "dumbbell"],
+    ["نشر خم دمبل", "shoulders", "dumbbell"]
   ]) {
     const exercise = await request.post(`${api}/exercises/`, {
       headers,
@@ -90,7 +91,7 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
         name: `${name} ${suffix}`,
         targets: [{ muscle_key: muscle, role: "primary" }],
         levels: ["intermediate"],
-        equipment_keys: ["machine"],
+        equipment_keys: [equipment],
         execution_guide: { execution: "حرکت را کنترل‌شده و بدون درد اجرا کنید." }
       }
     });
@@ -133,6 +134,13 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
     data: { visit_id: visit.id, assessment_mode: "in_person" }
   });
   expect(started.status(), await started.text()).toBe(200);
+  const finalizedVisit = await request.post(
+    `${api}/students/${student.id}/visits/${visit.id}/finalize/`,
+    { headers, data: {} }
+  );
+  expect(finalizedVisit.status(), await finalizedVisit.text()).toBe(200);
+  const reviewedVisit = await finalizedVisit.json();
+  expect(reviewedVisit.status).toBe("finalized");
   const origin = new URL(baseURL!);
   origin.hostname = "localhost";
   await page.goto(`${origin.origin}/login`);
@@ -170,6 +178,19 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
   const prepared = await preparedResponse;
   expect(prepared.status(), await prepared.text()).toBe(200);
   const program = (await prepared.json()).program;
+  const auditPath = testInfo.outputPath("generated-program-audit.json");
+  await writeFile(
+    auditPath,
+    JSON.stringify(
+      { student, visit: reviewedVisit, program_request: programRequest, program },
+      null,
+      2
+    )
+  );
+  await testInfo.attach("generated-program-audit", {
+    path: auditPath,
+    contentType: "application/json"
+  });
   await expect(page).toHaveURL(new RegExp(`/programs/${program.id}$`));
   await expect(page.getByRole("heading", { name: "پیش نمایش برنامه", exact: true })).toBeVisible();
   expect(program.training.days.length).toBe(2);
@@ -208,24 +229,42 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
   await expect(athletePage).not.toHaveURL(/login$/);
   await athletePage.goto(`${athleteOrigin.origin}/programs/${program.id}`);
   await expect(athletePage.getByRole("region", { name: "تمرین تعاملی" })).toBeVisible();
-  const set = athletePage.getByRole("checkbox", { name: "ست 1", exact: true }).first();
-  await expect(set).toBeEnabled();
-  await set.check();
-  await expect(set).toBeEnabled();
+  const openSets = () =>
+    athletePage
+      .getByRole("button", { name: /^ویرایش ست‌های / })
+      .first()
+      .click();
+  await openSets();
+  let setEditor = athletePage.getByRole("dialog", { name: /^ثبت جزئیات / });
+  await setEditor.getByRole("checkbox", { name: "ست ۱", exact: true }).check();
+  await setEditor.getByLabel("تکرار واقعی", { exact: true }).first().fill("10");
+  await setEditor.getByLabel("وزنهٔ واقعی (کیلوگرم)", { exact: true }).first().fill("25");
+  await setEditor.getByRole("button", { name: "ذخیرهٔ ست‌ها", exact: true }).click();
+  await expect(setEditor).not.toBeVisible();
   await athletePage.reload();
-  await expect(
-    athletePage.getByRole("checkbox", { name: "ست 1", exact: true }).first()
-  ).toBeChecked();
-  await athletePage.getByLabel("هفتهٔ دوره", { exact: true }).selectOption("2");
-  await expect(
-    athletePage.getByRole("checkbox", { name: "ست 1", exact: true }).first()
-  ).not.toBeChecked();
-  await athletePage.getByLabel("هفتهٔ دوره", { exact: true }).selectOption("1");
-  await expect(
-    athletePage.getByRole("checkbox", { name: "ست 1", exact: true }).first()
-  ).toBeChecked();
-  await athletePage.getByRole("button", { name: "شروع / شروع دوباره" }).click();
-  await expect(athletePage.getByLabel("زمان باقی‌مانده")).toContainText("1:");
+  await openSets();
+  setEditor = athletePage.getByRole("dialog", { name: /^ثبت جزئیات / });
+  await expect(setEditor.getByRole("checkbox", { name: "ست ۱", exact: true })).toBeChecked();
+  await expect(setEditor.getByLabel("تکرار واقعی", { exact: true }).first()).toHaveValue("10");
+  await expect(setEditor.getByLabel("وزنهٔ واقعی (کیلوگرم)", { exact: true }).first()).toHaveValue(
+    "25"
+  );
+  await setEditor.getByRole("button", { name: "بستن", exact: true }).click();
+  const weeks = athletePage.getByRole("tablist", { name: "هفته‌های برنامه", exact: true });
+  await weeks.getByRole("tab", { name: "۲", exact: true }).click();
+  await openSets();
+  await expect(setEditor.getByRole("checkbox", { name: "ست ۱", exact: true })).not.toBeChecked();
+  await setEditor.getByRole("button", { name: "بستن", exact: true }).click();
+  await weeks.getByRole("tab", { name: "۱", exact: true }).click();
+  await openSets();
+  await expect(setEditor.getByRole("checkbox", { name: "ست ۱", exact: true })).toBeChecked();
+  await setEditor.getByRole("button", { name: "بستن", exact: true }).click();
+  await athletePage.getByRole("button", { name: "بازکردن تایمر تمرین", exact: true }).click();
+  const timer = athletePage.getByRole("region", { name: "کنترل تایمر", exact: true });
+  await timer.getByRole("button", { name: "۹۰ ثانیه", exact: true }).click();
+  await timer.getByRole("button", { name: "شروع", exact: true }).click();
+  await expect(timer.getByRole("status")).toContainText("۱:");
+  await timer.getByRole("button", { name: "بستن پنل تایمر", exact: true }).click();
   const downloadEvent = athletePage.waitForEvent("download");
   await athletePage.getByRole("button", { name: "دانلود برنامه تمرینی", exact: true }).click();
   const download = await downloadEvent;
@@ -241,6 +280,8 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
   });
   const pdfPath = await download.path();
   expect(pdfPath).not.toBeNull();
+  await download.saveAs(testInfo.outputPath("generated-workout.pdf"));
+  expect((await readFile(pdfPath!)).subarray(0, 4).toString()).toBe("%PDF");
   const stagedResponse = await request.post(`${api}/program-pdfs/staging/`, {
     headers,
     multipart: {

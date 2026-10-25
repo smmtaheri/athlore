@@ -82,6 +82,10 @@ action that could send SMS without the user's explicit authorization for that
 delivery test. Earlier permission for a single message is not ongoing permission.
 See `docs/pdf-and-e2e-integration.md` for the isolated test setup.
 
+When asked to test Stage, follow `docs/product-flows/stage-acceptance-test-plan.md`
+for both portals and the coach-to-student program lifecycle. Report each flow as
+passed, failed, or not run; do not describe a subset as full Stage acceptance.
+
 Unless the user explicitly says to skip / go fast:
 
 ```bash

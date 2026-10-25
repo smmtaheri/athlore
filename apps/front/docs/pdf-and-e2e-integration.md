@@ -26,6 +26,11 @@
 
 ## Playwright
 
+The required coach/athlete acceptance matrix and program-quality rubric are in
+[`stage-acceptance-test-plan.md`](./product-flows/stage-acceptance-test-plan.md).
+Use that checklist whenever Stage QA is requested, including explicit reporting
+of scenarios not covered by the current browser suite.
+
 - Config: `playwright.config.ts` — Desktop 1440 + Mobile Chromium
 - Stack launcher: `e2e/scripts/start-stack.mjs` — temp Backend DB + media, migrate, runserver, Vite with `VITE_API_BASE_URL`
 - Spec: `e2e/p3-critical-flow.spec.ts`
