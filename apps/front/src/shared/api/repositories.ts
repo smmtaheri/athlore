@@ -18,6 +18,7 @@ import {
   visitInputToApi
 } from "../adapters/apiAdapters";
 import type { CoachRules } from "../../features/coach-rules/types/coachRules";
+import { CATALOG_PAGE_SIZE, type ListPage } from "./usePagedList";
 import type { CoachRulesRepository } from "../../features/coach-rules/services/coachRulesRepository";
 import type { DashboardMetrics } from "../../features/dashboard/services/dashboardMetrics";
 import type {
@@ -25,6 +26,7 @@ import type {
   GenerationEvidence,
   ProgramGenerationInput,
   ProgramPdfSection,
+  QuickGenerationSettings,
   UploadedProgramDraftInput
 } from "../../features/programs/types/generatedProgram";
 import type { ProgramsRepository } from "../../features/programs/services/programsRepository";
@@ -316,6 +318,13 @@ export function createApiVisitFormTemplatesRepository(): VisitFormTemplatesRepos
         visitFormTemplateFromApi((item as Record<string, unknown>) || {})
       );
     },
+    async listPage(search, offset, signal) {
+      const dto = await apiRequest<ListPage<Record<string, unknown>>>("/visit-form-templates/", {
+        signal,
+        query: { search, offset, limit: CATALOG_PAGE_SIZE }
+      });
+      return { ...dto, results: dto.results.map(visitFormTemplateFromApi) };
+    },
     async reset() {
       return this.list();
     },
@@ -337,20 +346,36 @@ export function createApiVisitFormTemplatesRepository(): VisitFormTemplatesRepos
 }
 
 export function createApiCoachRulesRepository(): CoachRulesRepository {
+  let savedBody: Record<string, unknown> | undefined;
+  const remember = (dto: Record<string, unknown>) => {
+    const rules = coachRulesFromApi(dto);
+    savedBody = coachRulesToApi(rules);
+    return rules;
+  };
   return {
     async get() {
-      const dto = await apiRequest<Record<string, unknown>>("/coach-rules/");
-      return coachRulesFromApi(dto);
+      const dto = await apiRequest<Record<string, unknown>>("/coach-rules/", {
+        query: { scope: "editor" }
+      });
+      return remember(dto);
     },
     async reset() {
       return this.get();
     },
     async save(rules: CoachRules) {
+      const body = coachRulesToApi(rules);
+      const changes = Object.fromEntries(
+        Object.entries(body).filter(
+          ([key, value]) => JSON.stringify(value) !== JSON.stringify(savedBody?.[key])
+        )
+      );
+      if (!Object.keys(changes).length) return this.get();
       const dto = await apiRequest<Record<string, unknown>>("/coach-rules/", {
-        method: "PUT",
-        body: coachRulesToApi(rules)
+        method: "PATCH",
+        query: { scope: "editor" },
+        body: changes
       });
-      return coachRulesFromApi(dto);
+      return remember(dto);
     }
   };
 }
@@ -426,7 +451,9 @@ export function createApiProgramsRepository(): ProgramsRepository & {
           program_type: input.programType,
           date_range_label: input.dateRangeLabel,
           date_range_start: input.dateRangeStart,
-          date_range_end: input.dateRangeEnd
+          date_range_end: input.dateRangeEnd,
+          ...(input.programRequestId ? { program_request_id: input.programRequestId } : {}),
+          ...(input.visitId ? { visit_id: input.visitId } : {})
         }
       });
       return stripMeta(
@@ -445,7 +472,6 @@ export function createApiProgramsRepository(): ProgramsRepository & {
     async generate(input) {
       const body: Record<string, unknown> = {
         student_id: input.studentId,
-        template_id: input.templateId,
         program_type: input.programType,
         title: input.title,
         level: input.level,
@@ -464,6 +490,12 @@ export function createApiProgramsRepository(): ProgramsRepository & {
         date_range_end: input.dateRangeEnd,
         engine: "rules_v1"
       };
+      if (input.templateId) body.template_id = input.templateId;
+      if (input.sessionMuscles) body.session_muscles = input.sessionMuscles;
+      if (input.exerciseVariety) body.exercise_variety = input.exerciseVariety;
+      if (input.programRequestId) body.program_request_id = input.programRequestId;
+      if (input.visitId) body.visit_id = input.visitId;
+      if (input.trainingSystems) body.training_systems = input.trainingSystems;
       if (input.targetMuscle) {
         body.target_muscle = input.targetMuscle;
       }
@@ -490,6 +522,70 @@ export function createApiProgramsRepository(): ProgramsRepository & {
         program: stripMeta(program),
         warnings: Array.isArray(dto.warnings) ? dto.warnings.map(String) : []
       };
+    },
+    async getLatestQuickSettings(studentId): Promise<QuickGenerationSettings | null> {
+      const listDto = await apiRequest<Record<string, unknown>>("/generation-runs/", {
+        query: { limit: 10, offset: 0, student_id: studentId }
+      });
+      const runs = Array.isArray(listDto.results)
+        ? (listDto.results as Array<Record<string, unknown>>)
+        : [];
+      for (const run of runs) {
+        if (run.status !== "succeeded" || !run.id) continue;
+        const detail = await apiRequest<Record<string, unknown>>(
+          `/generation-runs/${String(run.id)}/`
+        );
+        const request = (detail.request as Record<string, unknown>) || {};
+        if (request.template_mode !== "quick") continue;
+        const daysPerWeek = Number(request.days_per_week);
+        const rawMuscles = request.session_muscles;
+        const rawSystems = request.training_systems;
+        if (
+          !Number.isInteger(daysPerWeek) ||
+          daysPerWeek < 1 ||
+          daysPerWeek > 7 ||
+          !Array.isArray(rawMuscles) ||
+          !Array.isArray(rawSystems)
+        ) {
+          return null;
+        }
+        const sessionMuscles = rawMuscles.map((row) =>
+          Array.isArray(row) ? row.filter((item): item is string => typeof item === "string") : []
+        );
+        const trainingSystems = rawSystems.flatMap((item) => {
+          if (typeof item === "string") return [{ key: item }];
+          if (!item || typeof item !== "object") return [];
+          const value = item as Record<string, unknown>;
+          if (typeof value.key !== "string") return [];
+          return [
+            {
+              key: value.key,
+              ...(Array.isArray(value.muscles)
+                ? {
+                    muscles: value.muscles.filter(
+                      (muscle): muscle is string => typeof muscle === "string"
+                    )
+                  }
+                : {}),
+              ...(Array.isArray(value.variants)
+                ? {
+                    variants: value.variants.filter(
+                      (variant): variant is string => typeof variant === "string"
+                    )
+                  }
+                : {})
+            }
+          ];
+        });
+        const variety = request.exercise_variety;
+        return {
+          daysPerWeek,
+          exerciseVariety: variety === "stable" || variety === "varied" ? variety : "balanced",
+          sessionMuscles,
+          trainingSystems
+        };
+      }
+      return null;
     },
     async createVersion(id) {
       const meta = draftMeta.get(id);

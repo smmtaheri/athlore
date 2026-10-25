@@ -27,6 +27,9 @@ class Program(models.Model):
     )
     title = models.CharField(max_length=200)
     program_type = models.CharField(max_length=20, choices=ProgramType.choices)
+    # Complete lineages may deliberately cover only the requested sections for a cycle.
+    # Empty legacy values are interpreted from program_type by the service layer.
+    sections = models.JSONField(default=list, blank=True)
     active_version = models.ForeignKey(
         "ProgramVersion",
         on_delete=models.SET_NULL,
@@ -138,6 +141,155 @@ class ProgramVersion(models.Model):
 
     def __str__(self) -> str:
         return f"{self.program_id} v{self.version_number}"
+
+
+class ProgramRequest(models.Model):
+    class Purpose(models.TextChoices):
+        FIRST = "first", "First program"
+        NEXT = "next", "Next period"
+        REVISION = "revision", "Revision"
+
+    class Status(models.TextChoices):
+        SUBMITTED = "submitted", "Submitted"
+        AWAITING_INFO = "awaiting_info", "Awaiting information or visit"
+        IN_PROGRESS = "in_progress", "In progress"
+        FULFILLED = "fulfilled", "Fulfilled"
+        CANCELLED = "cancelled", "Cancelled"
+
+    class AssessmentMode(models.TextChoices):
+        ONLINE = "online", "Online"
+        IN_PERSON = "in_person", "In person"
+        NONE = "none", "No new assessment needed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    coach = models.ForeignKey(
+        CoachProfile,
+        on_delete=models.CASCADE,
+        related_name="program_requests",
+    )
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="program_requests",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_program_requests",
+    )
+    visit = models.ForeignKey(
+        "students.Visit",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="program_requests",
+    )
+    programs = models.ManyToManyField(Program, blank=True, related_name="program_requests")
+    purpose = models.CharField(max_length=16, choices=Purpose.choices, default=Purpose.NEXT)
+    sections = models.JSONField(default=list)
+    completed_sections = models.JSONField(default=list, blank=True)
+    sessions_per_week = models.PositiveSmallIntegerField(null=True, blank=True)
+    session_duration_minutes = models.PositiveSmallIntegerField(null=True, blank=True)
+    training_environment = models.CharField(max_length=24, blank=True, default="")
+    equipment_available = models.JSONField(default=list, blank=True)
+    assessment_mode = models.CharField(
+        max_length=16,
+        choices=AssessmentMode.choices,
+        default=AssessmentMode.ONLINE,
+    )
+    goal = models.TextField(blank=True, default="")
+    injury_notes = models.TextField(blank=True, default="")
+    training_time_notes = models.CharField(max_length=500, blank=True, default="")
+    sleep_notes = models.CharField(max_length=500, blank=True, default="")
+    nutrition_notes = models.CharField(max_length=500, blank=True, default="")
+    profile_snapshot = models.JSONField(default=dict, blank=True)
+    coach_notes = models.TextField(blank=True, default="")
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.SUBMITTED,
+    )
+    read_at = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    fulfilled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cancelled_program_requests",
+    )
+    cancellation_reason = models.CharField(max_length=500, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["status", "created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student"],
+                condition=models.Q(status__in=["submitted", "awaiting_info", "in_progress"]),
+                name="uniq_open_program_request_per_student",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["coach", "status", "created_at"]),
+            models.Index(fields=["student", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"ProgramRequest({self.student_id}, {self.status})"
+
+
+class ProgramReadySms(models.Model):
+    """One delivery attempt per published version, independent of program success."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SENDING = "sending", "Sending"
+        SENT = "sent", "Accepted by provider"
+        FAILED = "failed", "Failed"
+        SKIPPED = "skipped", "Not eligible"
+
+    version = models.OneToOneField(
+        ProgramVersion, primary_key=True, on_delete=models.CASCADE, related_name="ready_sms"
+    )
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    provider_message_id = models.PositiveBigIntegerField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    attempted_at = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+
+class WorkoutSession(models.Model):
+    """One student's execution of one prescribed day in one program week."""
+
+    class Status(models.TextChoices):
+        IN_PROGRESS = "in_progress", "In progress"
+        COMPLETED = "completed", "Completed"
+        COMPLETED_PARTIAL = "completed_partial", "Completed with unfinished sets"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    version = models.ForeignKey(ProgramVersion, on_delete=models.PROTECT)
+    week = models.PositiveIntegerField()
+    day_id = models.CharField(max_length=160)
+    completed_sets = models.JSONField(default=dict, blank=True)
+    set_logs = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=24, choices=Status.choices, default=Status.IN_PROGRESS)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "version", "week", "day_id"], name="unique_workout_session"
+            )
+        ]
 
 
 class GenerationRun(models.Model):

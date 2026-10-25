@@ -227,6 +227,109 @@ and uploads persist while the containers release CPU/RAM. Never use `docker
 compose down -v` or `docker volume prune` to switch stage off. The shared edge
 network is private/internal and is retained when either stack is stopped.
 
+### Stage SMS (real provider)
+
+The shared Stage environment keeps SMS enabled: Compose forces
+`LOGIN_OTP_PROVIDER=najva` and `SMS_BACKEND=najva`, and passes the private
+`NAJVA_API_KEY` from `.env.stage` to the backend. Configure the approved sender
+and template below. Both OTP login and program-ready notifications use this
+real transport on shared Stage. Password login remains available.
+
+```env
+NAJVA_API_KEY=<private provider key>
+NAJVA_SENDER=100005676
+NAJVA_TEMPLATE=athlore_otp
+NAJVA_PROGRAM_READY_TEMPLATE=athlore_program_ready
+```
+
+Never commit the key or pass it to frontend build arguments. Najva requires an
+approved template NAME, not its numeric ID. The OTP template must include
+`%token`; the program-ready template uses `%token20`. The sender must belong to
+the account and be authorized for both transactional templates. Only a
+successful response with `return.status=200` and one queued entry (`status=1`,
+positive `messageid`) is accepted. Provider rejection/timeouts return a
+sanitized `503`; credentials, request URLs, and codes are not logged.
+
+### Isolated E2E SMS mock
+
+Automated E2E runs that must not send a real SMS must target a disposable local
+or dedicated test stack, with a separate test database and media volume—not the
+shared Stage Compose service or its database. Set `SMS_BACKEND=mock`,
+`LOGIN_OTP_PROVIDER=najva`, and `LOGIN_OTP_MOCK_CODE=111111` only in that
+isolated backend process. The challenge lifecycle remains real and database
+backed; the SMS adapter returns a synthetic message ID and never opens an HTTPS
+connection. The program-ready flow uses the same mock. Test code `111111` is
+fixed only in that isolated test configuration and must never be enabled for
+production or the shared Stage runtime.
+
+OTP challenges use the existing stage PostgreSQL database, shared by Gunicorn
+workers: five-minute expiry, one successful use, five failed guesses, a
+60-second resend delay, five requests per phone/role per hour, and 30 requests
+per connection IP per hour. The IP quota uses `REMOTE_ADDR`, not
+caller-supplied forwarding headers; behind the edge proxy it may be shared by
+testers. Phone quota cannot be bypassed by switching phone notation. Unknown,
+disabled, and pending-setup accounts receive the same acknowledgement but do
+not get a valid challenge. Expired records older than a day are pruned during
+sends. Password login is independent.
+
+Migration `accounts.0013_phone_login_challenges` adds only temporary auth state;
+existing users, passwords, profiles and visits are unchanged. Migrations run
+on the next explicitly requested deployment, not while editing or testing code.
+Tests mock the provider and must never send real SMS. An actual delivery test
+requires private key configuration, an approved template, and an explicitly
+authorized send.
+
+### Stage program-ready SMS
+
+Stage Compose enables `PROGRAM_READY_SMS_ENABLED` by default; production settings
+default to disabled and production Compose is unchanged. On shared Stage, the
+program-ready notification is a real Najva SMS. Agent-run QA must never disable
+shared Stage SMS globally; automated no-SMS E2E uses the isolated mock configuration
+above. A real delivery test requires explicit user authorization.
+
+```env
+PROGRAM_READY_SMS_ENABLED=true
+NAJVA_PROGRAM_READY_TEMPLATE=athlore_program_ready
+```
+
+The template payload uses `token20` for the first name. A successful Stage
+`ProgramReadySms` row means Najva accepted the request, not that the handset
+received it. In isolated mock mode, the same row has a synthetic message ID
+beginning with `9000000000000000000` and does not indicate phone delivery.
+
+### Stage visit-finalized SMS
+
+Stage Compose enables `VISIT_FINALIZED_SMS_ENABLED=true` and defaults
+`NAJVA_VISIT_FINALIZED_TEMPLATE=athlore_visit_finalized`. The existing Najva key
+and sender are reused; the new template must be approved before deployment.
+Production Compose is unchanged and the Django setting defaults to disabled.
+The template receives `token20` as the student's first name and promises delivery
+within 72 hours; this notification does not schedule automatic program generation.
+
+Only coach finalization queues this SMS, not draft saves or student submission.
+The `VisitFinalizedSms` one-to-one record allows one attempt per visit, executed
+after transaction commit. Concurrent finalization is locked. Provider failure
+does not undo the visit; failed/uncertain sends are not retried automatically.
+Only active students with an enabled portal and active login are eligible.
+No backfill sends notifications for old visits. Migration `students.0021` creates
+the delivery table; normal deployment applies it, not this coding task.
+Isolated Playwright enables the trigger with `SMS_BACKEND=mock`, so it exercises
+the delivery path without any real SMS or shared-Stage configuration changes.
+
+Migration `programming.0003_programreadysms` stores one notification per newly
+finalized version; it does not backfill or message historical programs. Sends run
+after commit, once for all delivered sections. Failures are recorded separately
+and logged without personal information/keys. Any test that publishes a program
+on shared Stage can send a real SMS; use test accounts and confirm the target
+number before publishing.
+Inspect `ProgramReadySms` in Django admin (`/admin/programming/programreadysms/`)
+for status and provider message ID. Pending/sending records after a process crash
+require operator review; failed/uncertain sends are not retried automatically,
+because a provider timeout is not proof of non-delivery. On shared Stage,
+`sent` means Najva accepted the request; in isolated mock E2E, it means the mock
+accepted it. Neither status proves handset delivery. There is no additional
+queue or worker service.
+
 `stage-deploy.sh` refuses a non-stage branch, a dirty checkout, or a checkout
 that does not end up exactly at `origin/stage`. Keep the stage checkout in a
 different directory from `/root/athlore`; the production deploy script always
@@ -234,8 +337,27 @@ tracks `main` and must not be used to update Stage.
 
 ## Temporary production code login
 
-The production Compose defaults and example enable the same temporary fixed login
-code as stage (`1111`) and display it in the no-SMS delivery notice. This is not
-secure for public use: anyone who knows an active account's phone can sign in.
-Connect a real SMS provider and remove the fixed code before treating OTP as a
-secure production authentication method.
+The production Compose defaults and example enable the temporary fixed login
+code (`1111`) and display it in the no-SMS delivery notice. This is not secure
+for public use: anyone who knows an active account's phone can sign in. The
+shared Stage environment uses real Najva OTP; the six-digit test code belongs
+only to isolated E2E configuration. Remove the production fixed code before
+treating OTP as a secure production authentication method.
+## Exercise video processing
+
+`exercise-video-worker` uses the backend image (FFmpeg included), the existing
+database and persistent media volume. The normal stage deploy starts it after
+backend migrations and health. No separate subdomain, queue server or manual
+FFmpeg installation is required. Run one worker replica.
+
+Nginx serves only processed educational videos and posters from
+`/media/workout/uploads/{asset_id}/`. Original uploads, student photos and PDFs
+are not made public. Originals and older revisions are retained in media backups;
+monitor the volume's disk capacity as the video library grows.
+
+The shared stage route passes through the inner stage Nginx security headers.
+Its patch removes only redundant stage server-level CSP/HSTS includes, preserves
+the offline response headers and leaves production host policies unchanged.
+
+Detailed API, lifecycle and acceptance checks:
+[exercise video uploads](../../apps/backend/docs/exercise-video-uploads.md).

@@ -64,6 +64,10 @@ class AddStagePublicHostTests(unittest.TestCase):
             "    proxy_hide_header Cache-Control;\n"
             "    proxy_hide_header Expires;\n"
             '    add_header Cache-Control "no-store" always;\n'
+            "    client_max_body_size 110m;\n"
+            "    client_body_timeout 120s;\n"
+            "    proxy_read_timeout 180s;\n"
+            "    proxy_send_timeout 180s;\n"
             "  }\n"
             "}\n"
         )
@@ -108,6 +112,30 @@ class AddStagePublicHostTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("expected exactly one existing stage gateway", result.stderr)
         self.assertEqual(updated, original)
+
+    def test_stage_forwards_upstream_csp_and_keeps_offline_and_production_headers(self):
+        original = (
+            "http {\n  server {\n"
+            f"    server_name {PUBLIC_HOST} {COACH_HOST} {STUDENT_HOST};\n"
+            "    include /etc/nginx/snippets/security-headers.conf;\n"
+            "    include /etc/nginx/snippets/hsts.conf;\n"
+            "    location / { proxy_pass http://stage; }\n"
+            "    location @stage_offline {\n"
+            "      include /etc/nginx/snippets/security-headers.conf;\n"
+            "    }\n  }\n  server {\n"
+            "    server_name athlore.ir;\n"
+            "    include /etc/nginx/snippets/security-headers.conf;\n"
+            "  }\n}\n"
+        )
+        result, updated = self.run_patch(original)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        stage_header = updated.split("location /", 1)[0]
+        self.assertNotIn("security-headers.conf", stage_header)
+        self.assertIn("client_max_body_size 110m;", stage_header)
+        self.assertEqual(updated.count("include /etc/nginx/snippets/security-headers.conf;"), 2)
+        again, repeated = self.run_patch(updated)
+        self.assertEqual(again.returncode, 0, again.stderr)
+        self.assertEqual(repeated, updated)
 
 
 if __name__ == "__main__":

@@ -10,7 +10,57 @@ export type ProgramPdfSection = "workout" | "nutrition" | "supplement";
 export type ProgramPdfSectionMethod = "generated" | "uploaded" | "omitted";
 export type ProgramPdfSectionMethods = Partial<Record<ProgramPdfSection, ProgramPdfSectionMethod>>;
 
+export interface WorkoutScheduleSession {
+  day_id: string;
+  scheduled_on: string;
+}
+
+export interface WorkoutScheduleWeek {
+  week: number;
+  starts_on: string;
+  ends_on: string;
+  sessions: WorkoutScheduleSession[];
+}
+
+export interface WorkoutSchedule {
+  version: number;
+  configured: boolean;
+  start_date?: string;
+  end_date?: string;
+  weeks: WorkoutScheduleWeek[];
+}
+
+export interface ExerciseMedia {
+  key: string;
+  title: string;
+  preview_url: string;
+  poster_url: string;
+  reel_url: string;
+  education: {
+    description?: string;
+    steps?: Array<{ at_seconds: number; title: string; text: string }>;
+    tips?: string[];
+    mistakes?: Array<{ title: string; text: string }>;
+  };
+  attribution: {
+    author: string;
+    source_url: string;
+    license: string;
+    license_url: string;
+    changes: string;
+    disclaimer?: string;
+  };
+}
+
 export interface TrainingExercise {
+  exercise_id?: string;
+  locked?: boolean;
+  tutorial_url?: string;
+  tutorial_source_url?: string;
+  media?: ExerciseMedia | null;
+  execution_guide?: Record<string, string>;
+  primary_muscle?: string;
+  seconds?: number;
   id: string;
   name: string;
   notes: string;
@@ -22,12 +72,20 @@ export interface TrainingExercise {
   reps: string;
   rawPrescription?: string;
   selectionSource?: string;
+  trainingGroupId?: string | null;
+  trainingGroupName?: string;
+  trainingGroupSize?: number;
   supersetGroupId?: string | null;
   supersetWithPrevious?: boolean;
   supersetPartnerName?: string | null;
   supersetRestBetweenSeconds?: number;
   supersetRestAfterSeconds?: number;
   dropSet?: { drops: number; reduction_percent: number };
+  partialReps?: {
+    variant: "one_and_half" | "after_failure" | "partial_only";
+    after_failure_reps: number;
+    half_range: string;
+  };
   techniques?: Array<{
     key: string;
     name: string;
@@ -48,6 +106,7 @@ export interface TrainingDay {
 export interface TrainingProgram {
   days: TrainingDay[];
   summary: string;
+  schedule?: WorkoutSchedule;
 }
 
 export interface NutritionFood {
@@ -163,10 +222,12 @@ export interface GenerationEvidenceTechnique {
  */
 export interface GenerationEvidence {
   daysPerWeek?: number;
+  exerciseVariety?: "stable" | "balanced" | "varied";
   equipment: string[];
   exerciseCatalog?: GenerationEvidenceCatalog;
   exerciseSelection: GenerationEvidenceExerciseSelection;
   generationRunId: string;
+  generationMode?: "quick" | "template";
   generatorVersion: string;
   injuryRules: string[];
   muscleFocus: GenerationEvidenceMuscleFocus;
@@ -174,6 +235,7 @@ export interface GenerationEvidence {
   ruleSetId?: string;
   studentGoal?: string;
   studentId: string;
+  sessionMuscles?: string[][];
   studentLevel?: string;
   techniques?: GenerationEvidenceTechnique[];
   templateId?: string;
@@ -184,6 +246,10 @@ export interface GenerationEvidence {
 }
 
 export interface GeneratedProgram {
+  draftRevision?: string;
+  programVersionId?: string;
+  sectionMethods?: ProgramPdfSectionMethods;
+  durationWeeks?: number;
   createdAt: string;
   dateRange: string;
   /** Backend version IDs used while attaching uploaded PDFs or retrying PDF delivery. */
@@ -226,17 +292,29 @@ export interface ProgramGenerationInput {
   dateRangeLabel?: string;
   dateRangeStart?: string;
   durationWeeks: number;
+  exerciseVariety?: "stable" | "balanced" | "varied";
   goal: string;
   level: string;
   musclePriorities: string[];
   programType: StudentProgramType;
+  sessionMuscles?: string[][];
+  programRequestId?: string;
+  visitId?: string;
   studentId: string;
   targetExerciseCount?: number;
   targetMuscle?: string;
   targetRegion?: string;
   supplementSelection?: import("../../coach-rules/services/supplementCatalogRepository").SupplementSelection;
-  templateId: string;
+  trainingSystems?: Array<{ key: string; variants?: string[]; muscles?: string[] }>;
+  templateId?: string;
   title: string;
+}
+
+export interface QuickGenerationSettings {
+  daysPerWeek: number;
+  exerciseVariety: "stable" | "balanced" | "varied";
+  sessionMuscles: string[][];
+  trainingSystems: Array<{ key: string; variants?: string[]; muscles?: string[] }>;
 }
 
 export interface StagedProgramPdf {
@@ -252,6 +330,8 @@ export interface UploadedProgramDraftInput {
   dateRangeLabel: string;
   dateRangeStart: string;
   programType: StudentProgramType;
+  programRequestId?: string;
+  visitId?: string;
   stagedPdfId: string;
   studentId: string;
   title: string;

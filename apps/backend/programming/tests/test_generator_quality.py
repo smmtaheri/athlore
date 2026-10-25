@@ -166,6 +166,7 @@ class GeneratorQualityTests(APITestCase):
             ("کراس اور", "سینه", "کابل"),
             ("لت سیم کش", "زیربغل", "کابل"),
             ("روئینگ هالتر", "زیربغل", "هالتر"),
+            ("روئینگ دستگاه", "زیربغل", "دستگاه"),
             ("اسکوات", "پا", "هالتر"),
             ("پرس پا", "پا", "دستگاه"),
             ("ددلیفت رومانیایی", "پا", "هالتر"),
@@ -183,6 +184,7 @@ class GeneratorQualityTests(APITestCase):
             ("پشت بازو سیم‌کش", "پشت بازو", "کابل"),
             ("دیپ نیمکت", "پشت بازو", "وزن بدن"),
             ("جلو بازو دمبل", "جلو بازو", "دمبل"),
+            ("جلو بازو هالتر", "جلو بازو", "هالتر"),
             ("کرانچ", "شکم", "وزن بدن"),
             ("پلانک", "شکم", "وزن بدن"),
         ]:
@@ -578,8 +580,10 @@ class GeneratorQualityTests(APITestCase):
             [d["targetMuscles"] for d in days],
             [["سینه", "پشت بازو"], ["زیربغل", "جلو بازو"], ["پا"], ["سرشانه", "شکم"]],
         )
-        names = [e["name"] for d in days for e in d["exercises"]]
-        self.assertEqual(len(names), len(set(names)))
+        for day in days:
+            names = [e["name"] for e in day["exercises"]]
+            self.assertEqual(len(names), len(set(names)))
+        names = [e["name"] for day in days for e in day["exercises"]]
         self.assertNotIn("پرس سرشانه سنگین", names)
         self.assertNotIn("شراگ سنگین", names)
         chest = [e for e in days[0]["exercises"] if e["targetMuscle"] == "سینه"]
@@ -618,8 +622,9 @@ class GeneratorQualityTests(APITestCase):
         )
         days = document["training"]["days"]
         self.assertEqual(len(days), 3)
-        names = [e["name"] for d in days for e in d["exercises"]]
-        self.assertEqual(len(names), len(set(names)))
+        for day in days:
+            names = [e["name"] for e in day["exercises"]]
+            self.assertEqual(len(names), len(set(names)))
         self.assertTrue(all(d["exercises"] for d in days))
 
     def test_acceptance_matrix_back_pain(self):

@@ -35,6 +35,7 @@ class Student(models.Model):
     # Canonical E.164 Iranian mobile (+989…). Globally unique when set.
     # Nullable only for legacy rows; new creates require a phone.
     phone_number = models.CharField(max_length=16, blank=True, null=True)
+    phone_country = models.CharField(max_length=2, default="IR")
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
     coach_notes = models.TextField(blank=True, default="")
 
@@ -130,31 +131,41 @@ class Visit(models.Model):
     adherence_overall = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        default=Decimal("0"),
+        default=None,
+        null=True,
+        blank=True,
         validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
     )
     adherence_training = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        default=Decimal("0"),
+        default=None,
+        null=True,
+        blank=True,
         validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
     )
     adherence_nutrition = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        default=Decimal("0"),
+        default=None,
+        null=True,
+        blank=True,
         validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
     )
     adherence_supplements = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        default=Decimal("0"),
+        default=None,
+        null=True,
+        blank=True,
         validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
     )
 
-    daily_energy_level = models.CharField(max_length=16, choices=Level.choices)
-    sleep_quality = models.CharField(max_length=16, choices=Level.choices)
-    stress_level = models.CharField(max_length=16, choices=Level.choices)
+    daily_energy_level = models.CharField(
+        max_length=16, choices=Level.choices, null=True, blank=True
+    )
+    sleep_quality = models.CharField(max_length=16, choices=Level.choices, null=True, blank=True)
+    stress_level = models.CharField(max_length=16, choices=Level.choices, null=True, blank=True)
     body_feeling = models.TextField(blank=True, default="")
     student_feedback = models.TextField(blank=True, default="")
     coach_assessment = models.TextField(blank=True, default="")
@@ -176,6 +187,7 @@ class Visit(models.Model):
     form_template_version = models.PositiveIntegerField(default=1)
     form_template_snapshot = models.JSONField(default=dict, blank=True)
     answers = models.JSONField(default=dict, blank=True)
+    program_settings = models.JSONField(default=dict, blank=True)
     answer_sources = models.JSONField(default=dict, blank=True)
     status = models.CharField(
         max_length=32,
@@ -327,6 +339,27 @@ class VisitAnswerRevision(models.Model):
 
     def __str__(self) -> str:
         return f"{self.visit_id}:{self.field_key}@{self.created_at}"
+
+
+class VisitFinalizedSms(models.Model):
+    """One post-commit notification attempt for each finalized visit."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SENDING = "sending", "Sending"
+        SENT = "sent", "Accepted by provider"
+        FAILED = "failed", "Failed"
+        SKIPPED = "skipped", "Not eligible"
+
+    visit = models.OneToOneField(
+        Visit, primary_key=True, on_delete=models.CASCADE, related_name="finalized_sms"
+    )
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    provider_message_id = models.PositiveBigIntegerField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    attempted_at = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
 
 
 class StudentProfile(models.Model):

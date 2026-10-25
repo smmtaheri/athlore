@@ -1,6 +1,7 @@
 from django.db import transaction
 from django.db.models import Q
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -19,8 +20,10 @@ from students import services
 from students import visit_form_services as vfs
 from students import visit_photo_services as photo_services
 from students.creation_diagnostics import log_creation_failure
+from students.models import Visit
 from students.serializers import (
     ActivateLoginSerializer,
+    CoachVisitListSerializer,
     ResetPortalPasswordSerializer,
     SendToStudentSerializer,
     SetPortalInitialPasswordSerializer,
@@ -137,6 +140,30 @@ class StudentArchiveView(APIView):
         student = services.get_student_for_coach(coach, student_id)
         student = services.archive_student(student)
         return Response(StudentSerializer(student).data)
+
+
+class CoachVisitListView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+    pagination_class = StandardLimitOffsetPagination
+
+    def get(self, request):
+        coach = get_request_coach(request)
+        qs = Visit.objects.filter(coach=coach).select_related("student")
+        search = request.query_params.get("search", "").strip()
+        if search:
+            qs = qs.filter(student__full_name__icontains=search)
+        status_filter = request.query_params.get("status", "all")
+        if status_filter != "all":
+            if status_filter not in Visit.Status.values:
+                raise ValidationError({"status": ["Unknown visit status."]})
+            qs = qs.filter(status=status_filter)
+        ordering = request.query_params.get("ordering", "-visit_date")
+        if ordering not in ("-visit_date", "-created_at"):
+            raise ValidationError({"ordering": ["Unknown visit ordering."]})
+        qs = qs.order_by(ordering, "-created_at", "-id")
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        return paginator.get_paginated_response(CoachVisitListSerializer(page, many=True).data)
 
 
 class VisitListCreateView(APIView):

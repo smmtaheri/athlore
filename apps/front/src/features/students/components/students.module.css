@@ -228,6 +228,130 @@
   letter-spacing: 0;
 }
 
+.collapsibleSection {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.collapsibleSummary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.collapsibleSummary::-webkit-details-marker {
+  display: none;
+}
+
+.sectionHeaderText {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: var(--space-1);
+}
+
+.sectionTitle {
+  font-size: 1.0625rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.sectionDescription {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+.visitFormMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.visitFormMeta details {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.visitFormMeta summary,
+.visitPhotoDisclosure > summary {
+  cursor: pointer;
+  color: var(--color-primary-700);
+  font-weight: 700;
+}
+
+.visitFormMeta details[open] {
+  flex-basis: 100%;
+}
+
+.visitPhotoDisclosure {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+
+.visitPhotoDisclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.visitPhotoDisclosure[open] > summary {
+  margin-block-end: var(--space-3);
+}
+
+.visitContextNote {
+  margin: 0;
+  border-inline-start: 3px solid var(--color-primary-500);
+  padding-inline-start: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}
+
+.visitStudentSummary .profileAvatar {
+  width: 44px;
+  height: 44px;
+}
+
+.visitStudentSummary .profileHeaderMain {
+  flex-direction: row;
+  text-align: start;
+  gap: var(--space-3);
+}
+
+.visitStudentSummary .profileNameRow {
+  justify-content: flex-start;
+}
+
+.visitPhotoDisclosure > summary::after {
+  content: "⌄";
+  margin-inline-start: auto;
+}
+
+.visitPhotoDisclosure[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.sectionChevron {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  transition: transform var(--transition-fast);
+}
+
+.collapsibleSection[open] > .collapsibleSummary .sectionChevron {
+  transform: rotate(180deg);
+}
+
+.collapsibleContent {
+  display: grid;
+  gap: var(--space-4);
+}
+
 .sectionIcon {
   display: inline-flex;
   width: 36px;
@@ -330,6 +454,15 @@
   box-shadow: var(--shadow-md);
   padding: var(--space-4);
   backdrop-filter: blur(12px);
+}
+
+.visitForm .actionBar {
+  display: grid;
+  align-items: stretch;
+}
+
+.visitForm .actionBarButtons {
+  justify-content: flex-end;
 }
 
 .actionBarButtons {
@@ -962,5 +1095,9 @@
 
   .visitForm .actionBarButtons {
     grid-template-columns: 1fr;
+  }
+
+  .visitForm .actionBar {
+    position: static;
   }
 }

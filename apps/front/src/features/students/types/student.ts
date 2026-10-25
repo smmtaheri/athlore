@@ -20,6 +20,7 @@ export interface StudentTrainingBackground {
 }
 
 export interface StudentTrainingConditions {
+  environment?: string;
   cardioInterest: string;
   heavyTrainingInterest: string;
   sessionDurationMinutes: number;
@@ -35,6 +36,7 @@ export interface StudentInjuries {
 }
 
 export interface StudentEquipment {
+  availableEquipment?: string[];
   hasBarbell: boolean;
   hasCable: boolean;
   hasDumbbell: boolean;
@@ -63,11 +65,7 @@ export interface StudentListSummary {
 }
 
 export type StudentPortalStatus =
-  | "not_started"
-  | "pending_activation"
-  | "password_reset_required"
-  | "active"
-  | "disabled";
+  "not_started" | "pending_activation" | "password_reset_required" | "active" | "disabled";
 
 export interface StudentPortalAccess {
   accountActivated: boolean;
@@ -106,6 +104,7 @@ export interface Student {
   /** Free-text notes. Does not affect generation — for coach/PDF reference only. */
   nutritionNotes?: string;
   phoneNumber?: string;
+  phoneCountry?: string;
   portalAccess?: StudentPortalAccess;
   preferences: StudentPreferences;
   /** Free-text notes. Does not affect generation — for coach/PDF reference only. */
@@ -149,6 +148,7 @@ export interface StudentFormValues {
   intensityPreference: string;
   nutritionNotes: string;
   phoneNumber: string;
+  phoneCountry?: string;
   primaryGoal: PrimaryGoal | "";
   relevantMedicalNotes: string;
   secondaryGoal: string;

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ensure the shared stage route uses the public hostname and disables caching."""
+"""Patch only the shared stage route: upload limits, caching and upstream CSP."""
 
 from pathlib import Path
 import re
@@ -49,10 +49,23 @@ def main() -> int:
         len(lines),
     )
     existing = {line.strip() for line in lines[index + 1 : header_end]}
+    # The upstream stage Nginx owns successful-response security headers.
+    # Keep the offline location's independent headers below header_end.
+    obsolete = {
+        "include /etc/nginx/snippets/security-headers.conf;",
+        "include /etc/nginx/snippets/hsts.conf;",
+    }
+    lines[index + 1 : header_end] = [
+        line for line in lines[index + 1 : header_end] if line.strip() not in obsolete
+    ]
     required = (
         "proxy_hide_header Cache-Control;",
         "proxy_hide_header Expires;",
         'add_header Cache-Control "no-store" always;',
+        "client_max_body_size 110m;",
+        "client_body_timeout 120s;",
+        "proxy_read_timeout 180s;",
+        "proxy_send_timeout 180s;",
     )
     indentation = re.match(r"^[ \t]*", lines[index]).group()
     lines[index + 1 : index + 1] = [

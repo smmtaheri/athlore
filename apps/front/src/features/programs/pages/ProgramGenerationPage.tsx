@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
-import { ArrowRight, Eye, FileUp, RefreshCcw, Trash2, WandSparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { apiRequest } from "../../../shared/api/client";
+import { programDetailFromApi } from "../../../shared/adapters/apiAdapters";
+import { ArrowRight, Eye, FileUp, Plus, RefreshCcw, Trash2, WandSparkles, X } from "lucide-react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import {
   ContentSection,
@@ -17,15 +19,19 @@ import {
   Input,
   Select,
   Skeleton,
-  StatusBadge,
-  Textarea
+  StatusBadge
 } from "../../../components/ui";
-import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
+import { ApiError, firstFieldError, persianMessageForApiError } from "../../../shared/api/errors";
 import {
   coachRulesRepository,
   type CoachRulesRepository
 } from "../../coach-rules/services/coachRulesRepository";
 import type { CoachRules } from "../../coach-rules/types/coachRules";
+import type { TrainingSystem } from "../../coach-rules/types/coachRules";
+import {
+  trainingSystemsRepository,
+  type TrainingSystemsRepository
+} from "../../coach-rules/services/trainingSystemsRepository";
 import {
   studentProgramsRepository,
   type StudentProgramsRepository
@@ -58,6 +64,8 @@ import type {
 import styles from "../components/programFlow.module.css";
 import { SupplementSelectionFields } from "../../coach-rules/components/SupplementSelectionFields";
 import { emptySupplementSelection } from "../../coach-rules/services/supplementCatalogRepository";
+import { programRequestRepository } from "../../program-requests/services/programRequestRepository";
+import type { ProgramRequest } from "../../program-requests/types/programRequest";
 import {
   calendarInputToIso,
   calendarPlaceholder,
@@ -84,21 +92,39 @@ const levelOptions = [
   { label: "حرفه‌ای", value: "advanced" }
 ];
 
-const targetMuscleOptions = [
-  { label: "بدون تمرکز ناحیه‌ای", value: "" },
-  { label: "سینه", value: "سینه" }
+const quickMuscleOptions = [
+  "سینه",
+  "زیربغل",
+  "پا",
+  "سرشانه",
+  "پشت بازو",
+  "جلو بازو",
+  "شکم",
+  "ساق",
+  "ساعد"
+].map((muscle) => ({ label: muscle, value: muscle }));
+
+const exerciseVarietyOptions = [
+  { label: "ثابت؛ اولویت با گزینه‌های منتخب", value: "stable" },
+  { label: "متعادل؛ تنوع محدود بین حرکت‌های مناسب", value: "balanced" },
+  { label: "متنوع؛ انتخاب گسترده‌تر از کاتالوگ", value: "varied" }
 ];
 
-const chestTargetRegionOptions = [
-  { label: "انتخاب ناحیه", value: "" },
-  { label: "کل سینه", value: "whole_chest" },
-  { label: "بالاسینه", value: "upper_chest" },
-  { label: "بخش میانی سینه", value: "mid_chest" },
-  { label: "پایین سینه", value: "lower_chest" },
-  { label: "داخل سینه", value: "inner_chest" },
-  { label: "داخل بالاسینه", value: "inner_upper_chest" },
-  { label: "داخل زیرسینه", value: "inner_lower_chest" }
-];
+function emptySessionMuscles(days: number): string[][] {
+  return Array.from({ length: Math.max(0, Math.min(7, days)) }, () => []);
+}
+
+function resizeSessionMuscles(value: string[][] | undefined, days: number): string[][] {
+  const next = (value ?? []).slice(0, days).map((muscles) => [...muscles]);
+  while (next.length < days) next.push([]);
+  return next;
+}
+
+const partialRepVariantOptions = [
+  { label: "تکرار یک‌ونیم", value: "one_and_half" },
+  { label: "نیم‌تکرار پس از ناتوانی", value: "after_failure" },
+  { label: "کل ست در دامنهٔ نیمه", value: "partial_only" }
+] as const;
 
 export interface ProgramGenerationPageProps {
   coachRulesRepo?: CoachRulesRepository;
@@ -106,6 +132,7 @@ export interface ProgramGenerationPageProps {
   studentProgramsRepo?: StudentProgramsRepository;
   studentsRepo?: StudentsRepository;
   visitsRepo?: StudentVisitsRepository;
+  trainingSystemsRepo?: TrainingSystemsRepository;
 }
 
 export function ProgramGenerationPage({
@@ -113,20 +140,27 @@ export function ProgramGenerationPage({
   programsRepo = programsRepository,
   studentProgramsRepo = studentProgramsRepository,
   studentsRepo = studentsRepository,
-  visitsRepo = studentVisitsRepository
+  visitsRepo = studentVisitsRepository,
+  trainingSystemsRepo = trainingSystemsRepository
 }: ProgramGenerationPageProps) {
   const location = useLocation();
   const [students, setStudents] = useState<Student[]>([]);
   const [rules, setRules] = useState<CoachRules>();
+  const [trainingSystems, setTrainingSystems] = useState<TrainingSystem[]>([]);
   const [visits, setVisits] = useState<StudentVisit[]>([]);
+  const [visitsLoadedFor, setVisitsLoadedFor] = useState("");
+  const [programRequest, setProgramRequest] = useState<ProgramRequest | null>(null);
+  const [quickSettingsNotice, setQuickSettingsNotice] = useState("");
+  const quickSettingsLoadedFor = useRef(new Set<string>());
+  const quickSettingsTouchedFor = useRef(new Set<string>());
   const [feedback, setFeedback] = useState(
     () => (location.state as { visitSaved?: string } | null)?.visitSaved ?? ""
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [deliverySections, setDeliverySections] = useState<ProgramPdfSectionMethods>({
-    workout: "generated",
-    nutrition: "generated",
-    supplement: "generated"
+  const [deliverySections, setDeliverySections] = useState<ProgramPdfSectionMethods>(() => {
+    const method =
+      new URLSearchParams(location.search).get("mode") === "upload" ? "uploaded" : "generated";
+    return { workout: method, nutrition: method, supplement: method };
   });
   const [stagedPdfs, setStagedPdfs] = useState<
     Partial<Record<ProgramPdfSection, StagedProgramPdf>>
@@ -139,6 +173,10 @@ export function ProgramGenerationPage({
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const initialStudentId = searchParams.get("studentId") ?? "";
+  const programRequestId = searchParams.get("programRequestId") ?? "";
+  const initialVisitId = searchParams.get("visitId") ?? "";
+  const uploadMode = searchParams.get("mode") === "upload";
+  const [preparationKey] = useState(() => crypto.randomUUID());
   const [form, setForm] = useState<ProgramGenerationInput>({
     applyExerciseCatalog: true,
     applyGeneralRules: true,
@@ -148,40 +186,51 @@ export function ProgramGenerationPage({
     customInstructions: "",
     daysPerWeek: 4,
     durationWeeks: 4,
+    exerciseVariety: "balanced",
     goal: "افزایش حجم و بهبود فرم بدن",
     level: "intermediate",
-    musclePriorities: ["سینه", "سرشانه"],
+    musclePriorities: [],
     programType: "complete",
+    sessionMuscles: emptySessionMuscles(4),
     studentId: initialStudentId,
     supplementSelection: emptySupplementSelection(),
     targetExerciseCount: 2,
     targetMuscle: "",
     targetRegion: "",
+    trainingSystems: [],
     templateId: "",
     title: "برنامه کامل محمد طاهری"
   });
 
+  const visitToPrefillId = initialVisitId || programRequest?.visitId || "";
+
   useEffect(() => {
     let isMounted = true;
-    Promise.all([studentsRepo.list(), coachRulesRepo.get().catch(() => undefined)])
-      .then(([studentItems, coachRules]) => {
+    Promise.all([
+      studentsRepo.list(),
+      coachRulesRepo.get().catch(() => undefined),
+      programRequestId
+        ? programRequestRepository.getCoach(programRequestId)
+        : Promise.resolve(null),
+      trainingSystemsRepo
+        .list()
+        .then((items) => items)
+        .catch(() => [])
+    ])
+      .then(([studentItems, coachRules, requestItem, trainingSystemItems]) => {
         if (!isMounted) {
           return;
         }
         const activeStudentItems = studentItems.filter((student) => student.status === "active");
         const requestedStudent = studentItems.find((student) => student.id === initialStudentId);
+        setProgramRequest(requestItem);
+        setTrainingSystems(trainingSystemItems);
         const selectedStudent =
           activeStudentItems.find((student) => student.id === initialStudentId) ??
           (requestedStudent ? undefined : activeStudentItems[0]);
-        const studentDays = selectedStudent?.trainingConditions.trainingDaysPerWeek;
-        const preferredName = "۴ روزه حجم متوسط";
-        const matchingTemplates = studentDays
-          ? coachRules?.templates.filter((item) => item.daysPerWeek === studentDays)
-          : coachRules?.templates;
-        const template =
-          matchingTemplates?.find((item) => item.name === preferredName) ??
-          matchingTemplates?.find((item) => item.daysPerWeek === 4) ??
-          matchingTemplates?.[0];
+        const studentDays =
+          requestItem?.sessionsPerWeek ?? selectedStudent?.trainingConditions.trainingDaysPerWeek;
+        const resolvedDays = studentDays ?? 4;
         setStudents(activeStudentItems);
         setRules(coachRules);
         if (requestedStudent && requestedStudent.status !== "active") {
@@ -201,17 +250,30 @@ export function ProgramGenerationPage({
         }
         setForm((current) => ({
           ...current,
-          daysPerWeek: studentDays ?? template?.daysPerWeek ?? 4,
+          daysPerWeek: resolvedDays,
+          sessionMuscles: resizeSessionMuscles(current.sessionMuscles, resolvedDays),
+          programType: requestItem
+            ? programTypeForRequest(requestItem.sections)
+            : current.programType,
           goal:
+            requestItem?.goal ||
             selectedStudent?.goals.secondaryGoal ||
             selectedStudent?.goals.primaryGoal ||
             current.goal,
           level: selectedStudent?.trainingBackground.level ?? current.level,
           musclePriorities: selectedStudent?.goals.musclePriorities ?? current.musclePriorities,
           studentId: selectedStudent?.id ?? "",
-          templateId: template?.id ?? "",
-          title: selectedStudent ? `برنامه کامل ${selectedStudent.fullName}` : "برنامه جدید"
+          trainingSystems: [],
+          templateId: "",
+          title: selectedStudent
+            ? `برنامه ${requestItem ? programTitleForRequest(requestItem.sections) : "کامل"} ${selectedStudent.fullName}`
+            : "برنامه جدید"
         }));
+        if (requestItem) {
+          setFeedback(
+            `درخواست برنامهٔ ${requestItem.studentName} باز است؛ فقط بخش‌های انتخاب‌شده در درخواست نمایش داده می‌شوند.`
+          );
+        }
         setStatus("loaded");
       })
       .catch(() => {
@@ -223,7 +285,7 @@ export function ProgramGenerationPage({
     return () => {
       isMounted = false;
     };
-  }, [coachRulesRepo, initialStudentId, studentsRepo]);
+  }, [coachRulesRepo, initialStudentId, programRequestId, studentsRepo, trainingSystemsRepo]);
 
   useEffect(() => {
     if (!form.studentId || status === "loading") {
@@ -236,21 +298,179 @@ export function ProgramGenerationPage({
       .then((items) => {
         if (isMounted) {
           setVisits(items);
+          setVisitsLoadedFor(form.studentId);
+          const shouldPrefillFromVisit = programRequest ? Boolean(programRequest.visitId) : true;
+          if (shouldPrefillFromVisit && !quickSettingsTouchedFor.current.has(form.studentId)) {
+            const visit = visitToPrefillId
+              ? items.find((item) => item.id === visitToPrefillId)
+              : items[0];
+            const visitDays = sessionCountFromVisit(visit);
+            const visitGoal = goalFromVisit(visit);
+            const visitLevel = levelFromVisit(visit);
+            if (uploadMode && visit?.programSettings) {
+              const settings = visit.programSettings;
+              setForm((current) => ({
+                ...current,
+                ...(settings.sections?.length && !programRequest
+                  ? { programType: programTypeForRequest(settings.sections) }
+                  : {}),
+                ...(settings.duration_weeks ? { durationWeeks: settings.duration_weeks } : {})
+              }));
+              if (settings.start_date) setStartDate(formatCalendarDate(settings.start_date));
+            }
+            if (visitGoal || visitLevel) {
+              setForm((current) =>
+                current.templateId
+                  ? current
+                  : {
+                      ...current,
+                      ...(visitGoal ? { goal: visitGoal } : {}),
+                      ...(visitLevel ? { level: visitLevel } : {})
+                    }
+              );
+            }
+            if (visitDays) {
+              setForm((current) =>
+                current.templateId
+                  ? current
+                  : {
+                      ...current,
+                      daysPerWeek: visitDays,
+                      sessionMuscles: resizeSessionMuscles(current.sessionMuscles, visitDays)
+                    }
+              );
+            }
+            const visitMethods = trainingMethodsFromVisit(
+              visit,
+              trainingSystems,
+              visitLevel ?? form.level
+            );
+            if (visitMethods !== null) {
+              setForm((current) =>
+                current.templateId ? current : { ...current, trainingSystems: visitMethods }
+              );
+            }
+          }
         }
       })
       .catch(() => {
         if (isMounted) {
           setVisits([]);
+          setVisitsLoadedFor(form.studentId);
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [form.studentId, status, visitsRepo]);
+  }, [
+    form.studentId,
+    form.level,
+    initialVisitId,
+    programRequest,
+    status,
+    trainingSystems,
+    visitsRepo,
+    visitToPrefillId,
+    uploadMode
+  ]);
+
+  useEffect(() => {
+    const studentId = form.studentId;
+    if (
+      status !== "loaded" ||
+      !studentId ||
+      visitsLoadedFor !== studentId ||
+      !programsRepo.getLatestQuickSettings ||
+      quickSettingsLoadedFor.current.has(studentId)
+    ) {
+      return;
+    }
+
+    let isMounted = true;
+    quickSettingsLoadedFor.current.add(studentId);
+    setQuickSettingsNotice("");
+    programsRepo
+      .getLatestQuickSettings(studentId)
+      .then((settings) => {
+        if (!isMounted || !settings || quickSettingsTouchedFor.current.has(studentId)) {
+          return;
+        }
+        const availableSystems = new Set(
+          trainingSystems
+            .filter(
+              (system) =>
+                (system.source === "platform" || system.enabled) &&
+                (!system.allowed_levels.length || system.allowed_levels.includes(form.level))
+            )
+            .map((system) => system.key)
+        );
+        const sourceVisit = visitToPrefillId
+          ? visits.find((visit) => visit.id === visitToPrefillId)
+          : programRequest
+            ? undefined
+            : visits[0];
+        if (
+          sessionCountFromVisit(sourceVisit) !== undefined ||
+          trainingMethodsFromVisit(
+            sourceVisit,
+            trainingSystems,
+            levelFromVisit(sourceVisit) ?? form.level
+          ) !== null
+        ) {
+          return;
+        }
+        setForm((current) => {
+          if (current.studentId !== studentId || current.templateId) {
+            return current;
+          }
+          return {
+            ...current,
+            ...(current.daysPerWeek === settings.daysPerWeek
+              ? {
+                  sessionMuscles: resizeSessionMuscles(settings.sessionMuscles, current.daysPerWeek)
+                }
+              : {}),
+            exerciseVariety: settings.exerciseVariety,
+            trainingSystems: settings.trainingSystems.filter((item) =>
+              availableSystems.has(item.key)
+            )
+          };
+        });
+        if (isMounted) {
+          setQuickSettingsNotice(
+            "تنظیمات آخرین برنامه پیشنهاد شد؛ تقسیم عضلات فقط با تعداد جلسهٔ فعلی یکسان اعمال می‌شود."
+          );
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setQuickSettingsNotice("تنظیمات برنامهٔ قبلی دریافت نشد؛ می‌توانید همین‌جا ادامه دهید.");
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    form.studentId,
+    form.level,
+    programRequest,
+    programsRepo,
+    status,
+    trainingSystems,
+    visits,
+    visitsLoadedFor,
+    visitToPrefillId
+  ]);
 
   const selectedStudent = students.find((student) => student.id === form.studentId);
-  const latestVisit = visits[0];
+  const selectedVisitId = visitToPrefillId;
+  const latestVisit = selectedVisitId
+    ? visits.find((visit) => visit.id === selectedVisitId)
+    : programRequest
+      ? undefined
+      : visits[0];
   const selectedTemplate = rules?.templates.find((template) => template.id === form.templateId);
   const validationErrors = Object.values(errors);
 
@@ -263,8 +483,9 @@ export function ProgramGenerationPage({
       label: `${template.name} - ${template.daysPerWeek} روز`,
       value: template.id
     })) ?? [];
-  const includedSections =
-    form.programType === "complete"
+  const includedSections = programRequest
+    ? programSections.filter((section) => programRequest.sections.includes(section.id))
+    : form.programType === "complete"
       ? programSections
       : programSections.filter((section) => section.id === form.programType);
   const generatedSections = includedSections.filter(
@@ -284,8 +505,21 @@ export function ProgramGenerationPage({
     field: Key,
     value: ProgramGenerationInput[Key]
   ) => {
+    if (["exerciseVariety", "sessionMuscles", "trainingSystems"].includes(field)) {
+      quickSettingsTouchedFor.current.add(form.studentId);
+    }
     setForm((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: "" }));
+  };
+
+  const handleDaysPerWeekChange = (days: number) => {
+    quickSettingsTouchedFor.current.add(form.studentId);
+    setForm((current) => ({
+      ...current,
+      daysPerWeek: days,
+      sessionMuscles: resizeSessionMuscles(current.sessionMuscles, days)
+    }));
+    setErrors((current) => ({ ...current, daysPerWeek: "" }));
   };
 
   const getProgramPeriod = () => {
@@ -356,6 +590,8 @@ export function ProgramGenerationPage({
   };
 
   const handleStudentChange = (studentId: string) => {
+    quickSettingsLoadedFor.current.delete(studentId);
+    quickSettingsTouchedFor.current.delete(studentId);
     if (programsRepo.deleteStagedPdf) {
       Object.values(stagedPdfs).forEach((staged) => {
         if (staged) void programsRepo.deleteStagedPdf?.(staged.id).catch(() => undefined);
@@ -364,27 +600,24 @@ export function ProgramGenerationPage({
     }
     const student = students.find((item) => item.id === studentId);
     const studentDays = student?.trainingConditions.trainingDaysPerWeek;
-    const preferredName = "۴ روزه حجم متوسط";
-    const matchingTemplates = studentDays
-      ? rules?.templates.filter((item) => item.daysPerWeek === studentDays)
-      : rules?.templates;
-    const template =
-      matchingTemplates?.find((item) => item.name === preferredName) ??
-      matchingTemplates?.find((item) => item.daysPerWeek === 4) ??
-      matchingTemplates?.[0];
+    const studentLevel = (student?.trainingBackground.level ?? "intermediate") as TrainingLevel;
+    const resolvedDays = studentDays ?? 4;
     setForm((current) => ({
       ...current,
-      daysPerWeek: studentDays ?? template?.daysPerWeek ?? 4,
+      daysPerWeek: resolvedDays,
+      sessionMuscles: emptySessionMuscles(resolvedDays),
       goal: student?.goals.secondaryGoal || current.goal,
-      level: student?.trainingBackground.level ?? current.level,
+      level: studentLevel,
       musclePriorities: student?.goals.musclePriorities ?? current.musclePriorities,
       studentId,
       supplementSelection: emptySupplementSelection(),
-      templateId: template?.id ?? "",
+      trainingSystems: [],
+      templateId: "",
       title: student ? `برنامه کامل ${student.fullName}` : current.title
     }));
     setErrors({});
     setFeedback("");
+    setQuickSettingsNotice("");
   };
 
   const setSectionMethod = (section: ProgramPdfSection, method: ProgramPdfSectionMethod) => {
@@ -418,6 +651,10 @@ export function ProgramGenerationPage({
     if (!selectedStudent || !rules) {
       return;
     }
+    if (uploadMode && !selectedVisitId) {
+      setFeedback("برای تولید بخش‌های برنامه، ابتدا ویزیت مرجع را انتخاب کنید.");
+      return;
+    }
 
     const period = getProgramPeriod();
     const nextErrors = validateForm(
@@ -442,15 +679,52 @@ export function ProgramGenerationPage({
     setFeedback("");
 
     try {
+      const { exerciseVariety, sessionMuscles, ...generationBase } = form;
       const generationInput = {
-        ...form,
+        ...generationBase,
+        ...(selectedTemplate
+          ? {}
+          : {
+              exerciseVariety: exerciseVariety ?? "balanced",
+              sessionMuscles: resizeSessionMuscles(sessionMuscles, form.daysPerWeek)
+            }),
+        trainingSystems: selectedTemplate?.executionPlan ? undefined : (form.trainingSystems ?? []),
+        ...(selectedTemplate?.executionPlan
+          ? {
+              applyInjuryRules: true,
+              applyLevelRules: true,
+              applyExerciseCatalog: true,
+              applyGeneralRules: true,
+              applyMusclePriorityRules: true,
+              targetMuscle: "",
+              targetRegion: ""
+            }
+          : {}),
+        ...(programRequestId ? { programRequestId } : {}),
+        ...(selectedVisitId ? { visitId: selectedVisitId } : {}),
         dateRangeEnd: period!.endIso,
         dateRangeLabel: period!.label,
         dateRangeStart: period!.startIso
       };
       let savedProgram: GeneratedProgram;
       let warnings: string[] = [];
-      if (programsRepo.generate) {
+      if (uploadMode && selectedVisitId) {
+        const dto = await apiRequest<{ program: Record<string, unknown> }>(
+          `/visits/${selectedVisitId}/prepare-program/`,
+          {
+            method: "POST",
+            body: { operation_key: preparationKey, section_methods: deliverySections }
+          }
+        );
+        savedProgram = programDetailFromApi(dto.program);
+        if (form.title.trim() && savedProgram.title !== form.title.trim()) {
+          await apiRequest(`/programs/${savedProgram.id}/`, {
+            method: "PATCH",
+            body: { title: form.title.trim() }
+          });
+          savedProgram = { ...savedProgram, title: form.title.trim() };
+        }
+      } else if (programsRepo.generate) {
         const result = await programsRepo.generate(generationInput);
         savedProgram = result.program;
         warnings = result.warnings;
@@ -499,7 +773,8 @@ export function ProgramGenerationPage({
       setStatus("loaded");
       setFeedback(
         error instanceof ApiError
-          ? persianMessageForApiError(error)
+          ? (firstFieldError(error, "execution_plan", "training_systems") ??
+              persianMessageForApiError(error))
           : "خطا در تولید برنامه. لطفا دوباره تلاش کنید."
       );
     }
@@ -538,6 +813,8 @@ export function ProgramGenerationPage({
         dateRangeLabel: period.label,
         dateRangeStart: period.startIso,
         programType: form.programType,
+        ...(programRequestId ? { programRequestId } : {}),
+        ...(selectedVisitId ? { visitId: selectedVisitId } : {}),
         stagedPdfId: firstStaged.id,
         studentId: form.studentId,
         title: form.title
@@ -687,6 +964,7 @@ export function ProgramGenerationPage({
               >
                 <Select
                   placeholder="انتخاب شاگرد فعال"
+                  disabled={Boolean(programRequestId)}
                   id="program-student-select"
                   options={studentOptions}
                   value={form.studentId}
@@ -702,6 +980,7 @@ export function ProgramGenerationPage({
               <FormField error={errors.programType} label="نوع برنامه" required>
                 <Select
                   aria-label="نوع برنامه"
+                  disabled={Boolean(programRequestId)}
                   options={programTypeOptions}
                   value={form.programType}
                   onChange={(event) =>
@@ -711,31 +990,40 @@ export function ProgramGenerationPage({
               </FormField>
             </ResponsiveGrid>
 
-            <ResponsiveGrid columns={2}>
-              <FormField error={errors.startDate} label="شروع برنامه" required>
-                <Input
-                  aria-label="شروع برنامه"
-                  inputMode="numeric"
-                  placeholder={calendarPlaceholder()}
-                  value={startDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                />
-              </FormField>
-              <FormField label="مدت برنامه (هفته)" required>
-                <Input
-                  min={1}
-                  max={52}
-                  type="number"
-                  value={form.durationWeeks}
-                  onChange={(event) => updateForm("durationWeeks", Number(event.target.value))}
-                />
-              </FormField>
-            </ResponsiveGrid>
-            <p className={styles.sectionDescription}>
-              {getProgramPeriod()
-                ? `بازهٔ ثبت‌شده: ${getProgramPeriod()?.label}`
-                : "تاریخ شروع را به تقویم انتخاب‌شده در تنظیمات وارد کنید."}
-            </p>
+            {uploadMode && generatedSections.length > 0 ? (
+              <p className={styles.sectionDescription}>
+                تاریخ شروع و مدت بخش‌های تولیدی از ویزیت مرجع خوانده می‌شود؛ تغییرش را در همان ویزیت
+                ثبت کنید.
+              </p>
+            ) : (
+              <>
+                <ResponsiveGrid columns={2}>
+                  <FormField error={errors.startDate} label="شروع برنامه" required>
+                    <Input
+                      aria-label="شروع برنامه"
+                      inputMode="numeric"
+                      placeholder={calendarPlaceholder()}
+                      value={startDate}
+                      onChange={(event) => setStartDate(event.target.value)}
+                    />
+                  </FormField>
+                  <FormField label="مدت برنامه (هفته)" required>
+                    <Input
+                      min={1}
+                      max={52}
+                      type="number"
+                      value={form.durationWeeks}
+                      onChange={(event) => updateForm("durationWeeks", Number(event.target.value))}
+                    />
+                  </FormField>
+                </ResponsiveGrid>
+                <p className={styles.sectionDescription}>
+                  {getProgramPeriod()
+                    ? `بازهٔ ثبت‌شده: ${getProgramPeriod()?.label}`
+                    : "تاریخ شروع را به تقویم انتخاب‌شده در تنظیمات وارد کنید."}
+                </p>
+              </>
+            )}
 
             {selectedStudent ? (
               <StudentSummary student={selectedStudent} visit={latestVisit} />
@@ -762,7 +1050,7 @@ export function ProgramGenerationPage({
                     <div className={styles.deliveryMethodChoices}>
                       <Button
                         aria-pressed={method === "generated"}
-                        disabled={!rules}
+                        disabled={!rules || (uploadMode && !selectedVisitId)}
                         onClick={() => setSectionMethod(section.id, "generated")}
                         size="sm"
                         variant={method === "generated" ? "primary" : "secondary"}
@@ -778,15 +1066,17 @@ export function ProgramGenerationPage({
                       >
                         <FileUp aria-hidden size={16} /> بارگذاری PDF
                       </Button>
-                      <Button
-                        aria-label={`عدم ارسال بخش ${section.label}`}
-                        aria-pressed={method === "omitted"}
-                        onClick={() => setSectionMethod(section.id, "omitted")}
-                        size="sm"
-                        variant={method === "omitted" ? "primary" : "secondary"}
-                      >
-                        عدم ارسال
-                      </Button>
+                      {!programRequest ? (
+                        <Button
+                          aria-label={`عدم ارسال بخش ${section.label}`}
+                          aria-pressed={method === "omitted"}
+                          onClick={() => setSectionMethod(section.id, "omitted")}
+                          size="sm"
+                          variant={method === "omitted" ? "primary" : "secondary"}
+                        >
+                          عدم ارسال
+                        </Button>
+                      ) : null}
                     </div>
                     {method === "uploaded" ? (
                       <>
@@ -836,26 +1126,161 @@ export function ProgramGenerationPage({
             </div>
           </Card>
 
-          {generatedSections.length > 0 ? (
+          {generatedSections.length > 0 && !uploadMode && !selectedTemplate?.executionPlan ? (
             <Card className={styles.pageStack}>
               <div className={styles.sectionHeader}>
                 <div>
-                  <h2 className={styles.sectionTitle}>تنظیمات برنامه</h2>
+                  <h2 className={styles.sectionTitle}>سیستم‌های تمرینی این دوره</h2>
                   <p className={styles.sectionDescription}>
-                    مربی می تواند قبل از تولید موارد قابل تغییر را اصلاح کند.
+                    ویزیتِ متصل به درخواست و اطلاعات برنامه در تولید استفاده می‌شوند؛ اینجا مربی
+                    روش‌های اجرایی همین دوره را تأیید می‌کند. سیستم انتخاب‌نشده به‌صورت خودکار اضافه
+                    نمی‌شود.
+                  </p>
+                </div>
+                <StatusBadge variant="info">
+                  {programRequest
+                    ? "متصل به درخواست برنامه"
+                    : selectedVisitId
+                      ? "متصل به ویزیت"
+                      : "انتخاب مربی"}
+                </StatusBadge>
+              </div>
+              <details className={styles.formAdvancedDetails}>
+                <summary>
+                  انتخاب سیستم تمرینی (اختیاری)
+                  {form.trainingSystems?.length
+                    ? ` · ${form.trainingSystems.length} انتخاب`
+                    : " · بدون سیستم خاص"}
+                </summary>
+                <div className={styles.checkboxGrid}>
+                  {trainingSystems.map((system) => {
+                    const selected = form.trainingSystems?.find((item) => item.key === system.key);
+                    const levelAllowed =
+                      system.allowed_levels.length === 0 ||
+                      system.allowed_levels.includes(form.level);
+                    const configuredOff = system.source !== "platform" && !system.enabled;
+                    const recognizedHandler = ["superset", "drop_set", "partial_reps"].includes(
+                      system.handler_key ?? ""
+                    );
+                    const canRun =
+                      levelAllowed &&
+                      !configuredOff &&
+                      (recognizedHandler ||
+                        system.recipe?.version === 1 ||
+                        system.handler_status === "manual_only");
+                    const variants = trainingSystemVariants(system);
+                    return (
+                      <div className={styles.pageStack} key={system.id ?? system.key}>
+                        <Checkbox
+                          checked={Boolean(selected)}
+                          disabled={!canRun}
+                          label={`${system.name}${canRun ? "" : " · در این سطح قابل انتخاب نیست"}`}
+                          onChange={(event) => {
+                            const next = event.target.checked
+                              ? [
+                                  ...(form.trainingSystems ?? []),
+                                  {
+                                    key: system.key,
+                                    ...(system.handler_key === "partial_reps" ? { variants } : {})
+                                  }
+                                ]
+                              : (form.trainingSystems ?? []).filter(
+                                  (item) => item.key !== system.key
+                                );
+                            updateForm("trainingSystems", next);
+                          }}
+                        />
+                        <p className={styles.sectionDescription}>
+                          {system.handler_status === "manual_only"
+                            ? "این روش به‌صورت یادداشت مربی به روزهای برنامه افزوده می‌شود و اجرای خودکار ندارد؛ قبل از ارسال بازبینی کنید."
+                            : system.description}
+                        </p>
+                        {selected && system.handler_key === "partial_reps" ? (
+                          <div className={styles.checkboxGrid}>
+                            {partialRepVariantOptions
+                              .filter((option) => variants.includes(option.value))
+                              .map((option) => (
+                                <Checkbox
+                                  checked={selected.variants?.includes(option.value) ?? false}
+                                  key={option.value}
+                                  label={option.label}
+                                  onChange={(event) => {
+                                    const previousVariants = selected.variants ?? [];
+                                    if (!event.target.checked && previousVariants.length === 1) {
+                                      updateForm(
+                                        "trainingSystems",
+                                        (form.trainingSystems ?? []).filter(
+                                          (item) => item.key !== system.key
+                                        )
+                                      );
+                                      return;
+                                    }
+                                    const nextVariants = event.target.checked
+                                      ? [...new Set([...previousVariants, option.value])]
+                                      : previousVariants.filter((item) => item !== option.value);
+                                    const nextSelection = (form.trainingSystems ?? []).map(
+                                      (item) =>
+                                        item.key === system.key
+                                          ? { ...item, variants: nextVariants }
+                                          : item
+                                    );
+                                    updateForm("trainingSystems", nextSelection);
+                                  }}
+                                />
+                              ))}
+                            <span className={styles.sectionDescription}>
+                              مقدارهای سه‌گانه و ۳ نیم‌تکرار پس از ناتوانی، پیش‌فرض‌های اولیه‌اند؛
+                              دامنهٔ نیمه برای هر حرکت در بازبینی مربی مشخص می‌شود.
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+                {trainingSystems.length === 0 ? (
+                  <p className={styles.sectionDescription} role="status">
+                    فهرست سیستم‌ها در دسترس نیست؛ از «قوانین مربی ← سیستم‌های تمرینی» دوباره دریافتش
+                    کنید.
+                  </p>
+                ) : null}
+              </details>
+            </Card>
+          ) : null}
+
+          {generatedSections.length > 0 && !uploadMode ? (
+            <Card className={styles.pageStack}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2 className={styles.sectionTitle}>
+                    {selectedTemplate ? "تنظیمات قالب انتخاب‌شده" : "تنظیم سریع برنامه"}
+                  </h2>
+                  <p className={styles.sectionDescription}>
+                    {selectedTemplate
+                      ? "قالب، چیدمان و اجرای حرکت‌ها را مشخص می‌کند."
+                      : "تعداد جلسه از درخواست، ویزیت یا اطلاعات شاگرد پر شده؛ تنظیم عضله و تنوع اختیاری است."}
                   </p>
                 </div>
                 {selectedTemplate ? (
                   <StatusBadge variant="info">قالب: {selectedTemplate.name}</StatusBadge>
-                ) : null}
+                ) : (
+                  <StatusBadge variant="success">بدون قالب</StatusBadge>
+                )}
               </div>
 
-              <div className={styles.formGrid}>
-                <FormField error={errors.templateId} label="قالب برنامه" required>
+              <details className={styles.formAdvancedDetails}>
+                <summary>انتخاب قالب دقیق (اختیاری)</summary>
+                <p>
+                  برای استفاده از یک تقسیم‌بندی و چیدمان ازپیش‌ساخته، قالب را انتخاب کنید؛ در غیر
+                  این صورت تنظیم سریع استفاده می‌شود.
+                </p>
+                <FormField label="قالب برنامه">
                   <Select
                     options={templateOptions}
-                    value={form.templateId}
+                    placeholder="بدون قالب؛ تنظیم سریع"
+                    value={form.templateId ?? ""}
                     onChange={(event) => {
+                      quickSettingsTouchedFor.current.add(form.studentId);
                       const template = rules?.templates.find(
                         (item) => item.id === event.target.value
                       );
@@ -867,13 +1292,22 @@ export function ProgramGenerationPage({
                     }}
                   />
                 </FormField>
-                <FormField error={errors.daysPerWeek} label="تعداد روز تمرین" required>
+              </details>
+
+              {!selectedTemplate && quickSettingsNotice ? (
+                <p className={styles.sectionDescription} role="status">
+                  {quickSettingsNotice}
+                </p>
+              ) : null}
+
+              <div className={styles.formGrid}>
+                <FormField error={errors.daysPerWeek} label="جلسه در هفته" required>
                   <Input
                     min={1}
                     max={7}
                     type="number"
                     value={form.daysPerWeek}
-                    onChange={(event) => updateForm("daysPerWeek", Number(event.target.value))}
+                    onChange={(event) => handleDaysPerWeekChange(Number(event.target.value))}
                   />
                 </FormField>
                 <FormField label="هدف">
@@ -886,84 +1320,167 @@ export function ProgramGenerationPage({
                   <Select
                     options={levelOptions}
                     value={form.level}
-                    onChange={(event) => updateForm("level", event.target.value as TrainingLevel)}
-                  />
-                </FormField>
-                <FormField
-                  hint="اختیاری؛ برای محدودکردن انتخاب حرکات به یک عضله و ناحیهٔ ساختاریافته."
-                  htmlFor="program-target-muscle"
-                  label="عضله هدف"
-                >
-                  <Select
-                    id="program-target-muscle"
-                    options={targetMuscleOptions}
-                    value={form.targetMuscle ?? ""}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const level = event.target.value as TrainingLevel;
                       setForm((current) => ({
                         ...current,
-                        targetMuscle: event.target.value,
-                        targetRegion: event.target.value ? current.targetRegion : ""
-                      }))
-                    }
+                        level,
+                        trainingSystems: (current.trainingSystems ?? []).filter((selected) => {
+                          const system = trainingSystems.find((item) => item.key === selected.key);
+                          return (
+                            system &&
+                            (system.allowed_levels.length === 0 ||
+                              system.allowed_levels.includes(level))
+                          );
+                        })
+                      }));
+                    }}
                   />
                 </FormField>
-                {form.targetMuscle === "سینه" ? (
+                {!selectedTemplate ? (
                   <>
                     <FormField
-                      hint="فقط حرکاتی انتخاب می‌شوند که همین ناحیه را در catalog ساختاریافته داشته باشند."
-                      htmlFor="program-target-region"
-                      label="ناحیه هدف"
+                      hint="این گزینه فقط از بین حرکت‌های مجاز و متناسب با کاتالوگ انتخاب می‌کند."
+                      label="تنوع انتخاب حرکت"
                     >
                       <Select
-                        id="program-target-region"
-                        options={chestTargetRegionOptions}
-                        value={form.targetRegion ?? ""}
-                        onChange={(event) => updateForm("targetRegion", event.target.value)}
-                      />
-                    </FormField>
-                    <FormField
-                      hint="تعداد حرکت سینه در هر جلسه؛ فقط وقتی ناحیه هدف انتخاب شده باشد اعمال می‌شود."
-                      htmlFor="program-target-exercise-count"
-                      label="تعداد حرکت هدف"
-                    >
-                      <Input
-                        id="program-target-exercise-count"
-                        min={1}
-                        max={8}
-                        type="number"
-                        value={form.targetExerciseCount ?? 2}
+                        options={exerciseVarietyOptions}
+                        value={form.exerciseVariety ?? "balanced"}
                         onChange={(event) =>
-                          updateForm("targetExerciseCount", Number(event.target.value))
+                          updateForm(
+                            "exerciseVariety",
+                            event.target.value as ProgramGenerationInput["exerciseVariety"]
+                          )
                         }
                       />
                     </FormField>
+                    <div className={`${styles.fullField} ${styles.quickSplitSection}`}>
+                      <div>
+                        <h3>عضلات هر جلسه (اختیاری)</h3>
+                        <p className={styles.sectionDescription}>
+                          اگر خالی بماند، موتور با توجه به تعداد جلسه و اولویت‌های شاگرد تقسیم
+                          پیشنهادی می‌سازد. در هر جلسه می‌توانید هر تعداد عضله لازم است اضافه کنید.
+                        </p>
+                      </div>
+                      <div className={styles.quickSplitGrid}>
+                        {Array.from({ length: Math.max(0, Math.min(7, form.daysPerWeek)) }).map(
+                          (_, dayIndex) => {
+                            const selectedMuscles = form.sessionMuscles?.[dayIndex] ?? [];
+                            return (
+                              <div className={styles.quickSplitDay} key={`session-${dayIndex}`}>
+                                <strong>جلسهٔ {dayIndex + 1}</strong>
+                                {selectedMuscles.map((muscle, muscleIndex) => (
+                                  <div
+                                    className={styles.quickSplitRow}
+                                    key={`session-${dayIndex}-muscle-${muscleIndex}`}
+                                  >
+                                    <Select
+                                      aria-label={`عضله ${muscleIndex + 1} جلسه ${dayIndex + 1}`}
+                                      options={quickMuscleOptions.map((option) => ({
+                                        ...option,
+                                        disabled:
+                                          option.value !== muscle &&
+                                          selectedMuscles.includes(option.value)
+                                      }))}
+                                      placeholder="انتخاب عضله"
+                                      value={muscle}
+                                      onChange={(event) => {
+                                        const next = resizeSessionMuscles(
+                                          form.sessionMuscles,
+                                          form.daysPerWeek
+                                        );
+                                        next[dayIndex][muscleIndex] = event.target.value;
+                                        updateForm("sessionMuscles", next);
+                                      }}
+                                    />
+                                    <Button
+                                      aria-label={`حذف عضله ${muscleIndex + 1} از جلسه ${dayIndex + 1}`}
+                                      iconStart={<X size={16} />}
+                                      onClick={() => {
+                                        const next = resizeSessionMuscles(
+                                          form.sessionMuscles,
+                                          form.daysPerWeek
+                                        );
+                                        next[dayIndex].splice(muscleIndex, 1);
+                                        updateForm("sessionMuscles", next);
+                                      }}
+                                      size="sm"
+                                      variant="secondary"
+                                    />
+                                  </div>
+                                ))}
+                                {selectedMuscles.length === 0 ? (
+                                  <span className={styles.quickSplitAuto}>تقسیم خودکار</span>
+                                ) : null}
+                                {selectedMuscles.length < quickMuscleOptions.length &&
+                                !selectedMuscles.includes("") ? (
+                                  <Button
+                                    iconStart={<Plus size={16} />}
+                                    onClick={() => {
+                                      const next = resizeSessionMuscles(
+                                        form.sessionMuscles,
+                                        form.daysPerWeek
+                                      );
+                                      next[dayIndex].push("");
+                                      updateForm("sessionMuscles", next);
+                                    }}
+                                    size="sm"
+                                    variant="secondary"
+                                  >
+                                    افزودن عضله
+                                  </Button>
+                                ) : null}
+                              </div>
+                            );
+                          }
+                        )}
+                      </div>
+                    </div>
                   </>
                 ) : null}
-                <FormField className={styles.fullField} label="اولویت عضلات">
-                  <Input
-                    value={form.musclePriorities.join("، ")}
-                    onChange={(event) =>
-                      updateForm(
-                        "musclePriorities",
-                        event.target.value
-                          .split(/[،,]/)
-                          .map((item) => item.trim())
-                          .filter(Boolean)
-                      )
-                    }
-                  />
-                </FormField>
-                <FormField className={styles.fullField} label="توضیح یا دستور خاص مربی">
-                  <Textarea
-                    value={form.customInstructions}
-                    onChange={(event) => updateForm("customInstructions", event.target.value)}
-                  />
-                </FormField>
+                {!selectedTemplate?.executionPlan ? (
+                  <>
+                    <details className={`${styles.formAdvancedDetails} ${styles.fullField}`}>
+                      <summary>تمرکز عضلانی این دوره (اختیاری)</summary>
+                      <div className={styles.formGrid}>
+                        <FormField
+                          className={styles.fullField}
+                          hint="ضعف ثبت‌شده در ویزیت جداگانه از این انتخاب اعمال می‌شود؛ این‌ها تمرکز اضافهٔ همین برنامه‌اند و حرکت‌ها را حذف یا محدود نمی‌کنند."
+                          label="عضلاتی که این دوره بیشتر روی آن‌ها کار شود"
+                        >
+                          <div className={styles.checkboxGrid}>
+                            {quickMuscleOptions.map((option) => (
+                              <Checkbox
+                                checked={form.musclePriorities.includes(option.value)}
+                                key={option.value}
+                                label={option.label}
+                                onChange={(event) => {
+                                  const next = event.target.checked
+                                    ? [...new Set([...form.musclePriorities, option.value])]
+                                    : form.musclePriorities.filter(
+                                        (muscle) => muscle !== option.value
+                                      );
+                                  updateForm("musclePriorities", next);
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </FormField>
+                      </div>
+                    </details>
+                  </>
+                ) : (
+                  <p className={styles.sectionDescription}>
+                    چیدمان حرکت‌ها، مقدار اجرا و روش اجرای آن‌ها از همین قالب خوانده می‌شوند. برای
+                    تغییر آن‌ها به «قوانین مربی ← قالب‌های برنامه» بروید؛ آسیب، سطح و تجهیزات شاگرد
+                    همچنان بررسی می‌شوند.
+                  </p>
+                )}
               </div>
             </Card>
           ) : null}
 
-          {generatedSections.length > 0 ? (
+          {generatedSections.length > 0 && !uploadMode && !selectedTemplate?.executionPlan ? (
             <Card className={styles.pageStack}>
               <div className={styles.sectionHeader}>
                 <div>
@@ -1122,6 +1639,136 @@ function formatFileSize(size: number): string {
     : `${(size / (1024 * 1024)).toFixed(1)} مگابایت`;
 }
 
+function programTypeForRequest(sections: ProgramRequest["sections"]): StudentProgramType {
+  return sections.length === 1 ? sections[0] : "complete";
+}
+
+function programTitleForRequest(sections: ProgramRequest["sections"]): string {
+  if (sections.length !== 1) return "کامل";
+  if (sections[0] === "workout") return "تمرینی";
+  if (sections[0] === "nutrition") return "غذایی";
+  return "مکمل";
+}
+
+function sessionCountFromVisit(visit?: StudentVisit): number | undefined {
+  if (!visit) return undefined;
+  const snapshotSections = visit.formTemplateSnapshot.sections ?? [];
+  const fields = snapshotSections.flatMap((section) => section.fields ?? []);
+  const field = fields.find((item) => item.semanticKey === "sessions_per_week");
+  const rawValue = field ? visit.answers[field.key] : visit.answers.sessions_per_week;
+  if (typeof rawValue !== "number" && typeof rawValue !== "string") return undefined;
+  const normalized = String(rawValue).replace(/[۰-۹٠-٩]/g, (digit) => {
+    const code = digit.charCodeAt(0);
+    return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
+  });
+  const days = Number(normalized);
+  return Number.isInteger(days) && days >= 1 && days <= 7 ? days : undefined;
+}
+
+function semanticVisitAnswer(visit: StudentVisit | undefined, semanticKey: string): unknown {
+  if (!visit) return undefined;
+  const field = (visit.formTemplateSnapshot.sections ?? [])
+    .flatMap((section) => section.fields ?? [])
+    .find((item) => item.semanticKey === semanticKey);
+  return field ? visit.answers[field.key] : visit.answers[semanticKey];
+}
+
+function goalFromVisit(visit?: StudentVisit): string | undefined {
+  const value = semanticVisitAnswer(visit, "goal");
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  return (
+    {
+      gain_weight: "افزایش وزن و حجم عضلانی",
+      lose_weight: "کاهش وزن و چربی",
+      maintain_weight: "حفظ وزن و آمادگی",
+      hypertrophy: "افزایش حجم عضلانی",
+      fat_loss: "کاهش چربی",
+      maintain: "حفظ آمادگی"
+    }[value] ?? value
+  );
+}
+
+function levelFromVisit(visit?: StudentVisit): TrainingLevel | undefined {
+  const value = semanticVisitAnswer(visit, "training_level");
+  if (typeof value !== "string") return undefined;
+  if (value === "beginner" || value === "intermediate" || value === "advanced") return value;
+  if (value === "semi_professional" || value === "professional") return "advanced";
+  return undefined;
+}
+
+function trainingMethodsFromVisit(
+  visit: StudentVisit | undefined,
+  systems: TrainingSystem[],
+  level: string
+): ProgramGenerationInput["trainingSystems"] | null {
+  if (!visit) return null;
+  if (visit.programSettings?.training_systems !== undefined) {
+    return visit.programSettings.training_systems;
+  }
+  const fields = (visit.formTemplateSnapshot.sections ?? []).flatMap(
+    (section) => section.fields ?? []
+  );
+  const methodField = fields.find((field) => field.semanticKey === "training_methods");
+  const raw = methodField ? visit.answers[methodField.key] : visit.answers.training_methods;
+  if (
+    raw === undefined ||
+    raw === null ||
+    (Array.isArray(raw) && raw.length === 0) ||
+    (typeof raw === "string" && !raw.trim())
+  ) {
+    return null;
+  }
+  const requested = Array.isArray(raw) ? raw.map(String) : [String(raw)];
+  const aliases: Record<string, string> = {
+    "21": "21s",
+    twenty_one: "21s",
+    fstv: "fst_7",
+    fst_v: "fst_7",
+    five_ten_twenty: "5_10_20",
+    hundred_rep: "100_reps",
+    gvt: "gvt_10x10",
+    partial: "partial_reps"
+  };
+  const availableSystems = systems.filter(
+    (system) =>
+      (system.source === "platform" || system.enabled) &&
+      (!system.allowed_levels.length || system.allowed_levels.includes(level))
+  );
+  const available = new Set(availableSystems.map((system) => system.key));
+  return [
+    ...new Set(requested.map((key) => key.trim().toLowerCase()).map((key) => aliases[key] ?? key))
+  ]
+    .filter((key) => available.has(key))
+    .map((key) => {
+      const system = availableSystems.find((item) => item.key === key);
+      return {
+        key,
+        ...(system?.handler_key === "partial_reps"
+          ? { variants: trainingSystemVariants(system) }
+          : {})
+      };
+    });
+}
+
+function trainingSystemVariants(system: TrainingSystem): string[] {
+  const schema = system.parameter_schema ?? system.public_definition?.parameter_schema ?? {};
+  const variantSchema = schema.variants;
+  const schemaDefault =
+    variantSchema && typeof variantSchema === "object" && "default" in variantSchema
+      ? (variantSchema as { default?: unknown }).default
+      : undefined;
+  const configured = system.parameters?.variants;
+  const values = Array.isArray(configured)
+    ? configured
+    : Array.isArray(schemaDefault)
+      ? schemaDefault
+      : partialRepVariantOptions.map((item) => item.value);
+  const available = new Set(partialRepVariantOptions.map((item) => item.value));
+  return values.filter((item): item is (typeof partialRepVariantOptions)[number]["value"] =>
+    available.has(item as (typeof partialRepVariantOptions)[number]["value"])
+  );
+}
+
 function isErrorFeedback(message: string): boolean {
   return [
     "خطا",
@@ -1153,9 +1800,6 @@ function validateForm(
   if (!form.programType) {
     errors.programType = "نوع برنامه باید مشخص شود.";
   }
-  if (!form.templateId) {
-    errors.templateId = "قالب برنامه باید انتخاب شود.";
-  }
   if (generatedSections.includes("supplement") && form.supplementSelection?.items.length) {
     if (!form.supplementSelection.confirmed || !form.supplementSelection.safety_reviewed) {
       errors.supplementSelection =
@@ -1177,8 +1821,11 @@ function validateForm(
   if (form.durationWeeks < 1) {
     errors.durationWeeks = "مدت برنامه باید معتبر باشد.";
   }
-  if (generatedSections.includes("workout") && form.daysPerWeek < 1) {
-    errors.daysPerWeek = "تعداد روز تمرین باید معتبر باشد.";
+  if (
+    generatedSections.includes("workout") &&
+    (!Number.isInteger(form.daysPerWeek) || form.daysPerWeek < 1 || form.daysPerWeek > 7)
+  ) {
+    errors.daysPerWeek = "تعداد جلسه باید عددی بین ۱ تا ۷ باشد.";
   }
   if (selectedTemplate && form.daysPerWeek && selectedTemplate.daysPerWeek !== form.daysPerWeek) {
     errors.daysPerWeek = `تعداد روز تمرین (${form.daysPerWeek}) با قالب «${selectedTemplate.name}» (${selectedTemplate.daysPerWeek} روز) هم‌خوان نیست.`;

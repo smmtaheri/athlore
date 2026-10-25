@@ -1,3 +1,4 @@
+import { normalizeIranMobile } from "../src/shared/phone/iranMobile";
 import { expect, test } from "@playwright/test";
 
 test("catalog search and duplicate feedback include movements beyond the first 100", async ({
@@ -44,7 +45,7 @@ test("catalog search and duplicate feedback include movements beyond the first 1
   expect(created.status()).toBe(201);
 
   await page.goto("/login");
-  await page.locator("#login-phone").fill(phone);
+  await page.locator("#login-phone").fill(normalizeIranMobile(phone).slice(3));
   await page.locator("#login-password").fill(password);
   await page.getByRole("button", { name: "ورود به داشبورد", exact: true }).click();
   await expect(page).toHaveURL(/dashboard/);
@@ -119,7 +120,7 @@ test("exercise save explains failures, preserves the draft, and allows correctio
   expect(created.status()).toBe(201);
 
   await page.goto("/login");
-  await page.locator("#login-phone").fill(phone);
+  await page.locator("#login-phone").fill(normalizeIranMobile(phone).slice(3));
   await page.locator("#login-password").fill(password);
   await page.getByRole("button", { name: "ورود به داشبورد", exact: true }).click();
   await expect(page).toHaveURL(/dashboard/);

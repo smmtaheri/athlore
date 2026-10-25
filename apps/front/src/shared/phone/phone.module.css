@@ -1,0 +1,23 @@
+.field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.number {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.number input {
+  min-width: 0;
+  flex: 1;
+}
+.prefix {
+  flex-shrink: 0;
+  padding: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.error {
+  color: var(--color-danger, #b91c1c);
+}

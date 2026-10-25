@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from urllib.parse import quote
 
+from django.db.models import F
 from django.http import FileResponse
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -105,14 +106,10 @@ class StagedProgramPdfDetailView(APIView):
 
 
 def _get_student_program(student, program_id) -> Program:
+    from programming.services.programs import programs_for_student
+
     try:
-        return Program.objects.select_related("student", "coach").get(
-            pk=program_id,
-            student=student,
-            coach_id=student.coach_id,
-            archived_at__isnull=True,
-            versions__status=ProgramVersion.Status.FINALIZED,
-        )
+        return programs_for_student(student).get(pk=program_id)
     except Program.DoesNotExist as exc:
         from rest_framework.exceptions import NotFound
 
@@ -129,6 +126,10 @@ def _get_student_artifact(student, pdf_id):
                 student=student,
                 program__student=student,
                 program__coach_id=student.coach_id,
+                program__archived_at__isnull=True,
+                program_version_id=F("program__active_version_id"),
+                program_version__status=ProgramVersion.Status.FINALIZED,
+                status=PdfArtifact.Status.READY,
             )
         )
     except PdfArtifact.DoesNotExist as exc:
@@ -147,7 +148,10 @@ class MyProgramPdfListCreateView(APIView):
         student = get_request_student(request)
         program = _get_student_program(student, program_id)
         qs = artifact_services.artifacts_for_coach(student.coach).filter(
-            student=student, program=program
+            student=student,
+            program=program,
+            program_version_id=program.active_version_id,
+            status=PdfArtifact.Status.READY,
         )
         qs = artifact_services.filter_artifacts_queryset(qs, request=request)
         paginator = self.pagination_class()
@@ -159,14 +163,7 @@ class MyProgramPdfListCreateView(APIView):
     def post(self, request, program_id):
         student = get_request_student(request)
         program = _get_student_program(student, program_id)
-        finalized = program.versions.filter(status=ProgramVersion.Status.FINALIZED).order_by(
-            "-version_number"
-        )
-        version = (
-            finalized.filter(pk=program.active_version_id).first()
-            if program.active_version_id
-            else None
-        ) or finalized.first()
+        version = program.active_version
         existing = list(
             artifact_services.artifacts_for_coach(student.coach)
             .filter(

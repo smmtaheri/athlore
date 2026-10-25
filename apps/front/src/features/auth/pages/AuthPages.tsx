@@ -1,12 +1,14 @@
 import { useState } from "react";
+import { PhoneNumberInput } from "../../../shared/phone/PhoneNumberInput";
 import { Link, useNavigate } from "react-router";
 import { LogIn, UserPlus } from "lucide-react";
 import { Button, Card, FormField, Input, PageTitle } from "../../../components/ui";
 import { appConfig } from "../../../app/config/appConfig";
 import { LoginMethodSelector, type LoginMethod } from "../components/LoginMethodSelector";
 import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
-import { validateIranMobileInput } from "../../../shared/phone/iranMobile";
+import { validateMobileInput } from "../../../shared/phone/mobile";
 import { useAuth } from "../context/AuthContext";
+import { useCodeResendCooldown } from "../hooks/useCodeResendCooldown";
 import type { LoginCodeRequestResult } from "../services/authRepository";
 import styles from "./auth.module.css";
 
@@ -23,6 +25,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [codeRequest, setCodeRequest] = useState<LoginCodeRequestResult | null>(null);
+  const { secondsRemaining, setSecondsRemaining } = useCodeResendCooldown();
   const [method, setMethod] = useState<LoginMethod>("password");
   const [errors, setErrors] = useState<AuthErrors>({});
   const [saving, setSaving] = useState(false);
@@ -30,7 +33,7 @@ export function LoginPage() {
   const navigate = useNavigate();
 
   const requestCode = async () => {
-    const phoneError = validateIranMobileInput(phoneNumber);
+    const phoneError = validateMobileInput(phoneNumber);
     if (phoneError) {
       setErrors({ phoneNumber: phoneError });
       return;
@@ -44,7 +47,13 @@ export function LoginPage() {
       });
       setCodeRequest(result);
       setCode("");
+      setSecondsRemaining(result.retryAfterSeconds || 0);
     } catch (error) {
+      if (error instanceof ApiError && error.code === "sms_delivery_unavailable") {
+        setCodeRequest(null);
+        setCode("");
+        setSecondsRemaining(60);
+      }
       setErrors({ submit: mapAuthError(error, "ارسال کد انجام نشد؛ دوباره تلاش کنید.") });
     } finally {
       setSaving(false);
@@ -54,7 +63,7 @@ export function LoginPage() {
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextErrors: AuthErrors = {};
-    const phoneError = validateIranMobileInput(phoneNumber);
+    const phoneError = validateMobileInput(phoneNumber);
     if (phoneError) nextErrors.phoneNumber = phoneError;
     const loginMethod = appConfig.loginOtpEnabled ? method : "password";
     if (loginMethod === "password" && !password) nextErrors.password = "رمز عبور الزامی است.";
@@ -85,7 +94,7 @@ export function LoginPage() {
       setErrors({
         submit:
           loginMethod === "code" && error instanceof ApiError && error.status === 401
-            ? "کد ورود نادرست است یا ورود با کد برای این حساب مجاز نیست؛ کد را بررسی کنید یا با رمز عبور وارد شوید."
+            ? "کد ورود نادرست است، منقضی شده یا قبلاً استفاده شده؛ کد جدید بگیرید یا با رمز عبور وارد شوید."
             : mapAuthError(error, "ورود انجام نشد. اطلاعات را بررسی کنید.")
       });
     } finally {
@@ -114,26 +123,25 @@ export function LoginPage() {
           </div>
         ) : null}
         <FormField error={errors.phoneNumber} htmlFor="login-phone" label="شماره موبایل" required>
-          <Input
+          <PhoneNumberInput
             aria-describedby="login-phone-help"
             autoComplete="tel"
             disabled={saving}
             id="login-phone"
             inputMode="tel"
-            onChange={(event) => {
-              setPhoneNumber(event.target.value);
+            onValueChange={(phone) => {
+              setPhoneNumber(phone);
               setCodeRequest(null);
+              setSecondsRemaining(0);
               setCode("");
               setErrors({});
             }}
-            placeholder="شماره موبایل؛ 09xxxxxxxxx"
-            type="tel"
             value={phoneNumber}
           />
         </FormField>
         <p className={styles.loginMethodHint} id="login-phone-help">
-          فقط شماره موبایل حساب خودتان را وارد کنید، نه نام کاربری یا ایمیل. شماره با ۹…، ۰۹…، ۹۸۹…
-          یا +۹۸۹… پذیرفته می‌شود.
+          کشور شمارهٔ حساب خود را انتخاب کنید و فقط شمارهٔ موبایل را وارد کنید، نه نام کاربری یا
+          ایمیل.
         </p>
         {appConfig.loginOtpEnabled ? (
           <LoginMethodSelector
@@ -142,6 +150,7 @@ export function LoginPage() {
             onChange={(next) => {
               setMethod(next);
               setCodeRequest(null);
+              setSecondsRemaining(0);
               setCode("");
               setErrors({});
             }}
@@ -165,6 +174,8 @@ export function LoginPage() {
             <FormField error={errors.password} htmlFor="login-code" label="کد یک‌بارمصرف" required>
               <Input
                 autoComplete="one-time-code"
+                maxLength={6}
+                placeholder={codeRequest.deliveryMode === "sms" ? "کد ۶ رقمی پیامک‌شده" : "کد ورود"}
                 autoFocus
                 disabled={saving}
                 id="login-code"
@@ -174,22 +185,32 @@ export function LoginPage() {
               />
             </FormField>
             <Button
-              disabled={saving}
+              disabled={saving || secondsRemaining > 0}
               onClick={() => void requestCode()}
               type="button"
               variant="ghost"
             >
-              ارسال دوباره کد
+              {secondsRemaining > 0
+                ? `ارسال دوباره کد (${secondsRemaining} ثانیه)`
+                : "ارسال دوباره کد"}
             </Button>
           </>
         ) : (
           <p className={styles.loginMethodHint}>برای دریافت کد ورود، «ارسال کد» را بزنید.</p>
         )}
-        <Button fullWidth iconStart={<LogIn size={18} />} isLoading={saving} type="submit">
+        <Button
+          disabled={method === "code" && !codeRequest && secondsRemaining > 0}
+          fullWidth
+          iconStart={<LogIn size={18} />}
+          isLoading={saving}
+          type="submit"
+        >
           {method === "code" && appConfig.loginOtpEnabled
             ? codeRequest
               ? "ورود با کد"
-              : "ارسال کد"
+              : secondsRemaining > 0
+                ? `ارسال کد (${secondsRemaining} ثانیه)`
+                : "ارسال کد"
             : "ورود به داشبورد"}
         </Button>
       </form>
@@ -288,12 +309,11 @@ export function RegisterPage() {
           label="شماره موبایل"
           required
         >
-          <Input
+          <PhoneNumberInput
             autoComplete="tel"
             id="register-phone"
             inputMode="tel"
-            onChange={(event) => setPhoneNumber(event.target.value)}
-            placeholder="مثلا ۰۹۱۲۱۲۳۴۵۶۷"
+            onValueChange={setPhoneNumber}
             value={phoneNumber}
           />
         </FormField>
@@ -356,7 +376,7 @@ function validateAuth(
     errors.email = "ایمیل معتبر وارد کنید.";
   }
   if (register) {
-    const phoneError = validateIranMobileInput(values.phoneNumber ?? "");
+    const phoneError = validateMobileInput(values.phoneNumber ?? "");
     if (phoneError) {
       errors.phoneNumber = phoneError;
     }

@@ -24,8 +24,11 @@
 | فایل | موضوع |
 |------|--------|
 | [monthly-visit.md](./monthly-visit.md) | ویزیت دوره‌ای: ساخت شاگرد، فعال‌سازی پنل، ارسال فرم، پاسخ شاگرد، نهایی‌سازی مربی |
+| [program-request-to-delivery.md](./program-request-to-delivery.md) | درخواست برنامه، ویزیت آنلاین/حضوری، تولید، انتشار و دریافت فایل در پنل شاگرد؛ چک‌لیست الزامی smoke test استیج |
+| [student-workout-experience.md](./student-workout-experience.md) | مشاهدهٔ تمرین تعاملی شاگرد، آموزش ویدئویی، ثبت ست/تایمر، پایان جلسه، برنامه‌ریزی واقعی و منابع رسانه |
 | [daily-body-check.md](./daily-body-check.md) | بادی چک روزانه: ساخت دوره ۳۰روزه، ثبت روزانه شاگرد، عکس هفتگی، گزارش و چاپ |
 | [supplement-catalog.md](./supplement-catalog.md) | بانک مکمل مربی، نوبت مصرف، انتخاب دستی یا پیشنهادی، تأیید و برنامه شاگرد |
+| [stage-acceptance-test-plan.md](./stage-acceptance-test-plan.md) | چک‌لیست کامل آزمون دو پنل، فلو تولید تا دریافت برنامه و معیار نمره‌دهی خروجی |
 
 ## قالب فلو جدید
 

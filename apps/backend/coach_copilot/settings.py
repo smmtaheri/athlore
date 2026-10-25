@@ -139,12 +139,11 @@ STORAGES = {
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Private PDF artifacts use Django storage. Do not serve MEDIA publicly in product flows.
+# PDFs, photos and original videos stay private. Only processed educational
+# videos have a narrow public Nginx alias; never expose the whole MEDIA_ROOT.
 MEDIA_ROOT = Path(os.environ.get("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media")))
 MEDIA_URL = "/media/"
-PUBLIC_API_BASE_URL = os.environ.get(
-    "PUBLIC_API_BASE_URL", f"https://{PUBLIC_DOMAIN}/api/v1"
-)
+PUBLIC_API_BASE_URL = os.environ.get("PUBLIC_API_BASE_URL", f"https://{PUBLIC_DOMAIN}/api/v1")
 # PDF share defaults (days)
 PDF_SHARE_DEFAULT_DAYS = int(os.environ.get("PDF_SHARE_DEFAULT_DAYS", "7"))
 PDF_SHARE_MAX_DAYS = int(os.environ.get("PDF_SHARE_MAX_DAYS", "30"))
@@ -161,6 +160,28 @@ LOGIN_OTP_ENABLED = os.environ.get("LOGIN_OTP_ENABLED", "false").lower() in {
     "yes",
 }
 LOGIN_OTP_STATIC_CODE = os.environ.get("LOGIN_OTP_STATIC_CODE", "")
+LOGIN_OTP_PROVIDER = os.environ.get("LOGIN_OTP_PROVIDER", "static").strip().lower()
+LOGIN_OTP_MOCK_CODE = os.environ.get("LOGIN_OTP_MOCK_CODE", "")
+SMS_BACKEND = os.environ.get("SMS_BACKEND", "najva").strip().lower()
+NAJVA_API_KEY = os.environ.get("NAJVA_API_KEY", "")
+NAJVA_SENDER = os.environ.get("NAJVA_SENDER", "100005676")
+NAJVA_TEMPLATE = os.environ.get("NAJVA_TEMPLATE", "athlore_otp")
+NAJVA_PROGRAM_READY_TEMPLATE = os.environ.get(
+    "NAJVA_PROGRAM_READY_TEMPLATE", "athlore_program_ready"
+)
+NAJVA_VISIT_FINALIZED_TEMPLATE = os.environ.get(
+    "NAJVA_VISIT_FINALIZED_TEMPLATE", "athlore_visit_finalized"
+)
+VISIT_FINALIZED_SMS_ENABLED = os.environ.get("VISIT_FINALIZED_SMS_ENABLED", "false").lower() in {
+    "1",
+    "true",
+    "yes",
+}
+PROGRAM_READY_SMS_ENABLED = os.environ.get("PROGRAM_READY_SMS_ENABLED", "false").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 
 _CANONICAL_HTTPS_ORIGINS = [f"https://{host}" for host in _CANONICAL_HOSTS]
 _LOCAL_DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]

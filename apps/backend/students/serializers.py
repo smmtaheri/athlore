@@ -68,6 +68,7 @@ class StudentSerializer(serializers.ModelSerializer):
             "height_cm",
             "weight_kg",
             "phone_number",
+            "phone_country",
             "status",
             "coach_notes",
             "goals",
@@ -179,16 +180,16 @@ class MeasurementsSerializer(serializers.Serializer):
 
 class AdherenceSerializer(serializers.Serializer):
     overall_percent = serializers.DecimalField(
-        max_digits=5, decimal_places=2, required=False, default=0
+        max_digits=5, decimal_places=2, required=False, allow_null=True
     )
     training_percent = serializers.DecimalField(
-        max_digits=5, decimal_places=2, required=False, default=0
+        max_digits=5, decimal_places=2, required=False, allow_null=True
     )
     nutrition_percent = serializers.DecimalField(
-        max_digits=5, decimal_places=2, required=False, default=0
+        max_digits=5, decimal_places=2, required=False, allow_null=True
     )
     supplements_percent = serializers.DecimalField(
-        max_digits=5, decimal_places=2, required=False, default=0
+        max_digits=5, decimal_places=2, required=False, allow_null=True
     )
 
 
@@ -239,6 +240,7 @@ class VisitSerializer(serializers.ModelSerializer):
             "form_template_version",
             "form_template_snapshot",
             "answers",
+            "program_settings",
             "answer_sources",
             "status",
             "sent_at",
@@ -275,6 +277,13 @@ class VisitSerializer(serializers.ModelSerializer):
         return str(snap.get("name") or obj.form_template_key or "")
 
 
+class CoachVisitListSerializer(VisitSerializer):
+    student_name = serializers.CharField(source="student.full_name", read_only=True)
+
+    class Meta(VisitSerializer.Meta):
+        fields = (*VisitSerializer.Meta.fields, "student_name")
+
+
 class VisitWriteSerializer(serializers.Serializer):
     staged_photo_session_id = serializers.UUIDField(required=False)
     visit_date = serializers.DateField(required=True)
@@ -285,9 +294,15 @@ class VisitWriteSerializer(serializers.Serializer):
     )
     measurements = MeasurementsSerializer(required=False)
     adherence = AdherenceSerializer(required=False)
-    daily_energy_level = serializers.ChoiceField(choices=Visit.Level.choices, required=True)
-    sleep_quality = serializers.ChoiceField(choices=Visit.Level.choices, required=True)
-    stress_level = serializers.ChoiceField(choices=Visit.Level.choices, required=True)
+    daily_energy_level = serializers.ChoiceField(
+        choices=Visit.Level.choices, required=False, allow_null=True
+    )
+    sleep_quality = serializers.ChoiceField(
+        choices=Visit.Level.choices, required=False, allow_null=True
+    )
+    stress_level = serializers.ChoiceField(
+        choices=Visit.Level.choices, required=False, allow_null=True
+    )
     body_feeling = serializers.CharField(required=False, allow_blank=True, default="")
     student_feedback = serializers.CharField(required=False, allow_blank=True, default="")
     coach_assessment = serializers.CharField(required=False, allow_blank=True, default="")
@@ -299,14 +314,14 @@ class VisitWriteSerializer(serializers.Serializer):
     training_condition_changes = serializers.CharField(required=False, allow_blank=True, default="")
     form_template_id = serializers.UUIDField(required=False, allow_null=True)
     answers = serializers.DictField(required=False)
-    skip_form_template = serializers.BooleanField(required=False, default=False)
+    program_settings = serializers.DictField(required=False)
 
-    def __init__(self, *args, **kwargs):
-        partial = kwargs.pop("partial", False)
-        super().__init__(*args, **kwargs)
-        if partial:
-            for field in self.fields.values():
-                field.required = False
+    def validate_program_settings(self, value):
+        from programming.services.preparation import validate_settings
+
+        return validate_settings(value)
+
+    skip_form_template = serializers.BooleanField(required=False, default=False)
 
 
 class SendToStudentSerializer(serializers.Serializer):

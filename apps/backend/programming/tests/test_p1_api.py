@@ -6,7 +6,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from rest_framework.test import APITestCase
 
-from accounts.models import ProgramTemplate
+from accounts.models import Exercise, ProgramTemplate
 from accounts.rules_services import replace_coach_rules
 from common.testing import auth_header, register
 from programming.models import GenerationRun, Program, ProgramVersion
@@ -232,6 +232,18 @@ class ProgramAndGeneratorTests(APITestCase):
         self.coach_a = CoachProfile.objects.get(id=a.data["coach"]["id"])
         replace_coach_rules(self.coach_a, MIN_RULES, partial=False)
         self.template = ProgramTemplate.objects.filter(coach=self.coach_a).first()
+        for name, muscle in [
+            ("پرس سینه هالتر", "سینه"),
+            ("لت سیم کش", "زیربغل"),
+            ("اسکوات", "پا"),
+            ("نشر جانب دمبل", "سرشانه"),
+            ("جلو بازو دمبل", "جلو بازو"),
+            ("پشت بازو سیم کش", "پشت بازو"),
+            ("کرانچ", "شکم"),
+        ]:
+            Exercise.objects.create(
+                coach=self.coach_a, name=name, primary_muscle=muscle, level="all"
+            )
 
         stu = self.client.post(
             "/api/v1/students/",

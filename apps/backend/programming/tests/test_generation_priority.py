@@ -99,7 +99,10 @@ class GenerationPriorityTests(APITestCase):
         return [e["name"] for d in document["training"]["days"] for e in d["exercises"]]
 
     # 1. historical bank used when no injury -----------------------------
-    def test_historical_bank_used_when_no_injury(self):
+    def test_owned_catalog_used_when_no_injury(self):
+        Exercise.objects.create(
+            coach=self.coach, name="پرس سینه هالتر", primary_muscle="سینه", level="all"
+        )
         student = self._make_student()
         document, warnings = self._generate(student)
         names = self._all_names(document)
@@ -247,7 +250,7 @@ class GenerationPriorityTests(APITestCase):
             student, request={"program_type": "supplement", "supplement_opt_in": True}
         )
         self.assertFalse(document["supplements"]["enabled"])
-        self.assertIn("no_reviewed_supplement_template", warnings)
+        self.assertIn("supplement_catalog_selection_required", warnings)
 
     # 9. supplement_opt_in required ------------------------------------------
     def test_supplement_opt_in_required(self):

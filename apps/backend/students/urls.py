@@ -16,6 +16,7 @@ from students.body_check_views import (
     MyBodyCheckPhotoUploadView,
 )
 from students.views import (
+    CoachVisitListView,
     MyVisitDetailView,
     MyVisitListView,
     MyVisitSubmitView,
@@ -57,6 +58,7 @@ from students.visit_photo_views import (
 )
 
 urlpatterns = [
+    path("visits/", CoachVisitListView.as_view(), name="coach-visit-list"),
     path("students/", StudentListCreateView.as_view(), name="student-list"),
     path("students/<uuid:student_id>/", StudentDetailView.as_view(), name="student-detail"),
     path(

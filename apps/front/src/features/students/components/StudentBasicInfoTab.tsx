@@ -28,6 +28,12 @@ export function StudentBasicInfoTab({ student }: StudentBasicInfoTabProps) {
     { label: "جنسیت", value: genderLabels[student.gender] },
     { label: "قد", value: `${student.heightCm} سانتی متر` },
     { label: "وزن", value: `${student.weightKg} کیلوگرم` },
+    {
+      label: "کشور شماره تماس",
+      value:
+        new Intl.DisplayNames(["fa"], { type: "region" }).of(student.phoneCountry ?? "IR") ??
+        emptyValue
+    },
     { label: "شماره تماس", value: valueOrEmpty(student.phoneNumber) }
   ];
 

@@ -5,14 +5,17 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import jdatetime
-from django.db.models import Count, F, Q, Window
-from django.db.models.functions import RowNumber
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from accounts.models import CoachProfile
 from delivery.models import PdfArtifact
-from programming.models import Program, ProgramVersion
-from programming.services.programs import serialize_program_summary
+from programming.models import Program, ProgramRequest, ProgramVersion
+from programming.services import program_requests as program_request_services
+from programming.services.programs import (
+    current_program_section_maps,
+    serialize_program_summary,
+)
 from students import body_check_services as body_check_services
 from students.body_check_models import BodyCheckCycle, BodyCheckDailyEntry
 from students.models import Student, Visit
@@ -22,6 +25,8 @@ OVERDUE_VISIT_DAYS = 35
 MONTHLY_VISIT_INTERVAL_DAYS = 30
 MONTHLY_VISIT_DUE_SOON_DAYS = 7
 RECENT_LIMIT = 5
+RECENT_VISITS_LIMIT = 10
+PROGRAM_DUE_SOON_DAYS = 7
 
 
 def _calendar_month_bounds(today: date, calendar: str) -> tuple[date, date, str]:
@@ -49,21 +54,13 @@ def _calendar_month_bounds(today: date, calendar: str) -> tuple[date, date, str]
     return month_start, next_month, month_start.strftime("%Y-%m")
 
 
-def _latest_visits_per_student(coach: CoachProfile, *, order_field: str) -> list[Visit]:
-    """Return each student's latest non-draft visit, ordered by the requested date."""
+def _latest_visits(coach: CoachProfile, *, order_field: str) -> list[Visit]:
+    """Return the latest non-draft visits, including repeat visits for a student."""
     return list(
         Visit.objects.filter(coach=coach)
         .exclude(status=Visit.Status.DRAFT)
-        .annotate(
-            student_visit_rank=Window(
-                expression=RowNumber(),
-                partition_by=[F("student_id")],
-                order_by=[F(order_field).desc(), F("updated_at").desc(), F("id").desc()],
-            )
-        )
-        .filter(student_visit_rank=1)
         .select_related("student")
-        .order_by(f"-{order_field}", "-updated_at", "student__full_name")[:RECENT_LIMIT]
+        .order_by(f"-{order_field}", "-created_at", "-id")[:RECENT_VISITS_LIMIT]
     )
 
 
@@ -342,6 +339,84 @@ def _build_monthly_visit_summary(coach: CoachProfile, today: date) -> dict:
     }
 
 
+def _build_program_request_summary(coach: CoachProfile, today: date) -> dict:
+    open_statuses = program_request_services.OPEN_STATUSES
+    requests = ProgramRequest.objects.filter(coach=coach, status__in=open_statuses).select_related(
+        "student"
+    )
+    unread_count = requests.filter(read_at__isnull=True).count()
+    request_items = list(requests.order_by("created_at")[:RECENT_LIMIT])
+
+    students = list(
+        Student.objects.filter(coach=coach, archived_at__isnull=True).only("id", "coach_id")
+    )
+    current_by_student = current_program_section_maps(students)
+    current_program_ids = {
+        program_id for mapping in current_by_student.values() for program_id in mapping
+    }
+    current_programs = Program.objects.filter(
+        coach=coach,
+        id__in=current_program_ids,
+        archived_at__isnull=True,
+    ).select_related("student")
+    items = []
+    expired_count = 0
+    due_soon_count = 0
+    missing_end_date_count = 0
+    cutoff = today + timedelta(days=PROGRAM_DUE_SOON_DAYS)
+    for program in current_programs:
+        sections = current_by_student.get(str(program.student_id), {}).get(str(program.id), [])
+        if not sections:
+            continue
+        if program.date_range_end is None:
+            state = "missing_end_date"
+            missing_end_date_count += 1
+            days_remaining = None
+        else:
+            days_remaining = (program.date_range_end - today).days
+            if program.date_range_end < today:
+                state = "expired"
+                expired_count += 1
+            elif program.date_range_end <= cutoff:
+                state = "due_soon"
+                due_soon_count += 1
+            else:
+                continue
+        items.append(
+            {
+                "program_id": str(program.id),
+                "student_id": str(program.student_id),
+                "student_name": program.student.full_name,
+                "title": program.title,
+                "sections": sections,
+                "end_date": program.date_range_end.isoformat() if program.date_range_end else None,
+                "days_remaining": days_remaining,
+                "state": state,
+            }
+        )
+    items.sort(
+        key=lambda item: (
+            0 if item["state"] == "expired" else 1,
+            item["days_remaining"] if item["days_remaining"] is not None else 9999,
+            item["student_name"],
+        )
+    )
+    return {
+        "program_requests": {
+            "open_count": requests.count(),
+            "unread_count": unread_count,
+            "items": [program_request_services.serialize_request(item) for item in request_items],
+        },
+        "program_periods": {
+            "expired_count": expired_count,
+            "due_soon_count": due_soon_count,
+            "missing_end_date_count": missing_end_date_count,
+            "days_until_due": PROGRAM_DUE_SOON_DAYS,
+            "items": items[: RECENT_LIMIT * 2],
+        },
+    }
+
+
 def build_dashboard(coach: CoachProfile, *, today: date | None = None) -> dict:
     """Return deterministic coach-scoped dashboard payload."""
     today = today or timezone.localdate()
@@ -408,8 +483,9 @@ def build_dashboard(coach: CoachProfile, *, today: date | None = None) -> dict:
             :RECENT_LIMIT
         ]
     )
-    latest_visits = _latest_visits_per_student(coach, order_field="visit_date")
-    latest_visit_entries = _latest_visits_per_student(coach, order_field="created_at")
+    latest_visits = _latest_visits(coach, order_field="visit_date")
+    latest_visit_entries = _latest_visits(coach, order_field="created_at")
+    program_followups = _build_program_request_summary(coach, today)
 
     today_tasks: list[str] = []
     if overdue_students:
@@ -418,6 +494,14 @@ def build_dashboard(coach: CoachProfile, *, today: date | None = None) -> dict:
         today_tasks.append(f"مرور {draft_programs} برنامه پیش‌نویس")
     if follow_up_students:
         today_tasks.append(f"پیگیری وضعیت: {follow_up_students[0].full_name}")
+    if program_followups["program_requests"]["open_count"]:
+        today_tasks.append(
+            f"درخواست برنامهٔ جدید: {program_followups['program_requests']['open_count']} مورد"
+        )
+    if program_followups["program_periods"]["expired_count"]:
+        today_tasks.append(
+            f"برنامهٔ پایان‌یافته: {program_followups['program_periods']['expired_count']} مورد"
+        )
     if not today_tasks:
         today_tasks.append("هیچ کار فوری ثبت نشده است")
 
@@ -452,6 +536,7 @@ def build_dashboard(coach: CoachProfile, *, today: date | None = None) -> dict:
         "body_check_today": _build_body_check_today(coach, today),
         "body_check_cycles": _build_body_check_cycle_summary(coach, today),
         "monthly_visits": _build_monthly_visit_summary(coach, today),
+        **program_followups,
         "today_tasks": today_tasks,
         "as_of": today.isoformat(),
     }

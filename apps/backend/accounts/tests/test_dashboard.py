@@ -136,7 +136,17 @@ class DashboardApiTests(APITestCase):
         )
 
         replace_coach_rules(self.coach_a, MIN_RULES)
-        from accounts.models import ProgramTemplate
+        from accounts.models import Exercise, ProgramTemplate
+
+        for name, muscle in [
+            ("پرس سینه هالتر", "سینه"),
+            ("لت سیم کش", "زیربغل"),
+            ("اسکوات", "پا"),
+            ("نشر جانب دمبل", "سرشانه"),
+        ]:
+            Exercise.objects.create(
+                coach=self.coach_a, name=name, primary_muscle=muscle, level="all"
+            )
 
         template = ProgramTemplate.objects.filter(coach=self.coach_a).first()
         draft_prog, _ = program_services.generate_program(
@@ -247,7 +257,7 @@ class DashboardApiTests(APITestCase):
                 status=visit_status,
             )
 
-        no_visit = make_student("بدون ویزیت")
+        make_student("بدون ویزیت")
         near_due = make_student("نزدیک موعد")
         overdue = make_student("عقب‌افتاده")
         sent = make_student("ارسال‌شده")

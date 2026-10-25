@@ -53,11 +53,20 @@ services:
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       PUBLIC_REGISTRATION_ENABLED: ${PUBLIC_REGISTRATION_ENABLED:-false}
-      LOGIN_OTP_ENABLED: ${LOGIN_OTP_ENABLED:-true}
-      LOGIN_OTP_STATIC_CODE: ${LOGIN_OTP_STATIC_CODE:-1111}
       LOAD_DEMO_FIXTURES: ${LOAD_DEMO_FIXTURES:-false}
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL}
       DJANGO_MEDIA_ROOT: ${DJANGO_MEDIA_ROOT:-/data/media}
+      LOGIN_OTP_ENABLED: ${LOGIN_OTP_ENABLED:-true}
+      LOGIN_OTP_PROVIDER: najva
+      LOGIN_OTP_STATIC_CODE: ""
+      SMS_BACKEND: najva
+      NAJVA_API_KEY: ${NAJVA_API_KEY:-}
+      NAJVA_SENDER: ${NAJVA_SENDER:-100005676}
+      NAJVA_TEMPLATE: ${NAJVA_TEMPLATE:-athlore_otp}
+      PROGRAM_READY_SMS_ENABLED: ${PROGRAM_READY_SMS_ENABLED:-true}
+      NAJVA_PROGRAM_READY_TEMPLATE: ${NAJVA_PROGRAM_READY_TEMPLATE:-athlore_program_ready}
+      VISIT_FINALIZED_SMS_ENABLED: ${VISIT_FINALIZED_SMS_ENABLED:-true}
+      NAJVA_VISIT_FINALIZED_TEMPLATE: ${NAJVA_VISIT_FINALIZED_TEMPLATE:-athlore_visit_finalized}
       DJANGO_SECURE_SSL_REDIRECT: ${DJANGO_SECURE_SSL_REDIRECT:-true}
       DJANGO_SESSION_COOKIE_SECURE: ${DJANGO_SESSION_COOKIE_SECURE:-true}
       DJANGO_CSRF_COOKIE_SECURE: ${DJANGO_CSRF_COOKIE_SECURE:-true}
@@ -86,6 +95,7 @@ services:
       - /app/staticfiles
     networks:
       - internal
+      - sms_egress
 
   visit-photo-pruner:
     image: athlore-stage-backend:${STAGE_IMAGE_TAG:-latest}
@@ -111,6 +121,37 @@ services:
     security_opt:
       - no-new-privileges:true
     read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      - internal
+
+  exercise-video-worker:
+    image: athlore-stage-backend:${STAGE_IMAGE_TAG:-latest}
+    entrypoint: ["python", "manage.py", "process_exercise_videos"]
+    user: "10001:10001"
+    environment:
+      DB_ENGINE: postgresql
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_MEDIA_ROOT: ${DJANGO_MEDIA_ROOT:-/data/media}
+    volumes:
+      - media_data:/data/media
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    cpus: 1.0
+    mem_limit: 768m
+    pids_limit: 128
     tmpfs:
       - /tmp
     networks:
@@ -146,6 +187,7 @@ services:
     volumes:
       - ./nginx/rendered/stage-nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/snippets:/etc/nginx/snippets:ro
+      - media_data:/data/media:ro
     depends_on:
       - frontend
       - backend
@@ -165,6 +207,9 @@ services:
           - athlore-stage-nginx
 
 networks:
+  # Only the backend can reach Najva. This network publishes no host ports.
+  sms_egress:
+    driver: bridge
   internal:
     internal: true
   edge:

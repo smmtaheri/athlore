@@ -4,6 +4,7 @@ export type CoachRuleSection =
   | "injuries"
   | "muscles"
   | "exercises"
+  | "trainingSystems"
   | "general"
   | "nutritionTemplates"
   | "supplementTemplates"
@@ -11,7 +12,32 @@ export type CoachRuleSection =
 
 export type TrainingLevelKey = "beginner" | "intermediate" | "advanced";
 
+export interface TemplateSlot {
+  muscle_key: string;
+  exercise_id: string | null;
+  unit: "reps" | "seconds";
+  minimum: number;
+  maximum: number;
+  reps_source: "default" | "system" | "custom";
+}
+
+export interface TemplateBlock {
+  system_key: string | null;
+  sets: number | null;
+  rest_seconds: number | null;
+  between_seconds: number | null;
+  slots: TemplateSlot[];
+}
+
+export interface TemplateExecutionPlan {
+  version: 1;
+  description: string;
+  defaults: { sets: number; minimum: number; maximum: number; rest_seconds: number; rir: number };
+  days: Array<{ muscles: string[]; blocks: TemplateBlock[] }>;
+}
+
 export interface ProgramTemplate {
+  executionPlan?: TemplateExecutionPlan;
   daysPerWeek: number;
   goal: string;
   id: string;
@@ -94,6 +120,55 @@ export interface TrainingTechniqueConfig {
   source: "platform" | "coach_override" | "coach_private";
 }
 
+export interface TrainingSystem {
+  allowed_levels: string[];
+  base_technique_key: string | null;
+  description: string;
+  enabled: boolean;
+  execution_method: string;
+  handler_key?: string;
+  handler_status: "implemented" | "manual_only";
+  id: string | null;
+  key: string;
+  max_per_session: number;
+  name: string;
+  parameter_schema?: Record<string, unknown>;
+  parameters: Record<string, unknown>;
+  recipe?: TrainingRecipe;
+  public_definition?: {
+    key?: string;
+    name?: string;
+    description?: string;
+    execution_method?: string;
+    parameter_schema?: Record<string, unknown>;
+    recipe?: TrainingRecipe;
+  } | null;
+  source: "platform" | "coach_override" | "coach_private";
+}
+
+export interface TrainingRecipeStep {
+  op: string;
+  [key: string]: unknown;
+}
+
+export interface TrainingRecipeGrouping {
+  allow_compound?: boolean;
+  exercise_order?: "generated" | "isolation_first" | "compound_first";
+  exercise_prescriptions?: Array<Record<string, unknown>>;
+  max_groups_per_session: number;
+  mode: "same_muscle" | "same_muscle_isolation" | "antagonist" | "any_eligible" | "alternating";
+  rest_after_seconds: number;
+  rest_between_seconds: number;
+  size: number;
+}
+
+export interface TrainingRecipe {
+  grouping?: TrainingRecipeGrouping;
+  steps: TrainingRecipeStep[];
+  target: "all" | "last_exercise" | "last_isolation" | "last_set";
+  version: 1;
+}
+
 export interface GeneralCoachRule {
   category: string;
   description: string;
@@ -137,6 +212,7 @@ export interface SupplementTemplateSummary {
 }
 
 export interface CoachRules {
+  generationRules?: GenerationRules;
   exerciseCatalog?: StructuredExercise[];
   generalRules: GeneralCoachRules;
   injuries: InjuryRule[];
@@ -152,3 +228,15 @@ export interface CoachRules {
 }
 
 export type CoachRulesInput = CoachRules;
+
+export interface GenerationRules {
+  sets: number;
+  reps_min: number;
+  reps_max: number;
+  rest_seconds: number;
+  rir: number;
+  focus_extra_sets: number;
+  weakness_auto_focus: boolean;
+  warmup_minutes: number;
+  progression: "double_progression" | "maintain";
+}

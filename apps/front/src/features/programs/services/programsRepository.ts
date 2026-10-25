@@ -7,6 +7,7 @@ import type {
   ProgramGenerationInput,
   ProgramPdfSection,
   StagedProgramPdf,
+  QuickGenerationSettings,
   UploadedProgramDraftInput
 } from "../types/generatedProgram";
 
@@ -21,6 +22,7 @@ export interface ProgramsRepository {
   generate?(
     input: ProgramGenerationInput
   ): Promise<{ program: GeneratedProgram; warnings: string[]; generatorVersion?: string }>;
+  getLatestQuickSettings?(studentId: string): Promise<QuickGenerationSettings | null>;
   attachStagedPdf?(
     programId: string,
     versionId: string,

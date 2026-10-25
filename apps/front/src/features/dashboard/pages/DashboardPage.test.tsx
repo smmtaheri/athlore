@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
+import { studentVisitFixtures } from "../../students/fixtures/studentVisits";
 import {
   emptyMonthlyVisitSummary,
   type BodyCheckCycleSummary,
@@ -13,8 +14,48 @@ import {
   BodyCheckCycleSummarySection,
   BodyCheckTodaySection,
   DashboardContent,
+  DashboardVisitsSection,
   MonthlyVisitSummarySection
 } from "./DashboardPage";
+
+describe("Recent dashboard visits", () => {
+  it("expands from five to ten and links to the full history and exact visit", async () => {
+    const user = userEvent.setup();
+    const visits = Array.from({ length: 12 }, (_, index) => ({
+      ...studentVisitFixtures[0],
+      id: `recent-${index + 1}`,
+      studentId: "same-student",
+      studentName: `ویزیت نمونه ${index + 1}`
+    }));
+    render(
+      <MemoryRouter>
+        <DashboardVisitsSection entries={[...visits].reverse()} visits={visits} />
+      </MemoryRouter>
+    );
+    expect(screen.getByText("ویزیت نمونه 5")).toBeInTheDocument();
+    expect(screen.queryByText("ویزیت نمونه 6")).not.toBeInTheDocument();
+    const expand = screen.getByRole("button", { name: "نمایش 10 ویزیت آخر" });
+    expect(expand).toHaveAttribute("aria-expanded", "false");
+    await user.click(expand);
+    expect(screen.getByText("ویزیت نمونه 10")).toBeInTheDocument();
+    expect(screen.queryByText("ویزیت نمونه 11")).not.toBeInTheDocument();
+    expect(screen.getByText("ویزیت نمونه 1").closest("a")).toHaveAttribute(
+      "href",
+      "/visits?student=same-student&visit=recent-1&ordering=-visit_date"
+    );
+    expect(screen.getByRole("link", { name: "مشاهده همه ویزیت‌ها" })).toHaveAttribute(
+      "href",
+      "/visits?ordering=-visit_date"
+    );
+    await user.click(screen.getByRole("button", { name: "نمایش کمتر" }));
+    expect(screen.queryByText("ویزیت نمونه 6")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "زمان ثبت" }));
+    expect(screen.getByRole("link", { name: "مشاهده همه ویزیت‌ها" })).toHaveAttribute(
+      "href",
+      "/visits?ordering=-created_at"
+    );
+  });
+});
 
 function item(overrides: Partial<BodyCheckTodayItem> = {}): BodyCheckTodayItem {
   return {

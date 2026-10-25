@@ -123,6 +123,56 @@ class StudentVisitApiTests(TestCase):
         self.coach_client = APIClient()
         self.coach_client.force_authenticate(user=self.coach.user)
 
+    def test_unassessed_observations_remain_null_and_explicit_zero_is_preserved(self):
+        response = self.coach_client.post(
+            f"/api/v1/students/{self.student.id}/visits/",
+            {
+                "visit_date": "2026-08-02",
+                "current_weight_kg": "76.0",
+                "previous_weight_kg": "75.0",
+                "adherence": {"training_percent": 0},
+                "skip_form_template": True,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        for key in ("daily_energy_level", "sleep_quality", "stress_level"):
+            self.assertIsNone(response.data[key])
+        self.assertIsNone(response.data["adherence"]["overall_percent"])
+        self.assertEqual(response.data["adherence"]["training_percent"], Decimal("0"))
+        self.assertIsNone(response.data["adherence"]["nutrition_percent"])
+        self.assertIsNone(response.data["adherence"]["supplements_percent"])
+        saved = Visit.objects.get(pk=response.data["id"])
+        self.assertIsNone(saved.sleep_quality)
+        self.assertIsNone(saved.adherence_overall)
+
+    def test_editing_weight_preserves_recorded_observations_and_legacy_notes(self):
+        self.visit.adherence_overall = Decimal("80")
+        self.visit.coach_assessment = "Private historical assessment"
+        self.visit.coach_notes = "Private historical note"
+        self.visit.save()
+        response = self.coach_client.patch(
+            f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/",
+            {"current_weight_kg": "76.0"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.visit.refresh_from_db()
+        self.assertEqual(self.visit.adherence_overall, Decimal("80"))
+        self.assertEqual(self.visit.sleep_quality, "good")
+        self.assertEqual(self.visit.coach_assessment, "Private historical assessment")
+        self.assertEqual(self.visit.coach_notes, "Private historical note")
+
+        cleared = self.coach_client.patch(
+            f"/api/v1/students/{self.student.id}/visits/{self.visit.id}/",
+            {"sleep_quality": None, "adherence": {"overall_percent": None}},
+            format="json",
+        )
+        self.assertEqual(cleared.status_code, 200, cleared.data)
+        self.assertIsNone(cleared.data["sleep_quality"])
+        self.assertIsNone(cleared.data["adherence"]["overall_percent"])
+        self.assertEqual(cleared.data["daily_energy_level"], "good")
+
     def test_expired_course_is_read_only_for_all_student_visit_writes(self):
         send_visit_to_student(self.visit)
         client, _ = self._activate_and_login_student()

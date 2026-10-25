@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from copy import deepcopy
 from decimal import Decimal
 from typing import Any
 
@@ -15,7 +16,6 @@ from accounts.models import (
     CoachExercisePreference,
     CoachNutritionTemplate,
     CoachProfile,
-    CoachSupplementTemplate,
     Exercise,
     ExerciseAlias,
     ExerciseHistoricalUsage,
@@ -52,13 +52,6 @@ PRIORITY_ORDER: list[str] = [
     "historical_usage_signal",
     "deterministic_tie_break",
 ]
-
-FALLBACK_MAIN_EXERCISES: dict[str, list[str]] = {
-    "پا": ["پرس پا", "ددلیفت رومانیایی", "جلوپا دستگاه"],
-    "سینه": ["پرس سینه هالتر", "پرس بالا سینه دمبل", "کراس اور"],
-    "سرشانه": ["نشر جانب دمبل", "پرس سرشانه دستگاه", "فیس پول"],
-    "زیربغل": ["لت سیم کش", "روئینگ دستگاه", "بارفیکس کمکی"],
-}
 
 # Map English / product codes → Persian muscle / exercise labels used in Coach.docx fixtures.
 MUSCLE_ALIASES: dict[str, str] = {
@@ -196,24 +189,6 @@ def _snapshot_template_meals(template: CoachNutritionTemplate) -> list[dict]:
                 "title": slot.get_slot_key_display(),
                 "notes": (chosen.notes if chosen is not None else "") or "",
                 "foods": foods,
-            }
-        )
-    return out
-
-
-def _snapshot_template_items(template: CoachSupplementTemplate) -> list[dict]:
-    out: list[dict] = []
-    for item in template.items.order_by("sort_order", "name"):
-        out.append(
-            {
-                "id": str(item.id),
-                "order": item.sort_order,
-                "name": item.name,
-                "amount": item.normalized_amount or item.quantity_text,
-                "timing": item.timing,
-                "instructions": item.instructions,
-                "warnings": item.warnings,
-                "notes": "",
             }
         )
     return out
@@ -377,8 +352,10 @@ def build_input_snapshot(
     request: dict,
 ) -> dict:
     rules = get_coach_rules_aggregate(coach)
+    quick_mode = request.get("template_mode") == "quick"
     return {
         "generator_version": GENERATOR_VERSION,
+        "generation_mode": "quick" if quick_mode else "template",
         "request": request,
         "student": {
             "id": str(student.id),
@@ -388,24 +365,38 @@ def build_input_snapshot(
             "injuries": student.injuries or {},
             "training_background": student.training_background or {},
             "training_conditions": student.training_conditions or {},
+            "equipment": student.equipment or {},
         },
         "visit": (
             {
                 "id": str(visit.id),
                 "visit_date": visit.visit_date.isoformat(),
                 "current_weight_kg": str(visit.current_weight_kg),
+                "answers": visit.answers or {},
+                "form_template_snapshot": visit.form_template_snapshot or {},
+                "program_settings": visit.program_settings or {},
             }
             if visit
             else None
         ),
         "template": {
-            "id": str(template.id),
-            "name": template.name,
+            "id": None if quick_mode else str(template.id),
+            "name": "بدون قالب؛ تنظیم سریع" if quick_mode else template.name,
             "level": template.level,
             "days_per_week": template.days_per_week,
             "split": list(template.split or []),
             "muscle_priority_order": list(template.muscle_priority_order or []),
+            "execution_plan": template.execution_plan or {},
         },
+        "quick_settings": (
+            {
+                "session_muscles": request.get("session_muscles") or [],
+                "exercise_variety": request.get("exercise_variety") or "balanced",
+                "training_systems": request.get("training_systems") or [],
+            }
+            if quick_mode
+            else None
+        ),
         "rules_digest": hashlib.sha256(
             json.dumps(rules, ensure_ascii=False, sort_keys=True).encode("utf-8")
         ).hexdigest(),
@@ -433,27 +424,54 @@ def generate_document(
 
     # Unified visit form overlay (in-memory only; never invents "normal" for missing fields).
     context_visit = visit
-    if context_visit is None or not (context_visit.answers or {}):
+    has_explicit_visit_context = bool(request.get("program_request_id") or request.get("visit_id"))
+    if (
+        context_visit is None or not (context_visit.answers or {})
+    ) and not has_explicit_visit_context:
         context_visit = latest_visit_for_generation(student) or visit
     assessment_ctx = build_generation_context_from_visit(context_visit)
+    request_constraints = request.get("program_request_constraints") or {}
+    request_conditions = deepcopy(student.training_conditions or {})
+    request_equipment = deepcopy(student.equipment or {})
+    if "training_environment" in request_constraints:
+        environment = request_constraints["training_environment"]
+        if environment:
+            request_conditions["environment"] = environment
+        else:
+            request_conditions.pop("environment", None)
+    if "session_duration_minutes" in request_constraints:
+        duration = request_constraints["session_duration_minutes"]
+        if duration is None:
+            request_conditions.pop("session_duration_minutes", None)
+        else:
+            request_conditions["session_duration_minutes"] = duration
+    if "equipment_available" in request_constraints:
+        request_equipment["available_equipment"] = list(
+            request_constraints["equipment_available"] or []
+        )
     merged = merge_student_with_assessment(
         student_goals=student.goals or {},
         student_injuries=student.injuries or {},
         student_training_background=student.training_background or {},
-        student_training_conditions=student.training_conditions or {},
+        student_training_conditions=request_conditions,
+        student_equipment=request_equipment,
         assessment_ctx=assessment_ctx,
     )
     orig_goals = student.goals
+    if "muscle_priorities" in request:
+        merged["goals"]["muscle_priorities"] = list(request["muscle_priorities"])
     orig_injuries = student.injuries
     orig_bg = student.training_background
     orig_cond = student.training_conditions
+    orig_equipment = student.equipment
     student.goals = merged["goals"]
     student.injuries = merged["injuries"]
     student.training_background = merged["training_background"]
     student.training_conditions = merged["training_conditions"]
+    student.equipment = merged["equipment"]
 
     try:
-        return _generate_document_body(
+        document, document_warnings = _generate_document_body(
             coach=coach,
             student=student,
             visit=visit,
@@ -464,11 +482,35 @@ def generate_document(
             assessment_evidence=merged.get("evidence") or {},
             assessment_ctx=assessment_ctx,
         )
+        items = [
+            item
+            for day in (document.get("training") or {}).get("days", [])
+            for item in day.get("exercises", [])
+        ]
+        catalog = {
+            str(row.id): row
+            for row in Exercise.objects.select_related("media_asset").filter(
+                coach=coach,
+                id__in=[item["exercise_id"] for item in items if item.get("exercise_id")],
+            )
+        }
+        for item in items:
+            source = catalog.get(str(item.get("exercise_id")))
+            if source:
+                item["tutorial_url"] = ""
+                item["tutorial_source_url"] = ""
+                item["execution_guide"] = source.execution_guide
+                item["primary_muscle"] = source.primary_muscle
+                from accounts.exercise_media_services import media_payload
+
+                item["media"] = media_payload(source)
+        return document, document_warnings
     finally:
         student.goals = orig_goals
         student.injuries = orig_injuries
         student.training_background = orig_bg
         student.training_conditions = orig_cond
+        student.equipment = orig_equipment
 
 
 def _generate_document_body(
@@ -540,9 +582,16 @@ def _generate_document_body(
         )
 
     program_type = str(request.get("program_type") or "complete")
-    include_training = program_type in {"workout", "complete"}
-    include_nutrition = program_type in {"nutrition", "complete"}
-    include_supplements = program_type in {"supplement", "complete"}
+    requested_sections = request.get("program_sections")
+    if isinstance(requested_sections, list) and requested_sections:
+        requested_sections = {str(section) for section in requested_sections}
+        include_training = "workout" in requested_sections
+        include_nutrition = "nutrition" in requested_sections
+        include_supplements = "supplement" in requested_sections
+    else:
+        include_training = program_type in {"workout", "complete"}
+        include_nutrition = program_type in {"nutrition", "complete"}
+        include_supplements = program_type in {"supplement", "complete"}
     if request.get("include_training") is False:
         include_training = False
     if request.get("include_nutrition") is False:
@@ -558,6 +607,27 @@ def _generate_document_body(
     apply_muscle = bool(request.get("apply_muscle_priority_rules", True))
     apply_catalog = bool(request.get("apply_exercise_catalog", True))
     apply_general = bool(request.get("apply_general_rules", True))
+    if template.execution_plan:
+        from rest_framework.exceptions import ValidationError
+
+        if request.get("training_systems") or any(
+            request.get(key) for key in ("target_muscle", "target_region", "exercise_count")
+        ):
+            raise ValidationError(
+                {
+                    "execution_plan": [
+                        "در این قالب، حرکت‌ها و سیستم‌ها از بلوک‌های قالب تعیین می‌شوند؛ تنظیمات موازی را حذف کنید."
+                    ]
+                }
+            )
+        if not apply_injury or not apply_level or not apply_catalog:
+            raise ValidationError(
+                {
+                    "execution_plan": [
+                        "در قالب ساختاریافته، فیلتر آسیب، سطح و کاتالوگ باید فعال باشد."
+                    ]
+                }
+            )
 
     title = str(request.get("title") or f"برنامه {template.name}").strip()
     duration_weeks = int(request.get("duration_weeks") or 4)
@@ -586,6 +656,17 @@ def _generate_document_body(
                 if request.get("exercise_count") is not None
                 else None
             ),
+            selected_training_systems=(
+                request.get("training_systems") if "training_systems" in request else None
+            ),
+            exercise_variety=(
+                str(request.get("exercise_variety") or "balanced")
+                if request.get("template_mode") == "quick"
+                else "stable"
+            ),
+            selection_seed=str(request.get("seed") or ""),
+            avoid_exercise_names=request.get("avoid_exercise_names"),
+            catalog_only=bool(request.get("catalog_only")),
         )
         warnings.extend(train_warnings)
 
@@ -700,6 +781,10 @@ def _generate_document_body(
         "training_days": days_per_week,
         "weak_muscles": training_evidence.get("weak_muscles", []),
         "priority_muscles": training_evidence.get("priority_muscles", []),
+        "observed_weak_muscles": training_evidence.get("observed_weak_muscles", []),
+        "generation_policy": training_evidence.get("generation_policy", {}),
+        "prescription_version": training_evidence.get("prescription_version"),
+        "weekly_primary_sets": training_evidence.get("weekly_primary_sets", {}),
         "strong_muscles": training_evidence.get("strong_muscles", []),
         "injury_rules_applied": training_evidence.get("injury_rules_applied", []),
         "excluded_injury": training_evidence.get("excluded_injury", []),
@@ -738,6 +823,15 @@ def _generate_document_body(
     document = {
         "title": title,
         "program_type": program_type,
+        "program_sections": [
+            section
+            for section, included in (
+                ("workout", include_training),
+                ("nutrition", include_nutrition),
+                ("supplement", include_supplements),
+            )
+            if included
+        ],
         "date_range_label": date_range_label,
         "training": training,
         "nutrition": nutrition,
@@ -745,8 +839,16 @@ def _generate_document_body(
         "pdf_settings": pdf_settings,
         "generator": {
             "version": GENERATOR_VERSION,
-            "template_id": str(template.id),
-            "template_name": template.name,
+            "template_id": (None if request.get("template_mode") == "quick" else str(template.id)),
+            "template_name": (
+                "بدون قالب؛ تنظیم سریع"
+                if request.get("template_mode") == "quick"
+                else template.name
+            ),
+            "generation_mode": request.get("template_mode") or "template",
+            "exercise_variety": (
+                request.get("exercise_variety") if request.get("template_mode") == "quick" else None
+            ),
             "level": level,
             "days_per_week": days_per_week,
             "warnings": list(warnings),
@@ -845,6 +947,11 @@ def _build_training(
     target_muscle: str = "",
     target_region: str = "",
     target_exercise_count: int | None = None,
+    selected_training_systems: list[dict] | None = None,
+    exercise_variety: str = "stable",
+    selection_seed: str = "",
+    avoid_exercise_names: list[str] | None = None,
+    catalog_only: bool = False,
 ) -> tuple[dict, list[str], dict]:
     warnings: list[str] = []
     rule_set = ensure_rule_set(coach)
@@ -976,11 +1083,23 @@ def _build_training(
         target_muscle=target_muscle,
         target_region=target_region,
         target_exercise_count=target_exercise_count,
+        selected_training_systems=selected_training_systems,
+        exercise_variety=exercise_variety,
+        selection_seed=selection_seed,
+        avoid_exercise_names=avoid_exercise_names,
+        catalog_only=catalog_only,
         warnings=warnings,
+    )
+    warnings.extend(
+        item["message"] for item in selection_evidence.get("session_duration_warnings", [])
     )
 
     summary = f"{days_per_week} روز تمرین بر اساس {template.name} و سطح {_level_label(level)}"
     training_evidence = {
+        "observed_weak_muscles": selection_evidence.get("observed_weak_muscles", []),
+        "generation_policy": selection_evidence.get("generation_policy", {}),
+        "prescription_version": selection_evidence.get("prescription_version"),
+        "weekly_primary_sets": selection_evidence.get("weekly_primary_sets", {}),
         "weak_muscles": selection_evidence.get("weak_muscles", []),
         "priority_muscles": selection_evidence.get("priority_muscles", []),
         "strong_muscles": selection_evidence.get("strong_muscles", []),
@@ -1002,6 +1121,13 @@ def _build_training(
         "structured_catalog_selected": selection_evidence.get("structured_catalog_selected", []),
         "structured_catalog_excluded": selection_evidence.get("structured_catalog_excluded", []),
         "techniques": selection_evidence.get("techniques", []),
+        "exercise_variety": exercise_variety,
+        "session_duration_minutes": (student.training_conditions or {}).get(
+            "session_duration_minutes"
+        ),
+        "training_environment": (student.training_conditions or {}).get("environment", ""),
+        "available_equipment": (student.equipment or {}).get("available_equipment", []),
+        "session_duration_estimates": selection_evidence.get("session_duration"),
     }
     return {"summary": summary, "days": days}, warnings, training_evidence
 
@@ -1105,27 +1231,5 @@ def _build_supplements(
             },
         )
 
-    goal = str((student.goals or {}).get("primary_goal") or "")
-    template, reason = _select_reviewed_template(CoachSupplementTemplate, coach, goal)
-    if template is None:
-        warnings.append("no_reviewed_supplement_template")
-        return (
-            base,
-            warnings,
-            {"selected_template_id": None, "selected_template_name": None, "reason": reason},
-        )
-
-    base["enabled"] = True
-    base["items"] = _snapshot_template_items(template)
-    template_name = str(getattr(template, "name", ""))
-    disclaimer = str(getattr(template, "medical_disclaimer", "") or SUPPLEMENT_DISCLAIMER)
-    base["notes"] = f"{disclaimer} بر اساس الگوی «{template_name}»."
-    return (
-        base,
-        warnings,
-        {
-            "selected_template_id": str(getattr(template, "id", "")),
-            "selected_template_name": template_name,
-            "reason": "selected",
-        },
-    )
+    warnings.append("supplement_catalog_selection_required")
+    return base, warnings, {"reason": "explicit_catalog_selection_required"}

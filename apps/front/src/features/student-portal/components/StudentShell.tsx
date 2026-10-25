@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
-import { Activity, ClipboardList, Dumbbell, Home, LogOut, Menu, X } from "lucide-react";
+import { Activity, ClipboardList, Dumbbell, FileText, Home, LogOut, Menu, X } from "lucide-react";
 import { Button, IconButton } from "../../../components/ui";
 import { appConfig } from "../../../app/config/appConfig";
 import { studentPaths } from "../../../app/config/appOrigin";
@@ -11,6 +11,7 @@ import styles from "./studentPortal.module.css";
 const studentNavItems = [
   { end: true, icon: Home, label: "داشبورد", path: studentPaths.dashboard },
   { end: true, icon: Dumbbell, label: "برنامه‌های من", path: studentPaths.programs },
+  { end: true, icon: FileText, label: "درخواست برنامه", path: studentPaths.programRequest },
   { end: true, icon: Activity, label: "بادی چک", path: studentPaths.bodyCheck },
   { end: false, icon: ClipboardList, label: "ویزیت‌های من", path: studentPaths.visits }
 ] as const;
@@ -21,6 +22,9 @@ function titleForPath(pathname: string): string {
   }
   if (pathname.startsWith(studentPaths.programs)) {
     return "برنامه‌های من";
+  }
+  if (pathname.startsWith(studentPaths.programRequest)) {
+    return "درخواست برنامه";
   }
   if (pathname.startsWith(`${studentPaths.visits}/`) && pathname !== studentPaths.visits) {
     return "جزئیات ویزیت";
@@ -100,6 +104,7 @@ export function StudentShell() {
             variant="ghost"
           />
           <p className={styles.headerTitle}>{titleForPath(location.pathname)}</p>
+          <div id="student-workout-tools" className={styles.headerTools} />
         </header>
         <Outlet />
       </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Plus, Save, Trash2 } from "lucide-react";
 import {
@@ -16,8 +16,24 @@ import {
   Textarea
 } from "../../../components/ui";
 import { apiRequest } from "../../../shared/api/client";
+import {
+  CATALOG_PAGE_SIZE,
+  useDebouncedSearch,
+  usePagedList,
+  type ListPage
+} from "../../../shared/api/usePagedList";
+import { PagedListFooter } from "../../../shared/api/PagedListFooter";
 import { exerciseSaveErrorMessage } from "../services/exerciseSaveErrors";
 import { ExerciseTaxonomyManager } from "./ExerciseTaxonomyManager";
+import { ExerciseVideoManager } from "./ExerciseVideoManager";
+import {
+  uploadExerciseVideo,
+  validateExerciseVideo,
+  videoErrorMessage,
+  videoIsPending,
+  videoStatusLabel
+} from "../services/exerciseMedia";
+import type { ExerciseVideoState } from "../services/exerciseMedia";
 import type { ExerciseTaxonomy } from "./exerciseTaxonomyTypes";
 import styles from "../../programs/components/programFlow.module.css";
 
@@ -27,7 +43,10 @@ type ExerciseTarget = {
   role: "primary" | "secondary";
 };
 
-type CatalogExercise = {
+type CatalogExercise = ExerciseVideoState & {
+  tutorial_url?: string;
+  tutorial_source_url?: string;
+  execution_guide?: Record<string, string>;
   id: string;
   name: string;
   name_en: string;
@@ -45,22 +64,16 @@ type CatalogExercise = {
   priority: number;
 };
 
-async function loadCatalogExercises(): Promise<CatalogExercise[]> {
-  const exercises: CatalogExercise[] = [];
-  let hasNextPage = true;
-  while (hasNextPage) {
-    const page = await apiRequest<{ results: CatalogExercise[]; next?: string | null }>(
-      "/exercises/",
-      { query: { limit: 100, offset: exercises.length } }
-    );
-    if (page.next && page.results.length === 0) {
-      throw new Error("Exercise catalog pagination returned an empty intermediate page.");
-    }
-    exercises.push(...page.results);
-    hasNextPage = Boolean(page.next);
-  }
-  return exercises;
-}
+const standardExerciseEquipmentKeys = new Set([
+  "bodyweight",
+  "dumbbell",
+  "barbell",
+  "cable",
+  "machine",
+  "smith_machine",
+  "kettlebell",
+  "resistance_band"
+]);
 
 function normalizeExerciseSearch(value: string): string {
   return value
@@ -71,86 +84,13 @@ function normalizeExerciseSearch(value: string): string {
     .replace(/[\s\u200c\u200d]+/g, "");
 }
 
-type Technique = {
-  id: string | null;
-  key: string;
-  name: string;
-  description: string;
-  execution_method: string;
-  allowed_levels: string[];
-  max_per_session: number;
-  parameters: Record<string, unknown>;
-  enabled: boolean;
-  source: "platform" | "coach_override" | "coach_private";
-  base_technique_key: string | null;
-  handler_key?: string;
-  handler_status: "implemented" | "manual_only";
-  parameter_schema?: Record<string, unknown>;
-  public_definition?: { parameter_schema?: Record<string, unknown> } | null;
-};
-
-const pairingModeOptions = [
-  { value: "same_muscle_isolation", label: "ایزوله‌های هم‌عضله" },
-  { value: "same_muscle", label: "حرکات هم‌عضله" },
-  { value: "antagonist", label: "عضلات مخالف" },
-  { value: "any_eligible", label: "هر دو حرکت مجاز" }
-];
-
-function techniqueHandler(technique: Technique) {
-  return technique.handler_key || technique.base_technique_key || "";
-}
-
-function defaultTechniqueParameters(handler: string): Record<string, unknown> {
-  if (handler === "superset") {
-    return {
-      pairing_mode: "same_muscle_isolation",
-      max_pairs: 1,
-      allow_compound: false,
-      rest_between_exercises_seconds: 0,
-      rest_after_pair_seconds: 90
-    };
-  }
-  if (handler === "drop_set") {
-    return { drops: 1, reduction_percent: 20 };
-  }
-  return {};
-}
-
-function techniqueParameters(technique: Technique) {
-  if (Object.keys(technique.parameters || {}).length > 0) {
-    return technique.parameters;
-  }
-  const schema = technique.parameter_schema || technique.public_definition?.parameter_schema;
-  if (schema) {
-    return Object.fromEntries(
-      Object.entries(schema).flatMap(([key, value]) =>
-        value && typeof value === "object" && "default" in value
-          ? [[key, (value as { default: unknown }).default]]
-          : []
-      )
-    );
-  }
-  return defaultTechniqueParameters(techniqueHandler(technique));
-}
-
-function techniqueLogic(technique: Technique) {
-  const handler = techniqueHandler(technique);
-  const params = techniqueParameters(technique);
-  if (handler === "superset") {
-    const pairing =
-      pairingModeOptions.find((option) => option.value === params.pairing_mode)?.label ||
-      "تعریف نشده";
-    return `جفت‌سازی: ${pairing} · حداکثر جفت: ${String(params.max_pairs ?? 1)} · استراحت بعد از جفت: ${String(params.rest_after_pair_seconds ?? 90)} ثانیه`;
-  }
-  if (handler === "drop_set") {
-    return `${String(params.drops ?? 1)} دراپ · کاهش ${String(params.reduction_percent ?? 20)}٪`;
-  }
-  return "بدون handler خودکار";
-}
-
 type SecondaryTarget = { muscle_key: string; region_key: string };
 
 type ExerciseDraft = {
+  tutorial_url: string;
+  tutorial_source_url: string;
+  execution_guide: Record<string, string>;
+  default_guide: Record<string, string>;
   name: string;
   name_en: string;
   aliases: string;
@@ -169,6 +109,10 @@ type ExerciseDraft = {
 };
 
 const emptyDraft: ExerciseDraft = {
+  tutorial_url: "",
+  tutorial_source_url: "",
+  execution_guide: {},
+  default_guide: {},
   name: "",
   name_en: "",
   aliases: "",
@@ -198,6 +142,18 @@ function exerciseFromRow(row: CatalogExercise, taxonomy: ExerciseTaxonomy): Exer
   const secondary = row.targets.filter((target) => target.role === "secondary");
   return {
     ...emptyDraft,
+    tutorial_url: row.tutorial_url ?? "",
+    tutorial_source_url: row.tutorial_source_url ?? "",
+    execution_guide: row.execution_guide ?? {},
+    default_guide: {
+      execution: (row.media?.education.steps ?? [])
+        .map((step) => [step.title, step.text].filter(Boolean).join(": "))
+        .join("\n"),
+      tips: (row.media?.education.tips ?? []).join("\n"),
+      mistakes: (row.media?.education.mistakes ?? [])
+        .map((mistake) => [mistake.title, mistake.text].filter(Boolean).join(": "))
+        .join("\n")
+    },
     aliases: row.aliases.join(", "),
     coach_notes: row.coach_notes,
     equipment_keys: row.equipment_keys,
@@ -240,6 +196,7 @@ function exercisePayload(draft: ExerciseDraft) {
     equipment_keys: draft.equipment_keys,
     movement_pattern: draft.movement_pattern,
     source_document: draft.source_document,
+    execution_guide: draft.execution_guide,
     coach_notes: draft.coach_notes,
     is_preferred: draft.is_preferred,
     is_prohibited: draft.is_prohibited,
@@ -250,76 +207,94 @@ function exercisePayload(draft: ExerciseDraft) {
 
 export function StructuredCatalogSection() {
   const [taxonomy, setTaxonomy] = useState<ExerciseTaxonomy>();
-  const [exercises, setExercises] = useState<CatalogExercise[]>([]);
-  const [techniques, setTechniques] = useState<Technique[]>([]);
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft);
   const [editingId, setEditingId] = useState<string>();
-  const [techniqueDraft, setTechniqueDraft] = useState<Technique>();
-  const [techniqueBaseline, setTechniqueBaseline] = useState<Technique>();
   const [exerciseEditorOpen, setExerciseEditorOpen] = useState(false);
   const [exerciseBaseline, setExerciseBaseline] = useState<ExerciseDraft>(emptyDraft);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({ equipment: "", level: "", muscle: "", region: "" });
+  const debouncedSearch = useDebouncedSearch(search);
+  const pages = usePagedList<CatalogExercise>(
+    (offset, signal) =>
+      apiRequest<ListPage<CatalogExercise>>("/exercises/", {
+        signal,
+        query: { limit: CATALOG_PAGE_SIZE, offset, search: debouncedSearch, ...filters }
+      }),
+    JSON.stringify([debouncedSearch, filters])
+  );
+  const { items: exercises, setItems: setExercises } = pages;
+  const visibleExercises = exercises;
   const [feedback, setFeedback] = useState("");
   const [isSavingExercise, setIsSavingExercise] = useState(false);
+  const [videoEditorId, setVideoEditorId] = useState<string>();
+  const [videoBusy, setVideoBusy] = useState(false);
+  const [videoPollError, setVideoPollError] = useState("");
+  const [newVideoFile, setNewVideoFile] = useState<File>();
+  const [newVideoProgress, setNewVideoProgress] = useState(0);
   const exerciseErrorRef = useRef<HTMLDivElement>(null);
+  const updateVideo = useCallback(
+    (id: string, state: ExerciseVideoState) => {
+      setExercises((current) => current.map((row) => (row.id === id ? { ...row, ...state } : row)));
+    },
+    [setExercises]
+  );
+  const pendingVideoIds = exercises
+    .filter(videoIsPending)
+    .map((row) => row.id)
+    .join(",");
+  useEffect(() => {
+    if (!pendingVideoIds) return undefined;
+    const controller = new AbortController();
+    let polling = false;
+    const poll = async () => {
+      if (polling) return;
+      polling = true;
+      try {
+        const values = await Promise.all(
+          pendingVideoIds.split(",").map(async (id) => ({
+            id,
+            value: await apiRequest<ExerciseVideoState>(`/exercises/${id}/media/`, {
+              signal: controller.signal
+            })
+          }))
+        );
+        if (!controller.signal.aborted) {
+          values.forEach(({ id, value }) => updateVideo(id, value));
+          setVideoPollError("");
+        }
+      } catch (error) {
+        if (!controller.signal.aborted)
+          setVideoPollError(`دریافت وضعیت ویدئو انجام نشد. ${videoErrorMessage(error)}`);
+      } finally {
+        polling = false;
+      }
+    };
+    const interval = window.setInterval(() => void poll(), 3000);
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+    };
+  }, [pendingVideoIds, updateVideo]);
 
   useEffect(() => {
     if (exerciseEditorOpen && feedback) exerciseErrorRef.current?.focus();
   }, [exerciseEditorOpen, feedback]);
 
-  const load = async () => {
-    return Promise.all([
-      apiRequest<ExerciseTaxonomy>("/exercise-taxonomy/", {
-        query: { include_inactive: true }
-      }),
-      loadCatalogExercises(),
-      apiRequest<Technique[]>("/training-techniques/")
-    ]);
-  };
-
   useEffect(() => {
-    void load()
-      .then(([taxonomyDto, exerciseDto, techniqueDto]) => {
-        setTaxonomy(taxonomyDto);
-        setExercises(exerciseDto);
-        setTechniques(techniqueDto);
-      })
-      .catch(() => setFeedback("دریافت کاتالوگ انجام نشد."));
+    const controller = new AbortController();
+    apiRequest<ExerciseTaxonomy>("/exercise-taxonomy/", {
+      signal: controller.signal,
+      query: { include_inactive: true }
+    }).then(
+      (value) => {
+        if (!controller.signal.aborted) setTaxonomy(value);
+      },
+      () => {
+        if (!controller.signal.aborted) setFeedback("دریافت کاتالوگ انجام نشد.");
+      }
+    );
+    return () => controller.abort();
   }, []);
-
-  const visibleExercises = useMemo(
-    () =>
-      exercises.filter((exercise) => {
-        const targetLabels = exercise.targets.flatMap((target) => {
-          const muscle = taxonomy?.muscles.find((item) => item.key === target.muscle_key);
-          const region = muscle?.regions.find((item) => item.key === target.region_key);
-          return [
-            muscle?.name || "",
-            muscle?.name_en || "",
-            region?.name || "",
-            region?.name_en || ""
-          ];
-        });
-        const haystack = normalizeExerciseSearch(
-          [exercise.name, exercise.name_en, ...exercise.aliases, ...targetLabels].join(" ")
-        );
-        const matchesSearch = haystack.includes(normalizeExerciseSearch(search));
-        const matchesMuscle =
-          !filters.muscle ||
-          exercise.targets.some((target) => target.muscle_key === filters.muscle);
-        const matchesRegion =
-          !filters.region ||
-          exercise.targets.some(
-            (target) => `${target.muscle_key}:${target.region_key || ""}` === filters.region
-          );
-        const matchesLevel = !filters.level || exercise.levels.includes(filters.level);
-        const matchesEquipment =
-          !filters.equipment || exercise.equipment_keys.includes(filters.equipment);
-        return matchesSearch && matchesMuscle && matchesRegion && matchesLevel && matchesEquipment;
-      }),
-    [exercises, filters, search, taxonomy]
-  );
 
   if (!taxonomy) {
     return (
@@ -372,8 +347,12 @@ export function StructuredCatalogSection() {
         disabled: region.is_active === false
       }));
   };
+  const exerciseEquipmentOptions = editingId
+    ? taxonomy.equipment
+    : taxonomy.equipment.filter((equipment) => standardExerciseEquipmentKeys.has(equipment.key));
 
   const saveExercise = async () => {
+    if (videoBusy) return;
     setFeedback("");
     const duplicate = exercises.some(
       (exercise) =>
@@ -401,10 +380,27 @@ export function StructuredCatalogSection() {
       setExercises((current) =>
         editingId ? current.map((item) => (item.id === dto.id ? dto : item)) : [dto, ...current]
       );
+      if (newVideoFile) {
+        try {
+          updateVideo(dto.id, await uploadExerciseVideo(dto.id, newVideoFile, setNewVideoProgress));
+        } catch (error) {
+          const savedDraft = exerciseFromRow(dto, taxonomy);
+          setEditingId(dto.id);
+          setDraft(savedDraft);
+          setExerciseBaseline(savedDraft);
+          setNewVideoFile(undefined);
+          setFeedback(
+            `حرکت ذخیره شد، اما ویدئو ارسال نشد. ${videoErrorMessage(error)} از بخش ویدئو دوباره انتخاب کنید.`
+          );
+          return;
+        }
+      }
+      setNewVideoFile(undefined);
       setDraft(emptyDraft);
       setEditingId(undefined);
       setExerciseEditorOpen(false);
       setFeedback("حرکت ذخیره شد.");
+      pages.reload();
     } catch (error) {
       setFeedback(exerciseSaveErrorMessage(error));
     } finally {
@@ -417,12 +413,15 @@ export function StructuredCatalogSection() {
       await apiRequest(`/exercises/${id}/`, { method: "DELETE" });
       setExercises((current) => current.filter((item) => item.id !== id));
       setFeedback("حرکت آرشیو شد.");
+      pages.reload();
     } catch {
       setFeedback("آرشیو حرکت انجام نشد.");
     }
   };
 
   const startNewExercise = () => {
+    setNewVideoFile(undefined);
+    setNewVideoProgress(0);
     setFeedback("");
     setDraft(emptyDraft);
     setEditingId(undefined);
@@ -431,6 +430,7 @@ export function StructuredCatalogSection() {
   };
 
   const startEditingExercise = (row: CatalogExercise) => {
+    setNewVideoFile(undefined);
     setFeedback("");
     const nextDraft = exerciseFromRow(row, taxonomy);
     setEditingId(row.id);
@@ -440,84 +440,11 @@ export function StructuredCatalogSection() {
   };
 
   const closeExerciseEditor = () => {
+    if (videoBusy || isSavingExercise) return;
     setExerciseEditorOpen(false);
     setEditingId(undefined);
     setDraft(emptyDraft);
-  };
-
-  const startEditingTechnique = (row: Technique) => {
-    const nextDraft = { ...row, parameters: techniqueParameters(row) };
-    setTechniqueBaseline(nextDraft);
-    setTechniqueDraft(nextDraft);
-  };
-
-  const closeTechniqueEditor = () => {
-    setTechniqueDraft(undefined);
-    setTechniqueBaseline(undefined);
-  };
-
-  const saveTechnique = async () => {
-    if (!techniqueDraft) return;
-    const payload = {
-      key: techniqueDraft.key,
-      name: techniqueDraft.name,
-      description: techniqueDraft.description,
-      execution_method: techniqueDraft.execution_method,
-      allowed_levels: techniqueDraft.allowed_levels,
-      max_per_session: techniqueDraft.max_per_session,
-      parameters: techniqueDraft.parameters,
-      enabled: techniqueDraft.enabled,
-      base_technique_key: techniqueDraft.base_technique_key
-    };
-    try {
-      const dto = await apiRequest<Technique>(
-        techniqueDraft.id ? `/training-techniques/${techniqueDraft.id}/` : "/training-techniques/",
-        {
-          body: payload,
-          method: techniqueDraft.id ? "PATCH" : "POST"
-        }
-      );
-      setTechniques((current) => {
-        const exists = current.some((item) => item.id === dto.id);
-        return exists
-          ? current.map((item) => (item.id === dto.id ? dto : item))
-          : [...current, dto];
-      });
-      closeTechniqueEditor();
-      setFeedback("تنظیم تکنیک ذخیره شد.");
-    } catch {
-      setFeedback("ذخیره تکنیک انجام نشد.");
-    }
-  };
-
-  const deleteTechnique = async (id: string) => {
-    try {
-      await apiRequest(`/training-techniques/${id}/`, { method: "DELETE" });
-      setTechniques((current) => current.filter((item) => item.id !== id));
-      closeTechniqueEditor();
-      setFeedback("تکنیک اختصاصی حذف شد.");
-    } catch {
-      setFeedback("حذف تکنیک انجام نشد.");
-    }
-  };
-
-  const startNewTechnique = () => {
-    const nextDraft: Technique = {
-      id: null,
-      key: "custom-technique",
-      name: "",
-      description: "",
-      execution_method: "",
-      allowed_levels: [],
-      max_per_session: 0,
-      parameters: {},
-      enabled: true,
-      source: "coach_private",
-      base_technique_key: null,
-      handler_status: "manual_only"
-    };
-    setTechniqueBaseline(nextDraft);
-    setTechniqueDraft(nextDraft);
+    setNewVideoFile(undefined);
   };
 
   return (
@@ -531,6 +458,11 @@ export function StructuredCatalogSection() {
         </div>
       ) : null}
       <Card className={styles.pageStack}>
+        {videoPollError ? (
+          <p className={styles.alertError} role="alert">
+            {videoPollError}
+          </p>
+        ) : null}
         <div className={styles.ruleCardHeader}>
           <div>
             <h2 className={styles.ruleCardTitle}>کاتالوگ حرکات</h2>
@@ -633,6 +565,23 @@ export function StructuredCatalogSection() {
                 )
               },
               {
+                id: "video",
+                header: "ویدئو",
+                cell: (row) => (
+                  <div className={styles.pageStack}>
+                    <small>{videoStatusLabel(row)}</small>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      aria-label={`ویدئوی ${row.name}`}
+                      onClick={() => setVideoEditorId(row.id)}
+                    >
+                      {row.media ? "مدیریت ویدئو" : "آپلود ویدئو"}
+                    </Button>
+                  </div>
+                )
+              },
+              {
                 id: "actions",
                 header: "عملیات",
                 cell: (row) => (
@@ -682,6 +631,12 @@ export function StructuredCatalogSection() {
                 <span>تجهیزات: {row.equipment_keys.join("، ") || "ثبت نشده"}</span>
               </div>
               <div className={styles.mobileCatalogActions}>
+                <div className={styles.fullField}>
+                  <small>{videoStatusLabel(row)}</small>
+                  <Button fullWidth onClick={() => setVideoEditorId(row.id)} variant="secondary">
+                    {row.media ? "مدیریت ویدئو" : "آپلود ویدئو"}
+                  </Button>
+                </div>
                 <Button fullWidth onClick={() => startEditingExercise(row)} variant="secondary">
                   ویرایش
                 </Button>
@@ -697,7 +652,36 @@ export function StructuredCatalogSection() {
             </article>
           ))}
         </div>
+        <PagedListFooter {...pages} />
       </Card>
+
+      {videoEditorId ? (
+        <EditorDrawer
+          open
+          title={`ویدئوی ${exercises.find((row) => row.id === videoEditorId)?.name || "حرکت"}`}
+          onClose={() => {
+            if (!videoBusy) setVideoEditorId(undefined);
+          }}
+          footer={
+            <Button
+              disabled={videoBusy}
+              onClick={() => setVideoEditorId(undefined)}
+              variant="secondary"
+            >
+              بستن
+            </Button>
+          }
+        >
+          <ExerciseVideoManager
+            key={videoEditorId}
+            exerciseId={videoEditorId}
+            name={exercises.find((row) => row.id === videoEditorId)?.name || "حرکت"}
+            state={exercises.find((row) => row.id === videoEditorId) || {}}
+            onChange={updateVideo}
+            onBusyChange={setVideoBusy}
+          />
+        </EditorDrawer>
+      ) : null}
 
       <EditorDrawer
         footer={(requestClose) => (
@@ -705,6 +689,7 @@ export function StructuredCatalogSection() {
             <Button
               iconStart={<Save size={17} />}
               isLoading={isSavingExercise}
+              disabled={videoBusy}
               onClick={() => void saveExercise()}
             >
               ذخیره حرکت
@@ -714,7 +699,9 @@ export function StructuredCatalogSection() {
             </Button>
           </>
         )}
-        hasUnsavedChanges={JSON.stringify(draft) !== JSON.stringify(exerciseBaseline)}
+        hasUnsavedChanges={
+          Boolean(newVideoFile) || JSON.stringify(draft) !== JSON.stringify(exerciseBaseline)
+        }
         onClose={closeExerciseEditor}
         open={exerciseEditorOpen}
         title={editingId ? "ویرایش حرکت" : "حرکت جدید"}
@@ -791,7 +778,7 @@ export function StructuredCatalogSection() {
             </div>
             <div className={styles.fullField}>
               <strong>تجهیزات</strong>
-              {taxonomy.equipment.map((equipment) => (
+              {exerciseEquipmentOptions.map((equipment) => (
                 <Checkbox
                   key={equipment.key}
                   checked={draft.equipment_keys.includes(equipment.key)}
@@ -813,6 +800,67 @@ export function StructuredCatalogSection() {
                 onChange={(event) => setDraft({ ...draft, source_document: event.target.value })}
               />
             </FormField>
+            <div className={styles.fullField}>
+              {editingId ? (
+                <ExerciseVideoManager
+                  key={editingId}
+                  exerciseId={editingId}
+                  name={draft.name}
+                  state={exercises.find((row) => row.id === editingId) || {}}
+                  onChange={updateVideo}
+                  onBusyChange={setVideoBusy}
+                />
+              ) : (
+                <FormField
+                  label="ویدئوی آموزش حرکت — اختیاری"
+                  htmlFor="new-exercise-video"
+                  hint="فقط ویدئوی اصلی؛ پوستر و پیش‌نمایش خودکار ساخته می‌شوند. حداکثر ۱۰۰ مگابایت و دو دقیقه."
+                >
+                  <Input
+                    id="new-exercise-video"
+                    accept="video/mp4,video/quicktime,.mp4,.mov"
+                    type="file"
+                    disabled={isSavingExercise}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      const error = file ? validateExerciseVideo(file) : "";
+                      setFeedback(error);
+                      setNewVideoFile(error ? undefined : file);
+                    }}
+                  />
+                  {isSavingExercise && newVideoFile ? (
+                    <progress aria-label="پیشرفت ارسال ویدئو" max={100} value={newVideoProgress} />
+                  ) : null}
+                </FormField>
+              )}
+            </div>
+            {(
+              [
+                ["execution", "اجرای درست"],
+                ["tips", "نکات مهم"],
+                ["mistakes", "اشتباهات رایج"]
+              ] as const
+            ).map(([key, label]) => (
+              <FormField
+                key={key}
+                className={styles.fullField}
+                label={label}
+                htmlFor={`exercise-guide-${key}`}
+                hint="برای شاگرد نمایش داده می‌شود؛ هر مورد را در یک خط بنویسید. پاک‌کردن متن این بخش، آموزش پیش‌فرض آن را هم پنهان می‌کند."
+              >
+                <Textarea
+                  id={`exercise-guide-${key}`}
+                  maxLength={4000}
+                  value={draft.execution_guide[key] ?? draft.default_guide[key] ?? ""}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      execution_guide: { ...draft.execution_guide, [key]: event.target.value }
+                    })
+                  }
+                />
+              </FormField>
+            ))}
             <FormField label="اولویت">
               <Input
                 min={0}
@@ -821,8 +869,13 @@ export function StructuredCatalogSection() {
                 onChange={(event) => setDraft({ ...draft, priority: Number(event.target.value) })}
               />
             </FormField>
-            <FormField className={styles.fullField} label="توضیح مربی">
+            <FormField
+              className={styles.fullField}
+              label="توضیح مربی"
+              htmlFor="exercise-coach-notes"
+            >
               <Textarea
+                id="exercise-coach-notes"
                 value={draft.coach_notes}
                 onChange={(event) => setDraft({ ...draft, coach_notes: event.target.value })}
               />
@@ -845,402 +898,7 @@ export function StructuredCatalogSection() {
           </div>
         </div>
       </EditorDrawer>
-
-      <TechniquesSection
-        techniques={techniques}
-        onEdit={startEditingTechnique}
-        onDelete={(id) => void deleteTechnique(id)}
-        onCreate={startNewTechnique}
-      />
-      {techniqueDraft ? (
-        <EditorDrawer
-          footer={(requestClose) => (
-            <>
-              <Button iconStart={<Save size={17} />} onClick={() => void saveTechnique()}>
-                ذخیره تکنیک
-              </Button>
-              <Button onClick={requestClose} variant="secondary">
-                انصراف
-              </Button>
-            </>
-          )}
-          hasUnsavedChanges={JSON.stringify(techniqueDraft) !== JSON.stringify(techniqueBaseline)}
-          onClose={closeTechniqueEditor}
-          open
-          title={
-            techniqueDraft.base_technique_key
-              ? "تنظیم تکنیک عمومی"
-              : techniqueDraft.id
-                ? "ویرایش تکنیک"
-                : "تکنیک خصوصی جدید"
-          }
-        >
-          {feedback ? (
-            <div className={styles.alertError} role="status">
-              {feedback}
-            </div>
-          ) : null}
-          <TechniqueEditor
-            draft={techniqueDraft}
-            levels={taxonomy.levels}
-            publicTechniques={techniques.filter((item) => item.source === "platform")}
-            onChange={setTechniqueDraft}
-          />
-        </EditorDrawer>
-      ) : null}
     </StackLike>
-  );
-}
-
-function TechniquesSection({
-  techniques,
-  onCreate,
-  onEdit,
-  onDelete
-}: {
-  techniques: Technique[];
-  onCreate: () => void;
-  onEdit: (technique: Technique) => void;
-  onDelete: (id: string) => void;
-}) {
-  return (
-    <Card className={styles.pageStack}>
-      <div className={styles.ruleCardHeader}>
-        <div>
-          <h2 className={styles.ruleCardTitle}>تکنیک‌های تمرینی</h2>
-          <p>
-            منطق اجرایی عمومی اینجا دیده می‌شود. با «تنظیم برای من» پارامترهای خودت را تعریف کن؛
-            تکنیک بدون handler فقط ذخیره می‌شود.
-          </p>
-        </div>
-        <Button iconStart={<Plus size={18} />} onClick={onCreate}>
-          تکنیک خصوصی
-        </Button>
-      </div>
-      <div className={styles.catalogTable}>
-        <Table
-          ariaLabel="تکنیک‌های تمرینی"
-          data={techniques}
-          getRowKey={(row) => row.id || row.key}
-          columns={[
-            {
-              id: "name",
-              header: "تکنیک",
-              cell: (row) => (
-                <>
-                  <strong>{row.name}</strong>
-                  <br />
-                  <small>{row.key}</small>
-                  <br />
-                  <small>{row.description || "بدون توضیح"}</small>
-                </>
-              )
-            },
-            {
-              id: "logic",
-              header: "منطق فعلی",
-              cell: (row) => <small>{techniqueLogic(row)}</small>
-            },
-            {
-              id: "source",
-              header: "منبع",
-              cell: (row) =>
-                row.source === "platform"
-                  ? "عمومی"
-                  : row.source === "coach_override"
-                    ? "تنظیم مربی"
-                    : "خصوصی مربی"
-            },
-            {
-              id: "handler",
-              header: "اجرا",
-              cell: (row) => (
-                <StatusBadge variant={row.handler_status === "implemented" ? "success" : "warning"}>
-                  {row.handler_status === "implemented" ? "قابل اجرا" : "فقط ذخیره اطلاعات"}
-                </StatusBadge>
-              )
-            },
-            {
-              id: "enabled",
-              header: "وضعیت",
-              cell: (row) =>
-                row.source === "platform" ? "پیکربندی نشده" : row.enabled ? "فعال" : "غیرفعال"
-            },
-            {
-              id: "action",
-              header: "عملیات",
-              cell: (row) =>
-                row.source === "platform" ? (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => onEdit({ ...row, name: row.name, base_technique_key: row.key })}
-                  >
-                    تنظیم برای من
-                  </Button>
-                ) : (
-                  <div className={styles.actionIconGroup}>
-                    <Button size="sm" variant="secondary" onClick={() => onEdit(row)}>
-                      ویرایش
-                    </Button>
-                    {row.id ? (
-                      <Button size="sm" variant="danger" onClick={() => onDelete(row.id as string)}>
-                        حذف
-                      </Button>
-                    ) : null}
-                  </div>
-                )
-            }
-          ]}
-        />
-      </div>
-      <div className={styles.mobileCatalogList}>
-        {techniques.map((row) => (
-          <article className={styles.mobileCatalogCard} key={row.id || row.key}>
-            <div className={styles.mobileCatalogHeader}>
-              <div>
-                <strong>{row.name}</strong>
-                <small>{row.key}</small>
-              </div>
-              <StatusBadge variant={row.handler_status === "implemented" ? "success" : "warning"}>
-                {row.handler_status === "implemented" ? "قابل اجرا" : "فقط ذخیره اطلاعات"}
-              </StatusBadge>
-            </div>
-            <div className={styles.mobileCatalogMeta}>
-              <span>{techniqueLogic(row)}</span>
-              <span>
-                منبع:{" "}
-                {row.source === "platform"
-                  ? "عمومی"
-                  : row.source === "coach_override"
-                    ? "تنظیم مربی"
-                    : "خصوصی مربی"}
-              </span>
-              <span>
-                وضعیت:{" "}
-                {row.source === "platform" ? "پیکربندی نشده" : row.enabled ? "فعال" : "غیرفعال"}
-              </span>
-            </div>
-            <div className={styles.mobileCatalogActions}>
-              {row.source === "platform" ? (
-                <Button
-                  fullWidth
-                  onClick={() => onEdit({ ...row, name: row.name, base_technique_key: row.key })}
-                  variant="secondary"
-                >
-                  تنظیم برای من
-                </Button>
-              ) : (
-                <>
-                  <Button fullWidth onClick={() => onEdit(row)} variant="secondary">
-                    ویرایش
-                  </Button>
-                  {row.id ? (
-                    <Button fullWidth onClick={() => onDelete(row.id as string)} variant="danger">
-                      حذف
-                    </Button>
-                  ) : null}
-                </>
-              )}
-            </div>
-          </article>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function TechniqueEditor({
-  draft,
-  levels,
-  publicTechniques,
-  onChange
-}: {
-  draft: Technique;
-  levels: Array<{ key: string; name: string }>;
-  publicTechniques: Technique[];
-  onChange: (draft: Technique) => void;
-}) {
-  const handler = techniqueHandler(draft);
-  const setParameter = (key: string, value: unknown) =>
-    onChange({ ...draft, parameters: { ...draft.parameters, [key]: value } });
-  const selectHandler = (value: string) =>
-    onChange({
-      ...draft,
-      base_technique_key: value || null,
-      handler_key: value || undefined,
-      handler_status: value ? "implemented" : "manual_only",
-      parameters: defaultTechniqueParameters(value)
-    });
-  return (
-    <Card className={styles.pageStack}>
-      <h2 className={styles.ruleCardTitle}>
-        {draft.base_technique_key ? "تنظیم تکنیک عمومی" : "تکنیک خصوصی جدید"}
-      </h2>
-      <div className={styles.formGrid}>
-        <FormField label="کلید">
-          <Input
-            disabled={Boolean(draft.id || draft.base_technique_key)}
-            value={draft.key}
-            onChange={(event) => onChange({ ...draft, key: event.target.value })}
-          />
-        </FormField>
-        <FormField label="نام">
-          <Input
-            value={draft.name}
-            onChange={(event) => onChange({ ...draft, name: event.target.value })}
-          />
-        </FormField>
-        <FormField label="نوع اجرای خودکار" hint="برای اجرای واقعی یک handler انتخاب کن">
-          <Select
-            disabled={Boolean(draft.base_technique_key)}
-            options={[
-              { value: "", label: "فقط ذخیره اطلاعات" },
-              ...publicTechniques
-                .filter((item) => item.handler_key)
-                .map((item) => ({ value: item.key, label: `${item.name} · ${item.key}` }))
-            ]}
-            value={handler}
-            onChange={(event) => selectHandler(event.target.value)}
-            placeholder="انتخاب handler"
-          />
-        </FormField>
-        <FormField className={styles.fullField} label="توضیح">
-          <Textarea
-            value={draft.description}
-            onChange={(event) => onChange({ ...draft, description: event.target.value })}
-          />
-        </FormField>
-        <FormField className={styles.fullField} label="روش اجرا">
-          <Textarea
-            value={draft.execution_method}
-            onChange={(event) => onChange({ ...draft, execution_method: event.target.value })}
-          />
-        </FormField>
-        <FormField label="حداکثر در هر جلسه">
-          <Input
-            min={0}
-            type="number"
-            value={draft.max_per_session}
-            onChange={(event) =>
-              onChange({ ...draft, max_per_session: Number(event.target.value) })
-            }
-          />
-        </FormField>
-        {handler === "superset" ? (
-          <>
-            <FormField label="روش جفت‌سازی">
-              <Select
-                options={pairingModeOptions}
-                value={String(draft.parameters.pairing_mode || "same_muscle_isolation")}
-                onChange={(event) => setParameter("pairing_mode", event.target.value)}
-              />
-            </FormField>
-            <FormField label="حداکثر جفت در هر روز">
-              <Input
-                min={1}
-                max={10}
-                type="number"
-                value={Number(draft.parameters.max_pairs || 1)}
-                onChange={(event) => setParameter("max_pairs", Number(event.target.value))}
-              />
-            </FormField>
-            <FormField label="استراحت بین دو حرکت (ثانیه)">
-              <Input
-                min={0}
-                type="number"
-                value={Number(draft.parameters.rest_between_exercises_seconds || 0)}
-                onChange={(event) =>
-                  setParameter("rest_between_exercises_seconds", Number(event.target.value))
-                }
-              />
-            </FormField>
-            <FormField label="استراحت بعد از جفت (ثانیه)">
-              <Input
-                min={0}
-                type="number"
-                value={Number(draft.parameters.rest_after_pair_seconds ?? 90)}
-                onChange={(event) =>
-                  setParameter("rest_after_pair_seconds", Number(event.target.value))
-                }
-              />
-            </FormField>
-            <Checkbox
-              checked={Boolean(draft.parameters.allow_compound)}
-              label="اجازه استفاده از حرکات ترکیبی"
-              onChange={(event) => setParameter("allow_compound", event.target.checked)}
-            />
-          </>
-        ) : null}
-        {handler === "drop_set" ? (
-          <>
-            <FormField label="تعداد دراپ">
-              <Input
-                min={1}
-                max={3}
-                type="number"
-                value={Number(draft.parameters.drops || 1)}
-                onChange={(event) => setParameter("drops", Number(event.target.value))}
-              />
-            </FormField>
-            <FormField label="درصد کاهش بار">
-              <Input
-                min={1}
-                max={80}
-                type="number"
-                value={Number(draft.parameters.reduction_percent || 20)}
-                onChange={(event) => setParameter("reduction_percent", Number(event.target.value))}
-              />
-            </FormField>
-          </>
-        ) : null}
-        {!handler ? (
-          <FormField className={styles.fullField} label="پارامترهای دستی (JSON)">
-            <Textarea
-              value={JSON.stringify(draft.parameters, null, 2)}
-              onChange={(event) => {
-                try {
-                  onChange({ ...draft, parameters: JSON.parse(event.target.value) });
-                } catch {
-                  /* Keep the last valid object while typing. */
-                }
-              }}
-            />
-          </FormField>
-        ) : null}
-        {handler ? (
-          <div className={styles.fullField}>
-            <small>
-              این handler در generator پیاده‌سازی شده است و پارامترهای بالا در evidence تولید برنامه
-              ثبت می‌شوند.
-            </small>
-          </div>
-        ) : null}
-        <div className={styles.fullField}>
-          <strong>سطح‌های مجاز؛ خالی یعنی همه</strong>
-          {levels.map((level) => (
-            <Checkbox
-              key={level.key}
-              checked={draft.allowed_levels.includes(level.key)}
-              label={level.name}
-              onChange={(event) =>
-                onChange({
-                  ...draft,
-                  allowed_levels: event.target.checked
-                    ? [...draft.allowed_levels, level.key]
-                    : draft.allowed_levels.filter((item) => item !== level.key)
-                })
-              }
-            />
-          ))}
-        </div>
-        <Switch
-          checked={draft.enabled}
-          label="فعال"
-          onCheckedChange={(enabled) => onChange({ ...draft, enabled })}
-        />
-      </div>
-    </Card>
   );
 }
 

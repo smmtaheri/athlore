@@ -227,6 +227,51 @@ class PdfArtifactServiceTests(PdfTestMixin, APITestCase):
             2,
         )
 
+    def test_download_refreshes_legacy_generated_pdf_once(self):
+        artifact = artifact_services.create_and_render(
+            self.coach_a, self.program, version_id=self.final.id
+        )
+        artifact.template_version = "1.2.0"
+        artifact.save(update_fields=["template_version"])
+        with patch(
+            "delivery.services.artifacts.render_program_pdf_bytes", return_value=b"%PDF-safe-render"
+        ) as render:
+            stream, _, _ = artifact_services.open_artifact_file(artifact)
+            self.assertEqual(stream.read(), b"%PDF-safe-render")
+            artifact.refresh_from_db()
+            artifact_services.open_artifact_file(artifact)
+            self.assertEqual(render.call_count, 1)
+        self.assertEqual(artifact.template_version, RENDER_TEMPLATE_VERSION)
+
+    def test_download_never_rewrites_uploaded_coach_pdf(self):
+        artifact = artifact_services.create_and_render(
+            self.coach_a, self.program, version_id=self.final.id
+        )
+        artifact.source = PdfArtifact.Source.UPLOADED
+        artifact.template_version = ""
+        artifact.save(update_fields=["source", "template_version"])
+        with patch("delivery.services.artifacts.render_program_pdf_bytes") as render:
+            artifact_services.open_artifact_file(artifact)
+            render.assert_not_called()
+
+    def test_pdf_excludes_private_profile_notes_and_localizes_enums(self):
+        self.student.coach_notes = "PRIVATE_PROFILE_NOTE"
+        self.student.goals = {"primary_goal": "hypertrophy"}
+        self.student.training_background = {"level": "intermediate"}
+        self.final.pdf_settings = {"includeCoachNotes": True, "coachNotes": "PUBLIC_PDF_NOTE"}
+        ctx = build_pdf_context(
+            artifact=None,
+            program=self.program,
+            version=self.final,
+            student=self.student,
+            coach=self.coach_a,
+        )
+        self.assertNotIn("student_coach_notes", ctx)
+        self.assertNotIn("PRIVATE_PROFILE_NOTE", str(ctx))
+        self.assertEqual(ctx["coach_notes"], "PUBLIC_PDF_NOTE")
+        self.assertEqual(ctx["goal"], "عضله‌سازی")
+        self.assertEqual(ctx["level"], "متوسط")
+
     def test_delete_revokes_share_and_hides(self):
         artifact = artifact_services.create_and_render(
             self.coach_a, self.program, version_id=self.final.id

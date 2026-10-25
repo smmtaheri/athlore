@@ -3,7 +3,8 @@
 import type {
   CoachRules,
   NutritionTemplateSummary,
-  SupplementTemplateSummary
+  SupplementTemplateSummary,
+  TrainingTechniqueConfig
 } from "../../features/coach-rules/types/coachRules";
 import type {
   GeneratedProgram,
@@ -80,6 +81,9 @@ export function studentFromApi(dto: Record<string, unknown>): Student {
     dietaryPreferences: asStringArray(dto.dietary_preferences),
     dietaryRestrictions: asStringArray(dto.dietary_restrictions),
     equipment: {
+      availableEquipment: Array.isArray(equipment.available_equipment)
+        ? asStringArray(equipment.available_equipment)
+        : undefined,
       hasBarbell: Boolean(equipment.has_barbell),
       hasCable: Boolean(equipment.has_cable),
       hasDumbbell: Boolean(equipment.has_dumbbell),
@@ -113,6 +117,7 @@ export function studentFromApi(dto: Record<string, unknown>): Student {
     },
     nutritionNotes: String(dto.nutrition_notes ?? ""),
     phoneNumber: dto.phone_number == null ? "" : String(dto.phone_number),
+    phoneCountry: String(dto.phone_country ?? "IR"),
     portalAccess: portalAccessFromApi(dto.portal_access),
     preferences: {
       dislikedTrainingStyles: String(preferences.disliked_training_styles ?? ""),
@@ -135,6 +140,10 @@ export function studentFromApi(dto: Record<string, unknown>): Student {
       trainingExperience: String(trainingBackground.training_experience ?? "")
     },
     trainingConditions: {
+      environment:
+        typeof trainingConditions.environment === "string"
+          ? trainingConditions.environment
+          : undefined,
       cardioInterest: String(trainingConditions.cardio_interest ?? ""),
       heavyTrainingInterest: String(trainingConditions.heavy_training_interest ?? ""),
       sessionDurationMinutes: num(trainingConditions.session_duration_minutes, 60),
@@ -154,6 +163,9 @@ export function studentInputToApi(input: StudentInput): Record<string, unknown> 
     dietary_restrictions: input.dietaryRestrictions ?? [],
     equipment: {
       has_barbell: input.equipment.hasBarbell,
+      ...(input.equipment.availableEquipment === undefined
+        ? {}
+        : { available_equipment: input.equipment.availableEquipment }),
       has_cable: input.equipment.hasCable,
       has_dumbbell: input.equipment.hasDumbbell,
       has_full_gym: input.equipment.hasFullGym,
@@ -186,6 +198,7 @@ export function studentInputToApi(input: StudentInput): Record<string, unknown> 
     },
     nutrition_notes: input.nutritionNotes ?? "",
     phone_number: input.phoneNumber || null,
+    phone_country: input.phoneCountry ?? "IR",
     preferences: {
       disliked_training_styles: input.preferences.dislikedTrainingStyles,
       favorite_exercises: input.preferences.favoriteExercises,
@@ -202,6 +215,9 @@ export function studentInputToApi(input: StudentInput): Record<string, unknown> 
       training_experience: input.trainingBackground.trainingExperience
     },
     training_conditions: {
+      ...(input.trainingConditions.environment === undefined
+        ? {}
+        : { environment: input.trainingConditions.environment }),
       cardio_interest: input.trainingConditions.cardioInterest,
       heavy_training_interest: input.trainingConditions.heavyTrainingInterest,
       session_duration_minutes: input.trainingConditions.sessionDurationMinutes,
@@ -219,10 +235,12 @@ export function visitFromApi(dto: Record<string, unknown>): StudentVisit {
   const snapshot = visitFormTemplateSnapshotFromApi(dto.form_template_snapshot);
   return {
     adherence: {
-      nutritionPercent: num(adherence.nutrition_percent),
-      overallPercent: num(adherence.overall_percent),
-      supplementsPercent: num(adherence.supplements_percent),
-      trainingPercent: num(adherence.training_percent)
+      nutritionPercent:
+        adherence.nutrition_percent == null ? null : num(adherence.nutrition_percent),
+      overallPercent: adherence.overall_percent == null ? null : num(adherence.overall_percent),
+      supplementsPercent:
+        adherence.supplements_percent == null ? null : num(adherence.supplements_percent),
+      trainingPercent: adherence.training_percent == null ? null : num(adherence.training_percent)
     },
     answerSources:
       dto.answer_sources &&
@@ -236,6 +254,8 @@ export function visitFromApi(dto: Record<string, unknown>): StudentVisit {
           )
         : undefined,
     answers: visitFormAnswersFromApi(dto.answers),
+    programSettings: (dto.program_settings ??
+      {}) as import("../../features/students/types/monthlyVisit").VisitProgramSettings,
     bodyFatPercentage: dto.body_fat_percentage == null ? undefined : num(dto.body_fat_percentage),
     bodyFeeling: String(dto.body_feeling ?? ""),
     coachAssessment: String(dto.coach_assessment ?? ""),
@@ -243,7 +263,7 @@ export function visitFromApi(dto: Record<string, unknown>): StudentVisit {
     coachPrivateNotes: String(dto.coach_private_notes ?? ""),
     createdAt: String(dto.created_at ?? ""),
     currentWeightKg: num(dto.current_weight_kg),
-    dailyEnergyLevel: (dto.daily_energy_level as StudentVisit["dailyEnergyLevel"]) || "medium",
+    dailyEnergyLevel: (dto.daily_energy_level as StudentVisit["dailyEnergyLevel"]) || null,
     expiresAt: dto.expires_at == null ? null : str(dto.expires_at),
     finalizedAt: dto.finalized_at == null ? null : str(dto.finalized_at),
     formTemplateId: dto.form_template_id == null ? null : str(dto.form_template_id),
@@ -266,9 +286,9 @@ export function visitFromApi(dto: Record<string, unknown>): StudentVisit {
     previousWeightKg: num(dto.previous_weight_kg),
     photoIssues: Array.isArray(dto.photo_issues) ? dto.photo_issues.map(String) : [],
     sentAt: dto.sent_at == null ? null : str(dto.sent_at),
-    sleepQuality: (dto.sleep_quality as StudentVisit["sleepQuality"]) || "medium",
+    sleepQuality: (dto.sleep_quality as StudentVisit["sleepQuality"]) || null,
     status,
-    stressLevel: (dto.stress_level as StudentVisit["stressLevel"]) || "medium",
+    stressLevel: (dto.stress_level as StudentVisit["stressLevel"]) || null,
     studentFeedback: String(dto.student_feedback ?? ""),
     studentId: String(dto.student_id ?? ""),
     submittedByStudentAt:
@@ -360,6 +380,7 @@ export function visitInputToApi(input: Partial<StudentVisitInput>): Record<strin
   }
   if (input.formTemplateId !== undefined) body.form_template_id = input.formTemplateId;
   if (input.answers !== undefined) body.answers = input.answers;
+  if (input.programSettings !== undefined) body.program_settings = input.programSettings;
   if (input.status !== undefined) body.status = input.status;
   if (input.measurements) {
     body.measurements = {
@@ -562,6 +583,7 @@ export function coachRulesFromApi(dto: Record<string, unknown>): CoachRules {
   const nutritionTemplates = dto.nutrition_templates as Record<string, unknown>[] | undefined;
   const supplementTemplates = dto.supplement_templates as Record<string, unknown>[] | undefined;
   return {
+    generationRules: dto.generation_rules as CoachRules["generationRules"],
     generalRules: {
       extraNotes: String(general.extra_notes ?? ""),
       items: ((general.items as Record<string, unknown>[]) || []).map((item) => ({
@@ -600,6 +622,12 @@ export function coachRulesFromApi(dto: Record<string, unknown>): CoachRules {
       orderChange: String(item.order_change ?? "")
     })),
     templates: ((dto.templates as Record<string, unknown>[]) || []).map((item) => ({
+      ...(item.execution_plan && (item.execution_plan as { version?: number }).version === 1
+        ? {
+            executionPlan:
+              item.execution_plan as import("../../features/coach-rules/types/coachRules").TemplateExecutionPlan
+          }
+        : {}),
       daysPerWeek: num(item.days_per_week),
       goal: String(item.goal ?? ""),
       id: String(item.id ?? ""),
@@ -620,15 +648,34 @@ export function coachRulesFromApi(dto: Record<string, unknown>): CoachRules {
     ...(supplementTemplates
       ? { supplementTemplates: supplementTemplates.map(supplementTemplateFromApi) }
       : {}),
+    trainingTechniques: ((dto.training_techniques as Record<string, unknown>[]) || []).map(
+      (item): TrainingTechniqueConfig => ({
+        allowedLevels: asStringArray(item.allowed_levels),
+        baseTechniqueKey: item.base_technique_key ? String(item.base_technique_key) : null,
+        enabled: Boolean(item.enabled),
+        handlerStatus: item.handler_status === "implemented" ? "implemented" : "manual_only",
+        id: item.id ? String(item.id) : null,
+        key: String(item.key ?? ""),
+        maxPerSession: num(item.max_per_session),
+        name: String(item.name ?? ""),
+        parameters: (item.parameters as Record<string, unknown>) || {},
+        source:
+          item.source === "coach_override" || item.source === "coach_private"
+            ? item.source
+            : "platform"
+      })
+    ),
     updatedAt: String(dto.updated_at ?? "")
   };
 }
 
 export function coachRulesToApi(rules: CoachRules): Record<string, unknown> {
   return {
+    ...(rules.generationRules ? { generation_rules: rules.generationRules } : {}),
     general_rules: {
       extra_notes: rules.generalRules.extraNotes,
       items: rules.generalRules.items.map((item) => ({
+        id: item.id,
         category: item.category,
         description: item.description,
         importance: item.importance,
@@ -638,6 +685,7 @@ export function coachRulesToApi(rules: CoachRules): Record<string, unknown> {
       }))
     },
     injuries: rules.injuries.map((item, index) => ({
+      id: item.id,
       alternatives: item.alternatives,
       forbidden_exercises: item.forbiddenExercises,
       is_active: item.isActive,
@@ -655,6 +703,7 @@ export function coachRulesToApi(rules: CoachRules): Record<string, unknown> {
       volume: item.volume
     })),
     muscle_priorities: rules.musclePriorities.map((item, index) => ({
+      id: item.id,
       extra_exercises: item.extraExercises,
       extra_sets: item.extraSets,
       muscle: item.muscle,
@@ -663,6 +712,8 @@ export function coachRulesToApi(rules: CoachRules): Record<string, unknown> {
       sort_order: index
     })),
     templates: rules.templates.map((item, index) => ({
+      id: item.id,
+      ...(item.executionPlan ? { execution_plan: item.executionPlan } : {}),
       days_per_week: item.daysPerWeek,
       goal: item.goal,
       intensity: item.intensity,
@@ -769,6 +820,12 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
     daysPerWeek: numOrUndefined(
       template.days_per_week ?? generatorMeta.days_per_week ?? request.days_per_week
     ),
+    exerciseVariety:
+      request.exercise_variety === "stable" ||
+      request.exercise_variety === "balanced" ||
+      request.exercise_variety === "varied"
+        ? request.exercise_variety
+        : undefined,
     equipment: equipmentList,
     exerciseCatalog: { excluded: [], selected: [] },
     exerciseSelection: {
@@ -778,6 +835,10 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
       replacements: []
     },
     generationRunId: str(dto.id),
+    generationMode:
+      request.template_mode === "quick" || request.template_mode === "template"
+        ? request.template_mode
+        : undefined,
     generatorVersion: str(
       inputSnapshot.generator_version ?? generatorMeta.version ?? dto.engine ?? ""
     ),
@@ -793,6 +854,9 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
     ruleSetId: inputSnapshot.rules_digest ? str(inputSnapshot.rules_digest) : undefined,
     studentGoal: goals.primary_goal ? str(goals.primary_goal) : undefined,
     studentId: str(dto.student_id ?? student.id ?? ""),
+    sessionMuscles: Array.isArray(request.session_muscles)
+      ? request.session_muscles.map((row) => (Array.isArray(row) ? asStringArray(row) : []))
+      : undefined,
     studentLevel: template.level ? str(template.level) : undefined,
     techniques: [],
     templateId: template.id
@@ -929,7 +993,28 @@ export function programDetailFromApi(dto: Record<string, unknown>): GeneratedPro
       }
     : undefined;
 
+  const training = (dto.training as GeneratedProgram["training"]) ?? undefined;
+  const scheduledWeeks = training?.schedule?.configured
+    ? training.schedule.weeks.length
+    : undefined;
+  const datedWeeks =
+    dto.date_range_start && dto.date_range_end
+      ? Math.max(
+          1,
+          Math.ceil(
+            (Date.parse(String(dto.date_range_end)) -
+              Date.parse(String(dto.date_range_start)) +
+              86400000) /
+              604800000
+          )
+        )
+      : undefined;
+
   return {
+    programVersionId: str(dto.program_version_id),
+    draftRevision: dto.draft_revision ? str(dto.draft_revision) : undefined,
+    sectionMethods: dto.section_methods as GeneratedProgram["sectionMethods"],
+    durationWeeks: scheduledWeeks ?? datedWeeks,
     createdAt: String(dto.created_at ?? ""),
     dateRange: String(dto.date_range ?? dto.date_range_label ?? ""),
     deliverySource: dto.delivery_source === "uploaded_pdf" ? "uploaded_pdf" : "generated",
@@ -982,7 +1067,7 @@ export function programDetailFromApi(dto: Record<string, unknown>): GeneratedPro
       : undefined,
     supplements,
     title: String(dto.title ?? ""),
-    training: (dto.training as GeneratedProgram["training"]) ?? undefined,
+    training,
     updatedAt: String(dto.updated_at ?? ""),
     version: versionNum,
     ...(draft ? { draftId: String(draft.id) } : {}),
@@ -1022,6 +1107,48 @@ export function dashboardFromApi(dto: Record<string, unknown>): DashboardMetrics
     bodyCheckToday: ((dto.body_check_today as Record<string, unknown>[]) || []).map(
       bodyCheckTodayFromApi
     ),
+    programRequests: (() => {
+      const summary = (dto.program_requests as Record<string, unknown>) || {};
+      const items = Array.isArray(summary.items)
+        ? (summary.items as Record<string, unknown>[])
+        : [];
+      return {
+        openCount: num(summary.open_count),
+        unreadCount: num(summary.unread_count),
+        items: items.map((item) => ({
+          assessmentMode: str(item.assessment_mode) as "in_person" | "none" | "online",
+          createdAt: str(item.created_at),
+          id: str(item.id),
+          readAt: item.read_at == null ? null : str(item.read_at),
+          sections: asStringArray(item.sections),
+          status: str(item.status),
+          studentId: str(item.student_id),
+          studentName: str(item.student_name)
+        }))
+      };
+    })(),
+    programPeriods: (() => {
+      const summary = (dto.program_periods as Record<string, unknown>) || {};
+      const items = Array.isArray(summary.items)
+        ? (summary.items as Record<string, unknown>[])
+        : [];
+      return {
+        daysUntilDue: num(summary.days_until_due),
+        dueSoonCount: num(summary.due_soon_count),
+        expiredCount: num(summary.expired_count),
+        missingEndDateCount: num(summary.missing_end_date_count),
+        items: items.map((item) => ({
+          daysRemaining: item.days_remaining == null ? null : num(item.days_remaining),
+          endDate: item.end_date == null ? null : str(item.end_date),
+          programId: str(item.program_id),
+          sections: asStringArray(item.sections),
+          state: str(item.state) as "due_soon" | "expired" | "missing_end_date",
+          studentId: str(item.student_id),
+          studentName: str(item.student_name),
+          title: str(item.title)
+        }))
+      };
+    })(),
     draftPrograms: num(dto.draft_programs),
     finalPrograms: num(dto.final_programs),
     followUpStudents: ((dto.follow_up_students as Record<string, unknown>[]) || []).map(

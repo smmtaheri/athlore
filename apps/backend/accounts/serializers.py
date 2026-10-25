@@ -2,7 +2,7 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
 from accounts.models import CoachProfile
-from common.phone import InvalidPhoneError, normalize_iran_mobile
+from common.phone import InvalidPhoneError, normalize_mobile
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -17,7 +17,7 @@ class RegisterSerializer(serializers.Serializer):
 
     def validate_phone_number(self, value):
         try:
-            return normalize_iran_mobile(value, required=True)
+            return normalize_mobile(value, required=True)
         except InvalidPhoneError as exc:
             raise serializers.ValidationError(exc.message) from exc
 
@@ -40,7 +40,7 @@ class PhoneLoginCodeRequestSerializer(serializers.Serializer):
 
     def validate_phone_number(self, value):
         try:
-            return normalize_iran_mobile(value, required=True)
+            return normalize_mobile(value, required=True)
         except InvalidPhoneError as exc:
             raise serializers.ValidationError(exc.message) from exc
 
@@ -93,6 +93,6 @@ class CoachProfileSerializer(serializers.ModelSerializer):
 
     def validate_phone_number(self, value):
         try:
-            return normalize_iran_mobile(value, required=True)
+            return normalize_mobile(value, required=True)
         except InvalidPhoneError as exc:
             raise serializers.ValidationError(exc.message) from exc

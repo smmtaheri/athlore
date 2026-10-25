@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import {
   CalendarDays,
   ChevronDown,
+  ChevronUp,
   FileText,
   Plus,
   RefreshCcw,
@@ -231,7 +232,7 @@ function openDashboardDetail(id: string) {
   element.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function DashboardVisitsSection({
+export function DashboardVisitsSection({
   entries,
   visits
 }: {
@@ -239,14 +240,23 @@ function DashboardVisitsSection({
   visits: DashboardVisit[];
 }) {
   const [sort, setSort] = useState<"created" | "visit">("visit");
-  const items = sort === "visit" ? visits : entries;
+  const [expanded, setExpanded] = useState(false);
+  const items = (sort === "visit" ? visits : entries).slice(0, 10);
+  const visibleItems = expanded ? items : items.slice(0, 5);
+  const ordering = sort === "visit" ? "-visit_date" : "-created_at";
 
   return (
-    <Card className={mvpStyles.dashboardPriorityCard}>
+    <Card
+      className={mvpStyles.dashboardPriorityCard}
+      role="region"
+      aria-labelledby="recent-visits-heading"
+    >
       <div className={mvpStyles.dashboardSectionHeader}>
         <div>
-          <h2 className={styles.sectionTitle}>آخرین شاگردهای ویزیت‌شده</h2>
-          <p className={styles.sectionDescription}>هر شاگرد فقط یک‌بار در فهرست دیده می‌شود.</p>
+          <h2 className={styles.sectionTitle} id="recent-visits-heading">
+            آخرین ویزیت‌ها
+          </h2>
+          <p className={styles.sectionDescription}>مرور و پیگیری ویزیت‌های اخیر شاگردها</p>
         </div>
         <div aria-label="مرتب‌سازی ویزیت‌ها" className={mvpStyles.dashboardSort} role="group">
           <Button
@@ -274,14 +284,14 @@ function DashboardVisitsSection({
           title="هنوز ویزیتی برای نمایش نیست"
         />
       ) : (
-        <div className={mvpStyles.bodyCheckList}>
-          {items.map((visit) => {
+        <div className={mvpStyles.bodyCheckList} id="dashboard-recent-visits">
+          {visibleItems.map((visit) => {
             const statusInfo = visitStatusInfo(visit.status);
             return (
               <Link
                 className={mvpStyles.bodyCheckItem}
                 key={`${sort}-${visit.studentId}-${visit.id}`}
-                to={`/students/${visit.studentId}/visits`}
+                to={`/visits?student=${visit.studentId}&visit=${visit.id}&ordering=${ordering}`}
               >
                 <div className={mvpStyles.bodyCheckIdentity}>
                   <strong>{visit.studentName}</strong>
@@ -297,6 +307,23 @@ function DashboardVisitsSection({
           })}
         </div>
       )}
+      <div className={mvpStyles.dashboardVisitActions}>
+        {items.length > 5 ? (
+          <Button
+            aria-controls="dashboard-recent-visits"
+            aria-expanded={expanded}
+            iconEnd={expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            onClick={() => setExpanded((value) => !value)}
+            size="sm"
+            variant="secondary"
+          >
+            {expanded ? "نمایش کمتر" : `نمایش ${items.length} ویزیت آخر`}
+          </Button>
+        ) : null}
+        <Link className={mvpStyles.dashboardVisitLink} to={`/visits?ordering=${ordering}`}>
+          مشاهده همه ویزیت‌ها
+        </Link>
+      </div>
     </Card>
   );
 }
@@ -401,6 +428,7 @@ export function DashboardContent({
   return (
     <div className={mvpStyles.pageStack}>
       <DashboardOverview metrics={metrics} />
+      <DashboardProgramFollowups metrics={metrics} />
       <Card className={mvpStyles.quickActions}>
         <Link to="/students/new">
           <Button iconStart={<UserPlus size={18} />}>افزودن شاگرد</Button>
@@ -469,6 +497,134 @@ export function DashboardContent({
       </div>
     </div>
   );
+}
+
+function DashboardProgramFollowups({ metrics }: { metrics: DashboardMetrics }) {
+  const requests = metrics.programRequests ?? { items: [], openCount: 0, unreadCount: 0 };
+  const periods = metrics.programPeriods ?? {
+    daysUntilDue: 7,
+    dueSoonCount: 0,
+    expiredCount: 0,
+    items: [],
+    missingEndDateCount: 0
+  };
+  const periodCount = periods.expiredCount + periods.dueSoonCount + periods.missingEndDateCount;
+
+  return (
+    <div className={mvpStyles.twoColumn}>
+      <Card className={mvpStyles.listCard}>
+        <div className={mvpStyles.dashboardSectionHeader}>
+          <div>
+            <h2 className={styles.sectionTitle}>درخواست‌های برنامه</h2>
+            <p className={styles.sectionDescription}>
+              درخواست ثبت‌شده را بررسی کنید؛ پایان برنامه به‌تنهایی درخواست نمی‌سازد.
+            </p>
+          </div>
+          <StatusBadge variant={requests.openCount > 0 ? "warning" : "success"}>
+            {requests.unreadCount} جدید · {requests.openCount} باز
+          </StatusBadge>
+        </div>
+        {requests.items.length === 0 ? (
+          <p className={styles.sectionDescription}>درخواست بازی برای رسیدگی نیست.</p>
+        ) : (
+          <div className={mvpStyles.bodyCheckList}>
+            {requests.items.map((item) => (
+              <Link className={mvpStyles.bodyCheckItem} key={item.id} to="/program-requests">
+                <div className={mvpStyles.bodyCheckIdentity}>
+                  <strong>{item.studentName}</strong>
+                  <StatusBadge variant={item.readAt ? "info" : "warning"}>
+                    {item.readAt ? requestStatusLabel(item.status) : "جدید"}
+                  </StatusBadge>
+                </div>
+                <div className={mvpStyles.bodyCheckDetails}>
+                  <span>{item.sections.map(programSectionLabel).join("، ")}</span>
+                  <span>{requestAssessmentLabel(item.assessmentMode)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+        <Link className={mvpStyles.listItemLink} to="/program-requests">
+          مشاهدهٔ صف درخواست‌ها
+        </Link>
+      </Card>
+
+      <Card className={mvpStyles.listCard}>
+        <div className={mvpStyles.dashboardSectionHeader}>
+          <div>
+            <h2 className={styles.sectionTitle}>وضعیت دورهٔ برنامه‌ها</h2>
+            <p className={styles.sectionDescription}>
+              برنامه‌های تمام‌شده یا نزدیک پایان برای تصمیم مربی.
+            </p>
+          </div>
+          <StatusBadge
+            variant={periods.expiredCount ? "danger" : periodCount ? "warning" : "success"}
+          >
+            {periods.expiredCount} پایان‌یافته · {periods.dueSoonCount} تا {periods.daysUntilDue}{" "}
+            روز آینده
+          </StatusBadge>
+        </div>
+        {periods.items.length === 0 ? (
+          <p className={styles.sectionDescription}>موردی برای یادآوری دوره وجود ندارد.</p>
+        ) : (
+          <div className={mvpStyles.bodyCheckList}>
+            {periods.items.slice(0, DASHBOARD_PREVIEW_LIMIT).map((item) => (
+              <Link
+                className={mvpStyles.bodyCheckItem}
+                key={`${item.programId}-${item.state}`}
+                to={`/students/${item.studentId}/programs`}
+              >
+                <div className={mvpStyles.bodyCheckIdentity}>
+                  <strong>{item.studentName}</strong>
+                  <StatusBadge
+                    variant={
+                      item.state === "expired"
+                        ? "danger"
+                        : item.state === "due_soon"
+                          ? "warning"
+                          : "neutral"
+                    }
+                  >
+                    {periodStateLabel(item.state, item.daysRemaining)}
+                  </StatusBadge>
+                </div>
+                <div className={mvpStyles.bodyCheckDetails}>
+                  <span>{item.title}</span>
+                  <span>{item.sections.map(programSectionLabel).join("، ")}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function programSectionLabel(section: string): string {
+  if (section === "workout") return "تمرینی";
+  if (section === "nutrition") return "غذایی";
+  if (section === "supplement") return "مکمل";
+  return section;
+}
+
+function requestAssessmentLabel(mode: string): string {
+  if (mode === "in_person") return "ترجیح حضوری";
+  if (mode === "none") return "بدون ویزیت جدید";
+  return "ترجیح آنلاین";
+}
+
+function requestStatusLabel(status: string): string {
+  if (status === "awaiting_info") return "منتظر اطلاعات";
+  if (status === "in_progress") return "در حال رسیدگی";
+  return "ثبت‌شده";
+}
+
+function periodStateLabel(state: string, daysRemaining: number | null): string {
+  if (state === "expired") return "پایان‌یافته";
+  if (state === "missing_end_date") return "بدون تاریخ پایان";
+  if (daysRemaining === 0) return "پایان امروز";
+  return `${daysRemaining} روز مانده`;
 }
 
 function cycleSummaryStatus(item: BodyCheckCycleSummaryItem): {

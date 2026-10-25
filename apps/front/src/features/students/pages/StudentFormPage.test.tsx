@@ -36,7 +36,7 @@ function changeField(label: RegExp, value: string) {
 
 function fillRequiredCreateFields() {
   changeField(/^نام شاگرد\s*\*?$/, "شاگرد تستی");
-  changeField(/^شماره موبایل\s*\*?$/, "09121234567");
+  changeField(/^شماره موبایل\s*\*?$/, "9121234567");
   changeField(/^سن\s*\*?$/, "28");
   changeField(/^قد \(سانتی متر\)\s*\*?$/, "180");
   changeField(/^وزن \(کیلوگرم\)\s*\*?$/, "80");

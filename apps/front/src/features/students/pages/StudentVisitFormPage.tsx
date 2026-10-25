@@ -1,7 +1,7 @@
 import { formatCalendarDateTime } from "../../../shared/dates/calendar";
 import { useEffect, useState } from "react";
 import { ArrowRight, UserRound } from "lucide-react";
-import { useLocation, useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { ContentSection, PageContainer, PageHeader, Stack } from "../../../components/layout";
 import { Button, Card, EmptyState, Skeleton } from "../../../components/ui";
 import { ApiError, persianMessageForVisitApiError } from "../../../shared/api/errors";
@@ -20,8 +20,13 @@ import { studentsRepository, type StudentsRepository } from "../services/student
 import type { StudentVisit, StudentVisitInput, VisitAnswerRevision } from "../types/monthlyVisit";
 import type { Student } from "../types/student";
 import type { VisitFormTemplate } from "../types/visitForm";
-import { goalLabels, trainingLevelLabels } from "../types/options";
+import { programRequestRepository } from "../../program-requests/services/programRequestRepository";
+import type {
+  ProgramAssessmentMode,
+  ProgramRequest
+} from "../../program-requests/types/programRequest";
 import styles from "../components/students.module.css";
+import { apiRequest } from "../../../shared/api/client";
 
 function answersLockedForStatus(status: StudentVisit["status"] | undefined): boolean {
   return status === "waiting_for_student" || status === "student_submitted";
@@ -61,10 +66,17 @@ export function StudentVisitFormPage({
   const [status, setStatus] = useState<"error" | "loaded" | "loading" | "notFound">("loading");
   const [student, setStudent] = useState<Student | undefined>();
   const [visit, setVisit] = useState<StudentVisit | undefined>();
+  const [programRequest, setProgramRequest] = useState<ProgramRequest | null>(null);
   const [photoSessionId] = useState(() => globalThis.crypto.randomUUID());
   const location = useLocation();
   const navigate = useNavigate();
   const { studentId, visitId } = useParams();
+  const [searchParams] = useSearchParams();
+  const programRequestId = searchParams.get("programRequestId");
+  const assessmentMode = (searchParams.get("assessmentMode") ?? "online") as ProgramAssessmentMode;
+  const requestQuery = programRequestId
+    ? `?programRequestId=${encodeURIComponent(programRequestId)}&assessmentMode=${encodeURIComponent(assessmentMode)}`
+    : "";
 
   const incomingVisitSaved = (location.state as { visitSaved?: string } | null)?.visitSaved ?? "";
   if (incomingVisitSaved && routeFeedback !== incomingVisitSaved) {
@@ -87,9 +99,10 @@ export function StudentVisitFormPage({
       templatesRepo.list(),
       mode === "edit" && visitId
         ? visitsRepo.getById(studentId ?? "", visitId)
-        : Promise.resolve(null)
+        : Promise.resolve(null),
+      programRequestId ? programRequestRepository.getCoach(programRequestId) : Promise.resolve(null)
     ])
-      .then(async ([studentResult, visits, templates, visitResult]) => {
+      .then(async ([studentResult, visits, templates, visitResult, requestResult]) => {
         if (!isMounted) {
           return;
         }
@@ -100,6 +113,7 @@ export function StudentVisitFormPage({
         }
 
         setStudent(studentResult);
+        setProgramRequest(requestResult);
         setFormTemplates(templates.filter((item) => item.isActive));
         setLatestVisit(
           mode === "edit" ? visits.find((item) => item.id !== visitResult?.id) : visits[0]
@@ -129,7 +143,7 @@ export function StudentVisitFormPage({
     return () => {
       isMounted = false;
     };
-  }, [mode, studentId, studentsRepo, templatesRepo, visitId, visitsRepo]);
+  }, [mode, programRequestId, studentId, studentsRepo, templatesRepo, visitId, visitsRepo]);
 
   const goToVisits = () => navigate(`/students/${studentId}/visits`);
 
@@ -153,7 +167,10 @@ export function StudentVisitFormPage({
         answersLockedForStatus(currentStatus)
       ) {
         const resent = await visitsRepo.sendToStudent(studentId, visitId);
-        navigate(`/students/${studentId}/visits/${resent.id}/edit`, {
+        if (programRequestId) {
+          await programRequestRepository.startCoach(programRequestId, assessmentMode, resent.id);
+        }
+        navigate(`/students/${studentId}/visits/${resent.id}/edit${requestQuery}`, {
           replace: true,
           state: {
             visitSaved: resent.expiresAt
@@ -166,16 +183,24 @@ export function StudentVisitFormPage({
       }
 
       const existingVisitId = visit?.id ?? (mode === "edit" ? visitId : undefined);
-      let savedVisit = existingVisitId
-        ? await visitsRepo.update(studentId, existingVisitId, payload)
-        : await visitsRepo.create(studentId, payload);
+      let savedVisit =
+        visit?.status === "finalized" &&
+        (intent === "generate-program" || intent === "upload-program")
+          ? visit
+          : existingVisitId
+            ? await visitsRepo.update(studentId, existingVisitId, payload)
+            : await visitsRepo.create(studentId, payload);
       const photoWarning = savedVisit.photoIssues?.length
         ? ` ${savedVisit.photoIssues.join(" ")}`
         : "";
 
+      if (programRequestId) {
+        await programRequestRepository.startCoach(programRequestId, assessmentMode, savedVisit.id);
+      }
+
       if (intent === "send-to-student") {
         savedVisit = await visitsRepo.sendToStudent(studentId, savedVisit.id);
-        navigate(`/students/${studentId}/visits/${savedVisit.id}/edit`, {
+        navigate(`/students/${studentId}/visits/${savedVisit.id}/edit${requestQuery}`, {
           replace: true,
           state: {
             visitSaved: savedVisit.expiresAt
@@ -189,7 +214,7 @@ export function StudentVisitFormPage({
 
       if (intent === "start-coach-review") {
         savedVisit = await visitsRepo.startCoachReview(studentId, savedVisit.id);
-        navigate(`/students/${studentId}/visits/${savedVisit.id}/edit`, {
+        navigate(`/students/${studentId}/visits/${savedVisit.id}/edit${requestQuery}`, {
           replace: true,
           state: { visitSaved: `بررسی مربی شروع شد؛ فرم شاگرد قفل است.${photoWarning}` }
         });
@@ -206,11 +231,30 @@ export function StudentVisitFormPage({
       }
 
       if (intent === "generate-program") {
-        navigate(`/programs/new?studentId=${studentId}&visitId=${savedVisit.id}`, {
-          state: {
-            visitSaved: `ویزیت ذخیره شد و تولید برنامه در مرحله بعد تکمیل می شود.${photoWarning}`
+        setVisit(savedVisit);
+        const storageKey = `athlore.prepare.pending.${savedVisit.id}`;
+        const operationKey = sessionStorage.getItem(storageKey) ?? crypto.randomUUID();
+        sessionStorage.setItem(storageKey, operationKey);
+        const result = await apiRequest<{ program: { id: string } }>(
+          `/visits/${savedVisit.id}/prepare-program/`,
+          { method: "POST", body: { operation_key: operationKey } }
+        );
+        sessionStorage.removeItem(storageKey);
+        navigate(`/programs/${result.program.id}`);
+        return;
+      }
+      if (intent === "upload-program") {
+        const requestParams = programRequestId
+          ? `&programRequestId=${encodeURIComponent(programRequestId)}`
+          : "";
+        navigate(
+          `/programs/new?studentId=${studentId}&visitId=${savedVisit.id}&mode=upload${requestParams}`,
+          {
+            state: {
+              visitSaved: `ویزیت ذخیره شد؛ فایل آمادهٔ برنامه را بارگذاری کنید.${photoWarning}`
+            }
           }
-        });
+        );
         return;
       }
 
@@ -247,7 +291,7 @@ export function StudentVisitFormPage({
           "پروفایل شاگرد",
           mode === "edit" ? "ویرایش ویزیت" : "ویزیت جدید"
         ]}
-        description="اطلاعات و وضعیت فعلی شاگرد را ثبت کنید."
+        description="تاریخ، وزن و ارزیابی دوره را ثبت کنید؛ بخش‌ها با فلش باز می‌شوند. ساخت پیش‌نویس، برنامه را از همین ویزیت تولید می‌کند؛ برای برنامهٔ دستی هم مسیر آپلود PDF آماده است."
         title={mode === "edit" ? "ویرایش ویزیت" : "ویزیت جدید"}
       />
 
@@ -294,15 +338,6 @@ export function StudentVisitFormPage({
               </div>
             ) : null}
             <VisitStudentSummary student={student} />
-            <VisitPhotosPanel
-              audience="coach"
-              canUpload
-              onStagedChange={setHasStagedPhotos}
-              onUploadStateChange={setPhotosUploading}
-              sessionId={photoSessionId}
-              studentId={student.id}
-              visitId={visit?.id ?? null}
-            />
             <StudentVisitForm
               answerRevisions={answerRevisions}
               formTemplates={formTemplates}
@@ -312,7 +347,20 @@ export function StudentVisitFormPage({
               latestVisit={latestVisit}
               mode={mode}
               onCancel={goToVisits}
+              photoPanel={
+                <VisitPhotosPanel
+                  audience="coach"
+                  canUpload
+                  embedded
+                  onStagedChange={setHasStagedPhotos}
+                  onUploadStateChange={setPhotosUploading}
+                  sessionId={photoSessionId}
+                  studentId={student.id}
+                  visitId={visit?.id ?? null}
+                />
+              }
               photosUploading={photosUploading}
+              programRequest={programRequest}
               onSubmit={handleSubmit}
               student={student}
             />
@@ -336,8 +384,8 @@ function VisitStudentSummary({ student }: { student: Student }) {
             <StudentStatusBadge status={student.status} />
           </div>
           <p>
-            هدف: {goalLabels[student.goals.primaryGoal]} - سطح تمرین:{" "}
-            {trainingLevelLabels[student.trainingBackground.level]}
+            {student.phoneNumber || "شماره ثبت نشده"} · {student.age} سال · قد {student.heightCm}{" "}
+            سانتی‌متر
           </p>
         </div>
       </div>

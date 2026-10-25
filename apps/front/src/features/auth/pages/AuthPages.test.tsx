@@ -21,8 +21,8 @@ describe("LoginPage", () => {
       </AuthProvider>
     );
 
-    expect(screen.getByText(/فقط شماره موبایل حساب خودتان را وارد کنید/)).toBeInTheDocument();
-    await user.type(await screen.findByLabelText(/شماره موبایل/), "9121111111");
+    expect(screen.getByText(/کشور شمارهٔ حساب خود را انتخاب کنید/)).toBeInTheDocument();
+    await user.type(await screen.findByLabelText(/^شماره موبایل/), "9121111111");
     await user.type(screen.getByLabelText(/رمز عبور/), "SecurePass123!");
     await user.click(await screen.findByRole("button", { name: "ورود به داشبورد" }));
 

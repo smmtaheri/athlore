@@ -14,13 +14,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import CoachProfile, CoachRuleSet
 from common.exceptions import ConflictError
-from common.phone import InvalidPhoneError, normalize_iran_mobile
+from common.phone import InvalidPhoneError, normalize_mobile
 
 User = get_user_model()
 REFRESH_SESSION_STARTED_AT_CLAIM = "session_started_at"
-_OTP_DIGIT_TRANSLATION = str.maketrans(
-    "۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"
-)
+_OTP_DIGIT_TRANSLATION = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
 
 def normalize_email(email: str) -> str:
@@ -135,7 +133,7 @@ def register_coach(
         raise ValueError("full_name is required")
 
     try:
-        phone_canon = normalize_iran_mobile(phone_number, required=True)
+        phone_canon = normalize_mobile(phone_number, required=True)
     except InvalidPhoneError as exc:
         raise ValueError(str(exc)) from exc
 
@@ -187,7 +185,7 @@ def create_coach_account(
     """Admin/management-path coach creation (ignores PUBLIC_REGISTRATION_ENABLED)."""
     email_norm = normalize_email(email)
     full_name = (full_name or "").strip()
-    phone_canon = normalize_iran_mobile(phone_number, required=True)
+    phone_canon = normalize_mobile(phone_number, required=True)
 
     if User.objects.filter(Q(email__iexact=email_norm) | Q(username__iexact=email_norm)).exists():
         raise ConflictError(detail="A user with this email already exists.")
@@ -224,7 +222,7 @@ def create_coach_account(
 
 
 def set_coach_phone(coach: CoachProfile, phone_number: str) -> CoachProfile:
-    phone_canon = normalize_iran_mobile(phone_number, required=True)
+    phone_canon = normalize_mobile(phone_number, required=True)
     if CoachProfile.objects.filter(phone_number=phone_canon).exclude(pk=coach.pk).exists():
         raise ConflictError(
             detail="این شماره موبایل قبلاً برای یک مربی ثبت شده است.",
@@ -282,30 +280,35 @@ def login_user(*, email: str | None = None, username: str | None = None, passwor
 
 def login_coach_by_phone(*, phone_number: str, password: str) -> dict:
     """Authenticate an existing coach account through its profile phone number."""
-    phone_canon = normalize_iran_mobile(phone_number, required=True)
-    coach = (
-        CoachProfile.objects.select_related("user")
-        .filter(phone_number=phone_canon)
-        .first()
-    )
+    phone_canon = normalize_mobile(phone_number, required=True)
+    coach = CoachProfile.objects.select_related("user").filter(phone_number=phone_canon).first()
     if coach is None or not coach.user.is_active or not coach.user.check_password(password):
         raise PermissionError("Invalid credentials.")
     return session_payload(coach.user, coach=coach)
 
 
-def request_phone_login_code(*, phone_number: str, role: str) -> dict:
-    """Return the configured test-code notice until an SMS provider is connected."""
-    static_code = str(getattr(settings, "LOGIN_OTP_STATIC_CODE", "") or "").strip()
-    if not getattr(settings, "LOGIN_OTP_ENABLED", False) or not static_code:
+def request_phone_login_code(*, phone_number: str, role: str, client_ip: str = "") -> dict:
+    """Request a code from the explicitly configured provider; never fall back."""
+    if not settings.LOGIN_OTP_ENABLED:
         raise PermissionError("Code login is disabled.")
-    normalize_iran_mobile(phone_number, required=True)
+    phone_canon = normalize_mobile(phone_number, required=True)
     if role not in {"coach", "student"}:
         raise PermissionError("Invalid role.")
+    if settings.LOGIN_OTP_PROVIDER == "najva":
+        from accounts.login_codes import request_sms_code
+
+        return request_sms_code(phone=phone_canon, role=role, client_ip=client_ip)
+    if settings.LOGIN_OTP_PROVIDER != "static":
+        raise PermissionError("Code provider is not configured.")
+    static_code = str(getattr(settings, "LOGIN_OTP_STATIC_CODE", "") or "").strip()
+    if not static_code:
+        raise PermissionError("Code login is disabled.")
     # Do not expose whether a phone belongs to an account or issue a login session here.
     return {
         "delivery_mode": "test",
         "message": f"پیامک واقعی ارسال نمی‌شود؛ کد ورود ثابت {static_code} است.",
     }
+
 
 def login_by_phone(
     *,
@@ -316,11 +319,21 @@ def login_by_phone(
     code: str = "",
 ) -> dict:
     """Authenticate a coach or active student portal using a phone credential."""
-    if method == "code":
+    phone_canon = normalize_mobile(phone_number, required=True)
+    if method == "code" and settings.LOGIN_OTP_PROVIDER == "najva":
+        from accounts.login_codes import verify_sms_code
+
+        supplied_code = str(code).translate(_OTP_DIGIT_TRANSLATION).strip()
+        if not settings.LOGIN_OTP_ENABLED or not verify_sms_code(
+            phone=phone_canon, role=role, code=supplied_code
+        ):
+            raise PermissionError("Invalid credentials.")
+    elif method == "code":
         expected_code = str(getattr(settings, "LOGIN_OTP_STATIC_CODE", "") or "")
         supplied_code = str(code).translate(_OTP_DIGIT_TRANSLATION).strip()
         if (
             not getattr(settings, "LOGIN_OTP_ENABLED", False)
+            or settings.LOGIN_OTP_PROVIDER != "static"
             or not expected_code
             or not hmac.compare_digest(supplied_code, expected_code)
         ):
@@ -328,13 +341,8 @@ def login_by_phone(
     elif method != "password" or not password:
         raise PermissionError("Invalid credentials.")
 
-    phone_canon = normalize_iran_mobile(phone_number, required=True)
     if role == "coach":
-        coach = (
-            CoachProfile.objects.select_related("user")
-            .filter(phone_number=phone_canon)
-            .first()
-        )
+        coach = CoachProfile.objects.select_related("user").filter(phone_number=phone_canon).first()
         if coach is None or not coach.user.is_active:
             raise PermissionError("Invalid credentials.")
         if method == "password" and not coach.user.check_password(password):
@@ -351,23 +359,18 @@ def login_by_phone(
         )
         profile = getattr(student, "auth_profile", None) if student else None
         user = getattr(profile, "user", None)
-        if (
-            profile is None
-            or user is None
-            or not profile.portal_enabled
-            or not user.is_active
-        ):
+        if profile is None or user is None or not profile.portal_enabled or not user.is_active:
             raise PermissionError("Invalid credentials.")
         if method == "password" and not user.check_password(password):
             raise PermissionError("Invalid credentials.")
         if method == "code" and (profile.must_change_password or not profile.account_activated_at):
             raise PermissionError("Invalid credentials.")
-        must_change_password = bool(profile.must_change_password or not profile.account_activated_at)
+        must_change_password = bool(
+            profile.must_change_password or not profile.account_activated_at
+        )
         if must_change_password and (method != "password" or not user.has_usable_password()):
             raise PermissionError("Invalid credentials.")
-        payload = session_payload(
-            user, student=student, must_change_password=must_change_password
-        )
+        payload = session_payload(user, student=student, must_change_password=must_change_password)
         payload["username"] = user.username
         return payload
 

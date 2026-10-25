@@ -57,7 +57,15 @@ import type {
   TrainingExercise
 } from "../types/generatedProgram";
 import styles from "../components/programFlow.module.css";
-import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
+import { apiRequest } from "../../../shared/api/client";
+import { programDetailFromApi } from "../../../shared/adapters/apiAdapters";
+import { StudentFormSection } from "../../students/components/StudentFormSection";
+import { Dumbbell, ListChecks } from "lucide-react";
+import {
+  ApiError,
+  persianMessageForApiError,
+  persianMessageForProgramApiError
+} from "../../../shared/api/errors";
 import { SupplementSelectionFields } from "../../coach-rules/components/SupplementSelectionFields";
 import {
   emptySupplementSelection,
@@ -204,6 +212,31 @@ export function ProgramPreviewPage({
     setProgram((current) => (current ? updater(structuredClone(current)) : current));
     setIsDirty(true);
   };
+  const [undoProgram, setUndoProgram] = useState<GeneratedProgram>();
+  const regenerateDraft = async (dayId?: string, exerciseId?: string) => {
+    if (!program || status === "saving") return;
+    setStatus("saving");
+    setFeedback("");
+    try {
+      const saved = isDirty ? await programsRepo.update(program.id, program) : program;
+      const dto = await apiRequest<Record<string, unknown>>(`/programs/${program.id}/regenerate/`, {
+        method: "POST",
+        body: { day_id: dayId, exercise_id: exerciseId, revision: saved.draftRevision }
+      });
+      setUndoProgram(saved);
+      setProgram(programDetailFromApi(dto));
+      setIsDirty(false);
+      setFeedback("پیشنهاد تازه آماده شد؛ حرکت‌های قفل‌شده حفظ شدند.");
+    } catch (error) {
+      setFeedback(
+        error instanceof ApiError
+          ? persianMessageForProgramApiError(error)
+          : "بازسازی انجام نشد؛ پیش‌نویس شما حفظ شده است."
+      );
+    } finally {
+      setStatus("loaded");
+    }
+  };
 
   const saveProgram = async () => {
     if (!program) {
@@ -236,6 +269,9 @@ export function ProgramPreviewPage({
       if (next.status === "draft" && programsRepo.finalize) {
         next = await programsRepo.finalize(program.id);
       }
+      // A PDF failure is retryable from this finalized version, not a stale draft.
+      setProgram(next);
+      setIsDirty(false);
       const sectionMethods = next.pdfSettings.deliverySections;
       if (sectionMethods) {
         const existing = await pdfFilesRepo.listByProgram?.(program.id);
@@ -558,7 +594,6 @@ export function ProgramPreviewPage({
               </div>
             </Card>
           ) : null}
-          {hasGeneratedSections ? <GenerationEvidencePanel program={program} /> : null}
           {tabs.length > 0 ? (
             <Card>
               <Tabs
@@ -572,7 +607,29 @@ export function ProgramPreviewPage({
           ) : null}
 
           {activeTab === "training" && program.training ? (
-            <TrainingEditor program={program} updateProgram={updateProgram} />
+            <>
+              <div className={styles.toolbarActions}>
+                <Button disabled={status === "saving"} onClick={() => void regenerateDraft()}>
+                  پیشنهاد تازه برای کل برنامه
+                </Button>
+                {undoProgram ? (
+                  <Button
+                    onClick={() => {
+                      setProgram(undoProgram);
+                      setUndoProgram(undefined);
+                      setIsDirty(true);
+                    }}
+                  >
+                    برگرداندن پیشنهاد قبلی
+                  </Button>
+                ) : null}
+              </div>
+              <TrainingEditor
+                program={program}
+                updateProgram={updateProgram}
+                onRegenerate={(dayId, exerciseId) => void regenerateDraft(dayId, exerciseId)}
+              />
+            </>
           ) : null}
           {activeTab === "nutrition" && program.nutrition ? (
             <NutritionEditor program={program} updateProgram={updateProgram} />
@@ -582,6 +639,17 @@ export function ProgramPreviewPage({
           ) : null}
           {activeTab === "pdf" ? (
             <PdfSettingsEditor program={program} updateProgram={updateProgram} />
+          ) : null}
+
+          {hasGeneratedSections ? (
+            <StudentFormSection
+              collapsible
+              icon={ListChecks}
+              title="جزئیات و شواهد تولید"
+              description="اختیاری؛ منبع ویزیت، قوانین و علت انتخاب حرکت‌ها."
+            >
+              <GenerationEvidencePanel program={program} />
+            </StudentFormSection>
           ) : null}
 
           <div className={styles.mobilePreviewActions}>
@@ -646,14 +714,14 @@ function ProgramHeader({ program, student }: { program: GeneratedProgram; studen
 
 function TrainingEditor({
   program,
-  updateProgram
+  updateProgram,
+  onRegenerate
 }: {
   program: GeneratedProgram;
+  onRegenerate: (dayId: string, exerciseId?: string) => void;
   updateProgram: (updater: (program: GeneratedProgram) => GeneratedProgram) => void;
 }) {
   const [activeDayId, setActiveDayId] = useState(program.training?.days[0]?.id ?? "");
-  const day =
-    program.training?.days.find((item) => item.id === activeDayId) ?? program.training?.days[0];
 
   const updateDay = (dayId: string, updater: (day: TrainingDay) => TrainingDay) => {
     updateProgram((next) => ({
@@ -699,24 +767,19 @@ function TrainingEditor({
     });
 
   return (
-    <div className={styles.previewLayout}>
-      <Card className={styles.dayNav}>
-        <Button iconStart={<Plus size={18} />} onClick={addDay} variant="secondary">
-          افزودن روز
-        </Button>
-        {program.training?.days.map((item) => (
-          <button
-            className={`${styles.dayButton} ${item.id === day?.id ? styles.dayButtonActive : ""}`}
-            key={item.id}
-            onClick={() => setActiveDayId(item.id)}
-            type="button"
-          >
-            {item.title}
-          </button>
-        ))}
-      </Card>
-      {day ? (
-        <Card className={styles.pageStack}>
+    <div className={styles.pageStack}>
+      <Button iconStart={<Plus size={18} />} onClick={addDay} variant="secondary">
+        افزودن روز
+      </Button>
+      {program.training?.days.map((day, dayIndex) => (
+        <StudentFormSection
+          collapsible
+          defaultOpen={dayIndex === 0 || day.id === activeDayId}
+          icon={Dumbbell}
+          title={day.title}
+          description={`${day.exercises.length} حرکت · ${day.targetMuscles.join("، ")}`}
+          key={day.id}
+        >
           <div className={`${styles.toolbar} ${styles.trainingToolbar}`}>
             <FormField label="عنوان روز">
               <Input
@@ -730,6 +793,7 @@ function TrainingEditor({
               />
             </FormField>
             <div className={styles.toolbarActions}>
+              <Button onClick={() => onRegenerate(day.id)}>پیشنهاد تازه برای این جلسه</Button>
               <Button
                 iconStart={<Plus size={18} />}
                 onClick={() =>
@@ -768,6 +832,7 @@ function TrainingEditor({
             ) : null}
             {day.exercises.map((exercise, index) => (
               <ExerciseEditor
+                onRegenerate={() => onRegenerate(day.id, exercise.id)}
                 exercise={exercise}
                 isFirst={index === 0}
                 isLast={index === day.exercises.length - 1}
@@ -783,28 +848,34 @@ function TrainingEditor({
                 onMove={(direction) =>
                   updateDay(day.id, (nextDay) => ({
                     ...nextDay,
-                    exercises: moveItem(nextDay.exercises, index, direction)
+                    exercises: moveTrainingGroup(nextDay.exercises, index, direction)
                   }))
                 }
                 onRemove={() =>
                   updateDay(day.id, (nextDay) => ({
                     ...nextDay,
                     exercises: normalizeOrders(
-                      nextDay.exercises.filter((item) => item.id !== exercise.id)
+                      nextDay.exercises.filter((item) =>
+                        exercise.trainingGroupId || exercise.supersetGroupId
+                          ? (item.trainingGroupId || item.supersetGroupId) !==
+                            (exercise.trainingGroupId || exercise.supersetGroupId)
+                          : item.id !== exercise.id
+                      )
                     )
                   }))
                 }
               />
             ))}
           </div>
-        </Card>
-      ) : null}
+        </StudentFormSection>
+      ))}
     </div>
   );
 }
 
 function ExerciseEditor({
   exercise,
+  onRegenerate,
   isFirst,
   isLast,
   onChange,
@@ -812,6 +883,7 @@ function ExerciseEditor({
   onRemove
 }: {
   exercise: TrainingExercise;
+  onRegenerate: () => void;
   isFirst: boolean;
   isLast: boolean;
   onChange: (exercise: TrainingExercise) => void;
@@ -819,95 +891,157 @@ function ExerciseEditor({
   onRemove: () => void;
 }) {
   return (
-    <div className={styles.editableRow} data-superset-group={exercise.supersetGroupId || undefined}>
-      <FormField
-        label={
-          exercise.supersetGroupId
-            ? exercise.supersetWithPrevious
-              ? "نام حرکت (زوج سوپرست)"
-              : "نام حرکت (سوپرست)"
-            : "نام حرکت"
-        }
-      >
-        <Input
-          value={exercise.name}
-          onChange={(event) => onChange({ ...exercise, name: event.target.value })}
-        />
-        {exercise.supersetGroupId &&
-        !exercise.supersetWithPrevious &&
-        exercise.supersetPartnerName ? (
-          <span className={styles.supersetBadge} data-testid="superset-badge">
-            {exercise.name}
-            <br />+<br />
-            {exercise.supersetPartnerName}
-          </span>
-        ) : exercise.supersetWithPrevious ? (
-          <span className={styles.supersetBadge} data-testid="superset-partner-badge">
-            + {exercise.name}
-          </span>
-        ) : null}
-        {exercise.supersetGroupId && !exercise.supersetWithPrevious ? (
-          <small>
-            استراحت بین حرکات: {exercise.supersetRestBetweenSeconds ?? 0} ثانیه؛ بعد از جفت:{" "}
-            {exercise.supersetRestAfterSeconds ?? 90} ثانیه
-          </small>
-        ) : null}
-        {exercise.dropSet ? (
-          <span className={styles.supersetBadge} data-testid="drop-set-badge">
-            دراپ‌ست: {exercise.dropSet.drops} دراپ با کاهش {exercise.dropSet.reduction_percent}٪
-          </span>
-        ) : null}
-      </FormField>
-      <FormField label="ست">
-        <Input
-          type="number"
-          value={exercise.sets}
-          onChange={(event) => onChange({ ...exercise, sets: Number(event.target.value) })}
-        />
-      </FormField>
-      <FormField label="تکرار">
-        <Input
-          value={exercise.reps}
-          onChange={(event) => onChange({ ...exercise, reps: event.target.value })}
-        />
-      </FormField>
-      <FormField label="استراحت">
-        <Input
-          value={exercise.rest}
-          onChange={(event) => onChange({ ...exercise, rest: event.target.value })}
-        />
-      </FormField>
-      <FormField label="توضیح">
-        <Input
-          value={exercise.notes}
-          onChange={(event) => onChange({ ...exercise, notes: event.target.value })}
-        />
-      </FormField>
-      <div className={styles.actionIconGroup}>
-        <Button
-          disabled={isFirst}
-          iconStart={<ArrowUp size={16} />}
-          onClick={() => onMove(-1)}
-          size="sm"
-          variant="secondary"
+    <details
+      className={styles.pageStack}
+      data-superset-group={exercise.supersetGroupId || undefined}
+    >
+      <summary>
+        <strong>
+          {exercise.order}. {exercise.name}
+        </strong>{" "}
+        · {exercise.sets} × {exercise.reps} · استراحت {exercise.rest}
+        {exercise.locked ? " · قفل" : ""} — ویرایش سریع
+      </summary>
+      <div className={styles.editableRow}>
+        <FormField
+          label={
+            exercise.trainingGroupName
+              ? exercise.supersetWithPrevious
+                ? `نام حرکت (${exercise.trainingGroupName})`
+                : `نام حرکت (${exercise.trainingGroupName})`
+              : exercise.supersetGroupId
+                ? exercise.supersetWithPrevious
+                  ? "نام حرکت (زوج سوپرست)"
+                  : "نام حرکت (سوپرست)"
+                : "نام حرکت"
+          }
         >
-          بالا
-        </Button>
-        <Button
-          disabled={isLast}
-          iconStart={<ArrowDown size={16} />}
-          onClick={() => onMove(1)}
-          size="sm"
-          variant="secondary"
-        >
-          پایین
-        </Button>
-        <Button iconStart={<Trash2 size={16} />} onClick={onRemove} size="sm" variant="danger">
-          حذف
-        </Button>
+          <Input
+            value={exercise.name}
+            onChange={(event) =>
+              onChange({
+                ...exercise,
+                name: event.target.value,
+                exercise_id: undefined,
+                tutorial_url: "",
+                execution_guide: {},
+                locked: true
+              })
+            }
+          />
+          {exercise.trainingGroupName ? (
+            <span className={styles.supersetBadge} data-testid="training-system-group-badge">
+              گروه {exercise.trainingGroupName}
+              {exercise.trainingGroupSize ? ` · ${exercise.trainingGroupSize} حرکت` : ""}
+            </span>
+          ) : null}
+          {exercise.supersetGroupId &&
+          !exercise.trainingGroupName &&
+          !exercise.supersetWithPrevious &&
+          exercise.supersetPartnerName ? (
+            <span className={styles.supersetBadge} data-testid="superset-badge">
+              {exercise.name}
+              <br />+<br />
+              {exercise.supersetPartnerName}
+            </span>
+          ) : exercise.supersetWithPrevious ? (
+            <span className={styles.supersetBadge} data-testid="superset-partner-badge">
+              + {exercise.name}
+            </span>
+          ) : null}
+          {exercise.supersetGroupId && !exercise.supersetWithPrevious ? (
+            <small>
+              استراحت بین حرکات: {exercise.supersetRestBetweenSeconds ?? 0} ثانیه؛ بعد از گروه:{" "}
+              {exercise.supersetRestAfterSeconds ?? 90} ثانیه
+            </small>
+          ) : null}
+          {exercise.dropSet ? (
+            <span className={styles.supersetBadge} data-testid="drop-set-badge">
+              دراپ‌ست: {exercise.dropSet.drops} دراپ با کاهش {exercise.dropSet.reduction_percent}٪
+            </span>
+          ) : null}
+          {exercise.partialReps ? (
+            <span className={styles.supersetBadge} data-testid="partial-reps-badge">
+              {partialRepLabel(
+                exercise.partialReps.variant,
+                exercise.partialReps.after_failure_reps
+              )}
+              ؛ دامنهٔ نیمه نیازمند بازبینی مربی است.
+            </span>
+          ) : null}
+        </FormField>
+        <FormField label="ست">
+          <Input
+            min={1}
+            max={100}
+            type="number"
+            value={exercise.sets}
+            onChange={(event) =>
+              onChange({ ...exercise, sets: Number(event.target.value), locked: true })
+            }
+          />
+        </FormField>
+        <FormField label="تکرار">
+          <Input
+            value={exercise.reps}
+            onChange={(event) => onChange({ ...exercise, reps: event.target.value, locked: true })}
+          />
+        </FormField>
+        <FormField label="استراحت">
+          <Input
+            value={exercise.rest}
+            onChange={(event) => onChange({ ...exercise, rest: event.target.value, locked: true })}
+          />
+        </FormField>
+        <FormField label="توضیح">
+          <Input
+            value={exercise.notes}
+            onChange={(event) => onChange({ ...exercise, notes: event.target.value, locked: true })}
+          />
+        </FormField>
+        <div className={styles.actionIconGroup}>
+          <Button disabled={exercise.locked} onClick={onRegenerate}>
+            حرکت جایگزین
+          </Button>
+          <Checkbox
+            checked={exercise.locked ?? false}
+            label="حفظ این حرکت"
+            onChange={(e) => onChange({ ...exercise, locked: e.target.checked })}
+          />
+          <Button
+            disabled={isFirst}
+            iconStart={<ArrowUp size={16} />}
+            onClick={() => onMove(-1)}
+            size="sm"
+            variant="secondary"
+          >
+            بالا
+          </Button>
+          <Button
+            disabled={isLast}
+            iconStart={<ArrowDown size={16} />}
+            onClick={() => onMove(1)}
+            size="sm"
+            variant="secondary"
+          >
+            پایین
+          </Button>
+          <Button iconStart={<Trash2 size={16} />} onClick={onRemove} size="sm" variant="danger">
+            حذف
+          </Button>
+        </div>
       </div>
-    </div>
+    </details>
   );
+}
+
+function partialRepLabel(
+  variant: NonNullable<TrainingExercise["partialReps"]>["variant"],
+  count: number
+) {
+  if (variant === "one_and_half") return "تکرار یک‌ونیم";
+  if (variant === "after_failure") return `${count} نیم‌تکرار پس از ناتوانی فنی`;
+  return "کل ست در دامنهٔ نیمه";
 }
 
 function NutritionEditor({
@@ -1491,4 +1625,22 @@ function moveItem<Item extends { order: number }>(
 
 function normalizeOrders<Item extends { order: number }>(items: Item[]): Item[] {
   return items.map((item, index) => ({ ...item, order: index + 1 }));
+}
+
+function moveTrainingGroup(items: TrainingExercise[], index: number, direction: -1 | 1) {
+  const blocks: TrainingExercise[][] = [];
+  for (const item of items) {
+    const key = item.trainingGroupId || item.supersetGroupId;
+    const previous = blocks[blocks.length - 1];
+    if (key && previous && (previous[0].trainingGroupId || previous[0].supersetGroupId) === key)
+      previous.push(item);
+    else blocks.push([item]);
+  }
+  const blockIndex = blocks.findIndex((block) =>
+    block.some((item) => item.id === items[index]?.id)
+  );
+  const target = blockIndex + direction;
+  if (target < 0 || target >= blocks.length) return items;
+  [blocks[blockIndex], blocks[target]] = [blocks[target], blocks[blockIndex]];
+  return normalizeOrders(blocks.flat());
 }

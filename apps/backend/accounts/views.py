@@ -67,7 +67,9 @@ class PhoneLoginCodeRequestView(APIView):
         serializer = PhoneLoginCodeRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            payload = services.request_phone_login_code(**serializer.validated_data)
+            payload = services.request_phone_login_code(
+                **serializer.validated_data, client_ip=request.META.get("REMOTE_ADDR", "")
+            )
         except PermissionError:
             return Response(
                 {

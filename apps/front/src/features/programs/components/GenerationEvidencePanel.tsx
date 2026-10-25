@@ -111,13 +111,39 @@ export function GenerationEvidencePanel({
       {evidence ? (
         <dl className={styles.metaList}>
           <EvidenceRow label="نسخه موتور تولید" value={evidence.generatorVersion || "—"} />
-          <EvidenceRow label="قالب" value={evidence.templateName || evidence.templateId || "—"} />
+          <EvidenceRow
+            label="روش ساخت"
+            value={
+              evidence.generationMode === "quick"
+                ? "تنظیم سریع؛ بدون قالب"
+                : evidence.templateName || evidence.templateId || "قالب دقیق"
+            }
+          />
+          {evidence.exerciseVariety ? (
+            <EvidenceRow
+              label="تنوع حرکات"
+              value={
+                { stable: "ثابت", balanced: "متعادل", varied: "متنوع" }[evidence.exerciseVariety]
+              }
+            />
+          ) : null}
           <EvidenceRow label="هدف شاگرد" value={evidence.studentGoal || "—"} />
           <EvidenceRow label="سطح شاگرد" value={evidence.studentLevel || "—"} />
           <EvidenceRow
             label="تعداد روز"
             value={evidence.daysPerWeek ? String(evidence.daysPerWeek) : "—"}
           />
+          {evidence.sessionMuscles ? (
+            <EvidenceRow
+              label="تقسیم جلسات"
+              value={evidence.sessionMuscles
+                .map(
+                  (muscles, index) =>
+                    `جلسه ${index + 1}: ${muscles.length ? muscles.join(" و ") : "خودکار"}`
+                )
+                .join("؛ ")}
+            />
+          ) : null}
           <EvidenceRow
             label="ویزیت مرجع"
             value={

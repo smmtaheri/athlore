@@ -5,6 +5,7 @@ import argparse
 import datetime as dt
 import gzip
 import hashlib
+import io
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -79,13 +80,190 @@ def checksums(directory):
         f"{digest(p)}  {p.relative_to(directory).as_posix()}\n" for p in paths))
 
 
+def image_archive_catalog(path):
+    """Map runtime image IDs to the config objects stored by Docker save."""
+    small_files = {}
+    member_names = set()
+    small_bytes = 0
+    with gzip.open(path, "rb") as compressed:
+        with tarfile.open(fileobj=compressed, mode="r|") as archive:
+            for member in archive:
+                relative = safe_relative(member.name)
+                name = str(relative)
+                if name in member_names:
+                    raise ValueError("Image archive contains a duplicate member")
+                member_names.add(name)
+                if member.issym() or member.islnk() or not (member.isfile() or member.isdir()):
+                    raise ValueError("Image archive contains an unsupported member")
+                wanted = name in ("manifest.json", "index.json", "oci-layout")
+                small_blob = name.startswith("blobs/sha256/") and member.size <= 4 * 1024 * 1024
+                small_config = name.endswith(".json") and member.size <= 4 * 1024 * 1024
+                if member.isfile() and (wanted or small_blob or small_config):
+                    small_bytes += member.size
+                    if small_bytes > 128 * 1024 * 1024:
+                        raise ValueError("Image archive metadata exceeds the safe inspection limit")
+                    small_files[name] = archive.extractfile(member).read()
+            # Drain gzip after tar's end markers so its CRC/trailer is checked.
+            while compressed.read(1024 * 1024):
+                pass
+
+    if "manifest.json" not in small_files:
+        raise ValueError("Docker image archive is missing manifest.json")
+    entries = json.loads(small_files["manifest.json"])
+    configs = {}
+    for item in entries:
+        config_path = item["Config"]
+        if config_path not in member_names or any(layer not in member_names for layer in item.get("Layers", [])):
+            raise ValueError("Docker image manifest references a missing archive member")
+        config_bytes = small_files.get(config_path)
+        if config_bytes is None:
+            raise ValueError("Docker image config is missing or exceeds the inspection limit")
+        config_id = "sha256:" + PurePosixPath(config_path).name.removesuffix(".json")
+        if hashlib.sha256(config_bytes).hexdigest() != config_id.removeprefix("sha256:"):
+            raise ValueError("Image configuration digest does not match its archive path")
+        configs[config_id] = json.loads(config_bytes)
+
+    def read_blob(digest_value):
+        algorithm, value = digest_value.split(":", 1)
+        blob = f"blobs/{algorithm}/{value}"
+        payload = small_files.get(blob)
+        if algorithm != "sha256" or payload is None:
+            raise ValueError("Image archive references a missing or unsupported OCI blob")
+        if hashlib.sha256(payload).hexdigest() != value:
+            raise ValueError("OCI image blob digest does not match its index")
+        return json.loads(payload)
+
+    def configs_for(descriptor, seen=None):
+        seen = seen or set()
+        digest_value = descriptor["digest"]
+        if digest_value in seen:
+            raise ValueError("Image archive contains a cyclic OCI index")
+        content = read_blob(digest_value)
+        if "config" in content:
+            return [content["config"]["digest"]]
+        seen.add(digest_value)
+        result = []
+        for child in content.get("manifests", []):
+            result.extend(configs_for(child, seen.copy()))
+        return result
+
+    runtime_configs = {}
+    if "index.json" in small_files:
+        index = json.loads(small_files["index.json"])
+        for descriptor in index.get("manifests", []):
+            if descriptor["digest"] in runtime_configs:
+                raise ValueError("OCI image index contains a duplicate runtime image ID")
+            runtime_configs[descriptor["digest"]] = configs_for(descriptor)
+    else:
+        runtime_configs = {config_id: [config_id] for config_id in configs}
+    return entries, configs, runtime_configs
+
+
+def matching_image_configs(image, configs, runtime_configs):
+    config_ids = runtime_configs.get(image["image_id"], [image["image_id"]])
+    return [config_id for config_id in config_ids
+            if config_id in configs
+            and configs[config_id].get("architecture") == image["architecture"]
+            and configs[config_id].get("os") == image["os"]]
+
+
 def verify_images(path, manifest):
-    inspect_archive(path)
-    with tarfile.open(path, "r:gz") as archive:
-        items = json.load(archive.extractfile("manifest.json"))
-    available = {"sha256:" + PurePosixPath(item["Config"]).name.removesuffix(".json") for item in items}
-    if not {item["image_id"] for item in manifest["services"].values()}.issubset(available):
-        raise ValueError("Image archive does not contain all running images")
+    entries, configs, runtime_configs = image_archive_catalog(path)
+    matched = []
+    for service, image in manifest["services"].items():
+        candidates = matching_image_configs(image, configs, runtime_configs)
+        if len(candidates) != 1:
+            raise ValueError(f"Image archive does not contain exactly one matching image for {service}")
+        matched.append(candidates[0])
+    if len(entries) != len(manifest["services"]) or set(matched) != set(configs):
+        raise ValueError("Image archive contains missing or unexpected service images")
+
+
+def write_named_image_archive(source, destination, manifest):
+    """Convert Docker 29's OCI export into a tagged archive Docker can load reliably."""
+    entries, configs, runtime_configs = image_archive_catalog(source)
+    config_to_service = {}
+    config_paths = {}
+    service_configs = {}
+    for service, image in manifest["services"].items():
+        candidates = matching_image_configs(image, configs, runtime_configs)
+        if len(candidates) != 1 or candidates[0] in config_to_service:
+            raise ValueError(f"Could not uniquely map the saved image for {service}")
+        config_id = candidates[0]
+        config_to_service[config_id] = service
+        service_configs[service] = configs[config_id]
+        config_paths[service] = next(item["Config"] for item in entries
+                                     if "sha256:" + PurePosixPath(item["Config"]).name.removesuffix(".json") == config_id)
+
+    entry_config_ids = {"sha256:" + PurePosixPath(item["Config"]).name.removesuffix(".json")
+                        for item in entries}
+    if len(entries) != len(manifest["services"]) or entry_config_ids != set(config_to_service):
+        raise ValueError("Image archive contains missing or unexpected service images")
+
+    with tarfile.open(source, "r|gz") as incoming, tarfile.open(destination, "w|") as outgoing:
+        seen = set()
+        for member in incoming:
+            name = str(PurePosixPath(member.name))
+            if PurePosixPath(name).is_absolute() or ".." in PurePosixPath(name).parts:
+                raise ValueError("Unsafe image archive member")
+            if name in ("index.json", "oci-layout"):
+                continue
+            if member.isdir():
+                outgoing.addfile(member)
+                continue
+            if not member.isfile():
+                raise ValueError("Unsupported image archive member")
+            payload = incoming.extractfile(member)
+            if name == "manifest.json":
+                rows = json.load(payload)
+                if len(rows) != len(config_to_service):
+                    raise ValueError("Unexpected image count in Docker manifest")
+                for row in rows:
+                    config_id = "sha256:" + PurePosixPath(row["Config"]).name.removesuffix(".json")
+                    service = config_to_service.get(config_id)
+                    if service is None or config_id in seen:
+                        raise ValueError("Unexpected or duplicate image config in Docker manifest")
+                    seen.add(config_id)
+                    row["RepoTags"] = [f"athlore-recovery-{service}:{manifest['snapshot'].lower()}"]
+                data = json.dumps(rows).encode()
+                member.size = len(data)
+                outgoing.addfile(member, io.BytesIO(data))
+            else:
+                outgoing.addfile(member, payload)
+        if len(seen) != len(config_to_service):
+            raise ValueError("Docker image manifest is incomplete")
+    return config_paths, service_configs
+
+
+def load_recovery_images(snapshot, manifest):
+    image_snapshot = snapshot if manifest["mode"] == "full" else (
+        snapshot.parent / manifest["image_snapshot"])
+    image_manifest = manifest if image_snapshot == snapshot else verify(image_snapshot)
+    if image_manifest["mode"] != "full" or digest(image_snapshot / "images.tar.gz") != manifest["image_archive_sha256"]:
+        raise ValueError("The required full image snapshot is missing or incompatible")
+    import tempfile
+    tags = {}
+    with tempfile.TemporaryDirectory(prefix=".athlore-image-import-", dir=image_snapshot.parent) as directory:
+        named_archive = Path(directory) / "images.tar"
+        _, service_configs = write_named_image_archive(
+            image_snapshot / "images.tar.gz", named_archive, image_manifest
+        )
+        run(["docker", "load", "-i", str(named_archive)], stdout=subprocess.DEVNULL)
+        for service, item in image_manifest["services"].items():
+            tag = f"athlore-recovery-{service}:{image_manifest['snapshot'].lower()}"
+            loaded = json.loads(capture(["docker", "image", "inspect", tag]))[0]
+            config = service_configs[service]
+            if (loaded["Os"] != config["os"] or loaded["Architecture"] != config["architecture"]
+                    or loaded["RootFS"]["Layers"] != config["rootfs"]["diff_ids"]):
+                raise ValueError(f"Restored image layers or platform mismatch for {service}")
+            original = config.get("config", {})
+            for key in ("Env", "Cmd", "Entrypoint", "WorkingDir", "User", "Labels", "Volumes",
+                        "ExposedPorts", "Healthcheck"):
+                if (loaded["Config"].get(key) or None) != (original.get(key) or None):
+                    raise ValueError(f"Restored image configuration mismatch for {service}: {key}")
+            tags[service] = tag
+            log(f"Verified restored image: {service}")
+    return tags
 
 
 def verify(directory):
@@ -182,6 +360,17 @@ for model in apps.get_models():
                 referenced.add(value)
                 if not field.storage.exists(value):
                     missing.add(value)
+# Published derivatives are path fields, while original uploads are FileFields.
+asset_model = next((model for model in apps.get_models() if model._meta.label_lower == "accounts.exercisemediaasset"), None)
+assets = asset_model.objects.filter(status="ready", owner__isnull=False) if asset_model is not None and hasattr(asset_model, "status") else []
+for asset in assets:
+    for value in (asset.preview_path, asset.poster_path, asset.reel_path):
+        if not value.startswith("/media/workout/uploads/"):
+            raise SystemExit("Unexpected exercise video path in restored DB")
+        relative = value.removeprefix("/media/")
+        referenced.add(relative)
+        if not (media / relative).is_file():
+            missing.add(relative)
 print(json.dumps({"model_counts": counts, "media_files_checked": len(inventory),
                   "referenced_files": len(referenced), "missing_file_references": len(missing)}))
 if missing:
@@ -300,13 +489,8 @@ def restore(args):
         if capture(command + ["--filter", f"label=com.docker.compose.project={args.project}"]):
             raise ValueError("Compose project already has containers or volumes; refusing to overwrite data")
     run(["docker", "compose", "version"], stdout=subprocess.DEVNULL)
-    log("Loading saved images without registry access.")
-    run(["docker", "load", "-i", str(image_snapshot / "images.tar.gz")], stdout=subprocess.DEVNULL)
-    tags = {}
-    for service, item in manifest["services"].items():
-        tag = f"athlore-recovery-{service}:{manifest['snapshot'].lower()}"
-        run(["docker", "tag", item["image_id"], tag])
-        tags[service] = tag
+    log("Importing and verifying each saved service image without registry access.")
+    tags = load_recovery_images(image_snapshot, image_manifest)
     target.parent.mkdir(parents=True, exist_ok=True)
     run(["git", "clone", "--quiet", str(snapshot / "source.bundle"), str(target)])
     run(["git", "-C", str(target), "checkout", "--quiet", "-B", "main", manifest["source_commit"]])
@@ -324,6 +508,10 @@ def restore(args):
     overlay_path.write_text(json.dumps(overlay, indent=2) + "\n")
     compose = ["docker", "compose", "--project-directory", str(deployment), "--env-file", str(deployment / ".env"),
                "-p", args.project, "-f", str(deployment / "compose.yaml"), "-f", str(overlay_path)]
+    restored_services = capture(compose + ["config", "--services"]).splitlines()
+    if "exercise-video-worker" in restored_services:
+        overlay["services"]["exercise-video-worker"] = {"image": tags["backend"]}
+        overlay_path.write_text(json.dumps(overlay, indent=2) + "\n")
     run(compose + ["config", "--quiet"])
     run(compose + ["up", "-d", "--no-build", "--pull", "never", "postgres"])
 
@@ -343,7 +531,7 @@ def restore(args):
     command = 'exec pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner --no-acl --exit-on-error --single-transaction'
     with (snapshot / "postgres.dump").open("rb") as stream:
         run(compose + ["exec", "-T", "postgres", "sh", "-c", command], stdin=stream)
-    log("Restoring uploaded photos and generated PDFs into the fresh media volume.")
+    log("Restoring photos, PDFs, and exercise videos into the fresh media volume.")
     command = 'mkdir -p /data/media; test -z "$(ls -A /data/media)"; tar xzf - -C /data/media; chown -R 10001:10001 /data/media'
     with (snapshot / "media.tar.gz").open("rb") as stream:
         run(compose + ["run", "--rm", "-T", "--no-deps", "--pull", "never", "--user", "0", "--entrypoint", "sh", "backend", "-ec", command], stdin=stream)
@@ -359,6 +547,8 @@ def restore(args):
                    "project": args.project, "verified_at_utc": dt.datetime.now(dt.timezone.utc).isoformat()})
     (deployment / "restore-verification.json").write_text(json.dumps(report, indent=2) + "\n")
     log(f"Verified {report['media_files_checked']} media files and {report['referenced_files']} DB file references.")
+    if "exercise-video-worker" in restored_services:
+        run(compose + ["up", "-d", "--no-build", "--pull", "never", "exercise-video-worker"])
     log(f"Restore healthy: project={args.project}, checkout={target}. Switch CDN origin after browser QA.")
 
 

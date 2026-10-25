@@ -1,6 +1,7 @@
 from django.urls import path
 
 from accounts.dashboard_views import DashboardView
+from accounts.exercise_media_views import ExerciseMediaRetryView, ExerciseMediaView
 from accounts.rules_views import (
     CoachRulesAggregateView,
     ExerciseDetailView,
@@ -10,6 +11,7 @@ from accounts.rules_views import (
     MuscleRegionListCreateView,
     MuscleTaxonomyDetailView,
     MuscleTaxonomyListCreateView,
+    PlatformTrainingTechniqueDetailView,
     ProgramTemplateDetailView,
     ProgramTemplateListCreateView,
     TrainingTechniqueDetailView,
@@ -69,16 +71,6 @@ urlpatterns = [
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
     path("coach-rules/", CoachRulesAggregateView.as_view(), name="coach-rules"),
     path(
-        "coach-rules/templates/",
-        ProgramTemplateListCreateView.as_view(),
-        name="coach-rules-templates",
-    ),
-    path(
-        "coach-rules/templates/<uuid:template_id>/",
-        ProgramTemplateDetailView.as_view(),
-        name="coach-rules-template-detail",
-    ),
-    path(
         "program-templates/",
         ProgramTemplateListCreateView.as_view(),
         name="program-templates",
@@ -89,6 +81,12 @@ urlpatterns = [
         name="program-template-detail",
     ),
     path("exercises/", ExerciseListCreateView.as_view(), name="exercises"),
+    path("exercises/<uuid:exercise_id>/media/", ExerciseMediaView.as_view(), name="exercise-media"),
+    path(
+        "exercises/<uuid:exercise_id>/media/retry/",
+        ExerciseMediaRetryView.as_view(),
+        name="exercise-media-retry",
+    ),
     path(
         "exercises/<uuid:exercise_id>/",
         ExerciseDetailView.as_view(),
@@ -119,6 +117,11 @@ urlpatterns = [
         "training-techniques/",
         TrainingTechniqueListCreateView.as_view(),
         name="training-techniques",
+    ),
+    path(
+        "training-techniques/platform/<slug:technique_key>/",
+        PlatformTrainingTechniqueDetailView.as_view(),
+        name="platform-training-technique-detail",
     ),
     path(
         "training-techniques/<uuid:technique_id>/",

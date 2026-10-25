@@ -5,6 +5,7 @@ import { LoginPage, RegisterPage } from "../../features/auth/pages/AuthPages";
 import { CoachRulesPage } from "../../features/coach-rules";
 import { StudentBodyCheckPage } from "../../features/body-check/pages/StudentBodyCheckPage";
 import { DashboardPage } from "../../features/dashboard";
+import { CoachVisitsPage } from "../../features/visits/pages/CoachVisitsPage";
 import { StudentShell } from "../../features/student-portal/components/StudentShell";
 import { StudentDashboardPage } from "../../features/student-portal/pages/StudentDashboardPage";
 import { StudentLoginPage } from "../../features/student-portal/pages/StudentLoginPage";
@@ -12,6 +13,8 @@ import { StudentVisitDetailPage } from "../../features/student-portal/pages/Stud
 import { StudentVisitsPage } from "../../features/student-portal/pages/StudentVisitsPage";
 import { StudentProgramDetailPage } from "../../features/student-portal/pages/StudentProgramDetailPage";
 import { StudentProgramsPage } from "../../features/student-portal/pages/StudentProgramsPage";
+import { StudentProgramRequestPage } from "../../features/program-requests/pages/StudentProgramRequestPage";
+import { CoachProgramRequestsPage } from "../../features/program-requests/pages/CoachProgramRequestsPage";
 import {
   ProgramGenerationPage,
   ProgramPreviewPage,
@@ -26,13 +29,10 @@ import {
 import { PublicHomePage } from "../../pages/home/PublicHomePage";
 import { PublicInformationPage } from "../../pages/home/PublicInformationPage";
 import { NotFoundPage } from "../../pages/placeholders/NotFoundPage";
-import { PlaceholderPage } from "../../pages/placeholders/PlaceholderPage";
 import { UiKitPage } from "../../pages/ui-kit/UiKitPage";
 import { appDomains, resolveAppSurface } from "../config/appOrigin";
 import type { AppSurface } from "../config/appOrigin";
 import { SettingsPage } from "../../pages/settings/SettingsPage";
-
-const nextStepMessage = "پیاده سازی این صفحه در مرحله بعد انجام می شود.";
 
 export function AppRoutes({
   surface = resolveAppSurface(),
@@ -119,18 +119,10 @@ function CoachRoutes() {
           element={<StudentVisitFormPage mode="edit" />}
           path="students/:studentId/visits/:visitId/edit"
         />
-        <Route
-          element={
-            <PlaceholderPage
-              breadcrumb={["داشبورد", "ویزیت ها"]}
-              description={nextStepMessage}
-              title="ویزیت های ماهانه"
-            />
-          }
-          path="visits"
-        />
+        <Route element={<CoachVisitsPage />} path="visits" />
         <Route element={<ProgramsListPage />} path="programs" />
         <Route element={<ProgramGenerationPage />} path="programs/new" />
+        <Route element={<CoachProgramRequestsPage />} path="program-requests" />
         <Route element={<ProgramPreviewPage />} path="programs/:programId" />
         <Route element={<ProgramPreviewPage />} path="programs/:programId/preview" />
         <Route element={<CoachRulesPage />} path="coach-rules" />
@@ -173,6 +165,7 @@ function StudentRoutes({ publicPagesOnStudentSurface }: { publicPagesOnStudentSu
       >
         <Route element={<StudentDashboardPage />} path="dashboard" />
         <Route element={<StudentProgramsPage />} path="programs" />
+        <Route element={<StudentProgramRequestPage />} path="program-request" />
         <Route element={<StudentProgramDetailPage />} path="programs/:programId" />
         <Route element={<StudentBodyCheckPage />} path="body-check" />
         <Route element={<StudentVisitsPage />} path="visits" />

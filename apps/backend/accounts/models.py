@@ -32,6 +32,7 @@ class CoachProfile(models.Model):
         default=ControlMode.BALANCED,
     )
     default_session_minutes = models.PositiveIntegerField(default=60)
+    program_defaults = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -100,6 +101,7 @@ class ProgramTemplate(models.Model):
     split = models.JSONField(default=list, blank=True)
     muscle_priority_order = models.JSONField(default=list, blank=True)
     special_rules = models.JSONField(default=list, blank=True)
+    execution_plan = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
     is_archived = models.BooleanField(default=False)
     sort_order = models.IntegerField(default=0)
@@ -312,6 +314,86 @@ class EquipmentTaxonomy(models.Model):
         return self.name
 
 
+def exercise_video_upload_to(instance, filename):
+    extension = filename.rsplit(".", 1)[-1].lower()
+    return f"exercise-sources/{instance.id}/original.{extension}"
+
+
+class ExerciseMediaAsset(models.Model):
+    """A shared demonstration or a coach-owned, immutable video revision."""
+
+    class Status(models.TextChoices):
+        QUEUED = "queued", "Queued"
+        PROCESSING = "processing", "Processing"
+        READY = "ready", "Ready"
+        FAILED = "failed", "Failed"
+        CANCELLED = "cancelled", "Cancelled"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    key = models.SlugField(max_length=40, unique=True)
+    owner = models.ForeignKey(
+        CoachProfile,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="exercise_media_assets",
+    )
+    upload_for = models.ForeignKey(
+        "Exercise",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="media_uploads",
+    )
+    original_file = models.FileField(upload_to=exercise_video_upload_to, max_length=512, blank=True)
+    original_filename = models.CharField(max_length=255, blank=True, default="")
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.READY)
+    error_message = models.CharField(max_length=255, blank=True, default="")
+    processing_started_at = models.DateTimeField(null=True, blank=True)
+    duration_seconds = models.FloatField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    title_fa = models.CharField(max_length=160)
+    title_en = models.CharField(max_length=160, blank=True, default="")
+    author = models.CharField(max_length=160)
+    source_url = models.URLField(max_length=1024, blank=True)
+    license_name = models.CharField(max_length=160, blank=True)
+    license_url = models.URLField(max_length=1024, blank=True)
+    changes = models.TextField(blank=True, default="")
+    preview_path = models.CharField(max_length=255, blank=True)
+    poster_path = models.CharField(max_length=255, blank=True)
+    reel_path = models.CharField(max_length=255, blank=True)
+    education = models.JSONField(default=dict, blank=True)
+    disclaimer = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "title_fa"]
+
+    def __str__(self) -> str:
+        return self.title_fa
+
+    def public_payload(self) -> dict:
+        return {
+            "id": str(self.id),
+            "key": self.key,
+            "title": self.title_fa,
+            "preview_url": self.preview_path,
+            "poster_url": self.poster_path,
+            "reel_url": self.reel_path,
+            "education": self.education,
+            "attribution": {
+                "author": self.author,
+                "source_url": self.source_url,
+                "license": self.license_name,
+                "license_url": self.license_url,
+                "changes": self.changes,
+                "disclaimer": self.disclaimer,
+            },
+        }
+
+
 class Exercise(models.Model):
     """Coach-owned structured movement catalog entry."""
 
@@ -348,6 +430,16 @@ class Exercise(models.Model):
     risk_tags = models.JSONField(default=list, blank=True)
     # Reference document (e.g. a coach-provided PDF/program name) this entry was imported from.
     source_document = models.CharField(max_length=255, blank=True, default="")
+    tutorial_url = models.URLField(max_length=1024, blank=True, default="")
+    tutorial_source_url = models.URLField(max_length=1024, blank=True, default="")
+    media_asset = models.ForeignKey(
+        ExerciseMediaAsset,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="exercises",
+    )
+    execution_guide = models.JSONField(default=dict, blank=True)
     coach_notes = models.TextField(blank=True, default="")
     is_active = models.BooleanField(default=True)
     is_archived = models.BooleanField(default=False)
@@ -509,6 +601,7 @@ class TrainingTechnique(models.Model):
     description = models.TextField(blank=True, default="")
     execution_method = models.TextField(blank=True, default="")
     parameter_schema = models.JSONField(default=dict, blank=True)
+    recipe = models.JSONField(default=dict, blank=True)
     handler_key = models.CharField(max_length=80, blank=True, default="")
     is_active = models.BooleanField(default=True)
     sort_order = models.IntegerField(default=0)
@@ -545,6 +638,7 @@ class CoachTechnique(models.Model):
     allowed_levels = models.JSONField(default=list, blank=True)
     max_per_session = models.PositiveSmallIntegerField(default=0)
     parameters = models.JSONField(default=dict, blank=True)
+    recipe = models.JSONField(default=dict, blank=True)
     enabled = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -568,6 +662,10 @@ class CoachTechnique(models.Model):
 # Reference-bank (exercise aliases/history) and nutrition/supplement models live in a
 # dedicated module for readability; imported here so Django's app registry picks them
 # up as part of the `accounts` app (required for migrations autodetection).
+from accounts.login_code_models import (  # noqa: E402,F401
+    LoginCodeIpLimit,
+    PhoneLoginChallenge,
+)
 from accounts.nutrition_models import (  # noqa: E402,F401
     CoachNutritionTemplate,
     CoachSupplementTemplate,

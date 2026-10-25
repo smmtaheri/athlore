@@ -18,6 +18,7 @@ export interface VisitDynamicFormProps {
   audience?: "athlete" | "coach";
   answers: VisitFormAnswers;
   coachNotes?: string;
+  collapsibleSections?: boolean;
   disabled?: boolean;
   notesLabel?: string;
   notesTitle?: string;
@@ -37,6 +38,7 @@ export function VisitDynamicForm({
   audience = "coach",
   answers,
   coachNotes = "",
+  collapsibleSections = false,
   disabled = false,
   notesLabel = "یادداشت خصوصی مربی",
   notesTitle = "یادداشت خصوصی مربی",
@@ -49,53 +51,36 @@ export function VisitDynamicForm({
   showNotes = false,
   theme = "athlore"
 }: VisitDynamicFormProps) {
-  const setAnswer = (key: string, value: VisitFormAnswerValue) => {
-    onAnswersChange({ ...answers, [key]: value });
-  };
-
   return (
     <div
       className={`${styles.tabContentStack} ${
         theme === "athlore_compact" ? styles.visitFormCompact : styles.visitFormStandard
       }`}
     >
-      {sections.map((section) => (
+      {sections.map((section, index) => (
         <StudentFormSection
+          collapsible={collapsibleSections}
+          defaultOpen={collapsibleSections && index === 0}
+          description={
+            collapsibleSections
+              ? "پاسخ به پرسش‌های این قالب؛ فقط موارد مربوط به این ویزیت را تکمیل کنید."
+              : undefined
+          }
           icon={ClipboardList}
           key={section.key}
           theme={theme}
           title={audience === "athlete" ? athleteFacingText(section.label) : section.label}
         >
-          <div className={styles.formGrid}>
-            {section.fields.map((field) => {
-              const displayedField =
-                audience === "athlete"
-                  ? {
-                      ...field,
-                      helpText: athleteFacingText(field.helpText),
-                      label: athleteFacingText(field.label),
-                      options: field.options.map((option) => ({
-                        ...option,
-                        label: athleteFacingText(option.label)
-                      }))
-                    }
-                  : field;
-              const fieldDisabled =
-                disabled ||
-                (respectStudentEditable && field.studentEditable !== true) ||
-                (respectCoachEditable && field.coachEditable === false);
-              return (
-                <VisitFormFieldControl
-                  disabled={fieldDisabled}
-                  field={displayedField}
-                  key={field.key}
-                  onChange={(value) => setAnswer(field.key, value)}
-                  showCoachHelpText={showCoachHelpText}
-                  value={answers[field.key]}
-                />
-              );
-            })}
-          </div>
+          <VisitDynamicFields
+            answers={answers}
+            audience={audience}
+            disabled={disabled}
+            fields={section.fields}
+            onAnswersChange={onAnswersChange}
+            respectCoachEditable={respectCoachEditable}
+            respectStudentEditable={respectStudentEditable}
+            showCoachHelpText={showCoachHelpText}
+          />
         </StudentFormSection>
       ))}
 
@@ -112,6 +97,56 @@ export function VisitDynamicForm({
           </FormField>
         </StudentFormSection>
       ) : null}
+    </div>
+  );
+}
+
+export function VisitDynamicFields({
+  answers,
+  audience = "coach",
+  disabled = false,
+  fields,
+  onAnswersChange,
+  respectCoachEditable = false,
+  respectStudentEditable = false,
+  showCoachHelpText = false
+}: Omit<VisitDynamicFormProps, "sections"> & { fields: VisitFormFieldDefinition[] }) {
+  return (
+    <div className={styles.formGrid}>
+      {fields.map((field) => {
+        const hidesLegacyNone =
+          field.semanticKey === "injuries" || field.semanticKey === "weak_muscles";
+        const selectableOptions = hidesLegacyNone
+          ? field.options.filter((option) => option.value !== "none")
+          : field.options;
+        const displayedField =
+          audience === "athlete"
+            ? {
+                ...field,
+                helpText: athleteFacingText(field.helpText),
+                label: athleteFacingText(field.label),
+                options: selectableOptions.map((option) => ({
+                  ...option,
+                  label: athleteFacingText(option.label)
+                }))
+              }
+            : { ...field, options: selectableOptions };
+        return (
+          <div data-visit-answer={field.key} key={field.key}>
+            <VisitFormFieldControl
+              disabled={
+                disabled ||
+                (respectStudentEditable && field.studentEditable !== true) ||
+                (respectCoachEditable && field.coachEditable === false)
+              }
+              field={displayedField}
+              onChange={(value) => onAnswersChange({ ...answers, [field.key]: value })}
+              showCoachHelpText={showCoachHelpText}
+              value={answers[field.key]}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -137,7 +172,10 @@ export function VisitAnswersReadonly({
             value !== undefined &&
             value !== null &&
             value !== "" &&
-            (!Array.isArray(value) || value.length > 0)
+            (!Array.isArray(value) ||
+              value.length > 0 ||
+              field.semanticKey === "injuries" ||
+              field.semanticKey === "weak_muscles")
           );
         });
         if (answeredFields.length === 0) return null;
@@ -206,7 +244,7 @@ function VisitFormFieldControl({
         <Switch
           checked={value === true}
           disabled={disabled}
-          label={value === true ? "بله" : "خیر"}
+          label={value === true ? "بله" : value === false ? "خیر" : "ثبت نشده"}
           onCheckedChange={(checked) => onChange(checked)}
         />
       </FormField>
@@ -214,7 +252,14 @@ function VisitFormFieldControl({
   }
 
   if (field.type === "multi_select") {
-    const selected = Array.isArray(value) ? value.map(String) : [];
+    const selected = Array.isArray(value)
+      ? value.map(String).filter((item) => {
+          return !(
+            item === "none" &&
+            (field.semanticKey === "injuries" || field.semanticKey === "weak_muscles")
+          );
+        })
+      : [];
     return (
       <FormField hint={hint || undefined} label={field.label} required={field.required}>
         <div className={styles.checkboxList}>
@@ -229,8 +274,13 @@ function VisitFormFieldControl({
                 onChange={() => {
                   if (checked) {
                     onChange(selected.filter((item) => item !== option.value));
+                  } else if (isExclusiveMultiSelectOption(option.value)) {
+                    onChange([option.value]);
                   } else {
-                    onChange([...selected, option.value]);
+                    onChange([
+                      ...selected.filter((item) => !isExclusiveMultiSelectOption(item)),
+                      option.value
+                    ]);
                   }
                 }}
               />
@@ -338,4 +388,8 @@ function VisitFormFieldControl({
       )}
     </FormField>
   );
+}
+
+function isExclusiveMultiSelectOption(value: string): boolean {
+  return ["none", "full_gym", "bodyweight_only"].includes(value);
 }

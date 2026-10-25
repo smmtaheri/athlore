@@ -146,31 +146,28 @@ mapping to the saved image configurations and filesystem layers. On Docker
 used by the classic image store; do not rely on their equality or attempt to
 fix this by guessing/shortening IDs.
 
-After `docker load`, inspect **each** expected service reference. The message
-`Loaded image ID` or a zero exit status does not prove that four usable images
-exist. Missing/misidentified images block database restore. `verify_images`
-in the current `recovery.py` checks the legacy manifest only, and `restore`
-retags by saved image ID: these checks alone do not enforce the compatibility
-requirements above. An existing full snapshot reused by `--mode update`
-inherits the same image compatibility limitations.
+The recovery verifier now resolves each recorded runtime image ID through the
+OCI index to the config object in Docker's classic manifest, checks the saved
+config digest and platform, and refuses missing or ambiguous service images.
+Restore converts the verified archive to a named Docker archive, imports each
+service under a distinct recovery tag, then compares its runtime configuration
+and filesystem layer IDs with the saved image before starting any service.
+The same checks apply when an update snapshot reuses a full image snapshot.
 
 During the 2026-10-20 recovery, the operator used the separate laptop helpers
-`backups/restore-docker29.py` and `backups/audit-restored-data.py`. They are
-ignored by Git and are **not automatically included** by the current backup
-collector. Before the next snapshot is accepted as self-contained, preserve
-any required compatibility/audit tools in the versioned deployment tooling
-and the checksummed recovery package, and rehearse using only that package.
-If tooling is still separate, retain a checksummed companion package and
-record that dependency explicitly; do not claim the snapshot alone is enough.
+`backups/restore-docker29.py` and `backups/audit-restored-data.py`. Docker 29
+image conversion and image verification are now part of the versioned
+`recovery.py`, which is copied into each snapshot. The old laptop conversion
+helper is no longer needed. The separate audit script was used for a
+historical row-by-row comparison; it is not part of restore and must not be
+mistaken for the current snapshot's media/database consistency check.
 
-If an image compatibility failure occurs after transfer, keep the original
-snapshot and checksums unchanged. A separately reviewed helper can convert
-and name images from the archive already on the destination, then verify each
-service's configuration/layers against the saved originals. Transfer only
-that small helper when needed; do not resend the whole backup unnecessarily.
-Rebuilding/pulling application images is not an equivalent offline restore
-unless the intended source version, dependencies and resulting behavior are
-separately established. Never use replacement demo data to work around it.
+If a snapshot fails verification, preserve its `.incomplete-*` directory and
+all artifacts unchanged. Correct the collector in a separate checkout and
+create a new uniquely named snapshot. Never rename a failed snapshot to make
+it look complete, edit its checksums, or substitute freshly pulled/rebuilt
+images for the saved release. A successful archive check is not a substitute
+for an isolated recovery rehearsal.
 
 ## 4. Recover on a fresh replacement server
 
@@ -373,7 +370,7 @@ These results describe this historical snapshot, not the current live counts.
   repository-access migration. Stage data was not part of this snapshot.
 
 These are evidence for this one snapshot/recovery, not automatic guarantees
-for later backups. The source `recovery.py` was not fixed by this documentation
-update; its image compatibility checks and full-data comparison must be
-implemented or supplied as verified recovery tooling before the next backup
-can be accepted under the requirements above.
+for later backups. The Docker 29 image-store behavior is handled by the
+versioned recovery code; each new full backup must still pass image mapping,
+checksums, PostgreSQL archive validation, media inventory validation, and a
+separate recovery rehearsal before it is treated as a complete recovery point.

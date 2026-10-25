@@ -3,9 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { coachRulesFixture } from "../../coach-rules/fixtures/coachRules";
+import type { TrainingSystem } from "../../coach-rules/types/coachRules";
 import { studentFixtures } from "../../students/fixtures/students";
 import { studentVisitFixtures } from "../../students/fixtures/studentVisits";
-import type { GeneratedProgram } from "../types/generatedProgram";
+import type { GeneratedProgram, ProgramGenerationInput } from "../types/generatedProgram";
 import { ProgramGenerationPage } from "./ProgramGenerationPage";
 
 describe("ProgramGenerationPage", () => {
@@ -176,7 +177,10 @@ describe("ProgramGenerationPage", () => {
       updatedAt: "2026-10-10T00:00:00.000Z",
       version: 1
     };
-    const generate = vi.fn(async () => ({ program: draft, warnings: [] }));
+    const generate = vi.fn(async (input: ProgramGenerationInput) => {
+      void input;
+      return { program: draft, warnings: [] };
+    });
     const uploadStagedPdf = vi.fn(async (_studentId: string, file: File, section?: string) => ({
       expiresAt: "2026-10-17T00:00:00.000Z",
       fileName: file.name,
@@ -431,7 +435,7 @@ describe("ProgramGenerationPage", () => {
     expect(await screen.findByText("preview page")).toBeInTheDocument();
   });
 
-  it("exposes structured chest target region controls", async () => {
+  it("offers optional muscle focus without restricting exercise selection", async () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter initialEntries={["/programs/new?studentId=mohammad-taheri"]}>
@@ -439,14 +443,136 @@ describe("ProgramGenerationPage", () => {
       </MemoryRouter>
     );
 
-    const targetMuscle = await screen.findByLabelText("عضله هدف");
-    await user.selectOptions(targetMuscle, "سینه");
+    const focus = await screen.findByRole("checkbox", { name: "سینه" });
+    // The fixture already prioritizes chest; prove this optional choice toggles.
+    if (focus instanceof HTMLInputElement && focus.checked) await user.click(focus);
+    await user.click(focus);
 
-    const targetRegion = await screen.findByLabelText("ناحیه هدف");
-    await user.selectOptions(targetRegion, "inner_upper_chest");
+    expect(focus).toBeChecked();
+    expect(screen.queryByLabelText("عضله هدف")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/این‌ها تمرکز اضافهٔ همین برنامه‌اند و حرکت‌ها را حذف یا محدود نمی‌کنند/)
+    ).toBeInTheDocument();
+  });
 
-    expect(targetRegion).toHaveValue("inner_upper_chest");
-    expect(screen.getByLabelText("تعداد حرکت هدف")).toHaveValue(2);
-    expect(screen.getByRole("option", { name: "داخل زیرسینه" })).toBeInTheDocument();
+  it("sends the coach-selected partial-rep mode to program generation", async () => {
+    const user = userEvent.setup();
+    const draft: GeneratedProgram = {
+      createdAt: "2026-10-22T00:00:00.000Z",
+      dateRange: "مهر ۱۴۰۵",
+      draftId: "version-partial-reps",
+      id: "program-partial-reps",
+      pdfSettings: {
+        contactInfo: "",
+        fileTitle: "برنامه کامل محمد طاهری",
+        includeCoachName: true,
+        includeCoachNotes: true,
+        includeNutrition: true,
+        includeStudentName: true,
+        includeSupplements: true,
+        includeTraining: true,
+        pageSize: "A4",
+        style: "modern"
+      },
+      programType: "complete",
+      status: "draft",
+      studentId: "mohammad-taheri",
+      title: "برنامه کامل محمد طاهری",
+      updatedAt: "2026-10-22T00:00:00.000Z",
+      version: 1
+    };
+    const generate = vi.fn(async (input: ProgramGenerationInput) => {
+      void input;
+      return { program: draft, warnings: [] };
+    });
+    const system: TrainingSystem = {
+      id: null,
+      key: "partial_reps",
+      name: "تکرار نیمه",
+      description: "روش‌های تکرار نیمه",
+      execution_method: "مقادیر پیشنهادی و نیازمند بازبینی مربی.",
+      allowed_levels: [],
+      max_per_session: 0,
+      parameters: {},
+      enabled: false,
+      source: "platform",
+      base_technique_key: "partial_reps",
+      handler_key: "partial_reps",
+      handler_status: "implemented",
+      parameter_schema: {
+        variants: { default: ["one_and_half", "after_failure", "partial_only"] },
+        after_failure_reps: { default: 3 }
+      }
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/programs/new?studentId=mohammad-taheri"]}>
+        <ProgramGenerationPage
+          coachRulesRepo={{
+            get: async () => coachRulesFixture,
+            reset: async () => coachRulesFixture,
+            save: async () => coachRulesFixture
+          }}
+          programsRepo={{
+            create: async (program) => program,
+            duplicate: async () => draft,
+            generate,
+            getById: async () => null,
+            list: async () => [],
+            listByStudent: async () => [],
+            reset: async () => [],
+            update: async (_id, program) => program
+          }}
+          studentsRepo={{
+            create: async () => studentFixtures[0],
+            getById: async () => studentFixtures[0],
+            list: async () => studentFixtures,
+            reset: async () => studentFixtures,
+            update: async () => studentFixtures[0]
+          }}
+          studentProgramsRepo={{
+            activate: async () => {
+              throw new Error("unused");
+            },
+            duplicate: async () => {
+              throw new Error("unused");
+            },
+            getById: async () => null,
+            listByStudent: async () => [],
+            remove: async () => undefined,
+            reset: async () => [],
+            upsert: async (summary) => summary
+          }}
+          trainingSystemsRepo={{
+            list: async () => [system],
+            listPage: async () => ({ results: [system], count: 1, next: null }),
+            savePlatform: async () => system,
+            remove: async () => undefined,
+            save: async () => system
+          }}
+          visitsRepo={{
+            create: async () => studentVisitFixtures[0],
+            finalize: async () => studentVisitFixtures[0],
+            getById: async () => studentVisitFixtures[0],
+            listAnswerRevisions: async () => [],
+            listByStudent: async () => [],
+            remove: async () => undefined,
+            reset: async () => [],
+            sendToStudent: async () => studentVisitFixtures[0],
+            startCoachReview: async () => studentVisitFixtures[0],
+            update: async () => studentVisitFixtures[0]
+          }}
+        />
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByLabelText("تکرار نیمه"));
+    await user.click(screen.getByRole("checkbox", { name: "نیم‌تکرار پس از ناتوانی" }));
+    await user.click(screen.getByRole("button", { name: "ساخت پیش‌نویس و بازبینی" }));
+
+    await waitFor(() => expect(generate).toHaveBeenCalledTimes(1));
+    expect(generate.mock.calls[0][0].trainingSystems).toEqual([
+      { key: "partial_reps", variants: ["one_and_half", "partial_only"] }
+    ]);
   });
 });

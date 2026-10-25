@@ -40,6 +40,7 @@ import {
 } from "../validation/studentValidation";
 import { ApiError, firstFieldError, persianMessageForApiError } from "../../../shared/api/errors";
 import { StudentFormSection } from "./StudentFormSection";
+import { PhoneNumberInput } from "../../../shared/phone/PhoneNumberInput";
 import styles from "./students.module.css";
 
 export interface StudentFormProps {
@@ -97,7 +98,7 @@ export function StudentForm({ initialStudent, mode, onCancel, onSubmit }: Studen
       await onSubmit(formValuesToStudentInput(values, initialStudent));
     } catch (error) {
       if (error instanceof ApiError) {
-        const phoneField = firstFieldError(error, "phone_number", "phoneNumber");
+        const phoneField = firstFieldError(error, "phone_number", "phone_country", "phoneNumber");
         if (phoneField) {
           setErrors((current) => ({ ...current, phoneNumber: phoneField }));
         }
@@ -193,13 +194,13 @@ export function StudentForm({ initialStudent, mode, onCancel, onSubmit }: Studen
             label="شماره موبایل"
             required
           >
-            <Input
+            <PhoneNumberInput
               data-student-field="phoneNumber"
               id="student-phone"
-              inputMode="tel"
               invalid={Boolean(errors.phoneNumber)}
-              onChange={(event) => updateField("phoneNumber", event.target.value)}
-              placeholder="مثلا ۰۹۱۲۱۲۳۴۵۶۷"
+              country={values.phoneCountry ?? "IR"}
+              onCountryChange={(country) => updateField("phoneCountry", country)}
+              onValueChange={(phone) => updateField("phoneNumber", phone)}
               value={values.phoneNumber}
             />
           </FormField>

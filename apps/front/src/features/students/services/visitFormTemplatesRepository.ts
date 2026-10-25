@@ -1,4 +1,5 @@
 import { appConfig } from "../../../app/config/appConfig";
+import { CATALOG_PAGE_SIZE, type ListPage } from "../../../shared/api/usePagedList";
 import { createApiVisitFormTemplatesRepository } from "../../../shared/api/repositories";
 import { visitFormTemplateFixture } from "../fixtures/visitFormTemplates";
 import type { VisitFormTemplate } from "../types/visitForm";
@@ -14,6 +15,11 @@ export interface VisitFormTemplatesRepository {
   getById(id: string): Promise<VisitFormTemplate | null>;
   getDefault(): Promise<VisitFormTemplate | null>;
   list(): Promise<VisitFormTemplate[]>;
+  listPage(
+    search: string,
+    offset: number,
+    signal: AbortSignal
+  ): Promise<ListPage<VisitFormTemplate>>;
   reset(): Promise<VisitFormTemplate[]>;
   setDefault(id: string): Promise<VisitFormTemplate>;
   update(id: string, input: Partial<VisitFormTemplate>): Promise<VisitFormTemplate>;
@@ -157,6 +163,16 @@ export function createVisitFormTemplatesRepository(
       return read().sort(
         (a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name)
       );
+    },
+    async listPage(search, offset) {
+      const matches = (await this.list()).filter((item) =>
+        item.name.toLowerCase().includes(search.toLowerCase())
+      );
+      return {
+        results: matches.slice(offset, offset + CATALOG_PAGE_SIZE),
+        count: matches.length,
+        next: offset + CATALOG_PAGE_SIZE < matches.length ? "next" : null
+      };
     },
     async reset() {
       const initial = cloneTemplates([visitFormTemplateFixture]);

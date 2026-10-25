@@ -16,6 +16,7 @@ import {
   type StudentProgramsRepository
 } from "../services/studentProgramsRepository";
 import styles from "../components/studentPortal.module.css";
+import { InteractiveWorkout } from "../components/InteractiveWorkout";
 
 function formatDate(value: string): string {
   return formatCalendarDate(value);
@@ -118,6 +119,15 @@ export function StudentProgramDetailPage({
   const visibleStatus = loadedProgramId === programId ? status : "loading";
 
   const days = useMemo(() => program?.training?.days ?? [], [program]);
+  const generatedWorkout =
+    program?.deliverySource !== "uploaded_pdf" &&
+    program?.sectionMethods?.workout !== "uploaded" &&
+    program?.sectionMethods?.workout !== "omitted";
+  const canTrackWorkout =
+    Boolean(program?.programVersionId) &&
+    days.length > 0 &&
+    days.every((day) => day.id && day.exercises.every((exercise) => exercise.id)) &&
+    generatedWorkout;
   const sectionOrder: ProgramPdfSection[] = ["workout", "nutrition", "supplement"];
   const readyFiles = pdfFiles
     .filter((file) => file.status === "ready")
@@ -231,7 +241,10 @@ export function StudentProgramDetailPage({
           </div>
         </Card>
 
-        {days.length > 0 ? (
+        {canTrackWorkout ? (
+          <InteractiveWorkout key={program.programVersionId ?? program.id} program={program} />
+        ) : null}
+        {days.length > 0 && !canTrackWorkout && generatedWorkout ? (
           <section className={styles.stackTight} aria-labelledby="training-heading">
             <h2 className={styles.sectionTitle} id="training-heading">
               برنامه تمرینی
@@ -259,6 +272,14 @@ export function StudentProgramDetailPage({
                           <strong>
                             {exercise.order}. {exercise.name}
                           </strong>
+                          {exercise.trainingGroupName ? (
+                            <span className={styles.trainingGroupBadge}>
+                              گروه {exercise.trainingGroupName}
+                              {exercise.trainingGroupSize
+                                ? ` · ${exercise.trainingGroupSize} حرکت`
+                                : ""}
+                            </span>
+                          ) : null}
                           {exercise.notes ? <span>{exercise.notes}</span> : null}
                         </div>
                         <div className={styles.exercisePrescription}>

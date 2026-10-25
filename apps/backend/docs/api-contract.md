@@ -181,6 +181,29 @@ The request uses `{ "phone_number", "role": "coach" | "student", "method": "pass
 or the configured code method. National `9…`, `09…`, `989…`, and `+989…` inputs normalize to the
 same stored number. Invalid credentials return a generic `401`.
 
+Country-selecting clients submit `phone_number` in E.164 (`+` plus calling code
+and national mobile number). Foreign mobile numbers are validated with
+`phonenumbers`; Iranian legacy input variants remain accepted for existing API
+clients. The UI defaults to Iran and collects only national digits beside a
+non-editable calling prefix. It rejects an extra trunk zero or repeated code.
+Students also persist ISO `phone_country` (for example `IR`, `TR`, `CA`), checked
+against the number; this preserves countries sharing a calling code. Migration
+`students.0022_student_phone_country` defaults existing records to `IR` without
+changing their phone numbers or authentication data.
+
+Password login supports international accounts. The current Najva transport
+fails explicitly with `international_sms_unavailable` for non-Iranian numbers;
+it never strips a foreign calling code into an Iranian receptor. Mock SMS
+supports every country on the isolated QA backend; shared Stage SMS settings
+are not changed. International real SMS requires separately verified provider
+support before enabling that transport.
+
+Frontend country calling codes, mobile lengths and examples are factual data
+exported from the locked Python dependency using
+`uv run python scripts/export_phone_countries.py`. Keep
+`apps/front/src/shared/phone/countries.json` in sync when updating that
+dependency. Full numbering-pattern validation is authoritative on the backend.
+
 Legacy `/api/v1/auth/login/` and `/api/v1/student/login/` always return `410` with
 `phone_login_required`, a phone-login instruction, and no tokens. Existing sessions are unaffected.
 Student activation requires only `initial_password`; the server allocates an internal username for
@@ -188,7 +211,36 @@ new accounts and preserves existing usernames. The old portal username-edit rout
 the same explicit error. First activation/reset still requires password change before normal portal
 access or code login. No account migration or database schema change is needed.
 
-### POST `/api/v1/auth/request-code/` (staging code-login flow)
+### POST `/api/v1/auth/request-code/`
+
+With `LOGIN_OTP_PROVIDER=najva`, this endpoint uses the shared SMS adapter and
+database-backed challenge lifecycle. In a real-delivery environment
+(`SMS_BACKEND=najva`), it sends a random six-digit code using `NAJVA_API_KEY`,
+`NAJVA_SENDER`, and the approved `NAJVA_TEMPLATE` (default `athlore_otp`, with
+the `%token` placeholder). The API key never reaches the browser and there is
+no automatic static-code fallback. Production's current static-code setting
+is described below.
+
+Shared Stage Compose hardcodes `SMS_BACKEND=najva`; eligible active coach/student
+accounts receive a random six-digit Najva code and `delivery_mode: sms`.
+Automated no-SMS E2E must use a separate disposable backend/database with
+`SMS_BACKEND=mock` and `LOGIN_OTP_MOCK_CODE=111111`. In that isolated mode,
+eligible accounts receive `delivery_mode: test`, the response says no real SMS
+was sent, and the adapter returns a synthetic message ID without opening an
+HTTPS connection. The fixed code must never be enabled on shared Stage or
+production. Non-eligible accounts receive the same generic acknowledgement but
+do not get a valid challenge.
+
+The response includes `expires_in_seconds: 300` and
+`retry_after_seconds: 60`, without revealing the code. Codes are stored hashed,
+scoped to phone and role, expire in five minutes, and are consumed once. Five
+wrong guesses exhaust a challenge; resending invalidates its predecessor.
+Requests are throttled by phone/role and connection IP, including failed sends.
+Password login is independent. Missing/invalid provider configuration returns
+an explicit sanitized 503 error.
+
+The following static-provider behavior is retained for the existing production
+configuration and isolated tests; it is disabled unconditionally in stage Compose.
 
 Anonymous request: `{ "phone_number": "9121234567", "role": "coach" | "student" }`.
 The phone is normalized with the same rules as phone login. Invalid input returns
@@ -263,7 +315,8 @@ single-use provider challenges before public OTP use.
   "pdf_files_pending": 0,
   "pdf_files_failed": 0,
   "pdf_generation_available": true,
-  "latest_visits": [ /* VisitListItem max 5 */ ],
+  "latest_visits": [ /* VisitListItem with student_name, max 10, newest visit date first */ ],
+  "latest_visit_entries": [ /* same cap, newest creation time first */ ],
   "latest_programs": [ /* ProgramSummary max 5 */ ],
   "overdue_visits": [ /* StudentListItem */ ],
   "follow_up_students": [ /* StudentListItem */ ],
@@ -273,6 +326,17 @@ single-use provider challenges before public OTP use.
 
 **Notes:** Overdue rule default = active students with no visit in **35 days** (`summary_last_visit_date`). PDF counts are coach-scoped live aggregates from `PdfArtifact` (deleted excluded); see `docs/p3-pdf-artifacts-implementation.md`.  
 **Pagination:** embedded caps, not full paginator.
+
+Recent visits exclude drafts and include multiple visits for the same student.
+The dashboard initially shows five entries and can expand to ten; its full-list link opens `/visits`.
+
+### GET `/api/v1/visits/`
+
+Coach-only, coach-scoped paginated visit history, including drafts. Each result is a
+`Visit` DTO with `student_name`. Supports `limit`, `offset`, `search` (student name),
+`status` (`all` or a visit status), and `ordering` (`-visit_date` or `-created_at`).
+Ordering is deterministic using creation time and ID as tie breakers. Unknown
+status or ordering values return a validation error.
 
 ---
 
@@ -437,6 +501,12 @@ Paginated list, default `ordering=-visit_date`
 **201** Visit · **409** if unique visit_date conflict  
 Side effect: update Student `summary_last_visit_date`
 
+`daily_energy_level`, `sleep_quality`, `stress_level`, and each `adherence` percentage
+are optional and nullable. Omitted values on creation mean not assessed (`null`),
+not medium, zero, or 80 percent. Explicit zero remains a measured zero. PATCH
+preserves omitted values and accepts `null` to clear an observation. Existing
+recorded observations and historical notes are not rewritten by the schema migration.
+
 ### GET/PATCH/DELETE `/api/v1/students/{student_id}/visits/{visit_id}`
 
 - PATCH: mutable fields  
@@ -510,6 +580,60 @@ Partial section update: `{ "templates": [...] }` only · **200**
 | GET/PATCH/DELETE | `/api/v1/coach-rules/templates/{id}` | Template CRUD |
 
 Same ownership rules.
+
+### Executable program templates
+
+`ProgramTemplate.execution_plan` is an optional versioned object. An empty object
+preserves a legacy template; conversion is an explicit coach action, not a data
+migration that guesses the meaning of prose. New structured templates use:
+
+```json
+{
+  "version": 1,
+  "description": "Coach reference only; never interpreted as instructions",
+  "defaults": {"sets": 3, "minimum": 8, "maximum": 12, "rest_seconds": 90, "rir": 2},
+  "days": [{
+    "muscles": ["chest"],
+    "blocks": [{
+      "system_key": null, "sets": null, "rest_seconds": null, "between_seconds": null,
+      "slots": [{"muscle_key": "chest", "exercise_id": null, "unit": "reps",
+                 "minimum": 8, "maximum": 12, "reps_source": "default"}]
+    }]
+  }]
+}
+```
+
+- `days` length equals `days_per_week`; muscles are active taxonomy keys. Each
+  day has 1–30 ordered blocks, each containing 1–8 ordered exercise slots.
+- A null exercise ID selects from this coach's eligible catalog. A non-null ID
+  pins an active owned exercise. Generation still enforces injury, prohibition,
+  level and equipment filters. Missing eligible movements cause an explicit 400;
+  structured execution never substitutes hardcoded unnamed movements.
+- A null system key is straight sets with exactly one slot. A system key resolves
+  an enabled coach configuration or a public executable recipe, with compatible
+  level and exactly the recipe's group size. Manual-only systems are rejected.
+- Null block values inherit the system prescription, or template defaults when
+  the system does not prescribe that value. Explicit numeric block values
+  customize sets/rounds and rest without mutating the shared system. Intra-set
+  recipe pauses are distinct from rest between sets or between group members.
+- `reps_source` is `default`, `system`, or `custom`. Custom repetitions/time use
+  integer minimum/maximum and `unit=reps|seconds`; other modes inherit defaults
+  or recipe prescriptions. A custom base prescription does not replace the inner
+  mini-sets of a `last_set` system. RIR is a default when a recipe does not
+  prescribe a different effort.
+- Unknown fields, prose in numeric fields, invalid ranges, cross-coach exercises,
+  inactive taxonomy and unsupported recipes are rejected. Fixed choices cannot
+  bypass the eligibility checks. Auto selection avoids duplicate day slots;
+  fixed repetitions in distinct blocks and repeated exercises across days are
+  intentional and permitted.
+- `split` is derived from typed day muscles for existing consumers. Structured
+  execution uses the typed plan, not textual volume/intensity/special rules.
+  Global `training_systems` and targeted-exercise overrides cannot be combined
+  with a structured template. The generation UI presents the template's blocks
+  as the source of these settings.
+- Generation snapshots retain the execution plan. Final prescriptions synchronize
+  sets, repetitions and raw display strings; PDF context retains group names,
+  group rest and effort so the student receives the same executable content.
 
 ---
 
@@ -658,6 +782,18 @@ Full historical version document (content immutable if `finalized` / `archived`)
 }
 ```
 
+`template_id` is optional. When omitted, the endpoint uses the quick-generation path without creating a saved `ProgramTemplate`. Its optional fields are:
+
+```json
+{
+  "session_muscles": [["سینه", "پشت بازو"], ["پا"], [], ["زیربغل", "جلو بازو"]],
+  "exercise_variety": "balanced",
+  "training_systems": [{"key": "superset"}]
+}
+```
+
+For quick mode, an explicitly submitted `days_per_week` is treated as the coach's final confirmation. When it is omitted, the selected visit's `sessions_per_week` takes precedence over the linked request, then the student profile, and finally 4. `session_muscles` must contain one row per session; an empty row delegates the split to the engine. `exercise_variety` accepts `stable`, `balanced`, or `varied`; random exercise choices are reproducible from the stored generation seed. `training_systems: []` explicitly means no special technique and suppresses the legacy implicit superset fallback. Superset handlers search compatible eligible moves deterministically and group the selected pair together; failure to find a safe pair is recorded in technique evidence. A supplied `template_id` preserves the existing exact-template behavior and ignores quick-only muscle/variety controls.
+
 **Response `201`:**
 
 ```json
@@ -692,6 +828,31 @@ Body may include `training`, `nutrition`, `supplements`, `pdf_settings` (partial
 
 `draft` → `finalized` · sets `finalized_at` · content becomes immutable · **200** version  
 Idempotent if already finalized by same id → **200** same  
+
+When `PROGRAM_READY_SMS_ENABLED=true` (stage only by default), the first successful
+finalization schedules one message through the shared SMS adapter **after the
+database transaction commits**. Shared Stage uses the real Najva transport;
+isolated E2E uses the mock adapter and never contacts Najva. Production uses a
+real transport only when explicitly configured.
+Both generated and uploaded programs use this path; three PDF sections still
+produce one message, not one per file. Drafts/staging, activation and repeated
+finalize requests do not send messages. The existing response contract is unchanged.
+Only active students with an enabled, active portal account and a visible program
+are notified. `NAJVA_PROGRAM_READY_TEMPLATE` defaults to `athlore_program_ready`;
+`token20` receives the first whitespace-delimited name (maximum 20 characters),
+or the generic salutation `ورزشکار` for missing/overlong legacy names.
+
+Provider failures never roll back publication or hide the program. A persistent
+`ProgramReadySms` row records pending/sending/sent/failed/skipped status per version,
+the adapter message ID on acceptance, and a sanitized error code. In isolated
+mock E2E, `sent` means the mock accepted the request and `provider_message_id` is
+synthetic; it does not mean a handset received a message. On shared Stage or
+production, `sent` means Najva accepted the message, not confirmed handset
+delivery. There is no automatic
+retry: a timeout may mean the provider accepted the SMS. Repeated publication does
+not retry failed/uncertain sends. Staff can inspect status in Django admin; no
+new coach/student screens are added. This sends synchronously after commit with
+a 20-second provider timeout; it is not a background queue.
 **Ownership:** owned program/version.
 
 ### POST `/api/v1/programs/{program_id}/activate`
@@ -777,6 +938,47 @@ Create (returns raw token once) · revoke active links.
 
 Anonymous download authorized only by secure bearer token (hash stored). Invalid/expired/revoked → **404**.
 
+### Program request flow
+
+`ProgramRequest` is the shared work item between a student and coach. A program reaching its
+end date only creates a dashboard reminder; it never creates a request automatically.
+
+- `GET /api/v1/me/program-request-defaults/` returns editable initial values from the student
+  profile and most recently fulfilled request.
+- `GET|POST /api/v1/me/program-requests/` lists the student’s requests or submits a request.
+  At least one of `workout`, `nutrition`, or `supplement` is required. The request captures
+  weekly training sessions, training environment, available equipment, minutes available per
+  session, goal, injury/limitation updates, schedule, sleep, and nutrition notes. Equipment
+  restrictions affect catalog filtering; in quick generation, session duration applies a
+  conservative approximate working-set cap. Exact templates stay intact and produce a warning
+  when their estimated session exceeds the reported time; neither estimate is a stopwatch
+  guarantee. A partial unique constraint allows at most one open request per
+  student; retries return the existing request instead of creating duplicates.
+- `POST /api/v1/me/program-requests/{id}/cancel/` and `POST
+  /api/v1/program-requests/{id}/cancel/` let the owning student or coach cancel any open request.
+  Cancellation is soft: the request and linked Visit/program drafts remain in history, while the
+  request leaves the open queue and the student may submit another. The partial unique constraint
+  continues to prevent a second simultaneous open request. The actor and cancellation timestamp
+  are recorded; a fulfilled or already-cancelled request cannot be cancelled again.
+- Student responses intentionally omit coach-only request notes and the coach-facing profile
+  snapshot. Visit private notes are not copied into a request or exposed through this API.
+- `GET /api/v1/program-requests/?status=open|all|<status>` is coach-scoped. The dashboard
+  includes open/unread request counts plus program period reminders.
+- `GET /api/v1/program-requests/{id}/` marks that request read. `POST
+  /api/v1/program-requests/mark-read/` marks the coach’s open queue read. `POST
+  /api/v1/program-requests/{id}/start/` accepts `assessment_mode` (`online`, `in_person`,
+  `none`) and optional `visit_id`.
+- A coach may start an online/in-person Visit from a request, or go straight to program work
+  without a new Visit. When a specific Visit is attached, generation uses that Visit, never a
+  different “latest” one. Creating a program from an explicit existing Visit also connects it
+  to the student’s open request or creates the associated in-person request once.
+- A request becomes fulfilled only when every requested section is active/finalized and has a
+  ready, student-accessible PDF. Publishing one requested section does not replace unrelated
+  active sections or fulfill the remaining request sections.
+- Dashboard period reminders are derived from the current active program by section: ended,
+  ending within seven days, or missing an end date. Reminders do not send a request or modify a
+  program automatically.
+
 ---
 
 ## 9. Resource ↔ Frontend capability coverage
@@ -785,6 +987,8 @@ Anonymous download authorized only by secure bearer token (hash stored). Invalid
 |---|---|
 | Login/Register/Logout | `/auth/*` |
 | Dashboard | `/dashboard` |
+| Student program request | `/me/program-request-defaults`, `/me/program-requests`, `/me/program-requests/{id}/cancel` |
+| Coach program request queue | `/program-requests`, `/program-requests/{id}/start`, `/program-requests/{id}/cancel` |
 | Student CRUD/list | `/students` |
 | Visits | `/students/{id}/visits` |
 | Coach rules page | `/coach-rules` |
@@ -838,3 +1042,73 @@ Anonymous download authorized only by secure bearer token (hash stored). Invalid
 ## 12. Related documents
 
 `domain-model.md` · `database-schema.md` · `auth-and-permissions.md` · `frontend-integration-plan.md`
+
+## 13. Visit-driven preparation and workout execution
+
+Visit create/update accepts a coach-only `program_settings` object: `training_systems`
+(objects with a system `key`), `session_muscles` (one muscle array per session),
+`exercise_variety` (`stable|balanced|varied`), `duration_weeks` (1–52), optional ISO
+`start_date`, `template_id`, and `sections` (`workout|nutrition|supplement`). Explicit
+empty system selections override defaults; missing values may inherit coach defaults.
+Student visit payloads do not expose these settings. Existing accounts and identities
+are not migrated or recreated.
+
+- `GET/PUT /me/program-defaults/`: coach defaults; GET accepts an owned `student_id`
+  to overlay that student's last published generation settings. UI never stores a
+  particular period's start date as a coach default.
+- `POST /visits/{visit_id}/prepare-program/`: coach-only canonical preparation.
+  Body `{ "operation_key": "client-generated-uuid" }`; optional `section_methods`
+  maps sections to `generated|uploaded|omitted` for mixed delivery. Returns 200 with
+  `{program, generation_run_id}`. Locking the owned visit makes retries with the same
+  operation key return the same draft rather than another Program. Pure uploaded
+  delivery continues through the existing staged-PDF/upload draft API.
+- `POST /programs/{id}/regenerate/`: body `{revision, day_id?, exercise_id?}`.
+  `revision` is the detail response's `draft_revision`. Regenerates within the same
+  draft; locked items and locked groups survive. A grouped member cannot be replaced
+  independently. A stale revision, changed assessment/rules, or unavailable safe
+  alternative returns 400 without mutating the draft. The new GenerationRun records
+  its seed, source snapshot and previous training for audit.
+- `GET /me/programs/{id}/workout-progress/`: student-owned, published generated
+  workouts only; returns `{version_id, sessions}`. Each session includes completed
+  set indices and `set_logs` keyed by exercise id, with per-set completion, actual
+  reps, weight in kg, and actual rest seconds before that set when recorded.
+- `PUT` on the same progress URL accepts `{version_id, week, day_id, exercise_id,
+  completed_sets: [0, 1], set_logs: [{set_index, completed, reps, weight_kg,
+  rest_seconds}]}`. Indices are zero-based; actual reps and weight are optional for
+  legacy progress, weights are kg with at most two decimal places, and rest is the
+  elapsed time in seconds since the previous set's rest timer started. Validates
+  week/session/set limits, merges only this exercise, and returns the updated
+  session. Omitting `set_logs` remains backward-compatible with older clients.
+  One row is unique per student/version/week/day. Repeated writes are idempotent.
+  Cross-student access is 404; uploaded-only workout, stale version, and invalid
+  set data are 400.
+
+Exercise CRUD accepts optional `tutorial_url` (direct HTTPS media URL) and
+`tutorial_source_url` (HTTPS page containing the matching exercise video). The
+source-page link is opened at its original site; Athlore does not copy or host
+that media. Both values are preserved in generated workout snapshots and in
+older program details when the catalog exercise is still available.
+`execution_guide` (`execution`, `tips`, `mistakes` strings). Generation snapshots the
+catalog media with its stable `exercise_id`; editing a draft movement name clears
+the old catalog media reference. Missing media is not invented. The CSP permits
+HTTPS media, not arbitrary remote scripts/frames.
+
+For new prepared programs, activation requires ready PDF artifacts for every
+non-omitted delivery section. Finalization alone does not publish or notify. After
+activation, request reconciliation and one program-ready notification are scheduled;
+the notification worker rechecks that this is still the active version. Student
+content and PDF endpoints expose only the active published version. Existing
+legacy activation clients without a section-method map retain their compatibility
+contract; the canonical UI always supplies the map.
+## Exercise instructional video uploads
+
+Coach-owned exercise media supports GET/POST/DELETE
+`/api/v1/exercises/{exercise_id}/media/` and POST
+`/api/v1/exercises/{exercise_id}/media/retry/`. Upload POST is multipart and
+returns 202 with `{media, media_upload}`. The current media stays active while
+its replacement is queued/processing. Catalog exercise DTOs include the same
+`media_upload` status. Student program reads resolve current media from their
+program coach's catalog, including replacements and removals.
+
+See [exercise-video-uploads.md](exercise-video-uploads.md) for limits, state
+transitions, ownership, storage, and the acceptance flow.

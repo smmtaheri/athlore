@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Copy, FileDown, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
+import { FileDown, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
 import { useSearchParams } from "react-router";
 import { ContentSection, PageContainer, PageHeader, Stack } from "../../../components/layout";
 import {
@@ -9,21 +9,22 @@ import {
   FormField,
   Input,
   Modal,
-  Select,
   Skeleton,
   StatusBadge,
   Switch,
   Tabs,
   Textarea
 } from "../../../components/ui";
-import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
+import { ApiError, firstFieldError, persianMessageForApiError } from "../../../shared/api/errors";
 import { downloadCoachRulesPdf } from "../../../shared/api/exportPdf";
 import styles from "../../programs/components/programFlow.module.css";
 import { NutritionTemplatesSection } from "../components/NutritionTemplatesSection";
 import { StructuredCatalogSection } from "../components/StructuredCatalogSection";
 import { VisitFormTemplatesSection } from "../components/VisitFormTemplatesSection";
-import { SupplementTemplatesSection } from "../components/SupplementTemplatesSection";
 import { SupplementCatalogSection } from "../components/SupplementCatalogSection";
+import { TrainingSystemsSection } from "../components/TrainingSystemsSection";
+import { ProgramTemplateEditor } from "../components/ProgramTemplateEditor";
+import { validateTemplatePlans } from "../services/templatePlans";
 import {
   coachRulesRepository,
   cloneCoachRules,
@@ -39,32 +40,28 @@ import type {
   GeneralCoachRule,
   InjuryRule,
   LevelRule,
-  MusclePriorityRule,
-  ProgramTemplate
+  MusclePriorityRule
 } from "../types/coachRules";
 
 const sectionLabels: Record<CoachRuleSection, string> = {
   visitForms: "فرم‌های ویزیت",
   exercises: "کاتالوگ حرکات",
+  trainingSystems: "سیستم‌های تمرینی",
   general: "قوانین عمومی",
   injuries: "آسیب ها و محدودیت ها",
-  levels: "قوانین سطح تمرین",
+  levels: "قوانین تولید برنامه",
   muscles: "اولویت عضلات",
-  nutritionTemplates: "برنامه غذایی مرجع",
+  nutritionTemplates: "تغذیه و مکمل",
   supplementTemplates: "بانک مکمل‌ها",
   templates: "قالب های برنامه"
 };
 
 const sectionOrder: CoachRuleSection[] = [
-  "templates",
   "levels",
-  "injuries",
-  "muscles",
   "exercises",
-  "general",
-  "visitForms",
+  "trainingSystems",
   "nutritionTemplates",
-  "supplementTemplates"
+  "visitForms"
 ];
 
 const levelOptions = [
@@ -91,8 +88,16 @@ export function CoachRulesPage({
   const [status, setStatus] = useState<"error" | "loaded" | "loading" | "saving">("loading");
   const [searchParams, setSearchParams] = useSearchParams();
   const section = getSection(searchParams.get("section"));
+  const independentSection = [
+    "exercises",
+    "trainingSystems",
+    "visitForms",
+    "supplementTemplates"
+  ].includes(section);
+  const needsRules = !independentSection && !rules;
 
   useEffect(() => {
+    if (!needsRules) return;
     let isMounted = true;
     repository
       .get()
@@ -113,7 +118,7 @@ export function CoachRulesPage({
     return () => {
       isMounted = false;
     };
-  }, [repository, requestKey]);
+  }, [repository, requestKey, needsRules]);
 
   const tabItems = useMemo(
     () =>
@@ -134,6 +139,12 @@ export function CoachRulesPage({
       return;
     }
 
+    const templateError = validateTemplatePlans(rules.templates);
+    if (templateError) {
+      setFeedback(templateError);
+      return;
+    }
+
     setStatus("saving");
     setFeedback("");
 
@@ -143,9 +154,19 @@ export function CoachRulesPage({
       setRulesDirty(false);
       setStatus("loaded");
       setFeedback("قوانین مربی ذخیره شد.");
-    } catch {
+    } catch (error) {
       setStatus("loaded");
-      setFeedback("ذخیره قوانین انجام نشد. دوباره تلاش کنید.");
+      setFeedback(
+        error instanceof ApiError
+          ? (firstFieldError(
+              error,
+              "generation_rules",
+              "execution_plan",
+              "training_systems",
+              "templates"
+            ) ?? persianMessageForApiError(error))
+          : "ذخیره قوانین انجام نشد. دوباره تلاش کنید."
+      );
     }
   };
 
@@ -154,15 +175,15 @@ export function CoachRulesPage({
     setFeedback("");
 
     try {
-      const nextRules = await repository.reset();
+      const nextRules = await repository.get();
       setRules(nextRules);
       setRulesDirty(false);
       setStatus("loaded");
-      setFeedback("قوانین به داده اولیه برگشت.");
+      setFeedback("آخرین قوانین ذخیره‌شده دوباره دریافت شد.");
       setConfirmReset(false);
     } catch {
       setStatus("loaded");
-      setFeedback("بازنشانی قوانین انجام نشد.");
+      setFeedback("دریافت دوبارهٔ قوانین انجام نشد.");
     }
   };
 
@@ -187,7 +208,7 @@ export function CoachRulesPage({
         actions={
           <div className={styles.toolbarActions}>
             <Button
-              disabled={exportingPdf || status === "loading"}
+              disabled={exportingPdf || (!independentSection && status === "loading")}
               iconStart={<FileDown size={18} />}
               isLoading={exportingPdf}
               onClick={exportRulesPdf}
@@ -195,14 +216,16 @@ export function CoachRulesPage({
             >
               خروجی PDF قوانین مربی
             </Button>
-            <Button
-              iconStart={<RefreshCcw size={18} />}
-              onClick={() => setConfirmReset(true)}
-              variant="secondary"
-            >
-              بازنشانی
-            </Button>
-            {!rulesDirty ? (
+            {!independentSection ? (
+              <Button
+                iconStart={<RefreshCcw size={18} />}
+                onClick={() => setConfirmReset(true)}
+                variant="secondary"
+              >
+                دریافت دوباره
+              </Button>
+            ) : null}
+            {!independentSection && !rulesDirty ? (
               <Button
                 iconStart={<Save size={18} />}
                 isLoading={status === "saving"}
@@ -214,13 +237,13 @@ export function CoachRulesPage({
           </div>
         }
         breadcrumb={["داشبورد", "قوانین مربی"]}
-        description="مدیریت قالب‌ها، آسیب‌ها، اولویت عضلات و کاتالوگ حرکات مربی"
+        description="یک محل برای قوانین تولید، حرکات، سیستم‌های تمرینی و فرم ویزیت"
         title="قوانین و سبک برنامه نویسی مربی"
       />
 
       <ContentSection>
-        {status === "loading" ? <RulesLoading /> : null}
-        {status === "error" ? (
+        {!independentSection && status === "loading" ? <RulesLoading /> : null}
+        {!independentSection && status === "error" ? (
           <Card padding="lg">
             <EmptyState
               action={
@@ -241,7 +264,7 @@ export function CoachRulesPage({
           </Card>
         ) : null}
 
-        {rules && status !== "loading" && status !== "error" ? (
+        {independentSection || (rules && status !== "loading" && status !== "error") ? (
           <Stack gap="20px">
             {feedback ? (
               <div
@@ -264,12 +287,22 @@ export function CoachRulesPage({
               />
             </Card>
 
-            <RulesSection
-              rules={rules}
-              section={section}
-              templatesRepository={templatesRepository}
-              updateRules={updateRules}
-            />
+            {section === "exercises" ? (
+              <StructuredCatalogSection />
+            ) : section === "trainingSystems" ? (
+              <TrainingSystemsSection />
+            ) : section === "visitForms" ? (
+              <VisitFormTemplatesSection />
+            ) : section === "supplementTemplates" ? (
+              <SupplementCatalogSection />
+            ) : rules ? (
+              <RulesSection
+                rules={rules}
+                section={section}
+                templatesRepository={templatesRepository}
+                updateRules={updateRules}
+              />
+            ) : null}
           </Stack>
         ) : null}
       </ContentSection>
@@ -295,15 +328,16 @@ export function CoachRulesPage({
               onClick={resetRules}
               variant="danger"
             >
-              بازنشانی قوانین
+              دریافت آخرین نسخه
             </Button>
           </>
         }
         onClose={() => setConfirmReset(false)}
         open={confirmReset}
-        title="بازنشانی قوانین مربی"
+        title="دریافت دوبارهٔ قوانین"
       >
-        قوانین فعلی با داده اولیه جایگزین می شود.
+        تغییرات ذخیره‌نشده کنار گذاشته می‌شود و آخرین نسخهٔ ذخیره‌شده دریافت می‌شود. اطلاعات سرور
+        حذف یا بازنشانی نمی‌شود.
       </Modal>
     </PageContainer>
   );
@@ -332,10 +366,34 @@ type RulesEditorProps = Omit<RulesSectionProps, "section" | "templatesRepository
 
 function RulesSection({ rules, section, templatesRepository, updateRules }: RulesSectionProps) {
   if (section === "templates") {
-    return <ProgramTemplates rules={rules} updateRules={updateRules} />;
+    return <ProgramTemplateEditor rules={rules} updateRules={updateRules} />;
   }
   if (section === "levels") {
-    return <LevelRules rules={rules} updateRules={updateRules} />;
+    return (
+      <Stack gap="20px">
+        <GenerationPolicyEditor rules={rules} updateRules={updateRules} />
+        <details>
+          <summary>محدودیت‌های هر سطح</summary>
+          <LevelRules rules={rules} updateRules={updateRules} />
+        </details>
+        <details>
+          <summary>آسیب‌ها و محدودیت‌های ایمنی</summary>
+          <InjuryRules rules={rules} updateRules={updateRules} />
+        </details>
+        <details>
+          <summary>اولویت عضلات</summary>
+          <MuscleRules rules={rules} updateRules={updateRules} />
+        </details>
+        <details>
+          <summary>قالب دقیق برنامه (اختیاری)</summary>
+          <ProgramTemplateEditor rules={rules} updateRules={updateRules} />
+        </details>
+        <details>
+          <summary>یادداشت‌های مربی (غیراجرایی)</summary>
+          <GeneralRules rules={rules} updateRules={updateRules} />
+        </details>
+      </Stack>
+    );
   }
   if (section === "injuries") {
     return <InjuryRules rules={rules} updateRules={updateRules} />;
@@ -346,214 +404,77 @@ function RulesSection({ rules, section, templatesRepository, updateRules }: Rule
   if (section === "exercises") {
     return <StructuredCatalogSection />;
   }
+  if (section === "trainingSystems") {
+    return <TrainingSystemsSection />;
+  }
   if (section === "nutritionTemplates") {
     return (
-      <NutritionTemplatesSection
-        onTemplatesChange={(nutritionTemplates) =>
-          updateRules((next) => ({ ...next, nutritionTemplates }))
-        }
-        repository={templatesRepository}
-        templates={rules.nutritionTemplates}
-      />
+      <Stack gap="20px">
+        <NutritionTemplatesSection
+          onTemplatesChange={(nutritionTemplates) =>
+            updateRules((next) => ({ ...next, nutritionTemplates }))
+          }
+          repository={templatesRepository}
+          templates={rules.nutritionTemplates}
+        />
+        <SupplementCatalogSection />
+      </Stack>
     );
   }
   if (section === "visitForms") {
     return <VisitFormTemplatesSection />;
   }
   if (section === "supplementTemplates") {
-    return (
-      <>
-        <SupplementCatalogSection />
-        <details>
-          <summary>قالب‌های مرجع قبلی</summary>
-          <SupplementTemplatesSection
-            onTemplatesChange={(supplementTemplates) =>
-              updateRules((next) => ({ ...next, supplementTemplates }))
-            }
-            repository={templatesRepository}
-            templates={rules.supplementTemplates}
-          />
-        </details>
-      </>
-    );
+    return <SupplementCatalogSection />;
   }
   return <GeneralRules rules={rules} updateRules={updateRules} />;
 }
 
-function ProgramTemplates({ rules, updateRules }: RulesEditorProps) {
-  const addTemplate = () =>
-    updateRules((next) => ({
-      ...next,
-      templates: [
-        {
-          daysPerWeek: 3,
-          goal: "هدف قالب جدید",
-          id: `template-${Date.now()}`,
-          intensity: "متوسط",
-          isActive: true,
-          level: "intermediate",
-          mainGoal: "قالب جدید",
-          musclePriorityOrder: ["سینه"],
-          name: "قالب جدید",
-          restTime: "۹۰ ثانیه",
-          specialRules: ["قانون ویژه"],
-          split: ["روز اول", "روز دوم", "روز سوم"],
-          volume: "متوسط"
-        },
-        ...next.templates
-      ]
-    }));
-
+function GenerationPolicyEditor({ rules, updateRules }: RulesEditorProps) {
+  const policy = rules.generationRules;
+  if (!policy) return null;
+  const change = (values: Partial<typeof policy>) =>
+    updateRules((next) => ({ ...next, generationRules: { ...policy, ...values } }));
+  const fields = [
+    ["sets", "ست پایهٔ هر حرکت", 2, 5],
+    ["reps_min", "حداقل تکرار", 1, 30],
+    ["reps_max", "حداکثر تکرار", 1, 30],
+    ["rest_seconds", "استراحت بین ست‌ها (ثانیه)", 30, 300],
+    ["rir", "تکرار ذخیره (RIR)", 1, 5],
+    ["focus_extra_sets", "ست اضافه برای عضلهٔ مورد تمرکز", 0, 2],
+    ["warmup_minutes", "زمان گرم‌کردن (دقیقه)", 0, 20]
+  ] as const;
   return (
     <Card className={styles.pageStack}>
       <SectionHeader
-        action={
-          <Button iconStart={<Plus size={18} />} onClick={addTemplate}>
-            افزودن قالب
-          </Button>
-        }
-        description="Fixture اولیه شامل فول بادی مبتدی ۳ روزه و ۴ روزه حجم متوسط است."
-        title="قالب های برنامه"
+        title="قوانین اجرایی تولید خودکار"
+        description="این اعداد مستقیماً دوز تمرین و سقف زمان را تعیین می‌کنند. سیستم تمرینی انتخاب‌شده می‌تواند روش اجرای حرکت را تغییر دهد؛ ایمنی همیشه مقدم است."
       />
-      <div className={styles.cardGrid}>
-        {rules.templates.map((template) => (
-          <EditableTemplate
-            key={template.id}
-            onChange={(nextTemplate) =>
-              updateRules((next) => ({
-                ...next,
-                templates: next.templates.map((item) =>
-                  item.id === nextTemplate.id ? nextTemplate : item
-                )
-              }))
-            }
-            onDuplicate={() =>
-              updateRules((next) => ({
-                ...next,
-                templates: [
-                  {
-                    ...template,
-                    id: `${template.id}-copy-${Date.now()}`,
-                    name: `${template.name} - کپی`
-                  },
-                  ...next.templates
-                ]
-              }))
-            }
-            onRemove={() =>
-              updateRules((next) => ({
-                ...next,
-                templates: next.templates.filter((item) => item.id !== template.id)
-              }))
-            }
-            template={template}
-          />
+      <div className={styles.threeColumnGrid}>
+        {fields.map(([key, label, min, max]) => (
+          <FormField key={key} label={label}>
+            <Input
+              type="number"
+              min={min}
+              max={max}
+              value={policy[key]}
+              onChange={(event) => change({ [key]: Number(event.target.value) })}
+            />
+          </FormField>
         ))}
       </div>
-    </Card>
-  );
-}
-
-function EditableTemplate({
-  onChange,
-  onDuplicate,
-  onRemove,
-  template
-}: {
-  onChange: (template: ProgramTemplate) => void;
-  onDuplicate: () => void;
-  onRemove: () => void;
-  template: ProgramTemplate;
-}) {
-  return (
-    <Card className={styles.editableCard} padding="sm">
-      <div className={styles.ruleCardHeader}>
-        <StatusBadge variant={template.isActive ? "success" : "neutral"}>
-          {template.isActive ? "فعال" : "غیرفعال"}
-        </StatusBadge>
-        <div className={styles.actionIconGroup}>
-          <Button
-            iconStart={<Copy size={16} />}
-            onClick={onDuplicate}
-            size="sm"
-            variant="secondary"
-          >
-            تکثیر
-          </Button>
-          <Button iconStart={<Trash2 size={16} />} onClick={onRemove} size="sm" variant="danger">
-            حذف
-          </Button>
-        </div>
-      </div>
-      <div className={styles.formGrid}>
-        <FormField label="نام قالب">
-          <Input
-            value={template.name}
-            onChange={(event) => onChange({ ...template, name: event.target.value })}
-          />
-        </FormField>
-        <FormField label="سطح">
-          <Select
-            options={levelOptions}
-            value={template.level}
-            onChange={(event) =>
-              onChange({ ...template, level: event.target.value as ProgramTemplate["level"] })
-            }
-          />
-        </FormField>
-        <FormField label="تعداد روز">
-          <Input
-            min={1}
-            max={7}
-            type="number"
-            value={template.daysPerWeek}
-            onChange={(event) => onChange({ ...template, daysPerWeek: Number(event.target.value) })}
-          />
-        </FormField>
-        <FormField className={styles.fullField} label="هدف">
-          <Input
-            value={template.goal}
-            onChange={(event) => onChange({ ...template, goal: event.target.value })}
-          />
-        </FormField>
-        <FormField label="حجم تمرین">
-          <Input
-            value={template.volume}
-            onChange={(event) => onChange({ ...template, volume: event.target.value })}
-          />
-        </FormField>
-        <FormField label="شدت">
-          <Input
-            value={template.intensity}
-            onChange={(event) => onChange({ ...template, intensity: event.target.value })}
-          />
-        </FormField>
-        <FormField label="استراحت">
-          <Input
-            value={template.restTime}
-            onChange={(event) => onChange({ ...template, restTime: event.target.value })}
-          />
-        </FormField>
-        <FormField className={styles.fullField} label="تقسیم بندی روزها">
-          <Textarea
-            value={template.split.join("\n")}
-            onChange={(event) => onChange({ ...template, split: splitLines(event.target.value) })}
-          />
-        </FormField>
-        <FormField className={styles.fullField} label="قوانین خاص">
-          <Textarea
-            value={template.specialRules.join("\n")}
-            onChange={(event) =>
-              onChange({ ...template, specialRules: splitLines(event.target.value) })
-            }
-          />
-        </FormField>
-        <Switch
-          checked={template.isActive}
-          label="قالب فعال است"
-          onCheckedChange={(checked) => onChange({ ...template, isActive: checked })}
-        />
-      </div>
+      <Switch
+        checked={policy.weakness_auto_focus}
+        onCheckedChange={(checked) => change({ weakness_auto_focus: checked })}
+        label="ضعف ثبت‌شده خودکار اولویت این دوره باشد (پیش‌فرض: خاموش)"
+      />
+      <Switch
+        checked={policy.progression === "double_progression"}
+        onCheckedChange={(checked) =>
+          change({ progression: checked ? "double_progression" : "maintain" })
+        }
+        label="پیشرفت دوگانه: ابتدا افزایش تکرار، سپس وزنه با حفظ فرم و RIR"
+      />
     </Card>
   );
 }
@@ -562,7 +483,7 @@ function LevelRules({ rules, updateRules }: RulesEditorProps) {
   return (
     <Card className={styles.pageStack}>
       <SectionHeader
-        description="حجم، شدت، حرکات ممنوع و تکنیک های مجاز هر سطح تمرینی."
+        description="حرکات ممنوع و تکنیک‌های مجاز هر سطح؛ دوز عددی از قوانین اجرایی بالا می‌آید."
         title="قوانین سطح تمرین"
       />
       <div className={styles.threeColumnGrid}>
@@ -595,18 +516,6 @@ function EditableLevelRule({
       <h3 className={styles.ruleCardTitle}>
         {levelOptions.find((item) => item.value === rule.id)?.label}
       </h3>
-      <FormField label="حجم تمرین">
-        <Input
-          value={rule.volume}
-          onChange={(event) => onChange({ ...rule, volume: event.target.value })}
-        />
-      </FormField>
-      <FormField label="شدت">
-        <Input
-          value={rule.intensity}
-          onChange={(event) => onChange({ ...rule, intensity: event.target.value })}
-        />
-      </FormField>
       <FormField label="حرکات ممنوع">
         <Textarea
           value={rule.forbiddenExercises.join("\n")}
@@ -748,7 +657,7 @@ function MuscleRules({ rules, updateRules }: RulesEditorProps) {
   return (
     <Card className={styles.pageStack}>
       <SectionHeader
-        description="تغییر ترتیب تمرین و افزایش حجم برای عضلات ضعیف یا اولویت دار."
+        description="افزایش حجم برای عضلات مورد تمرکز این دوره؛ ضعف به‌تنهایی اولویت خودکار نیست."
         title="اولویت عضلات"
       />
       <div className={styles.cardGrid}>
@@ -786,12 +695,6 @@ function EditableMuscleRule({
           onChange={(event) => onChange({ ...rule, muscle: event.target.value })}
         />
       </FormField>
-      <FormField label="تغییر ترتیب تمرین">
-        <Input
-          value={rule.orderChange}
-          onChange={(event) => onChange({ ...rule, orderChange: event.target.value })}
-        />
-      </FormField>
       <FormField label="افزایش حرکت">
         <Input
           type="number"
@@ -802,6 +705,8 @@ function EditableMuscleRule({
       <FormField label="افزایش ست">
         <Input
           type="number"
+          min={0}
+          max={2}
           value={rule.extraSets}
           onChange={(event) => onChange({ ...rule, extraSets: Number(event.target.value) })}
         />
@@ -820,8 +725,8 @@ function GeneralRules({ rules, updateRules }: RulesEditorProps) {
   return (
     <Card className={styles.pageStack}>
       <SectionHeader
-        description="قوانین عمومی فعال در تولید برنامه و توضیحات تکمیلی مربی."
-        title="قوانین عمومی"
+        description="این متن‌ها فقط یادداشت مربی‌اند؛ موتور آن‌ها را به دستور اجرایی تبدیل نمی‌کند. قوانین عددی را در بخش قوانین تولید تنظیم کنید."
+        title="یادداشت‌های مربی"
       />
       <div className={styles.cardGrid}>
         {rules.generalRules.items.map((rule) => (
@@ -933,9 +838,7 @@ function getSection(value: string | null): CoachRuleSection {
   if (value === "assessment") {
     return "visitForms";
   }
-  return sectionOrder.includes(value as CoachRuleSection)
-    ? (value as CoachRuleSection)
-    : "templates";
+  return sectionOrder.includes(value as CoachRuleSection) ? (value as CoachRuleSection) : "levels";
 }
 
 function splitLines(value: string) {

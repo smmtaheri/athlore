@@ -13,7 +13,6 @@ import {
   calendarName
 } from "../../../shared/dates/calendar";
 
-const defaultLevel = "medium" as const;
 const fieldOrder: StudentVisitFormField[] = [
   "visitDate",
   "currentWeightKg",
@@ -26,8 +25,7 @@ const fieldOrder: StudentVisitFormField[] = [
   "overallPercent",
   "trainingPercent",
   "nutritionPercent",
-  "supplementsPercent",
-  "newInjuryNotes"
+  "supplementsPercent"
 ];
 
 function toEnglishDigits(value: string): string {
@@ -82,6 +80,7 @@ function validatePercent(
   value: string,
   label: string
 ) {
+  if (!value.trim()) return;
   const parsed = parseNumber(value);
 
   if (parsed === undefined || parsed < 0 || parsed > 100) {
@@ -98,27 +97,27 @@ export function createEmptyVisitFormValues(
   return {
     armCm: "",
     bodyFatPercentage: "",
-    bodyFeeling: "مشابه قبل",
+    bodyFeeling: "",
     chestCm: "",
     coachAssessment: "",
     coachNotes: "",
     coachPrivateNotes: "",
     currentWeightKg: String(student.weightKg),
-    dailyEnergyLevel: defaultLevel,
+    dailyEnergyLevel: "",
     hasNewInjury: false,
     hipCm: "",
     newInjuryNotes: "",
     nextCycleGoal: "",
-    nutritionPercent: "80",
-    overallPercent: "80",
+    nutritionPercent: "",
+    overallPercent: "",
     previousWeightKg: String(previousWeight),
-    sleepQuality: defaultLevel,
-    stressLevel: defaultLevel,
+    sleepQuality: "",
+    stressLevel: "",
     studentFeedback: "",
-    supplementsPercent: "80",
+    supplementsPercent: "",
     thighCm: "",
     trainingConditionChanges: "",
-    trainingPercent: "80",
+    trainingPercent: "",
     visitDate: todayCalendarInput(),
     waistCm: ""
   };
@@ -134,21 +133,25 @@ export function studentVisitToFormValues(visit: StudentVisit): StudentVisitFormV
     coachNotes: visit.coachNotes,
     coachPrivateNotes: visit.coachPrivateNotes ?? "",
     currentWeightKg: String(visit.currentWeightKg),
-    dailyEnergyLevel: visit.dailyEnergyLevel,
+    dailyEnergyLevel: visit.dailyEnergyLevel ?? "",
     hasNewInjury: visit.hasNewInjury,
     hipCm: numberToString(visit.measurements.hipCm),
     newInjuryNotes: visit.newInjuryNotes,
     nextCycleGoal: visit.nextCycleGoal,
-    nutritionPercent: String(visit.adherence.nutritionPercent),
-    overallPercent: String(visit.adherence.overallPercent),
+    nutritionPercent:
+      visit.adherence.nutritionPercent == null ? "" : String(visit.adherence.nutritionPercent),
+    overallPercent:
+      visit.adherence.overallPercent == null ? "" : String(visit.adherence.overallPercent),
     previousWeightKg: String(visit.previousWeightKg),
-    sleepQuality: visit.sleepQuality,
-    stressLevel: visit.stressLevel,
+    sleepQuality: visit.sleepQuality ?? "",
+    stressLevel: visit.stressLevel ?? "",
     studentFeedback: visit.studentFeedback,
-    supplementsPercent: String(visit.adherence.supplementsPercent),
+    supplementsPercent:
+      visit.adherence.supplementsPercent == null ? "" : String(visit.adherence.supplementsPercent),
     thighCm: numberToString(visit.measurements.thighCm),
     trainingConditionChanges: visit.trainingConditionChanges,
-    trainingPercent: String(visit.adherence.trainingPercent),
+    trainingPercent:
+      visit.adherence.trainingPercent == null ? "" : String(visit.adherence.trainingPercent),
     visitDate: calendarInputValue(visit.visitDate),
     waistCm: numberToString(visit.measurements.waistCm)
   };
@@ -184,10 +187,6 @@ export function validateStudentVisitForm(values: StudentVisitFormValues): Studen
   validatePercent(errors, "nutritionPercent", values.nutritionPercent, "میزان رعایت تغذیه");
   validatePercent(errors, "supplementsPercent", values.supplementsPercent, "میزان رعایت مکمل ها");
 
-  if (values.hasNewInjury && !values.newInjuryNotes.trim()) {
-    errors.newInjuryNotes = "جزئیات آسیب یا محدودیت جدید را وارد کنید.";
-  }
-
   return errors;
 }
 
@@ -200,19 +199,12 @@ export function getFirstVisitErrorField(
 export function visitFormValuesToInput(values: StudentVisitFormValues): StudentVisitInput {
   const currentWeight = parseNumber(values.currentWeightKg);
   const previousWeight = parseNumber(values.previousWeightKg);
-  const overallPercent = parseNumber(values.overallPercent);
-  const trainingPercent = parseNumber(values.trainingPercent);
-  const nutritionPercent = parseNumber(values.nutritionPercent);
-  const supplementsPercent = parseNumber(values.supplementsPercent);
+  const overallPercent = optionalNumber(values.overallPercent) ?? null;
+  const trainingPercent = optionalNumber(values.trainingPercent) ?? null;
+  const nutritionPercent = optionalNumber(values.nutritionPercent) ?? null;
+  const supplementsPercent = optionalNumber(values.supplementsPercent) ?? null;
 
-  if (
-    currentWeight === undefined ||
-    previousWeight === undefined ||
-    overallPercent === undefined ||
-    trainingPercent === undefined ||
-    nutritionPercent === undefined ||
-    supplementsPercent === undefined
-  ) {
+  if (currentWeight === undefined || previousWeight === undefined) {
     throw new Error("Visit form values are not valid.");
   }
 
@@ -229,7 +221,7 @@ export function visitFormValuesToInput(values: StudentVisitFormValues): StudentV
     coachNotes: values.coachNotes.trim(),
     coachPrivateNotes: values.coachPrivateNotes.trim(),
     currentWeightKg: currentWeight,
-    dailyEnergyLevel: values.dailyEnergyLevel,
+    dailyEnergyLevel: values.dailyEnergyLevel || null,
     hasNewInjury: values.hasNewInjury,
     measurements: {
       armCm: optionalNumber(values.armCm),
@@ -238,11 +230,11 @@ export function visitFormValuesToInput(values: StudentVisitFormValues): StudentV
       thighCm: optionalNumber(values.thighCm),
       waistCm: optionalNumber(values.waistCm)
     },
-    newInjuryNotes: values.hasNewInjury ? values.newInjuryNotes.trim() : "بدون مورد جدید",
+    newInjuryNotes: values.newInjuryNotes.trim(),
     nextCycleGoal: values.nextCycleGoal.trim(),
     previousWeightKg: previousWeight,
-    sleepQuality: values.sleepQuality,
-    stressLevel: values.stressLevel,
+    sleepQuality: values.sleepQuality || null,
+    stressLevel: values.stressLevel || null,
     studentFeedback: values.studentFeedback.trim(),
     trainingConditionChanges: values.trainingConditionChanges.trim(),
     visitDate: calendarInputToIso(values.visitDate) ?? toEnglishDigits(values.visitDate).trim()

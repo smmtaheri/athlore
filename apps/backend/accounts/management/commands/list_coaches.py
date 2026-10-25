@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand
 
 from accounts.models import CoachProfile
 from accounts.services import normalize_email
-from common.phone import InvalidPhoneError, normalize_iran_mobile
+from common.phone import InvalidPhoneError, normalize_mobile
 
 
 class Command(BaseCommand):
@@ -30,7 +30,7 @@ class Command(BaseCommand):
             qs = qs.filter(user__email__iexact=email)
         if options["phone"]:
             try:
-                phone = normalize_iran_mobile(options["phone"], required=True)
+                phone = normalize_mobile(options["phone"], required=True)
             except InvalidPhoneError as exc:
                 self.stderr.write(str(exc))
                 return

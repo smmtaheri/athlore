@@ -45,6 +45,8 @@ export interface LoginCodeRequestInput {
 export interface LoginCodeRequestResult {
   deliveryMode: "test" | "sms";
   message: string;
+  expiresInSeconds?: number;
+  retryAfterSeconds?: number;
 }
 
 export interface StudentCompleteSetupInput {

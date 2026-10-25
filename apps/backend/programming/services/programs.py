@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 from datetime import timedelta
 from typing import Any
+from uuid import UUID, uuid4
 
 from django.db import transaction
 from django.db.models import Max, Q
@@ -12,7 +13,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import NotFound, ValidationError
 
-from accounts.models import CoachProfile, ProgramTemplate
+from accounts.models import CoachProfile, Exercise, ProgramTemplate
 from accounts.rules_services import ensure_rule_set
 from common.exceptions import ConflictError, GenerationFailedError, InvalidStateError
 from programming.models import GenerationRun, Program, ProgramVersion
@@ -21,8 +22,18 @@ from programming.services.generator import (
     build_input_snapshot,
     generate_document,
 )
+from programming.services.split_parser import CANONICAL_MUSCLES, normalize_muscle
+from programming.services.workout_schedule import ensure_workout_schedule
 from students.models import Student, Visit
 from students.services import ensure_student_active
+
+PROGRAM_SECTIONS = ("workout", "nutrition", "supplement")
+
+
+def program_sections_for_type(program_type: str) -> list[str]:
+    if program_type == Program.ProgramType.COMPLETE:
+        return list(PROGRAM_SECTIONS)
+    return [program_type] if program_type in PROGRAM_SECTIONS else []
 
 
 def programs_for_coach(coach: CoachProfile):
@@ -43,12 +54,47 @@ def programs_for_student(student: Student):
             student=student,
             coach_id=student.coach_id,
             archived_at__isnull=True,
-            versions__status=ProgramVersion.Status.FINALIZED,
+            active_version__status=ProgramVersion.Status.FINALIZED,
         )
         .select_related("student", "active_version")
         .prefetch_related("versions")
         .distinct()
     )
+
+
+def current_program_section_map(student: Student) -> dict[str, list[str]]:
+    """Resolve the newest active program independently for workout, food, and supplements."""
+    return current_program_section_maps([student]).get(str(student.id), {})
+
+
+def current_program_section_maps(students) -> dict[str, dict[str, list[str]]]:
+    """Resolve current section ownership for a batch of students in a single query."""
+    student_ids = [student.id for student in students]
+    programs = (
+        Program.objects.filter(
+            student_id__in=student_ids,
+            archived_at__isnull=True,
+            active_version__status=ProgramVersion.Status.FINALIZED,
+        )
+        .select_related("active_version")
+        .order_by("student_id", "-updated_at", "-created_at", "-id")
+    )
+    claimed_by_student: dict[str, set[str]] = {}
+    by_student: dict[str, dict[str, list[str]]] = {}
+    for program in programs:
+        student_key = str(program.student_id)
+        claimed = claimed_by_student.setdefault(student_key, set())
+        sections = set(program.sections or program_sections_for_type(program.program_type))
+        sections.intersection_update(PROGRAM_SECTIONS)
+        current_here = sections - claimed
+        if current_here:
+            by_student.setdefault(student_key, {})[str(program.id)] = [
+                section
+                for section in ("workout", "nutrition", "supplement")
+                if section in current_here
+            ]
+            claimed.update(current_here)
+    return by_student
 
 
 def get_program_for_student(student: Student, program_id) -> Program:
@@ -134,6 +180,7 @@ def serialize_program_summary(program: Program) -> dict:
         "student_name": program.student.full_name,
         "title": program.title,
         "program_type": program.program_type,
+        "sections": list(program.sections or program_sections_for_type(program.program_type)),
         "delivery_source": current.delivery_source
         if current
         else ProgramVersion.DeliverySource.GENERATED,
@@ -162,22 +209,29 @@ def _latest_student_version(program: Program) -> ProgramVersion | None:
         active = next((v for v in finalized if v.id == program.active_version_id), None)
         if active:
             return active
-    return finalized[0]
+    return None
 
 
-def serialize_student_program_summary(program: Program) -> dict:
+def serialize_student_program_summary(
+    program: Program, *, current_sections: dict[str, list[str]] | None = None
+) -> dict:
     version = _latest_student_version(program)
+    if current_sections is None:
+        current_sections = current_program_section_map(program.student)
+    current_for_program = current_sections.get(str(program.id), [])
     return {
         "id": str(program.id),
         "student_id": str(program.student_id),
         "title": program.title,
         "program_type": program.program_type,
+        "sections": list(program.sections or program_sections_for_type(program.program_type)),
         "delivery_source": version.delivery_source
         if version
         else ProgramVersion.DeliverySource.GENERATED,
-        "status": "active" if version and program.active_version_id == version.id else "ready",
+        "status": "active" if current_for_program else "ready",
         "version": version.version_number if version else 0,
-        "is_current": bool(version and program.active_version_id == version.id),
+        "is_current": bool(version and current_for_program),
+        "current_sections": current_for_program,
         "date_range": program.date_range_label,
         "created_at": program.created_at.isoformat().replace("+00:00", "Z"),
         "updated_at": program.updated_at.isoformat().replace("+00:00", "Z"),
@@ -189,6 +243,49 @@ def serialize_student_program_detail(program: Program) -> dict:
     version = _latest_student_version(program)
     if version is None:
         raise NotFound(detail="Not found.")
+    training = _deep_copy(version.training)
+    if isinstance(training, dict):
+        ensure_workout_schedule(training, program.date_range_start, program.date_range_end)
+    # Instructional media and public education are live catalog data, not a frozen prescription.
+    # Resolve replacements/removals for old programs without changing their
+    # immutable training or progress, and only from this program's coach.
+    if isinstance(training, dict):
+        exercises = [
+            exercise
+            for day in training.get("days", [])
+            if isinstance(day, dict)
+            for exercise in day.get("exercises", [])
+            if isinstance(exercise, dict)
+        ]
+        catalog_ids = set()
+        for exercise in exercises:
+            try:
+                catalog_ids.add(UUID(str(exercise.get("exercise_id"))))
+            except (ValueError, TypeError, AttributeError):
+                continue
+        if exercises:
+            catalog_rows = {
+                str(item.id): item
+                for item in Exercise.objects.select_related("media_asset").filter(
+                    coach_id=program.coach_id,
+                    id__in=catalog_ids,
+                )
+            }
+            for exercise in exercises:
+                exercise["tutorial_url"] = ""
+                exercise["tutorial_source_url"] = ""
+                catalog_row = catalog_rows.get(str(exercise.get("exercise_id")))
+                if not catalog_row:
+                    exercise["media"] = None
+                    if exercise.get("exercise_id"):
+                        exercise["execution_guide"] = {}
+                    continue
+                from accounts.exercise_media_services import media_payload
+
+                exercise["media"] = media_payload(catalog_row)
+                exercise["execution_guide"] = _deep_copy(catalog_row.execution_guide or {})
+                if not exercise.get("primary_muscle"):
+                    exercise["primary_muscle"] = catalog_row.primary_muscle
     return {
         **serialize_student_program_summary(program),
         "date_range_start": program.date_range_start.isoformat()
@@ -196,8 +293,9 @@ def serialize_student_program_detail(program: Program) -> dict:
         else None,
         "date_range_end": program.date_range_end.isoformat() if program.date_range_end else None,
         "program_version_id": str(version.id),
+        "section_methods": (version.pdf_settings or {}).get("deliverySections") or {},
         "delivery_source": version.delivery_source,
-        "training": _deep_copy(version.training),
+        "training": training,
         "nutrition": _deep_copy(version.nutrition),
         "supplements": _deep_copy(version.supplements),
     }
@@ -251,6 +349,7 @@ def serialize_program_detail(program: Program) -> dict:
         "date_range_label": program.date_range_label,
         "active_version_id": str(program.active_version_id) if program.active_version_id else None,
         "current_draft": serialize_version_detail(draft) if draft else None,
+        "draft_revision": draft.updated_at.isoformat() if draft else None,
         "latest_finalized_version": serialize_version_summary(latest_final)
         if latest_final
         else None,
@@ -301,6 +400,31 @@ def _latest_visit(student: Student) -> Visit | None:
     return student.visits.order_by("-visit_date", "-created_at").first()
 
 
+def _visit_for_generation(
+    coach: CoachProfile, student: Student, request_data: dict
+) -> Visit | None:
+    request_id = request_data.get("program_request_id")
+    if request_id:
+        from programming.models import ProgramRequest
+
+        program_request = ProgramRequest.objects.filter(
+            pk=request_id,
+            coach=coach,
+            student=student,
+            status__in=["submitted", "awaiting_info", "in_progress"],
+        ).first()
+        if program_request is None:
+            raise NotFound(detail="درخواست برنامهٔ باز برای این شاگرد پیدا نشد.")
+        return program_request.visit
+    visit_id = request_data.get("visit_id")
+    if visit_id:
+        try:
+            return Visit.objects.get(pk=visit_id, coach=coach, student=student)
+        except Visit.DoesNotExist as exc:
+            raise NotFound(detail="Visit not found for this student.") from exc
+    return _latest_visit(student)
+
+
 def _program_dates(start, end):
     """Validate API date values before persisting and serializing a program."""
     dates = {}
@@ -340,6 +464,7 @@ def create_empty_draft(
         student=student,
         title=title,
         program_type=program_type,
+        sections=program_sections_for_type(program_type),
         date_range_label=date_range_label or "",
         date_range_start=date_range_start,
         date_range_end=date_range_end,
@@ -412,6 +537,7 @@ def create_uploaded_pdf_draft(
         student=student,
         title=title,
         program_type=program_type,
+        sections=program_sections_for_type(program_type),
         date_range_label=(date_range_label or "").strip(),
         date_range_start=start,
         date_range_end=end,
@@ -493,21 +619,98 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
 
     student_id = request_data.get("student_id")
     template_id = request_data.get("template_id")
-    if not student_id or not template_id:
-        raise ValidationError({"student_id": ["student_id and template_id are required."]})
+    if not student_id:
+        raise ValidationError({"student_id": ["انتخاب شاگرد الزامی است."]})
 
     student = _get_owned_student(coach, student_id)
     ensure_student_active(student)
 
-    try:
-        template = ProgramTemplate.objects.get(pk=template_id, coach=coach)
-    except ProgramTemplate.DoesNotExist as Exc:
-        raise NotFound(detail="Not found.") from Exc
+    generation_data = request_data
+    request_id = request_data.get("program_request_id")
+    if request_id:
+        from programming.models import ProgramRequest
 
-    if template.is_archived or not template.is_active:
-        raise InvalidStateError(
-            detail="Template is archived or inactive.", code="archived_template"
+        try:
+            request_id = UUID(str(request_id))
+            program_request = ProgramRequest.objects.get(
+                pk=request_id,
+                coach=coach,
+                student=student,
+                status__in=["submitted", "awaiting_info", "in_progress"],
+            )
+        except (ProgramRequest.DoesNotExist, ValueError, TypeError, AttributeError) as exc:
+            raise NotFound(detail="درخواست برنامهٔ باز برای این شاگرد پیدا نشد.") from exc
+        supplied_visit_id = request_data.get("visit_id")
+        if supplied_visit_id and str(supplied_visit_id) != str(program_request.visit_id):
+            raise ValidationError(
+                {"visit_id": ["ویزیت انتخاب‌شده با ویزیت متصل به درخواست یکسان نیست."]}
+            )
+        requested_sections = list(program_request.sections or [])
+        type_sections = set(
+            program_sections_for_type(str(request_data.get("program_type") or "complete"))
         )
+        selected_sections = [
+            section
+            for section in PROGRAM_SECTIONS
+            if section in requested_sections and section in type_sections
+        ]
+        if not selected_sections:
+            raise ValidationError(
+                {"program_type": ["نوع برنامه با بخش‌های درخواست‌شده هم‌خوانی ندارد."]}
+            )
+        generation_data = {
+            **request_data,
+            "program_request_id": str(program_request.id),
+            "program_sections": selected_sections,
+            "program_request_constraints": {
+                **(
+                    {"training_environment": program_request.training_environment}
+                    if program_request.training_environment
+                    else {}
+                ),
+                **(
+                    {"session_duration_minutes": program_request.session_duration_minutes}
+                    if program_request.session_duration_minutes is not None
+                    else {}
+                ),
+                **(
+                    {"equipment_available": list(program_request.equipment_available)}
+                    if program_request.equipment_available
+                    else {}
+                ),
+            },
+        }
+        if program_request.visit_id:
+            generation_data["visit_id"] = str(program_request.visit_id)
+
+    visit = _visit_for_generation(coach, student, generation_data)
+
+    if template_id:
+        try:
+            template = ProgramTemplate.objects.get(pk=template_id, coach=coach)
+        except ProgramTemplate.DoesNotExist as Exc:
+            raise NotFound(detail="Not found.") from Exc
+
+        if template.is_archived or not template.is_active:
+            raise InvalidStateError(
+                detail="Template is archived or inactive.", code="archived_template"
+            )
+        generation_data = {**generation_data, "template_mode": "template"}
+    else:
+        template, quick_settings = _build_quick_generation_template(
+            coach=coach,
+            student=student,
+            request_data=generation_data,
+            requested_sessions=(
+                _visit_sessions_per_week(visit)
+                or (program_request.sessions_per_week if request_id else None)
+            ),
+        )
+        generation_data = {
+            **generation_data,
+            **quick_settings,
+            "template_mode": "quick",
+        }
 
     # Soft compatibility: warn via generation if level mismatches; hard fail if explicitly incompatible days
     if template.split and len(template.split) != template.days_per_week:
@@ -544,18 +747,19 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
         )
 
     start, end = _program_dates(
-        request_data.get("date_range_start"), request_data.get("date_range_end")
+        generation_data.get("date_range_start"), generation_data.get("date_range_end")
     )
-    visit = _latest_visit(student)
     ensure_rule_set(coach)
 
+    generation_seed = str(generation_data.get("seed") or uuid4().hex)
+    generation_data["seed"] = generation_seed
     run = GenerationRun.objects.create(
         coach=coach,
         student=student,
-        engine=str(request_data.get("engine") or GENERATOR_VERSION),
-        seed=str(request_data.get("seed") or ""),
+        engine=str(generation_data.get("engine") or GENERATOR_VERSION),
+        seed=generation_seed,
         status=GenerationRun.Status.PENDING,
-        request=request_data,
+        request=generation_data,
     )
 
     try:
@@ -564,13 +768,18 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
             student=student,
             visit=visit,
             template=template,
-            request=request_data,
+            request=generation_data,
         )
-        if any(w.startswith("missing_exercise_candidates") for w in warnings) and request_data.get(
-            "fail_on_missing_exercises"
-        ):
+        if isinstance(document.get("training"), dict):
+            ensure_workout_schedule(document["training"], start, end)
+        if any(
+            w.startswith("missing_exercise_candidates") for w in warnings
+        ) and generation_data.get("fail_on_missing_exercises"):
+            missing = "، ".join(
+                w.split(":", 1)[1] for w in warnings if w.startswith("missing_exercise_candidates:")
+            )
             raise GenerationFailedError(
-                detail="Missing exercise candidates for one or more muscles."
+                detail=f"در کاتالوگ برای {missing} حرکت مجاز کافی نیست؛ بانک حرکت یا تقسیم جلسات را اصلاح کنید."
             )
 
         input_snapshot = build_input_snapshot(
@@ -578,7 +787,7 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
             student=student,
             visit=visit,
             template=template,
-            request=request_data,
+            request=generation_data,
         )
         title = document["title"]
         program_type = document["program_type"]
@@ -590,6 +799,7 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
             student=student,
             title=title,
             program_type=program_type,
+            sections=document.get("program_sections") or program_sections_for_type(program_type),
             date_range_label=document.get("date_range_label") or "",
             date_range_start=start,
             date_range_end=end,
@@ -625,6 +835,142 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
         raise GenerationFailedError(detail="Generation failed.") from Exc
 
 
+def _build_quick_generation_template(
+    *,
+    coach: CoachProfile,
+    student: Student,
+    request_data: dict,
+    requested_sessions: int | None,
+) -> tuple[ProgramTemplate, dict]:
+    """Adapt visit-time quick settings to the existing rules_v1 generation contract."""
+    raw_days = request_data.get("days_per_week")
+    if raw_days in (None, ""):
+        raw_days = (
+            requested_sessions
+            or (student.training_conditions or {}).get("training_days_per_week")
+            or 4
+        )
+    try:
+        if isinstance(raw_days, bool) or str(raw_days).strip() != str(int(raw_days)):
+            raise ValueError
+        days_per_week = int(raw_days)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError({"days_per_week": ["تعداد جلسه باید عدد صحیح باشد."]}) from exc
+    if not 1 <= days_per_week <= 7:
+        raise ValidationError({"days_per_week": ["تعداد جلسه باید بین ۱ تا ۷ باشد."]})
+
+    raw_split = request_data.get("session_muscles")
+    if raw_split is None:
+        raw_split = [[] for _ in range(days_per_week)]
+    if not isinstance(raw_split, list) or len(raw_split) != days_per_week:
+        raise ValidationError(
+            {"session_muscles": ["برای هر جلسه باید یک چیدمان عضلانی جداگانه فرستاده شود."]}
+        )
+
+    session_muscles: list[list[str]] = []
+    split_labels: list[str] = []
+    allowed_muscles = set(CANONICAL_MUSCLES)
+    for day_index, raw_muscles in enumerate(raw_split):
+        if not isinstance(raw_muscles, list) or len(raw_muscles) > len(CANONICAL_MUSCLES):
+            raise ValidationError({"session_muscles": [f"چیدمان جلسهٔ {day_index + 1} معتبر نیست."]})
+        normalized: list[str] = []
+        for raw_muscle in raw_muscles:
+            if not isinstance(raw_muscle, str) or not raw_muscle.strip():
+                continue
+            muscle = normalize_muscle(raw_muscle)
+            if muscle not in allowed_muscles:
+                raise ValidationError(
+                    {
+                        "session_muscles": [
+                            f"عضلهٔ «{raw_muscle}» برای جلسهٔ {day_index + 1} معتبر نیست."
+                        ]
+                    }
+                )
+            if muscle in normalized:
+                raise ValidationError(
+                    {"session_muscles": [f"عضلهٔ «{muscle}» در جلسهٔ {day_index + 1} تکراری است."]}
+                )
+            normalized.append(muscle)
+        session_muscles.append(normalized)
+        split_labels.append(" و ".join(normalized))
+
+    variety = str(request_data.get("exercise_variety") or "balanced")
+    if variety not in {"stable", "balanced", "varied"}:
+        raise ValidationError(
+            {"exercise_variety": ["سطح تنوع حرکت باید یکی از گزینه‌های موجود باشد."]}
+        )
+
+    raw_level = (
+        request_data.get("level")
+        or (student.training_background or {}).get("level")
+        or "intermediate"
+    )
+    if raw_level not in ProgramTemplate.Level.values:
+        raise ValidationError({"level": ["سطح تمرین معتبر نیست."]})
+    raw_priorities = request_data.get("muscle_priorities")
+    muscle_priorities = (
+        [item.strip() for item in raw_priorities if isinstance(item, str) and item.strip()]
+        if isinstance(raw_priorities, list)
+        else []
+    )
+    rule_set = ensure_rule_set(coach)
+    template = ProgramTemplate(
+        rule_set=rule_set,
+        coach=coach,
+        name="تنظیم سریع",
+        goal=str(request_data.get("goals") or "").strip(),
+        main_goal=str(request_data.get("goals") or "").strip()[:120],
+        level=raw_level,
+        days_per_week=days_per_week,
+        intensity="متوسط",
+        volume="متوسط",
+        rest_time="۹۰ ثانیه",
+        split=split_labels,
+        muscle_priority_order=muscle_priorities,
+        special_rules=[],
+        execution_plan={},
+    )
+    return template, {
+        "days_per_week": days_per_week,
+        "session_muscles": session_muscles,
+        "exercise_variety": variety,
+    }
+
+
+def _visit_sessions_per_week(visit: Visit | None) -> int | None:
+    if visit is None:
+        return None
+    answers = visit.answers or {}
+    sections = (visit.form_template_snapshot or {}).get("sections") or []
+    raw_value = answers.get("sessions_per_week")
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        for field in section.get("fields") or []:
+            if (
+                isinstance(field, dict)
+                and field.get("semantic_key") == "sessions_per_week"
+                and field.get("key") in answers
+            ):
+                raw_value = answers[field["key"]]
+                break
+        if raw_value is not None:
+            break
+    if isinstance(raw_value, bool) or raw_value in (None, ""):
+        return None
+    if isinstance(raw_value, float) and not raw_value.is_integer():
+        return None
+    if isinstance(raw_value, str):
+        raw_value = raw_value.translate(
+            str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+        )
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        return None
+    return value if 1 <= value <= 7 else None
+
+
 @transaction.atomic
 def update_program_lineage(program: Program, payload: dict) -> Program:
     if program.archived_at:
@@ -656,6 +1002,11 @@ def update_draft_version(version: ProgramVersion, payload: dict) -> ProgramVersi
     coaches can regenerate PDFs without opening a new draft.
     """
     version = ProgramVersion.objects.select_for_update().get(pk=version.pk)
+    previous_exercises = {
+        str(item.get("id")): item
+        for day in (version.training or {}).get("days", [])
+        for item in day.get("exercises", [])
+    }
     ensure_student_active(version.program.student)
     if version.status == ProgramVersion.Status.ARCHIVED:
         raise InvalidStateError(
@@ -724,6 +1075,34 @@ def update_draft_version(version: ProgramVersion, payload: dict) -> ProgramVersi
             for ex in day.get("exercises") or []:
                 if not isinstance(ex, dict):
                     raise ValidationError({"training": ["Malformed exercise."]})
+                if "sets" in ex and (
+                    isinstance(ex["sets"], bool)
+                    or not isinstance(ex["sets"], int)
+                    or not 1 <= ex["sets"] <= 100
+                ):
+                    raise ValidationError(
+                        {"training": ["تعداد ست هر حرکت باید عدد صحیح بین ۱ و ۱۰۰ باشد."]}
+                    )
+                old = previous_exercises.get(str(ex.get("id")), {})
+                if any(ex.get(key) != old.get(key) for key in ("sets", "reps", "rest", "rpe")):
+                    raw = f"{ex.get('sets', '')}×{ex.get('reps', '')}"
+                    ex["raw_prescription"] = raw
+                    ex["prescription"] = {
+                        **(ex.get("prescription") or {}),
+                        "sets": ex.get("sets"),
+                        "reps_text": ex.get("reps"),
+                        "raw_prescription": raw,
+                    }
+                    if ex["prescription"].get("version") == 2:
+                        ex["prescription"]["set_plan"] = [
+                            {
+                                "set": n + 1,
+                                "reps_text": ex.get("reps"),
+                                "rest": ex.get("rest"),
+                                "effort": ex.get("rpe"),
+                            }
+                            for n in range(ex.get("sets", 0))
+                        ]
                 ex_id = ex.get("exercise_id")
                 if ex_id:
                     if not Exercise.objects.filter(pk=ex_id, coach_id=version.coach_id).exists():
@@ -745,6 +1124,23 @@ def finalize_version(version: ProgramVersion, *, actor) -> ProgramVersion:
         return version  # idempotent
     if version.status != ProgramVersion.Status.DRAFT:
         raise InvalidStateError(detail="Only draft versions can be finalized.")
+    from programming.services.split_parser import normalize_muscle
+
+    for day in (version.training or {}).get("days", []):
+        required = {normalize_muscle(muscle) for muscle in day.get("targetMuscles", [])}
+        present = {
+            normalize_muscle(exercise.get("targetMuscle", ""))
+            for exercise in day.get("exercises", [])
+        }
+        missing = required - present
+        if missing:
+            raise ValidationError(
+                {
+                    "training": [
+                        f"پوشش عضلات جلسه ناقص است: {', '.join(sorted(missing))}. کاتالوگ یا پیش‌نویس را اصلاح کنید."
+                    ]
+                }
+            )
     from delivery.models import StagedProgramPdf
     from delivery.services.staged_program_pdfs import promote_staged_pdfs
 
@@ -767,11 +1163,28 @@ def activate_version(program: Program, version_id) -> Program:
     version = get_version_for_coach(program.coach, program, version_id)
     if version.status != ProgramVersion.Status.FINALIZED:
         raise InvalidStateError(detail="Only finalized versions can be activated.")
+    from delivery.models import PdfArtifact
+    from programming.services import program_requests
+
+    methods = (version.pdf_settings or {}).get("deliverySections") or {}
+    required_sections = [key for key, method in methods.items() if method != "omitted"]
+    ready_sections = set(
+        PdfArtifact.objects.filter(program_version=version, status="ready").values_list(
+            "section", flat=True
+        )
+    )
+    if required_sections and not set(required_sections).issubset(ready_sections):
+        raise InvalidStateError(detail="فایل‌های این نسخه هنوز آماده نشده‌اند.", code="pdf_not_ready")
+    program_requests.validate_activation_for_requests(program, version)
     program.active_version = version
     program.save(update_fields=["active_version", "updated_at"])
     student = program.student
     student.summary_current_program_title = program.title
     student.save(update_fields=["summary_current_program_title", "updated_at"])
+    program_requests.reconcile_fulfillment(program)
+    from programming.services.program_notifications import schedule_program_ready_sms
+
+    schedule_program_ready_sms(version)
     return program
 
 
@@ -833,6 +1246,9 @@ def duplicate_program(
         student=student,
         title=f"{source_program.title} (کپی)",
         program_type=source_program.program_type,
+        sections=list(
+            source_program.sections or program_sections_for_type(source_program.program_type)
+        ),
         date_range_label=source_program.date_range_label,
         date_range_start=source_program.date_range_start,
         date_range_end=source_program.date_range_end,

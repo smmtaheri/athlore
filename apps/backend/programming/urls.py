@@ -1,10 +1,18 @@
 from django.urls import path
 
 from programming.views import (
+    CoachProgramRequestCancelView,
+    CoachProgramRequestDetailView,
+    CoachProgramRequestListView,
+    CoachProgramRequestMarkReadView,
+    CoachProgramRequestStartView,
     GenerationRunDetailView,
     GenerationRunListView,
     MyProgramDetailView,
     MyProgramListView,
+    MyProgramRequestCancelView,
+    MyProgramRequestDefaultsView,
+    MyProgramRequestListCreateView,
     ProgramActivateView,
     ProgramArchiveView,
     ProgramDetailView,
@@ -19,8 +27,54 @@ from programming.views import (
     ProgramVersionStagedPdfView,
     StudentProgramListView,
 )
+from programming.workout_views import (
+    PrepareVisitProgramView,
+    ProgramDefaultsView,
+    RegenerateProgramView,
+    WorkoutProgressView,
+)
 
 urlpatterns = [
+    path("programs/<uuid:program_id>/regenerate/", RegenerateProgramView.as_view()),
+    path("visits/<uuid:visit_id>/prepare-program/", PrepareVisitProgramView.as_view()),
+    path("me/program-defaults/", ProgramDefaultsView.as_view()),
+    path("me/programs/<uuid:program_id>/workout-progress/", WorkoutProgressView.as_view()),
+    path(
+        "me/program-request-defaults/",
+        MyProgramRequestDefaultsView.as_view(),
+        name="my-program-request-defaults",
+    ),
+    path(
+        "me/program-requests/",
+        MyProgramRequestListCreateView.as_view(),
+        name="my-program-request-list",
+    ),
+    path(
+        "me/program-requests/<uuid:request_id>/cancel/",
+        MyProgramRequestCancelView.as_view(),
+        name="my-program-request-cancel",
+    ),
+    path("program-requests/", CoachProgramRequestListView.as_view(), name="program-request-list"),
+    path(
+        "program-requests/mark-read/",
+        CoachProgramRequestMarkReadView.as_view(),
+        name="program-request-mark-read",
+    ),
+    path(
+        "program-requests/<uuid:request_id>/",
+        CoachProgramRequestDetailView.as_view(),
+        name="program-request-detail",
+    ),
+    path(
+        "program-requests/<uuid:request_id>/start/",
+        CoachProgramRequestStartView.as_view(),
+        name="program-request-start",
+    ),
+    path(
+        "program-requests/<uuid:request_id>/cancel/",
+        CoachProgramRequestCancelView.as_view(),
+        name="program-request-cancel",
+    ),
     path("me/programs/", MyProgramListView.as_view(), name="my-program-list"),
     path("me/programs/<uuid:program_id>/", MyProgramDetailView.as_view(), name="my-program-detail"),
     path("programs/", ProgramListCreateView.as_view(), name="program-list"),

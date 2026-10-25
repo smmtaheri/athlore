@@ -12,7 +12,7 @@ from django.utils import timezone
 from common.calendar import format_date, format_date_text
 
 # Bump when template structure or CSS layout changes in a meaningful way.
-RENDER_TEMPLATE_VERSION = "1.1.0"
+RENDER_TEMPLATE_VERSION = "1.3.0"
 RENDER_ENGINE_NAME = "weasyprint"
 RENDER_ENGINE_VERSION = "66"
 
@@ -94,7 +94,13 @@ def build_pdf_context(
                         "sets": _esc(ex_d.get("sets") or ""),
                         "reps": _esc(ex_d.get("reps") or ex_d.get("repetitions") or ""),
                         "rest": _esc(ex_d.get("rest") or ex_d.get("rest_seconds") or ""),
-                        "tempo": _esc(ex_d.get("tempo") or ex_d.get("intensity") or ""),
+                        "tempo": _esc(
+                            ex_d.get("tempo") or ex_d.get("rpe") or ex_d.get("intensity") or ""
+                        ),
+                        "supersetWithPrevious": bool(ex_d.get("supersetWithPrevious")),
+                        "trainingGroupName": _esc(ex_d.get("trainingGroupName") or ""),
+                        "supersetRestBetweenSeconds": ex_d.get("supersetRestBetweenSeconds"),
+                        "supersetRestAfterSeconds": ex_d.get("supersetRestAfterSeconds"),
                         "notes": _esc(ex_d.get("notes") or ex_d.get("coach_notes") or ""),
                     }
                 )
@@ -174,7 +180,17 @@ def build_pdf_context(
         "program_id": _esc(getattr(program, "id", "")),
         "program_version_id": _esc(getattr(version, "id", "")),
         "pdf_artifact_id": _esc(getattr(artifact, "id", "")),
-        "program_type": _esc(program.program_type),
+        "program_type": _esc(
+            {
+                "workout": "تمرینی",
+                "nutrition": "غذایی",
+                "supplement": "مکمل",
+                "complete": "کامل",
+            }.get(
+                getattr(artifact, "program_type", None) or program.program_type,
+                program.program_type,
+            )
+        ),
         "version_number": version.version_number,
         "version_label": _esc(f"v{version.version_number}"),
         "finalized_at": _esc(
@@ -191,14 +207,29 @@ def build_pdf_context(
             format_date(timezone.now(), calendar=coach.calendar, include_time=True)
         ),
         "template_version": RENDER_TEMPLATE_VERSION,
-        "goal": _esc(goals.get("primary_goal") or goals.get("goal") or ""),
-        "level": _esc(training_bg.get("level") or ""),
+        "goal": _esc(
+            {
+                "hypertrophy": "عضله‌سازی",
+                "strength": "افزایش قدرت",
+                "fat_loss": "کاهش چربی",
+                "endurance": "استقامت",
+                "general_fitness": "آمادگی عمومی",
+                "balance": "تعادل",
+            }.get(
+                goals.get("primary_goal") or goals.get("goal"),
+                goals.get("primary_goal") or goals.get("goal") or "",
+            )
+        ),
+        "level": _esc(
+            {"beginner": "مبتدی", "intermediate": "متوسط", "advanced": "پیشرفته"}.get(
+                training_bg.get("level"), training_bg.get("level") or ""
+            )
+        ),
         "weekly_days": _esc(
             conditions.get("days_per_week") or training_bg.get("days_per_week") or ""
         ),
         "limitations": limitations,
         "coach_notes": _esc(coach_notes) if include_coach_notes else "",
-        "student_coach_notes": _esc(student.coach_notes) if include_coach_notes else "",
         "contact_info": _esc(contact),
         "include_training": include_training and bool(days_out),
         "include_nutrition": include_nutrition and bool(nutrition),

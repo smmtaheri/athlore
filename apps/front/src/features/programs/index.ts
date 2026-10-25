@@ -1,5 +1,5 @@
 export { GenerationEvidencePanel } from "./components/GenerationEvidencePanel";
-export { ProgramGenerationPage } from "./pages/ProgramGenerationPage";
+export { ProgramPreparationPage as ProgramGenerationPage } from "./pages/ProgramPreparationPage";
 export { ProgramPreviewPage } from "./pages/ProgramPreviewPage";
 export { ProgramsListPage } from "./pages/ProgramsListPage";
 export { createProgramsRepository, programsRepository } from "./services/programsRepository";

@@ -64,48 +64,67 @@ function buildUrl(path: string, query?: ApiRequestOptions["query"]): string {
 }
 
 async function parseError(response: Response): Promise<ApiError> {
+  const statusCode = (status: number): string => {
+    if (status === 401) return "authentication_required";
+    if (status === 403) return "permission_denied";
+    if (status === 404) return "not_found";
+    if (status === 409) return "conflict";
+    if (status >= 500) return "server_error";
+    return "validation_error";
+  };
+  const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  const messageFrom = (value: unknown): string | undefined => {
+    if (typeof value === "string" && value.trim()) return value;
+    if (Array.isArray(value)) {
+      const messages = value.map(messageFrom).filter((item): item is string => Boolean(item));
+      return messages.length ? messages.join(" ") : undefined;
+    }
+    return undefined;
+  };
+  const detailsFrom = (value: Record<string, unknown>, excluded: string[]) =>
+    Object.fromEntries(Object.entries(value).filter(([key]) => !excluded.includes(key)));
+
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
-    if (response.status === 403) {
-      return new ApiError({
-        code: "permission_denied",
-        message:
-          "درخواست از سمت سرور رد شد؛ وضعیت فعال بودن شاگرد، مربی و دوره و دسترسی شبکه را بررسی کنید.",
-        status: response.status
-      });
-    }
     return new ApiError({
-      code: response.status >= 500 ? "server_error" : "malformed_response",
-      message: "پاسخ خطا قابل خواندن نبود.",
+      code: statusCode(response.status),
+      message: "",
       status: response.status
     });
   }
 
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "error" in payload &&
-    typeof (payload as { error: unknown }).error === "object" &&
-    (payload as { error: { code?: string; message?: string; details?: Record<string, unknown> } })
-      .error
-  ) {
-    const err = (
-      payload as { error: { code: string; message: string; details?: Record<string, unknown> } }
-    ).error;
+  const body = asRecord(payload);
+  const nestedError = asRecord(body?.error);
+  if (nestedError) {
+    const message = messageFrom(nestedError.message) ?? messageFrom(nestedError.detail) ?? "";
+    const code = messageFrom(nestedError.code) ?? statusCode(response.status);
     return new ApiError({
-      code: err.code || "server_error",
-      message: err.message || "خطا",
+      code,
+      message,
       status: response.status,
-      details: err.details || {}
+      details: asRecord(nestedError.details) ?? {}
     });
   }
 
+  // Accept the current envelope, DRF-style {detail, code}, field-error
+  // objects, and older {error: "...", code: "..."} responses.
+  const message =
+    messageFrom(body?.detail) ?? messageFrom(body?.message) ?? messageFrom(body?.error) ?? "";
+  const code = messageFrom(body?.code) ?? statusCode(response.status);
+  const details =
+    asRecord(body?.details) ??
+    (body ? detailsFrom(body, ["code", "detail", "error", "message"]) : {});
+
   return new ApiError({
-    code: "malformed_response",
-    message: "ساختار خطای سرور نامعتبر است.",
-    status: response.status
+    code,
+    message,
+    status: response.status,
+    details
   });
 }
 
@@ -335,10 +354,49 @@ export async function apiDownload(
 }
 
 /** Multipart upload (Body Check photos, etc.). Do not set JSON Content-Type. */
+function uploadWithProgress(
+  url: string,
+  headers: Record<string, string>,
+  formData: FormData,
+  onProgress: (percent: number) => void,
+  signal?: AbortSignal
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const abort = () => xhr.abort();
+    const cleanup = () => signal?.removeEventListener("abort", abort);
+    if (signal?.aborted) {
+      reject(new Error("Upload aborted"));
+      return;
+    }
+    xhr.open("POST", url);
+    xhr.withCredentials = true;
+    Object.entries(headers).forEach(([name, value]) => xhr.setRequestHeader(name, value));
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    xhr.onload = () => {
+      cleanup();
+      resolve(
+        new Response(xhr.status === 204 ? null : xhr.responseText, {
+          status: xhr.status,
+          headers: { "Content-Type": xhr.getResponseHeader("Content-Type") || "" }
+        })
+      );
+    };
+    xhr.onerror = xhr.onabort = () => {
+      cleanup();
+      reject(new Error("Upload failed"));
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    xhr.send(formData);
+  });
+}
+
 export async function apiUploadFormData<T>(
   path: string,
   formData: FormData,
-  options: Omit<ApiRequestOptions, "body"> = {}
+  options: Omit<ApiRequestOptions, "body"> & { onUploadProgress?: (percent: number) => void } = {}
 ): Promise<T> {
   const method = options.method ?? "POST";
   const headers: Record<string, string> = {
@@ -355,13 +413,22 @@ export async function apiUploadFormData<T>(
 
   let response: Response;
   try {
-    response = await fetch(buildUrl(path, options.query), {
-      method,
-      headers,
-      body: formData,
-      signal: options.signal,
-      credentials: "include"
-    });
+    response =
+      options.onUploadProgress && method === "POST"
+        ? await uploadWithProgress(
+            buildUrl(path, options.query),
+            headers,
+            formData,
+            options.onUploadProgress,
+            options.signal
+          )
+        : await fetch(buildUrl(path, options.query), {
+            method,
+            headers,
+            body: formData,
+            signal: options.signal,
+            credentials: "include"
+          });
   } catch {
     throw new ApiError({
       code: "network_error",

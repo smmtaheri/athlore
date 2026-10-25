@@ -4,7 +4,7 @@ import type {
   StudentFormValues,
   StudentInput
 } from "../types/student";
-import { validateIranMobileInput } from "../../../shared/phone/iranMobile";
+import { validateMobileInput } from "../../../shared/phone/mobile";
 
 export const emptyStudentFormValues: StudentFormValues = {
   age: "",
@@ -37,6 +37,7 @@ export const emptyStudentFormValues: StudentFormValues = {
   nutritionNotes: "",
   occupation: "",
   phoneNumber: "",
+  phoneCountry: "IR",
   primaryGoal: "",
   relevantMedicalNotes: "",
   secondaryGoal: "",
@@ -103,7 +104,7 @@ export function validateStudentForm(values: StudentFormValues): StudentFormError
     errors.fullName = "نام شاگرد الزامی است.";
   }
 
-  const phoneError = validateIranMobileInput(values.phoneNumber);
+  const phoneError = validateMobileInput(values.phoneNumber);
   if (phoneError) {
     errors.phoneNumber = phoneError;
   }
@@ -183,6 +184,7 @@ export function studentToFormValues(student: StudentInput): StudentFormValues {
     nutritionNotes: student.nutritionNotes ?? "",
     occupation: student.lifestyle.occupation,
     phoneNumber: student.phoneNumber ?? "",
+    phoneCountry: student.phoneCountry ?? "IR",
     primaryGoal: student.goals.primaryGoal,
     relevantMedicalNotes: student.relevantMedicalNotes ?? "",
     secondaryGoal: student.goals.secondaryGoal,
@@ -252,6 +254,7 @@ export function formValuesToStudentInput(
     },
     nutritionNotes: values.nutritionNotes.trim(),
     phoneNumber: values.phoneNumber.trim(),
+    phoneCountry: values.phoneCountry ?? "IR",
     preferences: {
       dislikedTrainingStyles: values.dislikedTrainingStyles.trim(),
       favoriteExercises: values.favoriteExercises.trim(),

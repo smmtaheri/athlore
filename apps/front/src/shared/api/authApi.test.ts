@@ -12,6 +12,30 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 describe("API auth bootstrap", () => {
+  it("maps SMS expiry and resend delay without receiving the secret code", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse({
+          delivery_mode: "sms",
+          message: "کد ورود پیامک می‌شود.",
+          expires_in_seconds: 300,
+          retry_after_seconds: 60
+        })
+      )
+    );
+    expect(
+      await createApiAuthRepository().requestLoginCode({
+        phoneNumber: "9121112222",
+        role: "student"
+      })
+    ).toEqual({
+      deliveryMode: "sms",
+      message: "کد ورود پیامک می‌شود.",
+      expiresInSeconds: 300,
+      retryAfterSeconds: 60
+    });
+  });
   it.each([{ username: "legacy-athlete" }, { email: "coach@example.com" }])(
     "never falls back to a legacy login endpoint for %j",
     async (identifier) => {
@@ -54,7 +78,7 @@ describe("API auth bootstrap", () => {
     }
   );
 
-  it("restores a new tab from the HttpOnly refresh cookie", async () => {
+  it("restores concurrent mounts from one HttpOnly refresh cookie exchange", async () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (String(url).includes("/auth/refresh/")) {
         return jsonResponse({ access: "access-from-cookie" });
@@ -82,7 +106,12 @@ describe("API auth bootstrap", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const session = await createApiAuthRepository().getSession();
+    const repository = createApiAuthRepository();
+    const [session, concurrent] = await Promise.all([
+      repository.getSession(),
+      repository.getSession()
+    ]);
+    expect(concurrent).toEqual(session);
 
     expect(session).toMatchObject({
       role: "coach",

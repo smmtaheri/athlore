@@ -1,7 +1,8 @@
+import { normalizeIranMobile } from "../src/shared/phone/iranMobile";
 import { expect, test } from "@playwright/test";
 
-// Run with LOGIN_OTP_ENABLED=true LOGIN_OTP_STATIC_CODE=1111
-// VITE_LOGIN_OTP_ENABLED=true VITE_COACH_DOMAIN=localhost VITE_STUDENT_DOMAIN=127.0.0.1.
+// start-stack.mjs provides a disposable SQLite/media backend with mocked SMS
+// and the database-backed fixed test code 111111. No SMS provider is contacted.
 for (const role of ["coach", "student"] as const) {
   test(`${role} requests a code before verification and keeps the same identity`, async ({
     page,
@@ -64,7 +65,7 @@ for (const role of ["coach", "student"] as const) {
       expectedUserId = pending.user.id;
       await context.clearCookies();
       await page.goto(`${origin.origin}/login`);
-      await page.getByLabel(/شماره موبایل/).fill(phone);
+      await page.getByLabel(/^شماره موبایل/).fill(normalizeIranMobile(phone).slice(3));
       await page.locator("#student-login-password").fill("InitialCode123!");
       await page.getByRole("button", { name: "ورود", exact: true }).click();
       await expect(
@@ -73,17 +74,14 @@ for (const role of ["coach", "student"] as const) {
       await page.locator("#setup-password").fill(password);
       await page.locator("#setup-password-confirm").fill(password);
       await page.getByRole("button", { name: "ثبت رمز جدید", exact: true }).click();
-      await expect(page.getByLabel(/شماره موبایل/)).toBeVisible();
+      await expect(page.getByLabel(/^شماره موبایل/)).toBeVisible();
     }
     await context.clearCookies();
 
     await page.goto(`${origin.origin}/login`);
-    await expect(page.getByLabel(/شماره موبایل/)).toHaveAttribute(
-      "placeholder",
-      "شماره موبایل؛ 09xxxxxxxxx"
-    );
-    await expect(page.getByLabel(/شماره موبایل/)).toHaveAccessibleDescription(/فقط شماره موبایل/);
-    await page.getByLabel(/شماره موبایل/).fill(phone.slice(1));
+    await expect(page.getByLabel(/^شماره موبایل/)).toHaveAttribute("placeholder", /مثلاً 9/);
+    await expect(page.getByLabel(/^شماره موبایل/)).toHaveAccessibleDescription(/بدون صفر اول/);
+    await page.getByLabel(/^شماره موبایل/).fill(phone.slice(1));
     await page.getByRole("button", { name: "ورود با کد یک‌بارمصرف", exact: true }).click();
     const code = page.getByLabel(/کد یک‌بارمصرف/);
     const send = page.getByRole("button", { name: "ارسال کد", exact: true });
@@ -116,12 +114,15 @@ for (const role of ["coach", "student"] as const) {
     await send.click();
     const delivered = await deliveryResponse;
     expect(delivered.status()).toBe(200);
-    expect(delivered.request().postDataJSON()).toEqual({ phone_number: phone.slice(1), role });
+    expect(delivered.request().postDataJSON()).toEqual({
+      phone_number: normalizeIranMobile(phone),
+      role
+    });
     await expect(code).toBeVisible();
     await expect(code).toBeFocused();
     await expect(page.getByRole("status")).toContainText("پیامک واقعی ارسال نمی‌شود");
 
-    await code.fill("2222");
+    await code.fill("222222");
     const wrongResponse = page.waitForResponse(
       (response) =>
         response.url().endsWith("/auth/phone-login/") && response.request().method() === "POST"
@@ -129,18 +130,10 @@ for (const role of ["coach", "student"] as const) {
     await page.getByRole("button", { name: "ورود با کد", exact: true }).click();
     expect((await wrongResponse).status()).toBe(401);
     await expect(page.getByRole("alert")).toContainText("کد ورود نادرست است");
-    await expect(code).toHaveValue("2222");
+    await expect(code).toHaveValue("222222");
 
-    await page.getByRole("button", { name: "ارسال دوباره کد", exact: true }).click();
-    await expect(code).toHaveValue("");
-    await code.fill("1111");
-    await page.getByRole("button", { name: "رمز عبور", exact: true }).click();
-    await expect(code).not.toBeVisible();
-    await expect(page.getByLabel(/رمز عبور/)).toBeVisible();
-    await page.getByRole("button", { name: "ورود با کد یک‌بارمصرف", exact: true }).click();
-    await expect(code).not.toBeVisible();
-    await send.click();
-    await code.fill("1111");
+    await expect(page.getByRole("button", { name: /ارسال دوباره کد/ })).toBeDisabled();
+    await code.fill("111111");
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth
@@ -178,7 +171,7 @@ for (const role of ["coach", "student"] as const) {
       window.localStorage.clear();
     });
     await page.goto(`${origin.origin}/login`);
-    await page.getByLabel(/شماره موبایل/).fill(phone);
+    await page.getByLabel(/^شماره موبایل/).fill(normalizeIranMobile(phone).slice(3));
     await page
       .locator(role === "coach" ? "#login-password" : "#student-login-password")
       .fill(password);

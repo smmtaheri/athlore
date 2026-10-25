@@ -15,6 +15,9 @@ EXECUTABLE_SEMANTIC_KEYS = frozenset(
         "goal",
         "training_level",
         "sessions_per_week",
+        "training_environment",
+        "equipment_available",
+        "session_duration_minutes",
         "weak_muscles",
         "muscle_detail",
         "injuries",
@@ -54,19 +57,19 @@ LEVEL_MAP = {
 
 # Map assessment muscle ids to generator / student weak_muscle tokens.
 MUSCLE_TO_GENERATOR = {
-    "shoulders": "shoulders",
-    "triceps": "triceps",
-    "calves": "calves",
-    "chest": "chest",
-    "quadriceps": "legs",
-    "forearms": "forearms",
-    "back": "back",
-    "hamstrings": "hamstrings",
-    "abs": "abs",
-    "biceps": "biceps",
-    "glutes": "glutes",
-    "traps": "traps",
-    "upper_chest": "upper_chest",
+    "shoulders": "سرشانه",
+    "triceps": "پشت بازو",
+    "calves": "ساق",
+    "chest": "سینه",
+    "quadriceps": "پا",
+    "forearms": "ساعد",
+    "back": "زیربغل",
+    "hamstrings": "پا",
+    "abs": "شکم",
+    "biceps": "جلو بازو",
+    "glutes": "پا",
+    "traps": "زیربغل",
+    "upper_chest": "سینه",
 }
 
 INJURY_TYPE_MAP = {
@@ -129,9 +132,10 @@ def extract_semantic_answers(
         if not key or key not in answers:
             continue
         value = answers[key]
-        if not _is_answered(value):
-            continue
         semantic_key = str(field.get("semantic_key") or "").strip()
+        empty_selection_is_an_answer = semantic_key in {"weak_muscles", "injuries"} and value == []
+        if not _is_answered(value) and not empty_selection_is_an_answer:
+            continue
         if not semantic_key:
             custom[key] = value
             continue
@@ -216,11 +220,12 @@ def build_generation_context_from_visit(visit) -> dict[str, Any] | None:
         return base
 
     detail = executable.get("muscle_detail") or {}
+    explicit_no_weakness = executable.get("weak_muscles") == ["none"]
     if detail and "weak_muscles" not in executable:
         derived = _weak_from_detail(detail)
         if derived:
             executable["weak_muscles"] = derived
-    elif detail and executable.get("weak_muscles"):
+    elif detail and executable.get("weak_muscles") and not explicit_no_weakness:
         existing = [str(x) for x in executable["weak_muscles"]]
         for item in _weak_from_detail(detail):
             if item not in existing:
@@ -248,6 +253,7 @@ def merge_student_with_assessment(
     student_injuries: dict,
     student_training_background: dict,
     student_training_conditions: dict,
+    student_equipment: dict,
     assessment_ctx: dict | None,
 ) -> dict[str, Any]:
     """Overlay visit form semantic values onto student profile without inventing defaults.
@@ -259,6 +265,7 @@ def merge_student_with_assessment(
     injuries = dict(student_injuries or {})
     training_background = dict(student_training_background or {})
     training_conditions = dict(student_training_conditions or {})
+    equipment = dict(student_equipment or {})
     evidence_bits: dict[str, Any] = {
         "source": "student_profile",
         "assessment_overrides": [],
@@ -271,6 +278,7 @@ def merge_student_with_assessment(
             "injuries": injuries,
             "training_background": training_background,
             "training_conditions": training_conditions,
+            "equipment": equipment,
             "assessment": assessment_ctx,
             "visit": assessment_ctx,
             "evidence": evidence_bits,
@@ -305,13 +313,37 @@ def merge_student_with_assessment(
         except (TypeError, ValueError):
             pass
 
-    if "weak_muscles" in exe and _is_answered(exe["weak_muscles"]):
+    if "training_environment" in exe and _is_answered(exe["training_environment"]):
+        training_conditions["environment"] = str(exe["training_environment"])
+        evidence_bits["assessment_overrides"].append("training_environment")
+        evidence_bits["visit_overrides"].append("training_environment")
+
+    if "session_duration_minutes" in exe and _is_answered(exe["session_duration_minutes"]):
+        try:
+            duration = int(exe["session_duration_minutes"])
+            if 15 <= duration <= 180 and duration % 15 == 0:
+                training_conditions["session_duration_minutes"] = duration
+                evidence_bits["assessment_overrides"].append("session_duration_minutes")
+                evidence_bits["visit_overrides"].append("session_duration_minutes")
+        except (TypeError, ValueError):
+            pass
+
+    if "equipment_available" in exe and _is_answered(exe["equipment_available"]):
+        available = exe["equipment_available"]
+        if isinstance(available, list):
+            equipment["available_equipment"] = list(available)
+            evidence_bits["assessment_overrides"].append("equipment_available")
+            evidence_bits["visit_overrides"].append("equipment_available")
+
+    if "weak_muscles" in exe:
         raw = exe["weak_muscles"]
         if isinstance(raw, list):
-            mapped = [MUSCLE_TO_GENERATOR.get(str(m), str(m)) for m in raw if str(m).strip()]
+            mapped = [
+                MUSCLE_TO_GENERATOR.get(str(m), str(m))
+                for m in raw
+                if str(m).strip() and str(m).strip().lower() != "none"
+            ]
             goals["weak_muscles"] = mapped
-            if not goals.get("muscle_priorities"):
-                goals["muscle_priorities"] = list(mapped)
             evidence_bits["assessment_overrides"].append("weak_muscles")
             evidence_bits["visit_overrides"].append("weak_muscles")
 
@@ -320,16 +352,26 @@ def merge_student_with_assessment(
         evidence_bits["assessment_overrides"].append("muscle_detail")
         evidence_bits["visit_overrides"].append("muscle_detail")
 
-    if "injuries" in exe and _is_answered(exe["injuries"]):
+    if "injuries" in exe:
         raw = exe["injuries"]
         items = raw if isinstance(raw, list) else [raw]
-        items = [str(x) for x in items if str(x).strip()]
+        normalized_items = [str(item).strip().lower() for item in items]
+        no_injury_selected = "none" in normalized_items
+        items = [str(x) for x in items if str(x).strip() and str(x).strip().lower() != "none"]
         if items:
             injuries["has_injury"] = True
             injuries["injury_types"] = items
             injuries["injury_type"] = INJURY_TYPE_MAP.get(items[0], items[0])
-            evidence_bits["assessment_overrides"].append("injuries")
-            evidence_bits["visit_overrides"].append("injuries")
+        elif no_injury_selected:
+            injuries["has_injury"] = False
+            injuries["injury_types"] = []
+            injuries["injury_type"] = ""
+        else:
+            injuries["has_injury"] = False
+            injuries["injury_types"] = []
+            injuries["injury_type"] = ""
+        evidence_bits["assessment_overrides"].append("injuries")
+        evidence_bits["visit_overrides"].append("injuries")
 
     if "training_methods" in exe and _is_answered(exe["training_methods"]):
         evidence_bits["training_methods"] = exe["training_methods"]
@@ -356,6 +398,7 @@ def merge_student_with_assessment(
         "injuries": injuries,
         "training_background": training_background,
         "training_conditions": training_conditions,
+        "equipment": equipment,
         "assessment": assessment_ctx,
         "visit": assessment_ctx,
         "evidence": evidence_bits,

@@ -47,6 +47,9 @@ describe("API programs repository", () => {
       musclePriorities: ["سینه"],
       programType: "workout",
       studentId: "student-1",
+      trainingSystems: [
+        { key: "partial_reps", variants: ["after_failure"], muscles: ["سینه", "سرشانه"] }
+      ],
       targetExerciseCount: 2,
       targetMuscle: "سینه",
       targetRegion: "inner_upper_chest",
@@ -71,6 +74,7 @@ describe("API programs repository", () => {
           target_muscle: "سینه",
           target_region: "inner_upper_chest",
           exercise_count: 2,
+          training_systems: input.trainingSystems,
           supplement_selection: input.supplementSelection
         })
       })

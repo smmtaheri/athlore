@@ -6,7 +6,7 @@ from django.core.management.base import CommandError
 
 from accounts.models import CoachProfile
 from accounts.services import normalize_email
-from common.phone import InvalidPhoneError, normalize_iran_mobile
+from common.phone import InvalidPhoneError, normalize_mobile
 from students.models import Student
 
 
@@ -26,7 +26,7 @@ def resolve_coach(*, coach_id=None, coach_email=None, coach_phone=None) -> Coach
             raise CommandError(f"Coach not found for email={email}")
     elif coach_phone:
         try:
-            phone = normalize_iran_mobile(coach_phone, required=True)
+            phone = normalize_mobile(coach_phone, required=True)
         except InvalidPhoneError as exc:
             raise CommandError(str(exc)) from exc
         matches = list(qs.filter(phone_number=phone))
@@ -47,7 +47,7 @@ def resolve_student(*, student_id=None, phone=None) -> Student:
             raise CommandError(f"Student not found for id={student_id}") from exc
     if phone:
         try:
-            canon = normalize_iran_mobile(phone, required=True)
+            canon = normalize_mobile(phone, required=True)
         except InvalidPhoneError as exc:
             raise CommandError(str(exc)) from exc
         try:

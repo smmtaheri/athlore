@@ -4,9 +4,13 @@ import { Button, Card, EmptyState, Skeleton, StatusBadge } from "../../../compon
 import { studentPaths } from "../../../app/config/appOrigin";
 import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
 import { athleteFacingText } from "../../../shared/athleteWording";
-import { VisitDynamicForm } from "../../students/components/VisitDynamicForm";
+import { VisitAnswersReadonly, VisitDynamicForm } from "../../students/components/VisitDynamicForm";
 import { VisitPhotosPanel } from "../../students/components/VisitPhotosPanel";
 import { enabledSectionsFromTemplate } from "../../students/components/visitFormUtils";
+import {
+  reconcileWeakMuscleAnswers,
+  visitFormLayout
+} from "../../students/components/visitFormLayout";
 import type { StudentVisit } from "../../students/types/monthlyVisit";
 import { formatVisitDate } from "../utils/studentVisitUi";
 import type { VisitFormAnswers } from "../../students/types/visitForm";
@@ -77,6 +81,32 @@ export function StudentVisitDetailPage({
     [visit]
   );
   const open = visit ? isVisitOpenForStudent(visit) : false;
+  const layout = visitFormLayout(sections, visit?.formTemplateKey ?? "", answers);
+  const primarySections = [
+    { key: "visit-general", label: "ارزیابی کلی", order: 0, fields: layout.general },
+    {
+      key: "visit-conditions",
+      label: "شرایط و محدودیت‌های تمرین",
+      order: 1,
+      fields: [...layout.conditions, ...layout.injuries]
+    }
+  ].filter((section) => section.fields.length > 0);
+  const otherSections = [
+    { key: "visit-weakness", label: "ارزیابی بدن و نقاط ضعف", order: 2, fields: layout.weakness },
+    ...layout.muscleDetails,
+    { key: "visit-methods", label: "سیستم‌های تمرینی دوره", order: 3, fields: layout.methods },
+    ...layout.additional
+  ].filter((section) => section.fields.length > 0);
+  const activeSections = [...primarySections, ...otherSections];
+  const changeAnswers = (next: VisitFormAnswers) =>
+    setAnswers(
+      reconcileWeakMuscleAnswers(
+        answers,
+        next,
+        sections.flatMap((section) => section.fields),
+        "athlete"
+      )
+    );
   const expired = Boolean(visit?.isExpired) && visit?.status === "waiting_for_student";
   const deadline = visit ? formatVisitDeadline(visit) : null;
 
@@ -99,9 +129,7 @@ export function StudentVisitDetailPage({
 
   const editableAnswersPayload = (): VisitFormAnswers => {
     const editableKeys = new Set(
-      sections.flatMap((section) =>
-        section.fields.filter((field) => field.studentEditable).map((field) => field.key)
-      )
+      layout.liveFields.filter((field) => field.studentEditable).map((field) => field.key)
     );
     return Object.fromEntries(Object.entries(answers).filter(([key]) => editableKeys.has(key)));
   };
@@ -245,33 +273,55 @@ export function StudentVisitDetailPage({
           </div>
         ) : null}
 
-        <VisitPhotosPanel
-          audience="student"
-          canUpload={visit.status !== "draft"}
-          commitInPanel={!open}
-          key={photoSessionId}
-          onStagedChange={setHasStagedPhotos}
-          onUploadStateChange={setPhotosUploading}
-          sessionId={photoSessionId}
-          visitId={visit.id}
-        />
+        {primarySections.length ? (
+          <VisitDynamicForm
+            audience="athlete"
+            answers={answers}
+            disabled={!open}
+            onAnswersChange={changeAnswers}
+            respectStudentEditable={open}
+            sections={primarySections}
+            theme={visit.formTemplateSnapshot.theme}
+          />
+        ) : null}
 
-        {sections.length > 0 ? (
+        <details className={styles.visitPhotosDisclosure}>
+          <summary>عکس‌های ارزیابی (اختیاری)</summary>
+          <VisitPhotosPanel
+            audience="student"
+            canUpload={visit.status !== "draft"}
+            commitInPanel={!open}
+            key={photoSessionId}
+            onStagedChange={setHasStagedPhotos}
+            onUploadStateChange={setPhotosUploading}
+            sessionId={photoSessionId}
+            visitId={visit.id}
+          />
+        </details>
+
+        {otherSections.length > 0 ? (
           <Card>
             <VisitDynamicForm
               audience="athlete"
               answers={answers}
               disabled={!open}
-              onAnswersChange={setAnswers}
+              onAnswersChange={changeAnswers}
               respectStudentEditable={open}
-              sections={sections}
+              collapsibleSections
+              sections={otherSections}
               showNotes={false}
               theme={visit.formTemplateSnapshot.theme}
             />
           </Card>
-        ) : (
+        ) : activeSections.length === 0 ? (
           <p className={styles.muted}>فیلد قابل‌نمایش برای شما وجود ندارد.</p>
-        )}
+        ) : null}
+        {layout.historical.length ? (
+          <details className={styles.visitPhotosDisclosure}>
+            <summary>اطلاعات ثبت‌شده قبلی</summary>
+            <VisitAnswersReadonly answers={answers} sections={layout.historical} />
+          </details>
+        ) : null}
 
         <div className={styles.actionBar}>
           <Button onClick={() => navigate(studentPaths.visits)} variant="secondary">

@@ -1,4 +1,7 @@
+from django.db import transaction
+from django.utils import timezone
 from rest_framework import status
+from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -9,7 +12,9 @@ from common.permissions import (
     get_request_coach,
     get_request_student,
 )
-from programming.models import GenerationRun
+from programming.models import GenerationRun, ProgramRequest
+from programming.serializers import ProgramRequestInputSerializer, ProgramRequestMarkReadSerializer
+from programming.services import program_requests as request_services
 from programming.services import programs as program_services
 
 
@@ -27,6 +32,7 @@ class ProgramListCreateView(APIView):
             [program_services.serialize_program_summary(p) for p in page]
         )
 
+    @transaction.atomic
     def post(self, request):
         coach = get_request_coach(request)
         data = request.data
@@ -39,6 +45,12 @@ class ProgramListCreateView(APIView):
             date_range_start=data.get("date_range_start"),
             date_range_end=data.get("date_range_end"),
         )
+        request_services.link_program(
+            program=program,
+            actor=request.user,
+            request_id=data.get("program_request_id"),
+            visit_id=data.get("visit_id"),
+        )
         return Response(
             program_services.serialize_program_detail(program),
             status=status.HTTP_201_CREATED,
@@ -48,9 +60,16 @@ class ProgramListCreateView(APIView):
 class ProgramGenerateView(APIView):
     permission_classes = [IsAuthenticatedCoach]
 
+    @transaction.atomic
     def post(self, request):
         coach = get_request_coach(request)
         program, run = program_services.generate_program(coach, request.data)
+        request_services.link_program(
+            program=program,
+            actor=request.user,
+            request_id=request.data.get("program_request_id"),
+            visit_id=request.data.get("visit_id"),
+        )
         return Response(
             {
                 "generation_run_id": str(run.id),
@@ -65,6 +84,7 @@ class ProgramGenerateView(APIView):
 class ProgramUploadedPdfDraftView(APIView):
     permission_classes = [IsAuthenticatedCoach]
 
+    @transaction.atomic
     def post(self, request):
         coach = get_request_coach(request)
         program = program_services.create_uploaded_pdf_draft(
@@ -76,6 +96,12 @@ class ProgramUploadedPdfDraftView(APIView):
             date_range_label=request.data.get("date_range_label") or "",
             date_range_start=request.data.get("date_range_start"),
             date_range_end=request.data.get("date_range_end"),
+        )
+        request_services.link_program(
+            program=program,
+            actor=request.user,
+            request_id=request.data.get("program_request_id"),
+            visit_id=request.data.get("visit_id"),
         )
         return Response(
             program_services.serialize_program_detail(program),
@@ -249,8 +275,15 @@ class MyProgramListView(APIView):
         qs = program_services.programs_for_student(student).order_by("-updated_at")
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(qs, request, view=self)
+        current_sections = program_services.current_program_section_map(student)
         return paginator.get_paginated_response(
-            [program_services.serialize_student_program_summary(p) for p in page]
+            [
+                program_services.serialize_student_program_summary(
+                    p,
+                    current_sections=current_sections,
+                )
+                for p in page
+            ]
         )
 
 
@@ -327,3 +360,149 @@ class GenerationRunDetailView(APIView):
                 "created_at": run.created_at.isoformat().replace("+00:00", "Z"),
             }
         )
+
+
+class MyProgramRequestDefaultsView(APIView):
+    permission_classes = [IsAuthenticatedStudent]
+
+    def get(self, request):
+        student = get_request_student(request)
+        return Response(request_services.request_defaults(student))
+
+
+class MyProgramRequestListCreateView(APIView):
+    permission_classes = [IsAuthenticatedStudent]
+
+    def get(self, request):
+        student = get_request_student(request)
+        items = ProgramRequest.objects.filter(student=student).select_related("student")
+        return Response(
+            {
+                "count": items.count(),
+                "results": [
+                    request_services.serialize_request(item, for_student=True) for item in items
+                ],
+            }
+        )
+
+    def post(self, request):
+        student = get_request_student(request)
+        serializer = ProgramRequestInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        item, created = request_services.create_request(
+            student=student,
+            actor=request.user,
+            data=serializer.validated_data,
+        )
+        item = ProgramRequest.objects.select_related("student").get(pk=item.pk)
+        return Response(
+            request_services.serialize_request(item, for_student=True),
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
+class MyProgramRequestCancelView(APIView):
+    permission_classes = [IsAuthenticatedStudent]
+
+    def post(self, request, request_id):
+        student = get_request_student(request)
+        try:
+            item = ProgramRequest.objects.get(pk=request_id, student=student)
+        except ProgramRequest.DoesNotExist as exc:
+            raise NotFound(detail="درخواست برنامه پیدا نشد.") from exc
+        item = request_services.cancel_request(request=item, actor=request.user)
+        item = ProgramRequest.objects.select_related("student").get(pk=item.pk)
+        return Response(request_services.serialize_request(item, for_student=True))
+
+
+class CoachProgramRequestListView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def get(self, request):
+        coach = get_request_coach(request)
+        items = ProgramRequest.objects.filter(coach=coach).select_related("student")
+        selected_status = request.query_params.get("status", "open")
+        if selected_status == "open":
+            items = items.filter(status__in=request_services.OPEN_STATUSES)
+        elif selected_status != "all":
+            items = items.filter(status=selected_status)
+        unread_count = items.filter(read_at__isnull=True).count()
+        return Response(
+            {
+                "count": items.count(),
+                "unread_count": unread_count,
+                "results": [request_services.serialize_request(item) for item in items],
+            }
+        )
+
+
+class CoachProgramRequestMarkReadView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def post(self, request):
+        coach = get_request_coach(request)
+        serializer = ProgramRequestMarkReadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        items = ProgramRequest.objects.filter(
+            coach=coach,
+            status__in=request_services.OPEN_STATUSES,
+            read_at__isnull=True,
+        )
+        ids = serializer.validated_data.get("ids")
+        if ids is not None:
+            items = items.filter(pk__in=ids)
+        now = timezone.now()
+        updated = items.update(read_at=now, updated_at=now)
+        return Response({"updated": updated})
+
+
+class CoachProgramRequestDetailView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def get(self, request, request_id):
+        coach = get_request_coach(request)
+        try:
+            item = ProgramRequest.objects.select_related("student").get(pk=request_id, coach=coach)
+        except ProgramRequest.DoesNotExist as exc:
+            from rest_framework.exceptions import NotFound
+
+            raise NotFound(detail="درخواست برنامه پیدا نشد.") from exc
+        item = request_services.mark_read(item)
+        return Response(request_services.serialize_request(item))
+
+
+class CoachProgramRequestCancelView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def post(self, request, request_id):
+        coach = get_request_coach(request)
+        try:
+            item = ProgramRequest.objects.get(pk=request_id, coach=coach)
+        except ProgramRequest.DoesNotExist as exc:
+            raise NotFound(detail="درخواست برنامه پیدا نشد.") from exc
+        item = request_services.cancel_request(request=item, actor=request.user)
+        item = ProgramRequest.objects.select_related("student").get(pk=item.pk)
+        return Response(request_services.serialize_request(item))
+
+
+class CoachProgramRequestStartView(APIView):
+    permission_classes = [IsAuthenticatedCoach]
+
+    def post(self, request, request_id):
+        coach = get_request_coach(request)
+        try:
+            item = ProgramRequest.objects.select_related("student", "coach").get(
+                pk=request_id,
+                coach=coach,
+            )
+        except ProgramRequest.DoesNotExist as exc:
+            from rest_framework.exceptions import NotFound
+
+            raise NotFound(detail="درخواست برنامه پیدا نشد.") from exc
+        item = request_services.start_request(
+            request=item,
+            assessment_mode=request.data.get("assessment_mode"),
+            visit_id=request.data.get("visit_id"),
+        )
+        item = ProgramRequest.objects.select_related("student").get(pk=item.pk)
+        return Response(request_services.serialize_request(item))
