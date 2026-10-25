@@ -5,7 +5,7 @@ from rest_framework.exceptions import ValidationError
 from accounts.generation_policy import DEFAULT_POLICY, coach_policy, validate_policy
 from accounts.models import CoachProfile, ProgramTemplate
 from accounts.rules_services import replace_coach_rules
-from programming.services.training_selection import _full_body_muscles, _prescribe
+from programming.services.training_selection import _candidate_names, _full_body_muscles, _prescribe
 
 
 class GenerationPolicyTests(TestCase):
@@ -69,3 +69,15 @@ class GenerationPolicyTests(TestCase):
 
     def test_default_weakness_is_not_automatic_focus(self):
         self.assertFalse(DEFAULT_POLICY["weakness_auto_focus"])
+
+    def test_empty_catalog_never_invents_fallback_movements(self):
+        names, sources = _candidate_names(
+            muscle="سینه",
+            catalog={},
+            structured_catalog_by_name={},
+            preferred_names=set(),
+            level="intermediate",
+            apply_catalog=True,
+        )
+        self.assertEqual(names, [])
+        self.assertEqual(sources, set())

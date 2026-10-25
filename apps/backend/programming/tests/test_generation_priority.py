@@ -99,7 +99,10 @@ class GenerationPriorityTests(APITestCase):
         return [e["name"] for d in document["training"]["days"] for e in d["exercises"]]
 
     # 1. historical bank used when no injury -----------------------------
-    def test_historical_bank_used_when_no_injury(self):
+    def test_owned_catalog_used_when_no_injury(self):
+        Exercise.objects.create(
+            coach=self.coach, name="پرس سینه هالتر", primary_muscle="سینه", level="all"
+        )
         student = self._make_student()
         document, warnings = self._generate(student)
         names = self._all_names(document)

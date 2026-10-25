@@ -10,9 +10,11 @@ from accounts.models import CoachProfile, CoachSupplementTemplate, ProgramTempla
 from accounts.rules_services import ensure_rule_set
 from accounts.supplement_catalog import save_entry, snapshot_selection
 from accounts.supplement_models import SupplementCatalogEntry, SupplementGoal
+from delivery.services.artifacts import create_and_render
 from delivery.services.render import build_pdf_context
 from programming.services.generator import _build_supplements
 from programming.services.programs import (
+    activate_version,
     finalize_version,
     generate_program,
     serialize_student_program_detail,
@@ -264,6 +266,10 @@ class SupplementCatalogTests(APITestCase):
         version.refresh_from_db()
         self.assertEqual(version.supplements["items"][0]["name"], self.payload["name"])
         finalize_version(version, actor=self.user)
+        create_and_render(
+            self.coach, program, version_id=version.id, user=self.user, section="supplement"
+        )
+        program = activate_version(program, version.id)
         program.refresh_from_db()
         projection = serialize_student_program_detail(program)
         self.assertEqual(projection["supplements"]["items"][0]["instructions"], "QA instruction")

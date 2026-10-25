@@ -427,7 +427,8 @@ class VisitFormGeneratorTests(TestCase):
             request={"program_type": "workout"},
         )
         evidence = doc["generator"]["evidence"]
-        weak = " ".join(str(x) for x in (evidence["weak_muscles"] or []))
+        self.assertEqual(evidence["weak_muscles"], [])
+        weak = " ".join(str(x) for x in (evidence["observed_weak_muscles"] or []))
         self.assertTrue("chest" in weak or "سینه" in weak)
         detail = evidence["visit_form"]["muscle_detail"]
         self.assertEqual(detail["chest"]["upper"], "weak")

@@ -92,3 +92,7 @@ automatic full-body generation therefore requires catalog completion. QA can
 explicitly select `--available-catalog-split` (chest/triceps, legs/shoulders) to
 exercise publication with supported catalog muscles. This is a named test
 configuration, never an automatic fallback or a balanced full-body claim.
+
+Hard-coded exercise fallback banks have also been removed from the shared
+selector, not merely disabled by visit preparation. Low-level generation APIs
+cannot inject a named movement absent from the owning coach's catalog.

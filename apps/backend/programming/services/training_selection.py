@@ -1,6 +1,6 @@
 """Split-driven training day construction for rules_v1.
 
-Owns muscle coverage, cross-day dedupe, volume bias, hard equipment filter,
+Owns muscle coverage, per-session dedupe, volume bias, hard equipment filter,
 prescription variation, and session ordering. Injury/forbidden sets are
 provided by the caller (generator orchestration).
 """
@@ -95,18 +95,6 @@ MUSCLE_ROLES: dict[str, list[str]] = {
 
 ARM_MUSCLES = frozenset({"پشت بازو", "جلو بازو"})
 CORE_MUSCLES = frozenset({"شکم"})
-
-_FALLBACK: dict[str, list[str]] = {
-    "پا": ["پرس پا", "ددلیفت رومانیایی", "جلوپا دستگاه", "ساق ایستاده"],
-    "سینه": ["پرس سینه هالتر", "پرس بالاسینه دمبل", "کراس‌اور از پایین به بالا"],
-    "سرشانه": ["نشر جانب دمبل", "پرس سرشانه دستگاه", "فیس پول"],
-    "زیربغل": ["لت سیم کش", "روئینگ دستگاه", "بارفیکس کمکی"],
-    "پشت بازو": ["پشت بازو سیم‌کش", "دیپ نیمکت"],
-    "جلو بازو": ["جلو بازو دمبل", "جلو بازو هالتر"],
-    "شکم": ["کرانچ", "پلانک", "زیرشکم پا آویزان"],
-    "ساق": ["ساق ایستاده"],
-    "ساعد": ["مچ دمبل", "ساعد هالتر"],
-}
 
 
 def _stable_id(*parts: Any) -> str:
@@ -365,11 +353,7 @@ def _candidate_names(
     raw.extend(name for name, _metadata in structured)
     from_structured.update(name for name, _metadata in structured)
     for (pm, name), _ex in sorted(catalog.items(), key=lambda x: x[0][1]):
-        if (
-            normalize_muscle(pm) == muscle
-            and name in preferred_names
-            and name not in from_structured
-        ):
+        if normalize_muscle(pm) == muscle and name not in from_structured:
             if strict_region and not (
                 name in structured_catalog_by_name
                 and bool(
@@ -379,9 +363,10 @@ def _candidate_names(
                 )
             ):
                 continue
-            raw.insert(0, name)
-    if not strict_region:
-        raw.extend(_FALLBACK.get(muscle, []))
+            if name in preferred_names:
+                raw.insert(0, name)
+            else:
+                raw.append(name)
     return _unique(raw), from_structured
 
 
@@ -1132,11 +1117,6 @@ def build_training_days(
                 candidates = [name for name in candidates if name in catalog_by_name]
             excluded_catalog_reasons: list[dict] = []
             region_filter = (structured_region_filters or {}).get(muscle) or set()
-            strict_region = _has_structured_region_data(
-                structured_catalog_by_name,
-                muscle,
-                region_filter,
-            )
             if region_filter:
                 for name, metadata in structured_catalog_by_name.items():
                     if normalize_muscle(str(metadata.get("primary_muscle") or "")) != muscle:
@@ -1167,22 +1147,7 @@ def build_training_days(
                 filtered = [name for name in filtered if name in catalog_by_name]
             if not filtered:
                 warnings.append(f"missing_exercise_candidates:{muscle}")
-                fallback_names = (
-                    []
-                    if strict_region or catalog_only
-                    else _FALLBACK.get(muscle, ["حرکت جایگزین کنترل‌شده"])
-                )
-                for fallback in fallback_names:
-                    if (
-                        fallback not in used
-                        and fallback not in forbidden
-                        and not _fuzzy_forbidden(fallback, forbidden)
-                        and _passes_equipment_hard(fallback, equipment_tokens, catalog_by_name)
-                    ):
-                        filtered = [fallback]
-                        break
-                if not filtered:
-                    continue
+                continue
 
             historical_map = _historical_usage_map(coach, filtered)
             picked = _pick_for_roles(
@@ -1200,6 +1165,10 @@ def build_training_days(
                 used.add(name)
                 used |= _alias_names(coach, {name})
                 ex_ref = catalog.get((muscle, name)) or catalog_by_name.get(name)
+                if ex_ref is None:
+                    raise ValidationError(
+                        {"catalog": ["حرکت انتخاب‌شده در کاتالوگ مربی وجود ندارد."]}
+                    )
                 sets = base_sets + (policy["focus_extra_sets"] if muscle in priority | weak else 0)
                 if apply_muscle and mp and muscle in priority | weak:
                     sets = base_sets + min(2, max(0, int(mp.extra_sets)))
@@ -1214,7 +1183,7 @@ def build_training_days(
                     historical_raw=hist.get("raw_prescription"),
                     coach=coach,
                 )
-                selection_source = "fallback"
+                selection_source = "coach_catalog"
                 if name in from_structured:
                     selection_source = "coach_structured_catalog"
                     metadata = structured_catalog_by_name.get(name) or {}
@@ -1232,7 +1201,7 @@ def build_training_days(
                 if name in preferred_names:
                     evidence["selected_due_to_preference"].append(name)
                     evidence["preferred_selected"].append(name)
-                    if selection_source == "fallback":
+                    if selection_source == "coach_catalog":
                         selection_source = "preference"
                 if hist.get("count"):
                     evidence["selected_due_to_historical_signal"].append(
@@ -1268,7 +1237,7 @@ def build_training_days(
                         ),
                         "replacement_notes": "",
                         "selection_source": selection_source,
-                        "catalog_source": "coach" if ex_ref else "fallback",
+                        "catalog_source": "coach",
                         "exercise_snapshot": (
                             {
                                 "id": str(ex_ref.id),

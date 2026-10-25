@@ -283,6 +283,53 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
   expect(pdfPath).not.toBeNull();
   await download.saveAs(testInfo.outputPath("generated-workout.pdf"));
   expect((await readFile(pdfPath!)).subarray(0, 4).toString()).toBe("%PDF");
+  const filesResponse = await request.get(`${api}/students/${student.id}/pdf-files/`, { headers });
+  const pdfId = (await filesResponse.json()).results[0].id;
+  expect(
+    (
+      await request.patch(`${api}/pdf-files/${pdfId}/`, {
+        headers,
+        data: { file_name: "workout-qa-renamed.pdf" }
+      })
+    ).status()
+  ).toBe(200);
+  const sharedResponse = await request.post(`${api}/pdf-files/${pdfId}/share/`, {
+    headers,
+    data: { expires_in_days: 7 }
+  });
+  expect(sharedResponse.status()).toBe(201);
+  const sharedUrl = (await sharedResponse.json()).share_url;
+  const anonymous = await browser.newContext();
+  const sharedPdf = await anonymous.request.get(sharedUrl);
+  expect(sharedPdf.status()).toBe(200);
+  expect((await sharedPdf.body()).subarray(0, 4).toString()).toBe("%PDF");
+  expect((await request.delete(`${api}/pdf-files/${pdfId}/share/`, { headers })).status()).toBe(
+    204
+  );
+  expect((await anonymous.request.get(sharedUrl)).status()).toBe(404);
+  await anonymous.close();
+  const rebuiltPdf = await request.post(`${api}/pdf-files/${pdfId}/regenerate/`, {
+    headers,
+    data: {}
+  });
+  expect(rebuiltPdf.status()).toBe(201);
+  expect((await rebuiltPdf.json()).id).not.toBe(pdfId);
+  const otherCoach = await request.post(`${api}/auth/register/`, {
+    data: {
+      email: `isolation-${suffix}@example.com`,
+      phone_number: `09${String((Number(suffix.slice(-9)) + 2) % 1e9).padStart(9, "0")}`,
+      full_name: "Other QA Coach",
+      password
+    }
+  });
+  expect(otherCoach.status()).toBe(201);
+  const otherHeaders = { Authorization: `Bearer ${(await otherCoach.json()).tokens.access}` };
+  expect(
+    (await request.get(`${api}/students/${student.id}/`, { headers: otherHeaders })).status()
+  ).toBe(404);
+  expect(
+    (await request.get(`${api}/pdf-files/${pdfId}/`, { headers: otherHeaders })).status()
+  ).toBe(404);
   const stagedResponse = await request.post(`${api}/program-pdfs/staging/`, {
     headers,
     multipart: {

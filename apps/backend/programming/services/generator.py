@@ -53,13 +53,6 @@ PRIORITY_ORDER: list[str] = [
     "deterministic_tie_break",
 ]
 
-FALLBACK_MAIN_EXERCISES: dict[str, list[str]] = {
-    "پا": ["پرس پا", "ددلیفت رومانیایی", "جلوپا دستگاه"],
-    "سینه": ["پرس سینه هالتر", "پرس بالا سینه دمبل", "کراس اور"],
-    "سرشانه": ["نشر جانب دمبل", "پرس سرشانه دستگاه", "فیس پول"],
-    "زیربغل": ["لت سیم کش", "روئینگ دستگاه", "بارفیکس کمکی"],
-}
-
 # Map English / product codes → Persian muscle / exercise labels used in Coach.docx fixtures.
 MUSCLE_ALIASES: dict[str, str] = {
     "chest": "سینه",
