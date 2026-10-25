@@ -2,8 +2,8 @@
 
 ## Scope and release
 
-Runtime changes were committed to `stage` in `1907697`, `8c44347` and
-`3eec74e`. Stage was deployed with its normal isolated deployment scripts,
+Runtime changes were committed to `stage` in `1907697`, `8c44347`,
+`3eec74e` and final runtime revision `c598320`. Stage was deployed with its normal isolated deployment scripts,
 including `accounts.0024_unify_generation_rules`. Production application and
 database containers retained their previous uptime. All three public Stage
 hosts were verified against the running frontend through the CDN.
@@ -66,12 +66,12 @@ Successful persisted records:
 
 | Record | ID |
 | --- | --- |
-| Synthetic student | `b40da9a6-dc73-4321-91a1-0818060d024d` |
-| Student-created request | `f4078e7a-947e-4a42-b360-ae4d74c9b7e8` |
-| Finalized visit | `411545ba-58bd-4a2f-b573-52a26a8648d9` |
-| Published program | `88087f4d-b5a4-455b-a4dd-d67963010529` |
-| Version | `1c15b60d-5841-4059-bd55-bf1c36d42cf4` |
-| Downloaded PDF | `caca3655-5645-44f4-bde6-5aac5f2bb6de` |
+| Synthetic student | `0ce80690-34ba-4808-ad02-905ab625e6d3` |
+| Student-created request | `d1553065-27e7-479f-bde7-42c332fea031` |
+| Finalized visit | `825c6e5f-0845-4f53-9ad7-6f4e684bc751` |
+| Published program | `21e9943e-e8b6-4072-a91e-748165fe45fe` |
+| Version | `f3475cdf-e7ec-484d-9389-187440a668a2` |
+| Downloaded PDF | `81c11db5-5bcf-4b8e-b16d-fb255275b730` |
 
 The request reached `fulfilled`, generation warnings were empty, and athlete
 permissions and actual PDF download bytes were verified. Both notification rows
@@ -87,10 +87,10 @@ disposable mock-SMS stack.
 
 Local generated artifacts (gitignored):
 
-- `artifacts/stage-unification/qa-final.json`
-- `artifacts/stage-unification/final-workout.pdf` (27,310 bytes, three A4 pages)
+- `artifacts/stage-unification/qa-c598320.json`
+- `artifacts/stage-unification/workout-c598320.pdf` (27,313 bytes, three A4 pages)
 - `artifacts/stage-unification/desktop.png`, `mobile.png`
-- `artifacts/stage-unification/pdf-page2.png`
+- `artifacts/stage-unification/pdf-c598320-page2.png`
 
 The actual PDF was text-extracted and visually inspected. It is readable;
 repetition of progression instructions makes it more verbose than necessary.
@@ -106,13 +106,13 @@ injury, full gym, two sessions/week, 60 minutes/session, four weeks, varied
 selection, no advanced method, no special focus. Ordinary working sets are
 3 × 8–12, 90 seconds rest, RIR 2, with double-progression instructions.
 
-Day 1: neutral-grip incline dumbbell press, dumbbell chest press, machine fly,
-machine dip, lying barbell triceps extension. Fifteen working sets; estimate
+Day 1: neutral-grip incline dumbbell press, barbell chest press, dumbbell fly,
+rope pushdown, bent-over overhead rope triceps extension. Fifteen working sets; estimate
 41.2 minutes.
 
-Day 2: Smith Bulgarian squat, close-stance upright Smith lunge, close-grip
-machine shoulder press, low-foot-position leg press, unilateral machine
-lateral raise, seated outward-toe leg curl. Eighteen working sets; estimate
+Day 2: Smith Bulgarian squat, bottom-half goblet squat, seated neutral-grip
+dumbbell shoulder press, narrow-stance seated leg press, neutral-grip dumbbell
+lateral raise, lying machine leg curl. Eighteen working sets; estimate
 48.5 minutes.
 
 Weekly primary sets: chest 9, triceps 6, legs 12, shoulders 6. Within legs,
@@ -141,11 +141,19 @@ Sport-specific/corrective strategies are **not implemented** by this release.
   forwarding defect (fixed), one old weakness-as-focus assertion (updated to
   observed weakness), and one supplement test exposing a finalized-but-not-active
   version (updated to render and activate before student access). The corrected
-  affected suites subsequently passed 60 tests. The entire 384-test suite was
-  not claimed as a clean final rerun.
-- Frontend unit run: 281/282 passed; one catalog-pagination case timed out under
-  concurrent load, then passed in isolation. Targeted rules/adapter/settings
-  checks also passed. Typecheck, build, changed-file formatting and lint passed.
+  affected suites subsequently passed 60 tests.
+- Final broad backend run: **384/385 passed**. Its sole failure was the old
+  partial-repetition fixture relying on the removed invented exercise bank.
+  The fixture now explicitly creates owner-scoped catalog movements; the
+  affected test passed on rerun. The complete suite was not rerun after that
+  last fixture-only edit, so this is not reported as a clean 385/385 run.
+  Dashboard and generation API fixtures were likewise updated to own their
+  movements rather than depend on fallback names. The broad run uses a fast
+  password hasher only in its disposable local process; live settings were
+  not changed. Changed-test Ruff checks/formatting passed.
+- Final frontend unit rerun: **282/282 passed across 50 files**, with two workers.
+  An earlier parallel run had one catalog-pagination timeout under concurrent
+  load. Typecheck, build, changed-file formatting and lint also passed.
 - A broad browser run passed 21 tests, skipped two, and found five obsolete
   tests tied to the retired generation wizard/old auth assumptions. Those
   scenarios were consolidated into the current visit-first lifecycle test,
@@ -168,3 +176,11 @@ After removing the shared hard-coded exercise bank, the final focused backend
 run passed **66 tests** covering quality, request/visit preparation, publication,
 independent focus, stable rule IDs and empty-catalog rejection. Fixture catalogs
 now explicitly own every movement they expect instead of relying on fallback names.
+
+The full request-to-download service audit and read-only mobile/desktop browser
+inspection were repeated after `c598320` was deployed, with the records listed
+above. The expanded browser lifecycle test also passed again on both viewports
+against final source. Synthetic QA portals/accounts were disabled after the
+checks so the test phone numbers cannot request real OTP messages later. Their
+records and published PDFs remain available to the owning coach; normal Stage
+accounts and the real SMS transport remain enabled.

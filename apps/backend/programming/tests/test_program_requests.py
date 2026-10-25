@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from accounts.models import CoachProfile, CoachRuleSet, ProgramTemplate
+from accounts.models import CoachProfile, CoachRuleSet, Exercise, ProgramTemplate
 from common.testing import auth_header, register
 from programming.models import Program, ProgramRequest, ProgramVersion
 from programming.services import program_requests as request_services
@@ -203,6 +203,13 @@ class ProgramRequestApiTests(TestCase):
         self.assertEqual(run.request["program_sections"], ["nutrition"])
 
     def test_visit_request_generation_carries_partial_rep_system_into_saved_draft(self):
+        for name, muscle in (
+            ("پرس سینه هالتر", "سینه"),
+            ("لت سیم کش", "زیربغل"),
+            ("اسکوات هالتر", "پا"),
+            ("نشر جانب دمبل", "سرشانه"),
+        ):
+            Exercise.objects.create(coach=self.coach, name=name, primary_muscle=muscle, level="all")
         visit = Visit.objects.create(
             coach=self.coach,
             student=self.student,
