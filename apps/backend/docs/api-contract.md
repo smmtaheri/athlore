@@ -255,6 +255,20 @@ reasons are persisted in `error_code`. Logs mask the recipient to its last four
 digits and must not contain OTP values, message tokens, full numbers, provider
 URLs, or API keys.
 
+All three events retry HTTP 502/503/504 responses without a provider message ID
+up to five times after the initial attempt, waiting five seconds between attempts.
+The same tokens are reused (OTP retries never generate a different code). A
+50-second retry budget stops further retries on slow failures and reduces later
+connection timeouts from the usual 20 seconds to the remaining budget. This is
+synchronous, not a background queue; requests may therefore take longer during
+a provider outage. Logs include `SMS retry state=scheduled/exhausted`, attempt
+count and reference ID. HTTP 4xx, configuration errors, malformed successful
+responses, transport timeouts and responses containing a message ID are not
+automatically retried. An ambiguous timeout may already have delivered a message.
+Gateway retries are best-effort, not an exactly-once delivery guarantee, since
+Najva supplies no idempotency key here. Mock sends never wait or access Najva.
+Existing failed notification rows are not automatically resent.
+
 Anonymous request: `{ "phone_number": "9121234567", "role": "coach" | "student" }`.
 The phone is normalized with the same rules as phone login. Invalid input returns
 400. When `LOGIN_OTP_ENABLED` is false this endpoint returns 403 with code
@@ -860,11 +874,11 @@ the adapter message ID on acceptance, and a sanitized error code. In isolated
 mock E2E, `sent` means the mock accepted the request and `provider_message_id` is
 synthetic; it does not mean a handset received a message. On shared Stage or
 production, `sent` means Najva accepted the message, not confirmed handset
-delivery. There is no automatic
-retry: a timeout may mean the provider accepted the SMS. Repeated publication does
+delivery. Transient gateway failures use the bounded shared-adapter retry policy
+described above; ambiguous timeouts are not retried. Repeated publication does
 not retry failed/uncertain sends. Staff can inspect status in Django admin; no
-new coach/student screens are added. This sends synchronously after commit with
-a 20-second provider timeout; it is not a background queue.
+new coach/student screens are added. This sends synchronously after commit;
+it is not a background queue.
 **Ownership:** owned program/version.
 
 ### POST `/api/v1/programs/{program_id}/activate`

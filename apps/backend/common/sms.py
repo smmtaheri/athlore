@@ -11,6 +11,10 @@ from rest_framework.exceptions import APIException
 
 logger = logging.getLogger(__name__)
 MOCK_MESSAGE_ID_BASE = 9_000_000_000_000_000_000
+SMS_MAX_RETRIES = 5
+SMS_RETRY_DELAY_SECONDS = 5
+SMS_RETRY_BUDGET_SECONDS = 50
+RETRYABLE_HTTP_STATUSES = {502, 503, 504}
 
 
 class SmsDeliveryUnavailable(APIException):
@@ -24,6 +28,10 @@ class SmsConfigurationError(SmsDeliveryUnavailable):
     default_detail = (
         "تنظیمات سرویس پیامک کامل نیست؛ فعلاً با رمز عبور وارد شوید و به پشتیبانی اطلاع دهید."
     )
+
+
+class _TemporaryProviderFailure(SmsDeliveryUnavailable):
+    """A gateway/server failure with no provider message ID."""
 
 
 class InternationalSmsUnavailable(SmsDeliveryUnavailable):
@@ -51,6 +59,46 @@ def configuration(template: str):
 
 def send_template_sms(
     *, phone: str, template: str, tokens: dict[str, str], event: str, reference_id: str = ""
+) -> int:
+    deadline = time.monotonic() + SMS_RETRY_BUDGET_SECONDS
+    for attempt in range(1, SMS_MAX_RETRIES + 2):
+        try:
+            return _send_template_sms_once(
+                phone=phone,
+                template=template,
+                tokens=tokens,
+                event=event,
+                reference_id=reference_id,
+                timeout=min(20, max(1, deadline - time.monotonic())),
+            )
+        except _TemporaryProviderFailure:
+            exhausted = (
+                attempt > SMS_MAX_RETRIES
+                or deadline - time.monotonic() <= SMS_RETRY_DELAY_SECONDS + 1
+            )
+            logger.warning(
+                "SMS retry state=%s event=%s reference_id=%s attempt=%s max_attempts=%s "
+                "delay_seconds=%s",
+                "exhausted" if exhausted else "scheduled",
+                event,
+                reference_id or "none",
+                attempt,
+                SMS_MAX_RETRIES + 1,
+                0 if exhausted else SMS_RETRY_DELAY_SECONDS,
+            )
+            if exhausted:
+                raise SmsDeliveryUnavailable() from None
+            time.sleep(SMS_RETRY_DELAY_SECONDS)
+
+
+def _send_template_sms_once(
+    *,
+    phone: str,
+    template: str,
+    tokens: dict[str, str],
+    event: str,
+    reference_id: str,
+    timeout: float,
 ) -> int:
     template = str(template or "").strip()
     recipient_suffix = phone[-4:] if len(phone) >= 4 else "unknown"
@@ -107,7 +155,7 @@ def send_template_sms(
     query = urlencode(
         {"sender": sender, "receptor": "0" + phone[3:], "template": template, **tokens}
     )
-    connection = http.client.HTTPSConnection("sms.najva.com", timeout=20)
+    connection = http.client.HTTPSConnection("sms.najva.com", timeout=timeout)
     http_status = None
     provider_status = None
     entry_status = None
@@ -158,6 +206,8 @@ def send_template_sms(
                 entry_status if isinstance(entry_status, int) else "invalid",
                 message_id if isinstance(message_id, int) else "none",
             )
+            if http_status in RETRYABLE_HTTP_STATUSES and message_id is None:
+                raise _TemporaryProviderFailure()
             raise SmsDeliveryUnavailable()
 
         logger.info(
@@ -205,6 +255,8 @@ def send_template_sms(
             entry_status if isinstance(entry_status, int) else "unknown",
             type(exc).__name__,
         )
+        if http_status in RETRYABLE_HTTP_STATUSES and message_id is None:
+            raise _TemporaryProviderFailure() from None
         raise SmsDeliveryUnavailable() from None
     finally:
         connection.close()
