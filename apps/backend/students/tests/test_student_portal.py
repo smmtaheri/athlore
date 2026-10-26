@@ -155,7 +155,7 @@ class StudentPortalActivationTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertTrue(response.data["must_change_password"])
 
-    def test_phone_login_for_activated_student_with_password_or_stage_code(self):
+    def test_phone_login_for_activated_student_with_password_or_sms_code(self):
         _provision_and_complete(
             self.coach,
             self.student,
@@ -178,8 +178,19 @@ class StudentPortalActivationTests(TestCase):
 
         from django.test import override_settings
 
-        with override_settings(LOGIN_OTP_ENABLED=True, LOGIN_OTP_STATIC_CODE="1111"):
-            code_login = self.public.post(
+        with override_settings(
+            LOGIN_OTP_ENABLED=True,
+            LOGIN_OTP_PROVIDER="najva",
+            SMS_BACKEND="mock",
+            LOGIN_OTP_MOCK_CODE="123456",
+        ):
+            requested = self.public.post(
+                "/api/v1/auth/request-code/",
+                {"phone_number": self.student.phone_number, "role": "student"},
+                format="json",
+            )
+            self.assertEqual(requested.status_code, 200, requested.data)
+            fixed_code = self.public.post(
                 "/api/v1/auth/phone-login/",
                 {
                     "phone_number": self.student.phone_number,
@@ -189,19 +200,40 @@ class StudentPortalActivationTests(TestCase):
                 },
                 format="json",
             )
+            code_login = self.public.post(
+                "/api/v1/auth/phone-login/",
+                {
+                    "phone_number": self.student.phone_number,
+                    "role": "student",
+                    "method": "code",
+                    "code": "123456",
+                },
+                format="json",
+            )
+        self.assertEqual(fixed_code.status_code, 401)
         self.assertEqual(code_login.status_code, 200, code_login.data)
 
     def test_phone_login_rejects_student_without_active_portal(self):
         from django.test import override_settings
 
-        with override_settings(LOGIN_OTP_ENABLED=True, LOGIN_OTP_STATIC_CODE="1111"):
+        with override_settings(
+            LOGIN_OTP_ENABLED=True,
+            LOGIN_OTP_PROVIDER="najva",
+            SMS_BACKEND="mock",
+            LOGIN_OTP_MOCK_CODE="123456",
+        ):
+            self.public.post(
+                "/api/v1/auth/request-code/",
+                {"phone_number": self.student.phone_number, "role": "student"},
+                format="json",
+            )
             response = self.public.post(
                 "/api/v1/auth/phone-login/",
                 {
                     "phone_number": self.student.phone_number,
                     "role": "student",
                     "method": "code",
-                    "code": "1111",
+                    "code": "123456",
                 },
                 format="json",
             )

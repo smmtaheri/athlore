@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hmac
-
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -294,20 +292,11 @@ def request_phone_login_code(*, phone_number: str, role: str, client_ip: str = "
     phone_canon = normalize_mobile(phone_number, required=True)
     if role not in {"coach", "student"}:
         raise PermissionError("Invalid role.")
-    if settings.LOGIN_OTP_PROVIDER == "najva":
-        from accounts.login_codes import request_sms_code
-
-        return request_sms_code(phone=phone_canon, role=role, client_ip=client_ip)
-    if settings.LOGIN_OTP_PROVIDER != "static":
+    if settings.LOGIN_OTP_PROVIDER != "najva":
         raise PermissionError("Code provider is not configured.")
-    static_code = str(getattr(settings, "LOGIN_OTP_STATIC_CODE", "") or "").strip()
-    if not static_code:
-        raise PermissionError("Code login is disabled.")
-    # Do not expose whether a phone belongs to an account or issue a login session here.
-    return {
-        "delivery_mode": "test",
-        "message": f"پیامک واقعی ارسال نمی‌شود؛ کد ورود ثابت {static_code} است.",
-    }
+    from accounts.login_codes import request_sms_code
+
+    return request_sms_code(phone=phone_canon, role=role, client_ip=client_ip)
 
 
 def login_by_phone(
@@ -320,22 +309,14 @@ def login_by_phone(
 ) -> dict:
     """Authenticate a coach or active student portal using a phone credential."""
     phone_canon = normalize_mobile(phone_number, required=True)
-    if method == "code" and settings.LOGIN_OTP_PROVIDER == "najva":
+    if method == "code":
         from accounts.login_codes import verify_sms_code
 
         supplied_code = str(code).translate(_OTP_DIGIT_TRANSLATION).strip()
-        if not settings.LOGIN_OTP_ENABLED or not verify_sms_code(
-            phone=phone_canon, role=role, code=supplied_code
-        ):
-            raise PermissionError("Invalid credentials.")
-    elif method == "code":
-        expected_code = str(getattr(settings, "LOGIN_OTP_STATIC_CODE", "") or "")
-        supplied_code = str(code).translate(_OTP_DIGIT_TRANSLATION).strip()
         if (
-            not getattr(settings, "LOGIN_OTP_ENABLED", False)
-            or settings.LOGIN_OTP_PROVIDER != "static"
-            or not expected_code
-            or not hmac.compare_digest(supplied_code, expected_code)
+            not settings.LOGIN_OTP_ENABLED
+            or settings.LOGIN_OTP_PROVIDER != "najva"
+            or not verify_sms_code(phone=phone_canon, role=role, code=supplied_code)
         ):
             raise PermissionError("Invalid credentials.")
     elif method != "password" or not password:

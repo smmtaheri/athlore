@@ -61,7 +61,7 @@ export function PhoneNumberInput({
   return (
     <div className={styles.field}>
       <Select
-        aria-label="کشور شماره موبایل"
+        aria-label="کشور و پیش‌شمارهٔ تلفن"
         disabled={disabled}
         options={options}
         value={selected}

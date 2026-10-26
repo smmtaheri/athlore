@@ -83,7 +83,7 @@ class AuthTests(APITestCase):
         )
         self.assertEqual(bad.status_code, status.HTTP_410_GONE)
 
-    def test_phone_login_for_coach_with_password_and_stage_code(self):
+    def test_phone_login_for_coach_with_password_and_sms_code(self):
         register(
             self.client,
             "phone-login@example.com",
@@ -114,8 +114,19 @@ class AuthTests(APITestCase):
         )
         self.assertEqual(bad_password_login.status_code, status.HTTP_401_UNAUTHORIZED)
 
-        with override_settings(LOGIN_OTP_ENABLED=True, LOGIN_OTP_STATIC_CODE="1111"):
-            code_login = self.client.post(
+        with override_settings(
+            LOGIN_OTP_ENABLED=True,
+            LOGIN_OTP_PROVIDER="najva",
+            SMS_BACKEND="mock",
+            LOGIN_OTP_MOCK_CODE="123456",
+        ):
+            requested = self.client.post(
+                "/api/v1/auth/request-code/",
+                {"phone_number": "09121112222", "role": "coach"},
+                format="json",
+            )
+            self.assertEqual(requested.status_code, status.HTTP_200_OK, requested.data)
+            fixed_code = self.client.post(
                 "/api/v1/auth/phone-login/",
                 {
                     "phone_number": "09121112222",
@@ -125,18 +136,18 @@ class AuthTests(APITestCase):
                 },
                 format="json",
             )
-            bad_code = self.client.post(
+            code_login = self.client.post(
                 "/api/v1/auth/phone-login/",
                 {
                     "phone_number": "09121112222",
                     "role": "coach",
                     "method": "code",
-                    "code": "2222",
+                    "code": "۱۲۳۴۵۶",
                 },
                 format="json",
             )
+        self.assertEqual(fixed_code.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(code_login.status_code, status.HTTP_200_OK, code_login.data)
-        self.assertEqual(bad_code.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_phone_login_code_is_disabled_by_default(self):
         register(

@@ -58,7 +58,6 @@ const backendEnv = {
   DJANGO_DEBUG: "true",
   LOGIN_OTP_ENABLED: "true",
   LOGIN_OTP_PROVIDER: "najva",
-  LOGIN_OTP_STATIC_CODE: "",
   LOGIN_OTP_MOCK_CODE: "111111",
   SMS_BACKEND: "mock",
   NAJVA_API_KEY: "",

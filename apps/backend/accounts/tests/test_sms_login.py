@@ -20,7 +20,6 @@ from students.models import Student, StudentProfile
 @override_settings(
     LOGIN_OTP_ENABLED=True,
     LOGIN_OTP_PROVIDER="najva",
-    LOGIN_OTP_STATIC_CODE="1111",
     SMS_BACKEND="najva",
     NAJVA_API_KEY="fake-private-provider-key",
     NAJVA_SENDER="100005676",

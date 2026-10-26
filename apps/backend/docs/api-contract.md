@@ -239,22 +239,18 @@ Requests are throttled by phone/role and connection IP, including failed sends.
 Password login is independent. Missing/invalid provider configuration returns
 an explicit sanitized 503 error.
 
-The following static-provider behavior is retained for the existing production
-configuration and isolated tests; it is disabled unconditionally in stage Compose.
-
 Anonymous request: `{ "phone_number": "9121234567", "role": "coach" | "student" }`.
 The phone is normalized with the same rules as phone login. Invalid input returns
-400. When `LOGIN_OTP_ENABLED` is false or `LOGIN_OTP_STATIC_CODE` is empty, this
-endpoint returns 403 with code `otp_unavailable` and offers password login.
+400. When `LOGIN_OTP_ENABLED` is false this endpoint returns 403 with code
+`otp_unavailable` and offers password login. Production and shared Stage must
+set `LOGIN_OTP_PROVIDER=najva`, `SMS_BACKEND=najva`, and provide the private
+`NAJVA_API_KEY`; missing provider configuration returns a sanitized 503 and
+never falls back to a fixed code.
 
-The current delivery adapter is a temporary fixed-code stub: HTTP 200 returns
-`{ "delivery_mode": "test", "message": "..." }`. The message explicitly states
-that no SMS was sent and shows the configured test code. This request does not
-look up account existence, create users, issue tokens or change the session.
-Replace `request_phone_login_code` with the real delivery provider before public
-use; delivery throttling and expiring, single-use challenges belong there. The
-fixed code is currently enabled on production as well as stage, so anyone who
-knows an active account's phone number can log in with it.
+The isolated local E2E stack alone may use `SMS_BACKEND=mock` with a six-digit
+`LOGIN_OTP_MOCK_CODE`. That code is supplied only to the disposable test process;
+it must never be enabled on production or shared Stage. The live request handler
+does not return OTP values.
 
 Both login pages use: phone → select code login → request code → successful
 acknowledgement → show code input → verify with `/auth/phone-login/` using
@@ -263,10 +259,9 @@ old input only after success. Changing the phone or login method resets the UI
 to the request step. Password login and student first-login password setup are
 unchanged. A failed delivery never opens the code field or signs the user in.
 
-Production currently uses the temporary static code (`1111`) until an SMS
-provider is connected. This is temporary and insecure: anyone who knows an
-active account's phone number can sign in. Replace it with expiring,
-single-use provider challenges before public OTP use.
+The fixed-code login path has been removed. Production login codes are random,
+six-digit, single-use Najva challenges; missing provider configuration fails
+closed and leaves password login available.
 
 ### POST `/api/v1/auth/refresh`
 

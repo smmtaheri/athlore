@@ -24,7 +24,7 @@ vi.mock("../../../app/config/appConfig", async (importOriginal) => {
 
 const sent: LoginCodeRequestResult = {
   deliveryMode: "test",
-  message: "در محیط آزمایشی پیامک واقعی ارسال نمی‌شود؛ کد ورود 1111 است."
+  message: "کد آزمایشی ارسال شد."
 };
 
 describe.each(["coach", "student"] as const)("%s code login", (role) => {
@@ -36,7 +36,16 @@ describe.each(["coach", "student"] as const)("%s code login", (role) => {
   function showLogin() {
     const repo = createAuthRepository(window.localStorage);
     const send = vi.spyOn(repo, "requestLoginCode").mockResolvedValue(sent);
-    const login = vi.spyOn(repo, "login");
+    const login = vi.spyOn(repo, "login").mockResolvedValue({
+      role,
+      token: "test-session-token",
+      user: {
+        createdAt: "2026-01-01T00:00:00.000Z",
+        email: "",
+        fullName: "Test user",
+        id: "test-user"
+      }
+    });
     render(
       <AuthProvider repository={repo}>
         <MemoryRouter initialEntries={["/login"]}>
@@ -63,23 +72,23 @@ describe.each(["coach", "student"] as const)("%s code login", (role) => {
     await user.click(screen.getByRole("button", { name: "ارسال کد" }));
     const input = await screen.findByLabelText(/کد یک‌بارمصرف/);
     expect(input).toHaveFocus();
-    expect(send).toHaveBeenCalledExactlyOnceWith({ phoneNumber: "9121112222", role });
+    expect(send).toHaveBeenCalledExactlyOnceWith({ phoneNumber: "+989121112222", role });
     expect(screen.getByRole("status")).toHaveTextContent(sent.message);
     expect(await repo.getSession()).toBeNull();
     expect(login).not.toHaveBeenCalled();
-    await user.type(input, "1111");
+    await user.type(input, "123456");
     await user.click(screen.getByRole("button", { name: "ورود با کد" }));
     expect(await screen.findByText("dashboard reached")).toBeInTheDocument();
     expect(login).toHaveBeenCalledWith(
-      expect.objectContaining({ phoneNumber: "9121112222", role, method: "code", code: "1111" })
+      expect.objectContaining({ phoneNumber: "+989121112222", role, method: "code", code: "123456" })
     );
   });
 
   it("shows a phone-only hint and a non-personal masked example", async () => {
     showLogin();
     const phone = await screen.findByLabelText(/شماره موبایل/);
-    expect(phone).toHaveAttribute("placeholder", "شماره موبایل؛ 09xxxxxxxxx");
-    expect(phone).toHaveAccessibleDescription(/فقط شماره موبایل/);
+    expect(phone).toHaveAttribute("placeholder", "مثلاً 9123456789");
+    expect(phone).toHaveAccessibleDescription(/فقط شماره/);
     expect(phone).toHaveAccessibleDescription(/نام کاربری/);
   });
 
@@ -169,13 +178,13 @@ describe.each(["coach", "student"] as const)("%s code login", (role) => {
     expect(send).not.toHaveBeenCalled();
     await user.type(phone, "9121112222");
     await user.click(screen.getByRole("button", { name: "ارسال کد" }));
-    await user.type(await screen.findByLabelText(/کد یک‌بارمصرف/), "1111");
+    await user.type(await screen.findByLabelText(/کد یک‌بارمصرف/), "123456");
     await user.clear(phone);
     await user.type(phone, "9122223333");
     expect(screen.queryByLabelText(/کد یک‌بارمصرف/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "ارسال کد" }));
     expect(await screen.findByLabelText(/کد یک‌بارمصرف/)).toHaveValue("");
-    expect(send).toHaveBeenLastCalledWith({ phoneNumber: "9122223333", role });
+    expect(send).toHaveBeenLastCalledWith({ phoneNumber: "+989122223333", role });
     await user.click(screen.getByRole("button", { name: "رمز عبور" }));
     expect(screen.getByLabelText(/رمز عبور/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "ورود با کد یک‌بارمصرف" }));

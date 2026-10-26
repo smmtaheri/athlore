@@ -130,10 +130,7 @@ export function createAuthRepository(storage = getStorage()): AuthRepository {
 
   return {
     async requestLoginCode() {
-      return {
-        deliveryMode: "test",
-        message: "در محیط آزمایشی پیامک واقعی ارسال نمی‌شود؛ کد ورود 1111 است."
-      };
+      throw new Error("ورود با کد در محیط نمایشی در دسترس نیست؛ با رمز عبور وارد شوید.");
     },
     async completeStudentSetup(input) {
       if (input.password.length < 8 || input.password !== input.passwordConfirm) {
@@ -155,8 +152,8 @@ export function createAuthRepository(storage = getStorage()): AuthRepository {
       if (!input.phoneNumber?.trim()) {
         throw new Error("Credentials are required.");
       }
-      if (input.method === "code" && input.code !== "1111") {
-        throw new Error("کد ورود نادرست است.");
+      if (input.method === "code") {
+        throw new Error("ورود با کد در محیط نمایشی در دسترس نیست.");
       }
 
       if (input.phoneNumber?.trim() && input.role === "student") {
@@ -185,10 +182,7 @@ export function createAuthRepository(storage = getStorage()): AuthRepository {
         return session;
       }
 
-      if (
-        !input.phoneNumber?.trim() ||
-        (input.method === "code" ? input.code !== "1111" : !input.password)
-      ) {
+      if (!input.phoneNumber?.trim() || !input.password) {
         throw new Error("Credentials are required.");
       }
 

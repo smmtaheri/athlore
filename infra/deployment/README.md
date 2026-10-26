@@ -335,14 +335,31 @@ that does not end up exactly at `origin/stage`. Keep the stage checkout in a
 different directory from `/root/athlore`; the production deploy script always
 tracks `main` and must not be used to update Stage.
 
-## Temporary production code login
+## Production SMS and OTP
 
-The production Compose defaults and example enable the temporary fixed login
-code (`1111`) and display it in the no-SMS delivery notice. This is not secure
-for public use: anyone who knows an active account's phone can sign in. The
-shared Stage environment uses real Najva OTP; the six-digit test code belongs
-only to isolated E2E configuration. Remove the production fixed code before
-treating OTP as a secure production authentication method.
+Production OTP uses the same expiring, single-use Najva challenge flow as shared
+Stage; there is no static-code fallback. The production Compose service passes
+Najva credentials and approved templates from the server's private `.env`:
+
+```env
+LOGIN_OTP_ENABLED=true
+LOGIN_OTP_PROVIDER=najva
+SMS_BACKEND=najva
+NAJVA_API_KEY=<private provider key>
+NAJVA_SENDER=100005676
+NAJVA_TEMPLATE=athlore_otp
+```
+
+Without `NAJVA_API_KEY`, code requests fail closed with a sanitized configuration
+error and no SMS is sent. The key must be set on the production host before
+deploying this change; never commit or paste it into the repository. Visit- and
+program-ready notifications remain controlled separately by
+`VISIT_FINALIZED_SMS_ENABLED` and `PROGRAM_READY_SMS_ENABLED` (both default off
+in production) and require their respective approved templates.
+
+Automated no-SMS E2E continues to use a six-digit mock code only in its isolated
+disposable process. Neither production nor shared Stage accepts a fixed login
+code.
 ## Exercise video processing
 
 `exercise-video-worker` uses the backend image (FFmpeg included), the existing

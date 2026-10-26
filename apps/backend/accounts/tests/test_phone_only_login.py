@@ -9,7 +9,12 @@ from accounts.models import CoachProfile
 from students.models import Student, StudentProfile
 
 
-@override_settings(LOGIN_OTP_ENABLED=True, LOGIN_OTP_STATIC_CODE="1111")
+@override_settings(
+    LOGIN_OTP_ENABLED=True,
+    LOGIN_OTP_PROVIDER="najva",
+    SMS_BACKEND="mock",
+    LOGIN_OTP_MOCK_CODE="123456",
+)
 class PhoneOnlyLoginTests(APITestCase):
     def setUp(self):
         self.coach_user = get_user_model().objects.create_user(
@@ -60,7 +65,7 @@ class PhoneOnlyLoginTests(APITestCase):
                     self.assertNotIn("tokens", response.data)
                     self.assertFalse(response.cookies)
 
-    def test_password_and_code_formats_keep_user_profile_password_and_student_owner(self):
+    def test_password_formats_keep_user_profile_password_and_student_owner(self):
         total_users = get_user_model().objects.count()
         for role, national, user, password, profile_key, profile_id in (
             ("coach", "9121111111", self.coach_user, "CoachPass123!", "coach", self.coach.id),
@@ -75,22 +80,20 @@ class PhoneOnlyLoginTests(APITestCase):
         ):
             original_username, original_hash = user.username, user.password
             for phone in (national, "0" + national, "98" + national, "+98" + national):
-                for method in ("password", "code"):
-                    with self.subTest(role=role, phone=phone, method=method):
-                        response = self.client.post(
-                            "/api/v1/auth/phone-login/",
-                            {
-                                "phone_number": phone,
-                                "role": role,
-                                "method": method,
-                                "password": password,
-                                "code": "1111",
-                            },
-                            format="json",
-                        )
-                        self.assertEqual(response.status_code, 200, response.data)
-                        self.assertEqual(response.data["user"]["id"], str(user.pk))
-                        self.assertEqual(response.data[profile_key]["id"], str(profile_id))
+                with self.subTest(role=role, phone=phone):
+                    response = self.client.post(
+                        "/api/v1/auth/phone-login/",
+                        {
+                            "phone_number": phone,
+                            "role": role,
+                            "method": "password",
+                            "password": password,
+                        },
+                        format="json",
+                    )
+                    self.assertEqual(response.status_code, 200, response.data)
+                    self.assertEqual(response.data["user"]["id"], str(user.pk))
+                    self.assertEqual(response.data[profile_key]["id"], str(profile_id))
             user.refresh_from_db()
             self.assertEqual((user.username, user.password), (original_username, original_hash))
         self.assertEqual(get_user_model().objects.count(), total_users)
