@@ -1,0 +1,29 @@
+{
+  "schema": "athlore.exercise_catalog.v1",
+  "version": 1,
+  "source": {
+    "review_status": "confirmed",
+    "documents": ["arman-exercise-bank-1405.pdf"],
+    "notes": "یک حرکت گمشدهٔ نقش accessory زیربغل از بانک مرجع آرمان؛ ناحیهٔ lats برای کاتالوگ ساختاریافته انتخاب شده است."
+  },
+  "exercises": [
+    {
+      "external_key": "arman.back.cable-pullover",
+      "name_fa": "پولاور با سیم‌کش (زیربغل)",
+      "name_en": "Cable Pullover (Back Focus)",
+      "aliases_fa": ["پولاور زیربغل"],
+      "targets": [
+        { "muscle_key": "back", "region_key": "lats", "role": "primary" },
+        { "muscle_key": "chest", "region_key": null, "role": "secondary" }
+      ],
+      "levels": ["intermediate", "advanced"],
+      "equipment_keys": ["cable"],
+      "movement_pattern": "isolation",
+      "is_preferred": false,
+      "is_prohibited": false,
+      "priority": 0,
+      "coach_notes": "حرکت ایزولهٔ لت با سیم‌کش؛ دامنه و کنترل حرکت بر افزایش وزنه اولویت دارد.",
+      "source_document": "بانک حرکات آرمان — arman-exercise-bank-1405.pdf"
+    }
+  ]
+}

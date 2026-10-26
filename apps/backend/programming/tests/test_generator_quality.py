@@ -24,7 +24,7 @@ from accounts.rules_services import ensure_rule_set, replace_coach_rules
 from common.testing import auth_header, register
 from programming.services import generator as gen
 from programming.services.split_parser import parse_split_day, parse_template_split
-from programming.services.training_selection import available_equipment_tokens
+from programming.services.training_selection import _role_of_name, available_equipment_tokens
 from students.models import Student
 
 ARMAN_4DAY_RULES = {
@@ -132,6 +132,9 @@ ARMAN_4DAY_RULES = {
 
 
 class SplitParserTests(TestCase):
+    def test_persian_pullover_variants_match_back_accessory_role(self):
+        self.assertEqual(_role_of_name("پولاور با سیم‌کش (زیربغل)", "زیربغل"), "back_accessory")
+
     def test_parse_arman_day_labels(self):
         self.assertEqual(parse_split_day("سینه و پشت بازو"), ["سینه", "پشت بازو"])
         self.assertEqual(parse_split_day("زیربغل و جلو بازو"), ["زیربغل", "جلو بازو"])
