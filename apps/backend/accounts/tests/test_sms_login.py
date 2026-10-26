@@ -8,7 +8,7 @@ from urllib.parse import parse_qs, urlsplit
 from django.contrib.auth import get_user_model
 from django.test import override_settings
 from django.utils import timezone
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 
 from accounts.login_code_models import LoginCodeIpLimit, PhoneLoginChallenge
 from accounts.login_codes import _challenge_key
@@ -91,7 +91,8 @@ class SmsLoginTests(APITestCase):
         PhoneLoginChallenge.objects.update(last_requested_at=timezone.now() - timedelta(seconds=61))
 
     def test_provider_contract_and_hashed_state_do_not_expose_secrets(self):
-        response = self.send()
+        with self.assertLogs("common.sms", level="INFO") as logs:
+            response = self.send()
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["delivery_mode"], "sms")
         self.assertEqual(response.data["expires_in_seconds"], 300)
@@ -100,6 +101,19 @@ class SmsLoginTests(APITestCase):
             self.assertNotIn(secret, str(response.data))
         self.assertFalse(response.cookies)
         self.assertNotIn("tokens", response.data)
+        self.assertTrue(
+            any(
+                "state=accepted provider=najva event=login_otp" in entry
+                and "http_status=200" in entry
+                and "provider_status=200" in entry
+                and "entry_status=1" in entry
+                and "message_id=42" in entry
+                for entry in logs.output
+            ),
+            logs.output,
+        )
+        for secret in ("+989121111111", "334567", "fake-private-provider-key"):
+            self.assertNotIn(secret, " ".join(logs.output))
         self.transport.assert_called_once_with("sms.najva.com", timeout=20)
         args, kwargs = self.transport.return_value.request.call_args
         self.assertEqual(args[0], "POST")
@@ -228,16 +242,26 @@ class SmsLoginTests(APITestCase):
         self.assertEqual(LoginCodeIpLimit.objects.get().request_count, 30)
         self.transport.assert_not_called()
 
-    def test_unknown_inactive_and_setup_pending_accounts_do_not_receive_sms(self):
+    def test_pending_password_setup_can_use_otp_but_unknown_and_inactive_accounts_cannot(self):
         self.assertEqual(self.send("9129999999").status_code, 200)
         self.profile.must_change_password = True
         self.profile.save(update_fields=["must_change_password"])
         self.assertEqual(self.send("9122222222", "student").status_code, 200)
-        self.assertEqual(self.login(phone="9122222222", role="student").status_code, 401)
+        login = self.login(phone="9122222222", role="student")
+        self.assertEqual(login.status_code, 200, login.data)
+        self.assertFalse(login.data["must_change_password"])
+        self.profile.refresh_from_db()
+        self.assertTrue(self.profile.must_change_password)
+
+        athlete = APIClient()
+        athlete.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['tokens']['access']}")
+        self.assertFalse(athlete.get("/api/v1/me/").data["must_change_password"])
+        self.assertEqual(athlete.get("/api/v1/me/visits/").status_code, 200)
+
         self.user.is_active = False
         self.user.save(update_fields=["is_active"])
         self.assertEqual(self.send().status_code, 200)
-        self.transport.assert_not_called()
+        self.assertEqual(self.transport.call_count, 1)
         self.assertEqual(get_user_model().objects.count(), 2)
 
     def test_missing_configuration_fails_closed_but_password_still_works(self):

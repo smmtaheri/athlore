@@ -379,7 +379,7 @@ class StudentProfile(models.Model):
     # Coach-controlled gate: when False, login and student APIs are blocked.
     # Does not delete the Student row or visit history.
     portal_enabled = models.BooleanField(default=False)
-    # Set when the student finishes forced password change (first setup).
+    # Set when the student finishes a forced password change; OTP access does not depend on it.
     account_activated_at = models.DateTimeField(blank=True, null=True)
     # True after coach sets/resets initial password until student chooses a new one.
     must_change_password = models.BooleanField(default=False)
@@ -399,17 +399,13 @@ class StudentProfile(models.Model):
         not_started | pending_activation | password_reset_required | active | disabled
         """
         if not self.portal_enabled:
-            if self.is_account_activated or self.must_change_password:
-                return "disabled"
-            return "not_started"
+            return "disabled"
         if self.must_change_password and self.is_account_activated:
             return "password_reset_required"
         if self.must_change_password:
             return "pending_activation"
-        if self.is_account_activated:
-            return "active"
-        # Enabled shell without an initial password yet (seed / pre-provision).
-        return "not_started"
+        # OTP-ready accounts remain active even if the coach has not set a password.
+        return "active"
 
 
 # Visit form templates live in a dedicated module; imported here so Django's

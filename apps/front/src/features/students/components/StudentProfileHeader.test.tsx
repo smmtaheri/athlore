@@ -78,4 +78,30 @@ describe("phone-based portal activation", () => {
     expect(screen.queryByRole("button", { name: "ویرایش نام کاربری" })).not.toBeInTheDocument();
     expect(screen.getByText(/شماره ورود:/)).toHaveTextContent("09121111111");
   });
+
+  it("offers optional password setup for an OTP-ready account without a password", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <StudentProfileHeader
+          student={{
+            ...student,
+            portalAccess: {
+              ...student.portalAccess,
+              accountActivated: false,
+              portalEnabled: true,
+              status: "active",
+              username: null
+            }
+          }}
+        />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole("button", { name: "تنظیم رمز اختیاری" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "ورود با کد یک‌بارمصرف همین حالا فعال است"
+    );
+    expect(screen.getByRole("dialog")).toHaveTextContent("در اولین ورودِ رمزی");
+  });
 });

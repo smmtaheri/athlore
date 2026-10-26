@@ -197,6 +197,7 @@ class ProgramReadySmsTests(APITestCase):
         with self.captureOnCommitCallbacks(execute=True):
             self.assertEqual(self.finalize().status_code, 200)
         self.assertEqual(ProgramReadySms.objects.get().status, "skipped")
+        self.assertEqual(ProgramReadySms.objects.get().error_code, "student_portal_disabled")
         self.transport.assert_not_called()
 
     def test_program_archived_before_commit_is_skipped(self):

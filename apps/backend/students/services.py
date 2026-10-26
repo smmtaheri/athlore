@@ -133,6 +133,7 @@ def create_student(coach, data: dict) -> Student:
             detail="این شماره موبایل قبلاً برای یک شاگرد ثبت شده است.",
             code="student_phone_already_exists",
         ) from exc
+    _provision_student_portal(student)
     return student
 
 
@@ -633,6 +634,22 @@ def _ensure_portal_user(student: Student) -> StudentProfile:
     return StudentProfile.objects.create(user=user, student=student, portal_enabled=False)
 
 
+def _provision_student_portal(student: Student) -> StudentProfile:
+    """Create an active phone-login account shell without issuing a password."""
+    profile = _ensure_portal_user(student)
+    updates = []
+    if not profile.portal_enabled:
+        profile.portal_enabled = True
+        updates.append("portal_enabled")
+    if updates:
+        updates.append("updated_at")
+        profile.save(update_fields=updates)
+    if not profile.user.is_active:
+        profile.user.is_active = True
+        profile.user.save(update_fields=["is_active"])
+    return profile
+
+
 def _apply_initial_password(profile: StudentProfile, initial_password: str) -> None:
     user = profile.user
     user.set_password(initial_password)
@@ -762,19 +779,10 @@ def reactivate_student_portal(coach, student: Student) -> dict:
     if student.coach_id != coach.id:
         raise NotFound(detail="Student not found.")
     profile = StudentProfile.objects.filter(student=student).select_related("user").first()
-    if profile is None or profile.user.username.startswith("pending_"):
+    if profile is None:
         raise ValidationError(
-            {"portal": ["ابتدا باید دسترسی پنل شاگرد فعال شود."]},
+            {"portal": ["حساب پنل شاگرد پیدا نشد."]},
             code="activation_required",
-        )
-    if profile.must_change_password:
-        raise ValidationError(
-            {
-                "portal": [
-                    "رمز اولیه در انتظار تغییر است؛ شاگرد باید با شماره موبایل و رمز اولیه وارد شود."
-                ]
-            },
-            code="password_change_required",
         )
     profile.portal_enabled = True
     profile.save(update_fields=["portal_enabled", "updated_at"])
@@ -898,17 +906,6 @@ def complete_student_setup(
         "username": user.username,
         "message": SETUP_COMPLETE_RELOGIN_MESSAGE,
     }
-
-
-def assert_student_portal_access(profile: StudentProfile) -> None:
-    if (
-        not profile.portal_enabled
-        or not profile.is_account_activated
-        or profile.must_change_password
-    ):
-        raise PermissionDenied(detail="دسترسی پنل شاگرد غیرفعال است.")
-    if not profile.user.is_active:
-        raise PermissionDenied(detail="دسترسی پنل شاگرد غیرفعال است.")
 
 
 @transaction.atomic

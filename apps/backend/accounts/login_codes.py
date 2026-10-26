@@ -1,6 +1,7 @@
 """Najva delivery and database-backed, single-use phone login challenges."""
 
 import hmac
+import logging
 import secrets
 import uuid
 from datetime import timedelta
@@ -20,6 +21,8 @@ RESEND_SECONDS = 60
 MAX_ATTEMPTS = 5
 MAX_PHONE_REQUESTS = 5
 MAX_IP_REQUESTS = 30
+
+logger = logging.getLogger(__name__)
 
 
 def _digest(scope: str, value: str) -> str:
@@ -43,8 +46,14 @@ def _configuration():
     configuration(settings.NAJVA_TEMPLATE)
 
 
-def _send_sms(phone: str, code: str) -> None:
-    send_template_sms(phone=phone, template=settings.NAJVA_TEMPLATE, tokens={"token": code})
+def _send_sms(phone: str, code: str, *, challenge_ref: str) -> int:
+    return send_template_sms(
+        phone=phone,
+        template=settings.NAJVA_TEMPLATE,
+        tokens={"token": code},
+        event="login_otp",
+        reference_id=challenge_ref,
+    )
 
 
 def _eligible(phone: str, role: str) -> bool:
@@ -56,16 +65,23 @@ def _eligible(phone: str, role: str) -> bool:
         student__phone_number=phone,
         portal_enabled=True,
         user__is_active=True,
-        must_change_password=False,
-        account_activated_at__isnull=False,
     ).exists()
 
 
 def request_sms_code(*, phone: str, role: str, client_ip: str) -> dict:
-    _configuration()
-    mock_delivery = sms_backend() == "mock"
     now = timezone.now()
     key = _challenge_key(phone, role)
+    challenge_ref = key[:12]
+    try:
+        _configuration()
+    except SmsConfigurationError:
+        logger.error(
+            "OTP delivery state=not_sent reason=provider_configuration role=%s challenge_ref=%s",
+            role,
+            challenge_ref,
+        )
+        raise
+    mock_delivery = sms_backend() == "mock"
     nonce = uuid.uuid4()
     code = (
         str(settings.LOGIN_OTP_MOCK_CODE)
@@ -79,6 +95,11 @@ def request_sms_code(*, phone: str, role: str, client_ip: str) -> dict:
         if now >= ip_limit.window_started_at + timedelta(hours=1):
             ip_limit.window_started_at, ip_limit.request_count = now, 0
         if ip_limit.request_count >= MAX_IP_REQUESTS:
+            logger.warning(
+                "OTP delivery state=throttled reason=ip_limit role=%s challenge_ref=%s retry_after_seconds=3600",
+                role,
+                challenge_ref,
+            )
             raise Throttled(wait=3600, detail="تعداد درخواست‌های ارسال کد زیاد است؛ بعداً تلاش کنید.")
         challenge, _ = PhoneLoginChallenge.objects.select_for_update().get_or_create(key=key)
         if challenge.last_requested_at and now < challenge.last_requested_at + timedelta(
@@ -93,10 +114,22 @@ def request_sms_code(*, phone: str, role: str, client_ip: str) -> dict:
                 )
                 + 1,
             )
+            logger.warning(
+                "OTP delivery state=throttled reason=resend_cooldown role=%s "
+                "challenge_ref=%s retry_after_seconds=%s",
+                role,
+                challenge_ref,
+                wait,
+            )
             raise Throttled(wait=wait, detail="برای ارسال دوباره کد، یک دقیقه صبر کنید.")
         if now >= challenge.window_started_at + timedelta(hours=1):
             challenge.window_started_at, challenge.request_count = now, 0
         if challenge.request_count >= MAX_PHONE_REQUESTS:
+            logger.warning(
+                "OTP delivery state=throttled reason=phone_limit role=%s challenge_ref=%s retry_after_seconds=3600",
+                role,
+                challenge_ref,
+            )
             raise Throttled(
                 wait=3600, detail="تعداد درخواست‌های این شماره زیاد است؛ بعداً تلاش کنید."
             )
@@ -110,10 +143,41 @@ def request_sms_code(*, phone: str, role: str, client_ip: str) -> dict:
 
     # Keep account existence private and do not send paid SMS to unregistered phones.
     if _eligible(phone, role):
-        _send_sms(phone, code)
+        try:
+            message_id = _send_sms(phone, code, challenge_ref=challenge_ref)
+        except SmsConfigurationError:
+            logger.error(
+                "OTP challenge state=failed reason=provider_configuration role=%s challenge_ref=%s",
+                role,
+                challenge_ref,
+            )
+            raise
+        except Exception as exc:
+            code_name = getattr(exc, "default_code", "delivery_failed")
+            logger.warning(
+                "OTP challenge state=failed role=%s challenge_ref=%s error_code=%s exception_type=%s",
+                role,
+                challenge_ref,
+                code_name,
+                type(exc).__name__,
+            )
+            raise
         PhoneLoginChallenge.objects.filter(key=key, nonce=nonce).update(
             code_digest=_code_digest(key, nonce, code),
             expires_at=timezone.now() + timedelta(seconds=TTL_SECONDS),
+        )
+        logger.info(
+            "OTP challenge state=active role=%s challenge_ref=%s provider_message_id=%s expires_in_seconds=%s",
+            role,
+            challenge_ref,
+            message_id,
+            TTL_SECONDS,
+        )
+    else:
+        logger.info(
+            "OTP delivery state=not_sent reason=account_not_eligible role=%s challenge_ref=%s",
+            role,
+            challenge_ref,
         )
     # These are temporary records, not account data; no separate cleanup service is needed.
     PhoneLoginChallenge.objects.filter(last_requested_at__lt=now - timedelta(days=1)).delete()

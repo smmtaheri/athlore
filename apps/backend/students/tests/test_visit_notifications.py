@@ -66,7 +66,11 @@ class VisitNotificationTests(TestCase):
         with self.captureOnCommitCallbacks(execute=True):
             finalize_visit(self.visit)
         send.assert_called_once_with(
-            phone="+989121234567", template="athlore_visit_finalized", tokens={"token20": "محمد"}
+            phone="+989121234567",
+            template="athlore_visit_finalized",
+            tokens={"token20": "محمد"},
+            event="visit_finalized",
+            reference_id=str(self.visit.pk),
         )
 
     def test_draft_creation_does_not_schedule(self):
@@ -109,4 +113,16 @@ class VisitNotificationTests(TestCase):
         with self.captureOnCommitCallbacks(execute=True):
             finalize_visit(self.visit)
         self.assertEqual(VisitFinalizedSms.objects.get().status, "skipped")
+        send.assert_not_called()
+
+    @patch("students.visit_notifications.send_template_sms")
+    def test_missing_profile_is_logged_as_a_skip_without_provider_delivery(self, send):
+        self.profile.delete()
+        with self.assertLogs("students.visit_notifications", level="WARNING") as logs:
+            with self.captureOnCommitCallbacks(execute=True):
+                finalize_visit(self.visit)
+
+        self.assertEqual(VisitFinalizedSms.objects.get().status, "skipped")
+        self.assertEqual(VisitFinalizedSms.objects.get().error_code, "student_profile_missing")
+        self.assertIn("state=skipped reason=student_profile_missing", logs.output[0])
         send.assert_not_called()

@@ -52,6 +52,9 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
   const [credentials, setCredentials] = useState<StudentActivateLoginResult | null>(null);
   const portal = student.portalAccess;
   const portalStatus = portal?.status ?? "not_started";
+  const optionalPasswordSetup = Boolean(
+    portalStatus === "active" && !portal?.accountActivated && !portal?.mustChangePassword
+  );
 
   const refreshStudent = async () => {
     const next = await studentsRepository.getById(student.id);
@@ -229,7 +232,9 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
         >
           خروجی PDF اطلاعات شاگرد
         </Button>
-        {portalStatus === "not_started" || portalStatus === "pending_activation" ? (
+        {portalStatus === "not_started" ||
+        portalStatus === "pending_activation" ||
+        optionalPasswordSetup ? (
           <Button
             disabled={busy}
             iconStart={<KeyRound size={18} />}
@@ -240,10 +245,11 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
             }}
             variant="secondary"
           >
-            فعال‌سازی پنل شاگرد
+            {optionalPasswordSetup ? "تنظیم رمز اختیاری" : "فعال‌سازی پنل شاگرد"}
           </Button>
         ) : null}
-        {portalStatus === "active" || portalStatus === "password_reset_required" ? (
+        {portalStatus === "password_reset_required" ||
+        (portalStatus === "active" && !optionalPasswordSetup) ? (
           <Button
             disabled={busy}
             iconStart={<KeyRound size={18} />}
@@ -298,12 +304,19 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
           setInitialPassword("");
         }}
         open={passwordModal !== null}
-        title={passwordModal === "reset" ? "ریست رمز پنل شاگرد" : "فعال‌سازی پنل شاگرد"}
+        title={
+          passwordModal === "reset"
+            ? "ریست رمز پنل شاگرد"
+            : optionalPasswordSetup
+              ? "تنظیم رمز اختیاری پنل شاگرد"
+              : "فعال‌سازی پنل شاگرد"
+        }
       >
         <div className={styles.formGrid}>
           <p className={styles.actionHint}>
-            شاگرد با شماره موبایل ثبت‌شده در پروفایل و این رمز اولیه وارد می‌شود و باید بلافاصله رمز
-            جدید خودش را تعیین کند. نیازی به نام کاربری جداگانه نیست.
+            ورود با کد یک‌بارمصرف همین حالا فعال است و برای آن نیازی به رمز نیست. اگر این رمز را
+            تنظیم کنید، شاگرد می‌تواند با آن وارد شود و در اولین ورودِ رمزی باید رمز دلخواهش را
+            جایگزین کند. نیازی به نام کاربری جداگانه نیست.
           </p>
           <p>شماره ورود شاگرد: {formatIranMobileDisplay(student.phoneNumber)}</p>
           <FormField htmlFor="portal-initial-password" label="رمز اولیه" required>
@@ -342,7 +355,8 @@ export function StudentProfileHeader({ onStudentUpdated, student }: StudentProfi
             </p>
             <p className={styles.actionHint}>
               این رمز فقط همین لحظه نمایش داده می‌شود و بعداً قابل بازیابی نیست. شاگرد با شماره
-              موبایل و همین رمز اولیه وارد می‌شود و بلافاصله رمز دائمی خود را تعیین می‌کند.
+              موبایل و این رمز می‌تواند وارد شود؛ در اولین ورود با رمز، باید آن را تغییر دهد. ورود
+              با کد یک‌بارمصرف مستقل است و تغییر رمز را اجباری نمی‌کند.
             </p>
             <p className={styles.actionHint}>
               برای ورود شاگرد، این آدرس را برای او ارسال کنید: {loginUrl}

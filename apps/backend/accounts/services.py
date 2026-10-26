@@ -12,6 +12,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import CoachProfile, CoachRuleSet
 from common.exceptions import ConflictError
+from common.permissions import STUDENT_PASSWORD_SETUP_CLAIM
 from common.phone import InvalidPhoneError, normalize_mobile
 
 User = get_user_model()
@@ -23,9 +24,13 @@ def normalize_email(email: str) -> str:
     return (email or "").strip().lower()
 
 
-def _tokens_for_user(user) -> dict[str, str]:
+def _tokens_for_user(
+    user, *, student_password_setup_required: bool | None = None
+) -> dict[str, str]:
     refresh = RefreshToken.for_user(user)
     refresh[REFRESH_SESSION_STARTED_AT_CLAIM] = int(timezone.now().timestamp())
+    if student_password_setup_required is not None:
+        refresh[STUDENT_PASSWORD_SETUP_CLAIM] = student_password_setup_required
     return {"access": str(refresh.access_token), "refresh": str(refresh)}
 
 
@@ -89,7 +94,6 @@ def session_payload(
     payload = {
         "user": serialize_user(user),
         "role": role,
-        "tokens": _tokens_for_user(user),
     }
     if coach is not None:
         payload["coach"] = serialize_coach(coach)
@@ -103,6 +107,9 @@ def session_payload(
         )
         payload["must_change_password"] = change_required
         payload["setup_required"] = change_required
+        payload["tokens"] = _tokens_for_user(user, student_password_setup_required=change_required)
+    else:
+        payload["tokens"] = _tokens_for_user(user)
     return payload
 
 
@@ -344,9 +351,7 @@ def login_by_phone(
             raise PermissionError("Invalid credentials.")
         if method == "password" and not user.check_password(password):
             raise PermissionError("Invalid credentials.")
-        if method == "code" and (profile.must_change_password or not profile.account_activated_at):
-            raise PermissionError("Invalid credentials.")
-        must_change_password = bool(
+        must_change_password = method == "password" and bool(
             profile.must_change_password or not profile.account_activated_at
         )
         if must_change_password and (method != "password" or not user.has_usable_password()):

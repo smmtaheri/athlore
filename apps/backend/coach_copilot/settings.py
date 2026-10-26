@@ -205,6 +205,34 @@ CORS_ALLOWED_ORIGINS = [
 # behind same-origin Nginx (or explicit CORS allowlist).
 CORS_ALLOW_CREDENTIALS = True
 
+# Transactional SMS outcomes must be searchable in container stdout without
+# logging message tokens, provider URLs, API credentials, or complete phone numbers.
+_SMS_LOGGERS = (
+    "common.sms",
+    "accounts.login_codes",
+    "students.visit_notifications",
+    "programming.services.program_notifications",
+)
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "sms": {"format": "%(asctime)s %(levelname)s %(name)s %(message)s"},
+    },
+    "handlers": {
+        "sms_console": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+            "formatter": "sms",
+            "level": "INFO",
+        },
+    },
+    "loggers": {
+        logger_name: {"handlers": ["sms_console"], "level": "INFO", "propagate": False}
+        for logger_name in _SMS_LOGGERS
+    },
+}
+
 # Production TLS / proxy hardening (env-driven; safe defaults for local DEBUG).
 _SECURE = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "false").lower() in {
     "1",

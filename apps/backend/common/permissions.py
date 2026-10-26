@@ -3,6 +3,24 @@ from __future__ import annotations
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import BasePermission
 
+STUDENT_PASSWORD_SETUP_CLAIM = "student_password_setup"
+
+
+def student_password_change_required(request, profile=None) -> bool:
+    """Return whether this student session must be restricted to password setup."""
+    profile = profile or getattr(getattr(request, "user", None), "student_profile", None)
+    if profile is None or not profile.must_change_password:
+        return False
+
+    token = getattr(request, "auth", None)
+    if token is not None:
+        claims = getattr(token, "payload", token)
+        claim = claims.get(STUDENT_PASSWORD_SETUP_CLAIM)
+        if claim is not None:
+            return bool(claim)
+    # Old tokens have no session-specific claim. Preserve the safe legacy behavior.
+    return True
+
 
 class IsAuthenticatedCoach(BasePermission):
     """Requires an authenticated user with an attached CoachProfile."""
@@ -29,7 +47,26 @@ def get_request_coach(request):
 
 
 class IsAuthenticatedStudent(BasePermission):
-    """Requires an authenticated student with full portal access (setup complete)."""
+    """Requires an active portal and a session not restricted to password setup."""
+
+    message = "Authentication credentials were not provided."
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        if not user.is_active:
+            return False
+        profile = getattr(user, "student_profile", None)
+        if profile is None:
+            return False
+        return bool(
+            profile.portal_enabled and not student_password_change_required(request, profile)
+        )
+
+
+class IsAuthenticatedStudentSetup(BasePermission):
+    """Allows only password-authenticated sessions that must change their password."""
 
     message = "Authentication credentials were not provided."
 
@@ -44,26 +81,9 @@ class IsAuthenticatedStudent(BasePermission):
             return False
         return bool(
             profile.portal_enabled
-            and profile.account_activated_at
-            and not profile.must_change_password
+            and profile.must_change_password
+            and student_password_change_required(request, profile)
         )
-
-
-class IsAuthenticatedStudentSetup(BasePermission):
-    """Allows students who must change the coach-issued initial password."""
-
-    message = "Authentication credentials were not provided."
-
-    def has_permission(self, request, view):
-        user = request.user
-        if not user or not user.is_authenticated:
-            return False
-        if not user.is_active:
-            return False
-        profile = getattr(user, "student_profile", None)
-        if profile is None:
-            return False
-        return bool(profile.portal_enabled and profile.must_change_password)
 
 
 def get_request_student(request):
@@ -74,10 +94,8 @@ def get_request_student(request):
     student_profile = getattr(user, "student_profile", None)
     if student_profile is None:
         raise PermissionDenied(detail="Student profile is required.")
-    if (
-        not student_profile.portal_enabled
-        or not student_profile.account_activated_at
-        or student_profile.must_change_password
+    if not student_profile.portal_enabled or student_password_change_required(
+        request, student_profile
     ):
         raise PermissionDenied(detail="دسترسی پنل شاگرد غیرفعال است.")
     return student_profile.student

@@ -38,7 +38,10 @@ class InternationalPhoneTests(SimpleTestCase):
     def test_foreign_sms_fails_explicitly_without_misdirecting_to_iran(self, connection):
         with self.assertRaises(InternationalSmsUnavailable):
             send_template_sms(
-                phone="+447400123456", template="athlore_otp", tokens={"token": "123456"}
+                phone="+447400123456",
+                template="athlore_otp",
+                tokens={"token": "123456"},
+                event="sms_test",
             )
         connection.assert_not_called()
 
@@ -47,7 +50,10 @@ class InternationalPhoneTests(SimpleTestCase):
     def test_foreign_mock_sms_stays_offline(self, connection):
         self.assertGreater(
             send_template_sms(
-                phone="+447400123456", template="athlore_otp", tokens={"token": "123456"}
+                phone="+447400123456",
+                template="athlore_otp",
+                tokens={"token": "123456"},
+                event="sms_test",
             ),
             0,
         )
