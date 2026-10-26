@@ -8,7 +8,7 @@ from urllib.parse import parse_qs, urlsplit
 from django.contrib.auth import get_user_model
 from django.test import override_settings
 from django.utils import timezone
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 
 from accounts.login_code_models import LoginCodeIpLimit, PhoneLoginChallenge
 from accounts.login_codes import _challenge_key
@@ -242,16 +242,26 @@ class SmsLoginTests(APITestCase):
         self.assertEqual(LoginCodeIpLimit.objects.get().request_count, 30)
         self.transport.assert_not_called()
 
-    def test_unknown_inactive_and_setup_pending_accounts_do_not_receive_sms(self):
+    def test_pending_password_setup_can_use_otp_but_unknown_and_inactive_accounts_cannot(self):
         self.assertEqual(self.send("9129999999").status_code, 200)
         self.profile.must_change_password = True
         self.profile.save(update_fields=["must_change_password"])
         self.assertEqual(self.send("9122222222", "student").status_code, 200)
-        self.assertEqual(self.login(phone="9122222222", role="student").status_code, 401)
+        login = self.login(phone="9122222222", role="student")
+        self.assertEqual(login.status_code, 200, login.data)
+        self.assertFalse(login.data["must_change_password"])
+        self.profile.refresh_from_db()
+        self.assertTrue(self.profile.must_change_password)
+
+        athlete = APIClient()
+        athlete.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['tokens']['access']}")
+        self.assertFalse(athlete.get("/api/v1/me/").data["must_change_password"])
+        self.assertEqual(athlete.get("/api/v1/me/visits/").status_code, 200)
+
         self.user.is_active = False
         self.user.save(update_fields=["is_active"])
         self.assertEqual(self.send().status_code, 200)
-        self.transport.assert_not_called()
+        self.assertEqual(self.transport.call_count, 1)
         self.assertEqual(get_user_model().objects.count(), 2)
 
     def test_missing_configuration_fails_closed_but_password_still_works(self):

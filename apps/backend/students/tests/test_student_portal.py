@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from accounts.models import CoachProfile
@@ -63,6 +63,135 @@ class StudentPortalActivationTests(TestCase):
         self.coach_client = APIClient()
         self.coach_client.force_authenticate(user=self.coach.user)
         self.public = APIClient()
+
+    def test_new_student_is_otp_ready_without_a_password(self):
+        created = self.coach_client.post(
+            "/api/v1/students/",
+            {
+                "full_name": "New OTP athlete",
+                "phone_number": "+989123456789",
+                "age": 27,
+                "gender": "male",
+                "height_cm": "178.0",
+                "weight_kg": "79.0",
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data["portal_access"]["status"], "active")
+        self.assertTrue(created.data["portal_access"]["portal_enabled"])
+        self.assertFalse(created.data["portal_access"]["account_activated"])
+
+        student = Student.objects.get(pk=created.data["id"])
+        profile = StudentProfile.objects.get(student=student)
+        self.assertTrue(profile.user.is_active)
+        self.assertFalse(profile.user.has_usable_password())
+        self.assertFalse(profile.must_change_password)
+
+        with override_settings(
+            LOGIN_OTP_ENABLED=True,
+            LOGIN_OTP_PROVIDER="najva",
+            SMS_BACKEND="mock",
+            LOGIN_OTP_MOCK_CODE="123456",
+        ):
+            requested = self.public.post(
+                "/api/v1/auth/request-code/",
+                {"phone_number": student.phone_number, "role": "student"},
+                format="json",
+            )
+            self.assertEqual(requested.status_code, 200, requested.data)
+            login = self.public.post(
+                "/api/v1/auth/phone-login/",
+                {
+                    "phone_number": student.phone_number,
+                    "role": "student",
+                    "method": "code",
+                    "code": "123456",
+                },
+                format="json",
+            )
+        self.assertEqual(login.status_code, 200, login.data)
+        self.assertFalse(login.data["must_change_password"])
+
+        athlete = APIClient()
+        athlete.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['tokens']['access']}")
+        me = athlete.get("/api/v1/me/")
+        self.assertEqual(me.status_code, 200, me.data)
+        self.assertFalse(me.data["must_change_password"])
+        self.assertEqual(athlete.get("/api/v1/me/visits/").status_code, 200)
+
+    def test_otp_is_independent_from_pending_password_setup(self):
+        set_portal_initial_password(
+            self.coach, self.student, username="pending_otp_athlete", initial_password="123456"
+        )
+        profile = StudentProfile.objects.get(student=self.student)
+        self.assertTrue(profile.must_change_password)
+
+        with override_settings(
+            LOGIN_OTP_ENABLED=True,
+            LOGIN_OTP_PROVIDER="najva",
+            SMS_BACKEND="mock",
+            LOGIN_OTP_MOCK_CODE="123456",
+        ):
+            requested = self.public.post(
+                "/api/v1/auth/request-code/",
+                {"phone_number": self.student.phone_number, "role": "student"},
+                format="json",
+            )
+            self.assertEqual(requested.status_code, 200, requested.data)
+            otp_login = self.public.post(
+                "/api/v1/auth/phone-login/",
+                {
+                    "phone_number": self.student.phone_number,
+                    "role": "student",
+                    "method": "code",
+                    "code": "123456",
+                },
+                format="json",
+            )
+        self.assertEqual(otp_login.status_code, 200, otp_login.data)
+        self.assertFalse(otp_login.data["must_change_password"])
+        profile.refresh_from_db()
+        self.assertTrue(profile.must_change_password)
+
+        otp_session = APIClient()
+        otp_session.credentials(HTTP_AUTHORIZATION=f"Bearer {otp_login.data['tokens']['access']}")
+        self.assertFalse(otp_session.get("/api/v1/me/").data["must_change_password"])
+        self.assertEqual(otp_session.get("/api/v1/me/visits/").status_code, 200)
+        self.assertEqual(
+            otp_session.post(
+                "/api/v1/student/complete-setup/",
+                {"password": "NewStudentPass123!", "password_confirm": "NewStudentPass123!"},
+                format="json",
+            ).status_code,
+            403,
+        )
+
+        password_login = self.public.post(
+            "/api/v1/auth/phone-login/",
+            {
+                "phone_number": self.student.phone_number,
+                "role": "student",
+                "method": "password",
+                "password": "123456",
+            },
+            format="json",
+        )
+        self.assertEqual(password_login.status_code, 200, password_login.data)
+        self.assertTrue(password_login.data["must_change_password"])
+        password_session = APIClient()
+        password_session.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {password_login.data['tokens']['access']}"
+        )
+        self.assertIn(password_session.get("/api/v1/me/visits/").status_code, {401, 403})
+        self.assertEqual(
+            password_session.post(
+                "/api/v1/student/complete-setup/",
+                {"password": "NewStudentPass123!", "password_confirm": "NewStudentPass123!"},
+                format="json",
+            ).status_code,
+            200,
+        )
 
     def test_coach_sets_initial_password_and_student_finishes_phone_setup(self):
         issued = self.coach_client.post(

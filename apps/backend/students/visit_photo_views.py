@@ -16,6 +16,7 @@ from common.permissions import (
     assert_student_writable_access,
     get_request_coach,
     get_request_student,
+    student_password_change_required,
 )
 from students import services as student_services
 from students import visit_photo_services as photo_services
@@ -223,8 +224,7 @@ class VisitPhotoDownloadView(APIView):
             student_profile is not None
             and student_profile.student_id == photo.visit.student_id
             and student_profile.portal_enabled
-            and student_profile.account_activated_at
-            and not student_profile.must_change_password
+            and not student_password_change_required(request, student_profile)
             and photo.visit.status != photo.visit.Status.DRAFT
         ):
             allowed = True

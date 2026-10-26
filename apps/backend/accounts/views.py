@@ -16,7 +16,11 @@ from accounts.serializers import (
     RegisterSerializer,
 )
 from common.exceptions import ConflictError, PhoneLoginRequired
-from common.permissions import IsAuthenticatedCoach, get_request_coach
+from common.permissions import (
+    IsAuthenticatedCoach,
+    get_request_coach,
+    student_password_change_required,
+)
 
 
 class RegisterView(APIView):
@@ -212,13 +216,14 @@ class MeView(APIView):
             if not student_profile.portal_enabled:
                 raise PermissionDenied(detail="دسترسی پنل شاگرد غیرفعال است.")
             # Allow mid-setup sessions so the client can finish forced password change.
+            must_change_password = student_password_change_required(request, student_profile)
             return Response(
                 {
                     "user": services.serialize_user(user),
                     "role": "student",
                     "student": services.serialize_student_for_session(student_profile.student),
-                    "must_change_password": student_profile.must_change_password,
-                    "setup_required": student_profile.must_change_password,
+                    "must_change_password": must_change_password,
+                    "setup_required": must_change_password,
                     "username": (user.username if student_profile.is_account_activated else None),
                 }
             )

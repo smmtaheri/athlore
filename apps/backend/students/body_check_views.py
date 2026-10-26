@@ -17,6 +17,7 @@ from common.permissions import (
     StudentWritableAccessMixin,
     get_request_coach,
     get_request_student,
+    student_password_change_required,
 )
 from students import body_check_services as bcs
 from students import services as student_services
@@ -70,7 +71,9 @@ class CoachBodyCheckCycleListCreateView(APIView):
         except DjangoValidationError as exc:
             raise _dj_validation_to_drf(exc) from exc
         return Response(
-            bcs.serialize_cycle(cycle, include_calendar=True, include_report=True, include_photos=True),
+            bcs.serialize_cycle(
+                cycle, include_calendar=True, include_report=True, include_photos=True
+            ),
             status=status.HTTP_201_CREATED,
         )
 
@@ -84,9 +87,7 @@ class CoachBodyCheckSuggestTargetsView(APIView):
         serializer = BodyCheckSuggestTargetsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        targets = bcs.suggest_daily_targets_kg(
-            data["starting_weight_kg"], data["goal_weight_kg"]
-        )
+        targets = bcs.suggest_daily_targets_kg(data["starting_weight_kg"], data["goal_weight_kg"])
         return Response({"daily_targets_kg": targets, "source": "system_suggestion"})
 
 
@@ -279,8 +280,7 @@ class BodyCheckPhotoDownloadView(APIView):
             student_profile is not None
             and student_profile.student_id == photo.cycle.student_id
             and student_profile.portal_enabled
-            and student_profile.account_activated_at
-            and not student_profile.must_change_password
+            and not student_password_change_required(request, student_profile)
         ):
             allowed = True
         if not allowed:

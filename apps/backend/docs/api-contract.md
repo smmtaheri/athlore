@@ -206,10 +206,15 @@ dependency. Full numbering-pattern validation is authoritative on the backend.
 
 Legacy `/api/v1/auth/login/` and `/api/v1/student/login/` always return `410` with
 `phone_login_required`, a phone-login instruction, and no tokens. Existing sessions are unaffected.
-Student activation requires only `initial_password`; the server allocates an internal username for
-new accounts and preserves existing usernames. The old portal username-edit route is retired with
-the same explicit error. First activation/reset still requires password change before normal portal
-access or code login. No account migration or database schema change is needed.
+Creating a student also provisions an active phone-login profile with no usable password. OTP login
+is available immediately; coaches may optionally set an initial password later. The server allocates
+an internal username and preserves existing usernames. The old portal username-edit route is
+retired with the same explicit error. A coach-issued initial/reset password requires a password
+change only when the student logs in with that password. OTP login remains independent, grants the
+normal portal session, and does not clear the pending password-change flag. Portal disablement and
+the user's active flag still block both methods. `account_activated_at` tracks completion of the
+password setup flow; it is not a prerequisite for OTP. No account migration or database schema
+change is needed.
 
 ### POST `/api/v1/auth/request-code/`
 

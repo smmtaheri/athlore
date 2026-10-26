@@ -65,8 +65,6 @@ def _eligible(phone: str, role: str) -> bool:
         student__phone_number=phone,
         portal_enabled=True,
         user__is_active=True,
-        must_change_password=False,
-        account_activated_at__isnull=False,
     ).exists()
 
 
