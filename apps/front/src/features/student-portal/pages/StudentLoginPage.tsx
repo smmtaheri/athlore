@@ -5,7 +5,13 @@ import { KeyRound, LogIn } from "lucide-react";
 import { Button, Card, FormField, Input, PageTitle } from "../../../components/ui";
 import { appConfig } from "../../../app/config/appConfig";
 import { studentPaths } from "../../../app/config/appOrigin";
-import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
+import {
+  ApiError,
+  isRateLimitError,
+  loginCodeRateLimitMessage,
+  persianMessageForApiError,
+  retryAfterSeconds
+} from "../../../shared/api/errors";
 import { validateMobileInput } from "../../../shared/phone/mobile";
 import { athleteFacingText } from "../../../shared/athleteWording";
 import { useAuth } from "../../auth";
@@ -79,6 +85,11 @@ export function StudentLoginPage() {
       setCode("");
       setSecondsRemaining(result.retryAfterSeconds || 0);
     } catch (err) {
+      if (err instanceof ApiError && isRateLimitError(err)) {
+        setSecondsRemaining(retryAfterSeconds(err));
+        setError(loginCodeRateLimitMessage(err));
+        return;
+      }
       if (err instanceof ApiError && err.code === "sms_delivery_unavailable") {
         setCodeRequest(null);
         setCode("");

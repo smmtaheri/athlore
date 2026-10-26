@@ -42,6 +42,30 @@ export class ApiError extends Error {
   }
 }
 
+export function isRateLimitError(error: ApiError): boolean {
+  return error.status === 429 || error.code === "rate_limited" || error.code === "throttled";
+}
+
+export function retryAfterSeconds(error: ApiError, fallbackSeconds = 60): number {
+  const value = error.details.wait ?? error.details.retry_after_seconds;
+  const candidate = Array.isArray(value) ? value[0] : value;
+  const seconds = Number(candidate);
+  return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : fallbackSeconds;
+}
+
+function formatWait(seconds: number): string {
+  const formatNumber = (value: number) => new Intl.NumberFormat("fa-IR").format(value);
+  if (seconds >= 60 && seconds % 60 === 0) {
+    return `${formatNumber(seconds / 60)} دقیقه`;
+  }
+  return `${formatNumber(seconds)} ثانیه`;
+}
+
+export function loginCodeRateLimitMessage(error: ApiError): string {
+  const wait = retryAfterSeconds(error);
+  return `برای دریافت کد جدید، لطفاً ${formatWait(wait)} صبر کنید. دکمهٔ ارسال پس از پایان زمان دوباره فعال می‌شود.`;
+}
+
 function normalizeFieldErrors(details: Record<string, unknown>): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const [key, value] of Object.entries(details)) {
@@ -61,6 +85,9 @@ export function persianMessageForApiError(error: ApiError): string {
   switch (error.code) {
     case "network_error":
       return "ارتباط با سرور برقرار نشد. اتصال اینترنت را بررسی کنید.";
+    case "rate_limited":
+    case "throttled":
+      return `درخواست‌های زیادی ارسال شده است. لطفاً ${formatWait(retryAfterSeconds(error))} دیگر تلاش کنید.`;
     case "authentication_required":
       return error.message.includes("ایمیل")
         ? error.message

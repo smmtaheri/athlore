@@ -121,6 +121,26 @@ describe.each(["coach", "student"] as const)("%s code login", (role) => {
     expect(screen.getByRole("button", { name: "ارسال کد" })).toBeEnabled();
   });
 
+  it("clearly explains the server resend cooldown and disables requesting another code", async () => {
+    const { send, user } = showLogin();
+    send.mockRejectedValueOnce(
+      new ApiError({
+        code: "throttled",
+        message: "برای ارسال دوباره کد، یک دقیقه صبر کنید.",
+        status: 429,
+        details: { wait: ["42"] }
+      })
+    );
+    await user.type(await screen.findByLabelText(/شماره موبایل/), "9121112222");
+    await user.click(screen.getByRole("button", { name: "ورود با کد یک‌بارمصرف" }));
+    await user.click(screen.getByRole("button", { name: "ارسال کد" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "برای دریافت کد جدید، لطفاً ۴۲ ثانیه صبر کنید"
+    );
+    expect(screen.getByRole("button", { name: /ارسال کد \(/ })).toBeDisabled();
+  });
+
   it("clears invalidated codes after delivery failure but keeps password login usable", async () => {
     const { send, user } = showLogin();
     send.mockRejectedValueOnce(

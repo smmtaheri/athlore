@@ -5,7 +5,13 @@ import { LogIn, UserPlus } from "lucide-react";
 import { Button, Card, FormField, Input, PageTitle } from "../../../components/ui";
 import { appConfig } from "../../../app/config/appConfig";
 import { LoginMethodSelector, type LoginMethod } from "../components/LoginMethodSelector";
-import { ApiError, persianMessageForApiError } from "../../../shared/api/errors";
+import {
+  ApiError,
+  isRateLimitError,
+  loginCodeRateLimitMessage,
+  persianMessageForApiError,
+  retryAfterSeconds
+} from "../../../shared/api/errors";
 import { validateMobileInput } from "../../../shared/phone/mobile";
 import { useAuth } from "../context/AuthContext";
 import { useCodeResendCooldown } from "../hooks/useCodeResendCooldown";
@@ -49,6 +55,11 @@ export function LoginPage() {
       setCode("");
       setSecondsRemaining(result.retryAfterSeconds || 0);
     } catch (error) {
+      if (error instanceof ApiError && isRateLimitError(error)) {
+        setSecondsRemaining(retryAfterSeconds(error));
+        setErrors({ submit: loginCodeRateLimitMessage(error) });
+        return;
+      }
       if (error instanceof ApiError && error.code === "sms_delivery_unavailable") {
         setCodeRequest(null);
         setCode("");
