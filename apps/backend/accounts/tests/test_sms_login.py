@@ -91,7 +91,8 @@ class SmsLoginTests(APITestCase):
         PhoneLoginChallenge.objects.update(last_requested_at=timezone.now() - timedelta(seconds=61))
 
     def test_provider_contract_and_hashed_state_do_not_expose_secrets(self):
-        response = self.send()
+        with self.assertLogs("common.sms", level="INFO") as logs:
+            response = self.send()
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["delivery_mode"], "sms")
         self.assertEqual(response.data["expires_in_seconds"], 300)
@@ -100,6 +101,19 @@ class SmsLoginTests(APITestCase):
             self.assertNotIn(secret, str(response.data))
         self.assertFalse(response.cookies)
         self.assertNotIn("tokens", response.data)
+        self.assertTrue(
+            any(
+                "state=accepted provider=najva event=login_otp" in entry
+                and "http_status=200" in entry
+                and "provider_status=200" in entry
+                and "entry_status=1" in entry
+                and "message_id=42" in entry
+                for entry in logs.output
+            ),
+            logs.output,
+        )
+        for secret in ("+989121111111", "334567", "fake-private-provider-key"):
+            self.assertNotIn(secret, " ".join(logs.output))
         self.transport.assert_called_once_with("sms.najva.com", timeout=20)
         args, kwargs = self.transport.return_value.request.call_args
         self.assertEqual(args[0], "POST")

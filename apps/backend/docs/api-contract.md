@@ -239,6 +239,17 @@ Requests are throttled by phone/role and connection IP, including failed sends.
 Password login is independent. Missing/invalid provider configuration returns
 an explicit sanitized 503 error.
 
+SMS operations emit structured backend logs for OTP, visit-finalized, and
+program-ready notifications. Search container logs by `event=login_otp`,
+`event=visit_finalized`, or `event=program_ready` and the associated
+`challenge_ref`, `visit_id`, or `version_id`. `state=request_started` means the
+Najva request is about to be made; `state=accepted` includes HTTP status,
+Najva response status, entry status, and provider message ID. A notification
+row's `sent` status means provider acceptance, not handset delivery. Skip
+reasons are persisted in `error_code`. Logs mask the recipient to its last four
+digits and must not contain OTP values, message tokens, full numbers, provider
+URLs, or API keys.
+
 Anonymous request: `{ "phone_number": "9121234567", "role": "coach" | "student" }`.
 The phone is normalized with the same rules as phone login. Invalid input returns
 400. When `LOGIN_OTP_ENABLED` is false this endpoint returns 403 with code
@@ -824,14 +835,15 @@ Body may include `training`, `nutrition`, `supplements`, `pdf_settings` (partial
 `draft` → `finalized` · sets `finalized_at` · content becomes immutable · **200** version  
 Idempotent if already finalized by same id → **200** same  
 
-When `PROGRAM_READY_SMS_ENABLED=true` (stage only by default), the first successful
-finalization schedules one message through the shared SMS adapter **after the
-database transaction commits**. Shared Stage uses the real Najva transport;
+When `PROGRAM_READY_SMS_ENABLED=true` (stage only by default), activating a
+finalized version schedules one message through the shared SMS adapter **after
+the database transaction commits**. Finalizing by itself does not schedule it.
+Shared Stage uses the real Najva transport;
 isolated E2E uses the mock adapter and never contacts Najva. Production uses a
 real transport only when explicitly configured.
 Both generated and uploaded programs use this path; three PDF sections still
-produce one message, not one per file. Drafts/staging, activation and repeated
-finalize requests do not send messages. The existing response contract is unchanged.
+produce one message, not one per file. Drafts/staging and repeated activation do
+not send duplicate messages. The existing response contract is unchanged.
 Only active students with an enabled, active portal account and a visible program
 are notified. `NAJVA_PROGRAM_READY_TEMPLATE` defaults to `athlore_program_ready`;
 `token20` receives the first whitespace-delimited name (maximum 20 characters),
