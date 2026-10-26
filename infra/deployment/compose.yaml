@@ -96,6 +96,7 @@ services:
       - /app/staticfiles
     networks:
       - internal
+      - sms_egress
 
   visit-photo-pruner:
     image: athlore-backend
@@ -207,11 +208,13 @@ services:
       - edge
 
 networks:
-  # postgres/backend/frontend have no route out of this network (no internet,
-  # no host access) — nginx joins `default` too so its published origin port
-  # works. TLS is terminated by the ParsPack CDN before this origin.
+  # Postgres and frontend stay isolated. Backend also joins sms_egress so it
+  # can reach Najva for transactional SMS; nginx joins `default` too so its
+  # published origin port works. TLS is terminated by the ParsPack CDN.
   internal:
     internal: true
+  sms_egress:
+    driver: bridge
   default:
 
   # Shared only by the production edge proxy and the isolated staging edge.
