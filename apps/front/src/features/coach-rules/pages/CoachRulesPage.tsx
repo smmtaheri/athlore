@@ -5,15 +5,15 @@ import { ContentSection, PageContainer, PageHeader, Stack } from "../../../compo
 import {
   Button,
   Card,
+  Checkbox,
   EmptyState,
   FormField,
   Input,
   Modal,
   Skeleton,
-  StatusBadge,
   Switch,
   Tabs,
-  Textarea
+  Select
 } from "../../../components/ui";
 import { ApiError, firstFieldError, persianMessageForApiError } from "../../../shared/api/errors";
 import { downloadCoachRulesPdf } from "../../../shared/api/exportPdf";
@@ -24,6 +24,8 @@ import { VisitFormTemplatesSection } from "../components/VisitFormTemplatesSecti
 import { SupplementCatalogSection } from "../components/SupplementCatalogSection";
 import { TrainingSystemsSection } from "../components/TrainingSystemsSection";
 import { ProgramTemplateEditor } from "../components/ProgramTemplateEditor";
+import { ExerciseNamePicker } from "../components/ExerciseNamePicker";
+import { trainingSystemsRepository } from "../services/trainingSystemsRepository";
 import { validateTemplatePlans } from "../services/templatePlans";
 import {
   coachRulesRepository,
@@ -37,17 +39,16 @@ import {
 import type {
   CoachRuleSection,
   CoachRules,
-  GeneralCoachRule,
   InjuryRule,
   LevelRule,
-  MusclePriorityRule
+  MusclePriorityRule,
+  TrainingSystem
 } from "../types/coachRules";
 
 const sectionLabels: Record<CoachRuleSection, string> = {
   visitForms: "فرم‌های ویزیت",
   exercises: "کاتالوگ حرکات",
   trainingSystems: "سیستم‌های تمرینی",
-  general: "قوانین عمومی",
   injuries: "آسیب ها و محدودیت ها",
   levels: "قوانین تولید برنامه",
   muscles: "اولویت عضلات",
@@ -388,10 +389,6 @@ function RulesSection({ rules, section, templatesRepository, updateRules }: Rule
           <summary>قالب دقیق برنامه (اختیاری)</summary>
           <ProgramTemplateEditor rules={rules} updateRules={updateRules} />
         </details>
-        <details>
-          <summary>یادداشت‌های مربی (غیراجرایی)</summary>
-          <GeneralRules rules={rules} updateRules={updateRules} />
-        </details>
       </Stack>
     );
   }
@@ -427,7 +424,7 @@ function RulesSection({ rules, section, templatesRepository, updateRules }: Rule
   if (section === "supplementTemplates") {
     return <SupplementCatalogSection />;
   }
-  return <GeneralRules rules={rules} updateRules={updateRules} />;
+  return null;
 }
 
 function GenerationPolicyEditor({ rules, updateRules }: RulesEditorProps) {
@@ -480,17 +477,44 @@ function GenerationPolicyEditor({ rules, updateRules }: RulesEditorProps) {
 }
 
 function LevelRules({ rules, updateRules }: RulesEditorProps) {
+  const [systems, setSystems] = useState<TrainingSystem[]>([]);
+  const [systemsStatus, setSystemsStatus] = useState<"error" | "loaded" | "loading">("loading");
+
+  useEffect(() => {
+    let isMounted = true;
+    trainingSystemsRepository
+      .list()
+      .then((items) => {
+        if (!isMounted) return;
+        setSystems(items);
+        setSystemsStatus("loaded");
+      })
+      .catch(() => {
+        if (isMounted) setSystemsStatus("error");
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <Card className={styles.pageStack}>
       <SectionHeader
-        description="حرکات ممنوع و تکنیک‌های مجاز هر سطح؛ دوز عددی از قوانین اجرایی بالا می‌آید."
+        description="حرکت ممنوع و روش‌های اجرایی فعال را از کاتالوگ انتخاب کنید؛ ست، تکرار، استراحت و پیشرفت از قوانین عددی بالا می‌آیند."
         title="قوانین سطح تمرین"
       />
+      {systemsStatus === "error" ? (
+        <div role="alert">
+          دریافت سیستم‌های تمرینی انجام نشد؛ برای تغییر این قانون دوباره صفحه را باز کنید.
+        </div>
+      ) : null}
       <div className={styles.threeColumnGrid}>
         {rules.levels.map((rule) => (
           <EditableLevelRule
             key={rule.id}
             rule={rule}
+            systems={systems}
+            systemsStatus={systemsStatus}
             onChange={(nextRule) =>
               updateRules((next) => ({
                 ...next,
@@ -506,47 +530,113 @@ function LevelRules({ rules, updateRules }: RulesEditorProps) {
 
 function EditableLevelRule({
   onChange,
-  rule
+  rule,
+  systems,
+  systemsStatus
 }: {
   onChange: (rule: LevelRule) => void;
   rule: LevelRule;
+  systems: TrainingSystem[];
+  systemsStatus: "error" | "loaded" | "loading";
 }) {
   return (
     <Card className={styles.editableCard} padding="sm">
       <h3 className={styles.ruleCardTitle}>
         {levelOptions.find((item) => item.value === rule.id)?.label}
       </h3>
-      <FormField label="حرکات ممنوع">
-        <Textarea
-          value={rule.forbiddenExercises.join("\n")}
-          onChange={(event) =>
-            onChange({ ...rule, forbiddenExercises: splitLines(event.target.value) })
-          }
-        />
-      </FormField>
-      <FormField label="حرکات ضروری">
-        <Textarea
-          value={rule.requiredExercises.join("\n")}
-          onChange={(event) =>
-            onChange({ ...rule, requiredExercises: splitLines(event.target.value) })
-          }
-        />
-      </FormField>
-      <FormField label="تکنیک های مجاز">
-        <Textarea
-          value={rule.allowedTechniques.join("\n")}
-          onChange={(event) =>
-            onChange({ ...rule, allowedTechniques: splitLines(event.target.value) })
-          }
-        />
-      </FormField>
-      <FormField label="توضیحات مربی">
-        <Textarea
-          value={rule.coachNotes}
-          onChange={(event) => onChange({ ...rule, coachNotes: event.target.value })}
-        />
-      </FormField>
+      <ExerciseNamePicker
+        label="حرکات ممنوع در این سطح"
+        onChange={(forbiddenExercises) => onChange({ ...rule, forbiddenExercises })}
+        value={rule.forbiddenExercises}
+      />
+      <AllowedTechniqueOptions
+        status={systemsStatus}
+        onChange={(allowedTechniques) => onChange({ ...rule, allowedTechniques })}
+        rule={rule}
+        systems={systems}
+      />
     </Card>
+  );
+}
+
+function AllowedTechniqueOptions({
+  status,
+  onChange,
+  rule,
+  systems
+}: {
+  status: "error" | "loaded" | "loading";
+  onChange: (values: string[]) => void;
+  rule: LevelRule;
+  systems: TrainingSystem[];
+}) {
+  const options = systems.filter(
+    (system) =>
+      system.handler_status === "implemented" &&
+      (system.source === "platform" || system.enabled) &&
+      (!system.allowed_levels.length || system.allowed_levels.includes(rule.id))
+  );
+  const unresolved = rule.allowedTechniques.filter(
+    (value) => !options.some((system) => value === system.key || value === system.name)
+  );
+  const selected = new Set(
+    options
+      .filter(
+        (system) =>
+          rule.allowedTechniques.includes(system.key) ||
+          rule.allowedTechniques.includes(system.name)
+      )
+      .map((system) => system.key)
+  );
+
+  const update = (key: string, checked: boolean) => {
+    const next = new Set(selected);
+    if (checked) next.add(key);
+    else next.delete(key);
+    onChange([...unresolved, ...next]);
+  };
+
+  return (
+    <div className={styles.pageStack}>
+      <strong>سیستم‌های مجاز این سطح</strong>
+      <p className={styles.sectionDescription}>
+        فقط روش‌های اجرایی فعال نمایش داده می‌شوند. برای افزودن گزینه، آن را در تب سیستم‌های تمرینی
+        تعریف و فعال کنید.
+      </p>
+      {status === "loading" ? <p>در حال دریافت سیستم‌های تمرینی…</p> : null}
+      {status === "loaded" && options.length === 0 ? (
+        <p>سیستم اجرایی فعالی برای این سطح موجود نیست.</p>
+      ) : null}
+      {options.map((system) => (
+        <Checkbox
+          checked={selected.has(system.key)}
+          key={system.key}
+          label={system.name}
+          onChange={(event) => update(system.key, event.target.checked)}
+        />
+      ))}
+      {unresolved.length ? (
+        <div role="status">
+          <p>
+            این موارد قدیمی یا غیرفعال‌اند و در موتور فعلی اجرا نمی‌شوند؛ برای پاک‌کردن آن‌ها × را
+            بزنید:
+          </p>
+          <div className={styles.toolbarActions}>
+            {unresolved.map((value) => (
+              <Button
+                aria-label={`حذف سیستم قدیمی ${value}`}
+                key={value}
+                onClick={() => onChange(rule.allowedTechniques.filter((item) => item !== value))}
+                size="sm"
+                variant="secondary"
+              >
+                {value} ×
+              </Button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -556,12 +646,12 @@ function InjuryRules({ rules, updateRules }: RulesEditorProps) {
       ...next,
       injuries: [
         {
-          alternatives: ["جایگزین پیشنهادی"],
-          forbiddenExercises: ["حرکت ممنوع"],
+          alternatives: [],
+          forbiddenExercises: [],
           id: `injury-${Date.now()}`,
           isActive: true,
           name: "آسیب جدید",
-          notes: "توضیح مربی"
+          notes: ""
         },
         ...next.injuries
       ]
@@ -575,7 +665,7 @@ function InjuryRules({ rules, updateRules }: RulesEditorProps) {
             افزودن قانون آسیب
           </Button>
         }
-        description="قوانین گردن درد، کمر درد و زانو درد از مرجع مربی وارد شده اند."
+        description="این قانون فقط وقتی اعمال می‌شود که نام آسیب با نوع آسیب ثبت‌شده برای شاگرد هم‌خوان باشد. حرکات و جایگزین‌ها باید از کاتالوگ فعال انتخاب شوند."
         title="آسیب ها و محدودیت ها"
       />
       <div className={styles.cardGrid}>
@@ -623,32 +713,25 @@ function EditableInjuryRule({
           حذف
         </Button>
       </div>
-      <FormField label="نام آسیب">
+      <FormField
+        hint="این عبارت با نوع آسیب ثبت‌شده در پروفایل یا ویزیت شاگرد تطبیق داده می‌شود؛ مثلاً «گردن درد»."
+        label="نام / عبارت آسیب"
+      >
         <Input
           value={rule.name}
           onChange={(event) => onChange({ ...rule, name: event.target.value })}
         />
       </FormField>
-      <FormField label="حرکات ممنوع">
-        <Textarea
-          value={rule.forbiddenExercises.join("\n")}
-          onChange={(event) =>
-            onChange({ ...rule, forbiddenExercises: splitLines(event.target.value) })
-          }
-        />
-      </FormField>
-      <FormField label="جایگزین ها">
-        <Textarea
-          value={rule.alternatives.join("\n")}
-          onChange={(event) => onChange({ ...rule, alternatives: splitLines(event.target.value) })}
-        />
-      </FormField>
-      <FormField label="توضیحات">
-        <Textarea
-          value={rule.notes}
-          onChange={(event) => onChange({ ...rule, notes: event.target.value })}
-        />
-      </FormField>
+      <ExerciseNamePicker
+        label="حرکات ممنوع برای این آسیب"
+        onChange={(forbiddenExercises) => onChange({ ...rule, forbiddenExercises })}
+        value={rule.forbiddenExercises}
+      />
+      <ExerciseNamePicker
+        label="جایگزین‌های مجاز"
+        onChange={(alternatives) => onChange({ ...rule, alternatives })}
+        value={rule.alternatives}
+      />
     </Card>
   );
 }
@@ -690,18 +773,22 @@ function EditableMuscleRule({
   return (
     <Card className={styles.editableCard} padding="sm">
       <FormField label="عضله">
-        <Input
+        <Select
+          options={MUSCLE_RULE_OPTIONS}
           value={rule.muscle}
           onChange={(event) => onChange({ ...rule, muscle: event.target.value })}
-        />
+        >
+          {!MUSCLE_RULE_OPTIONS.some((option) => option.value === rule.muscle) ? (
+            <option value={rule.muscle}>{rule.muscle} — قدیمی، لطفاً اصلاح شود</option>
+          ) : null}
+        </Select>
       </FormField>
-      <FormField label="افزایش حرکت">
-        <Input
-          type="number"
-          value={rule.extraExercises}
-          onChange={(event) => onChange({ ...rule, extraExercises: Number(event.target.value) })}
-        />
-      </FormField>
+      <Checkbox
+        checked={rule.extraExercises > 0}
+        description="فقط وقتی این عضله در تمرکز برنامه یا ضعفِ دارای اولویت باشد اعمال می‌شود."
+        label="یک حرکت اضافه برای این عضله"
+        onChange={(event) => onChange({ ...rule, extraExercises: event.target.checked ? 1 : 0 })}
+      />
       <FormField label="افزایش ست">
         <Input
           type="number"
@@ -711,108 +798,21 @@ function EditableMuscleRule({
           onChange={(event) => onChange({ ...rule, extraSets: Number(event.target.value) })}
         />
       </FormField>
-      <FormField label="توضیح">
-        <Textarea
-          value={rule.notes}
-          onChange={(event) => onChange({ ...rule, notes: event.target.value })}
-        />
-      </FormField>
     </Card>
   );
 }
 
-function GeneralRules({ rules, updateRules }: RulesEditorProps) {
-  return (
-    <Card className={styles.pageStack}>
-      <SectionHeader
-        description="این متن‌ها فقط یادداشت مربی‌اند؛ موتور آن‌ها را به دستور اجرایی تبدیل نمی‌کند. قوانین عددی را در بخش قوانین تولید تنظیم کنید."
-        title="یادداشت‌های مربی"
-      />
-      <div className={styles.cardGrid}>
-        {rules.generalRules.items.map((rule) => (
-          <EditableGeneralRule
-            key={rule.id}
-            rule={rule}
-            onChange={(nextRule) =>
-              updateRules((next) => ({
-                ...next,
-                generalRules: {
-                  ...next.generalRules,
-                  items: next.generalRules.items.map((item) =>
-                    item.id === nextRule.id ? nextRule : item
-                  )
-                }
-              }))
-            }
-          />
-        ))}
-      </div>
-      <FormField label="توضیحات تکمیلی مربی">
-        <Textarea
-          value={rules.generalRules.extraNotes}
-          onChange={(event) =>
-            updateRules((next) => ({
-              ...next,
-              generalRules: {
-                ...next.generalRules,
-                extraNotes: event.target.value
-              }
-            }))
-          }
-        />
-      </FormField>
-    </Card>
-  );
-}
-
-function EditableGeneralRule({
-  onChange,
-  rule
-}: {
-  onChange: (rule: GeneralCoachRule) => void;
-  rule: GeneralCoachRule;
-}) {
-  return (
-    <Card className={styles.editableCard} padding="sm">
-      <div className={styles.ruleCardHeader}>
-        <Switch
-          checked={rule.isActive}
-          label="فعال"
-          onCheckedChange={(checked) => onChange({ ...rule, isActive: checked })}
-        />
-        <StatusBadge
-          variant={
-            rule.importance === "high"
-              ? "danger"
-              : rule.importance === "medium"
-                ? "warning"
-                : "neutral"
-          }
-        >
-          {rule.importance === "high" ? "مهم" : rule.importance === "medium" ? "متوسط" : "کم"}
-        </StatusBadge>
-      </div>
-      <FormField label="عنوان">
-        <Input
-          value={rule.title}
-          onChange={(event) => onChange({ ...rule, title: event.target.value })}
-        />
-      </FormField>
-      <FormField label="دسته بندی">
-        <Input
-          value={rule.category}
-          onChange={(event) => onChange({ ...rule, category: event.target.value })}
-        />
-      </FormField>
-      <FormField label="توضیح">
-        <Textarea
-          value={rule.description}
-          onChange={(event) => onChange({ ...rule, description: event.target.value })}
-        />
-      </FormField>
-    </Card>
-  );
-}
+const MUSCLE_RULE_OPTIONS = [
+  { label: "سینه", value: "سینه" },
+  { label: "زیربغل", value: "زیربغل" },
+  { label: "پا", value: "پا" },
+  { label: "سرشانه", value: "سرشانه" },
+  { label: "پشت بازو", value: "پشت بازو" },
+  { label: "جلو بازو", value: "جلو بازو" },
+  { label: "شکم", value: "شکم" },
+  { label: "ساق", value: "ساق" },
+  { label: "ساعد", value: "ساعد" }
+];
 
 function SectionHeader({
   action,
@@ -839,11 +839,4 @@ function getSection(value: string | null): CoachRuleSection {
     return "visitForms";
   }
   return sectionOrder.includes(value as CoachRuleSection) ? (value as CoachRuleSection) : "levels";
-}
-
-function splitLines(value: string) {
-  return value
-    .split("\n")
-    .map((item) => item.trim())
-    .filter(Boolean);
 }

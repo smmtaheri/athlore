@@ -1,0 +1,31 @@
+.selection {
+  display: grid;
+  gap: 0.625rem;
+}
+
+.selectedValues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.dialogContent {
+  display: grid;
+  gap: 1rem;
+}
+
+.options {
+  display: grid;
+  gap: 0.25rem;
+  max-height: min(52vh, 28rem);
+  overflow: auto;
+  padding: 0.25rem;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--color-danger, #b42318);
+}

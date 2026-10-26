@@ -5,7 +5,6 @@ export type CoachRuleSection =
   | "muscles"
   | "exercises"
   | "trainingSystems"
-  | "general"
   | "nutritionTemplates"
   | "supplementTemplates"
   | "visitForms";

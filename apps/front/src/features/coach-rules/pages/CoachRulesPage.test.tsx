@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { coachRulesFixture } from "../fixtures/coachRules";
 import { createCoachRulesRepository } from "../services/coachRulesRepository";
+import { trainingSystemsRepository } from "../services/trainingSystemsRepository";
 import type { NutritionSupplementTemplatesRepository } from "../services/nutritionSupplementTemplatesRepository";
 import { CoachRulesPage } from "./CoachRulesPage";
 
@@ -65,6 +66,41 @@ describe("CoachRulesPage", () => {
     await user.click(screen.getByRole("tab", { name: "کاتالوگ حرکات" }));
     expect((await screen.findAllByText("کاتالوگ حرکات")).length).toBeGreaterThan(0);
     expect(screen.queryByText("بانک حرکات متنی")).not.toBeInTheDocument();
+  });
+
+  it("keeps generation rules actionable and removes prose-only controls", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(trainingSystemsRepository, "list").mockResolvedValue([
+      {
+        allowed_levels: ["beginner"],
+        base_technique_key: null,
+        description: "",
+        enabled: true,
+        execution_method: "",
+        handler_status: "implemented",
+        id: "system-1",
+        key: "drop_set",
+        max_per_session: 1,
+        name: "دراپ ست",
+        parameters: {},
+        source: "coach_private"
+      }
+    ]);
+    const repository = createCoachRulesRepository(window.localStorage);
+    await repository.reset();
+
+    render(
+      <MemoryRouter initialEntries={["/coach-rules?section=levels"]}>
+        <CoachRulesPage repository={repository} />
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByText("محدودیت‌های هر سطح"));
+    expect(await screen.findByLabelText("دراپ ست")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /انتخاب از کاتالوگ/ }).length).toBeGreaterThan(0);
+    expect(screen.queryByText("حرکات ضروری")).not.toBeInTheDocument();
+    expect(screen.queryByText("توضیحات مربی")).not.toBeInTheDocument();
+    expect(screen.queryByText("یادداشت‌های مربی (غیراجرایی)")).not.toBeInTheDocument();
   });
 
   it("shows read-only empty state when no nutrition/supplement templates are returned", async () => {
