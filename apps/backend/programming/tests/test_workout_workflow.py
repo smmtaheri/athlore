@@ -49,6 +49,7 @@ class WorkoutWorkflowTests(TestCase):
             "زیربغل": ["زیربغل سیمکش", "زیربغل قایقی", "زیربغل دمبل تک", "پول اور کابل"],
             "پا": ["اسکوات هالتر", "جلو پا دستگاه", "پشت پا دستگاه", "پرس پا دستگاه"],
             "سرشانه": ["پرس سرشانه دمبل", "نشر جانب دمبل", "نشر خم دمبل", "فیس پول کابل"],
+            "پشت بازو": ["پشت بازو سیمکش"],
         }.items():
             for name in names:
                 Exercise.objects.create(
@@ -107,6 +108,28 @@ class WorkoutWorkflowTests(TestCase):
         self.assertEqual(run.request["training_systems"], [])
         self.assertFalse(programs_for_student(self.student).filter(pk=first.id).exists())
 
+    def test_broad_leg_session_accepts_a_specific_lower_body_exercise(self):
+        program, _ = self.active_program()
+        version = ProgramVersion.objects.create(
+            program=program,
+            coach=self.coach,
+            version_number=2,
+            status=ProgramVersion.Status.DRAFT,
+            training={
+                "days": [
+                    {
+                        "id": "leg-day",
+                        "targetMuscles": ["پا"],
+                        "exercises": [{"id": "squat", "targetMuscle": "چهارسر ران"}],
+                    }
+                ]
+            },
+        )
+
+        finalized = finalize_version(version, actor=self.coach.user)
+
+        self.assertEqual(finalized.status, ProgramVersion.Status.FINALIZED)
+
     @override_settings(PUBLIC_DOMAIN="stage.athlore.ir")
     def test_stage_audit_uses_real_lifecycle_and_no_sms_network(self):
         import json
@@ -116,23 +139,42 @@ class WorkoutWorkflowTests(TestCase):
 
         output = StringIO()
         call_command(
-            "audit_stage_workout", coach_id=str(self.coach.pk), confirm_stage=True, stdout=output
+            "audit_stage_workout",
+            coach_id=str(self.coach.pk),
+            confirm_stage=True,
+            available_catalog_split=True,
+            stdout=output,
         )
         report = json.loads(output.getvalue())
         self.assertEqual(report["sms_network_connections"], 0)
         self.assertEqual(report["request_status"], "fulfilled")
         self.assertTrue(report["downloads"])
 
-    def test_visit_focus_is_an_independent_generation_input(self):
+    def test_visit_coach_decisions_are_generation_inputs(self):
         visit = self.visit()
-        visit.program_settings["focus_muscles"] = ["سینه"]
+        visit.program_settings["muscle_decisions"] = {"chest": "focus", "glutes": "maintenance"}
         visit.save(update_fields=["program_settings"])
         _, run = prepare_from_visit(self.coach, self.coach.user, visit.id, "focus-visit-test")
-        self.assertEqual(run.request["muscle_priorities"], ["سینه"])
+        self.assertEqual(
+            run.request["muscle_decisions"], {"chest": "focus", "glutes": "maintenance"}
+        )
         evidence = run.output_snapshot["generator"]["evidence"]
-        self.assertEqual(evidence["priority_muscles"], ["سینه"])
+        self.assertEqual(
+            evidence["coach_muscle_decisions"],
+            {"chest": "focus", "glutes": "maintenance"},
+        )
         self.assertEqual(evidence["prescription_version"], 2)
         self.assertTrue(evidence["weekly_primary_sets"])
+
+    def test_muscle_decisions_reject_unknown_muscles_and_modes(self):
+        for decisions in (
+            ["chest"],
+            {"unknown": "focus"},
+            {"chest": "automatic"},
+            {"chest": []},
+        ):
+            with self.subTest(decisions=decisions), self.assertRaises(ValidationError):
+                validate_settings({"muscle_decisions": decisions})
 
     def test_missing_selected_template_requires_explicit_correction(self):
         visit = self.visit()

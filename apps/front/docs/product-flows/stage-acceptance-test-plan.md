@@ -44,9 +44,17 @@ publication, PDF download and student progress with typed exercise fixtures.
 - Conversion: audit with `complete_exercise_metadata` before using `--apply`.
   Recognized values can be completed; unresolved movements require review.
   Record counts/IDs and verify duplicate legacy names never remove a row.
-- Focus: use a two-session leg split and glute focus. Inspect exact glute,
-  quadriceps and hamstring counts; focus must not become whole-leg priority.
-  Observed weakness alone must not turn into focus unless the coach enables it.
+- Coach decisions: keep goal, weak/strong observations, and the coach's final
+  per-muscle decision separate. With the same seed and coach decisions, changing
+  weak/strong observations alone must not change selected movements, volume, or
+  split. Changing a muscle from balanced to focus/maintenance must change its
+  planned weekly volume and visible evidence. Focus glutes must not silently
+  promote quadriceps/hamstrings. A coach-confirmed injury restriction must still
+  exclude incompatible movements regardless of focus.
+- Split feasibility: verify automatic splits schedule focus/maintenance muscles
+  often enough for the target volume. For a conflicting manual split, show the
+  actual/required session-frequency warning rather than silently changing the
+  coach's split.
 - Restrictions: a knee + knee-extension rule should exclude matched exercises
   while preserving compatible alternatives. Missing safety metadata cannot pass
   that rule. Require all equipment items when an exercise lists multiple devices.
@@ -70,7 +78,7 @@ publication, PDF download and student progress with typed exercise fixtures.
 | C2 | ایجاد بادی‌چک | دورهٔ ۳۰روزه با تاریخ، وزن شروع/هدف و هدف‌های روزانه ساخته شود؛ فقط به همان شاگرد وصل شود و از پنل او قابل ثبت باشد. |
 | C3 | داشبورد | آمار، درخواست‌ها و ویزیت‌های اخیر به دادهٔ واقعی وصل باشند؛ بازکردن ۱۰ ویزیت و «دیدن همه» به تاریخچهٔ ویزیت برود؛ انتخاب هر ردیف، ویزیت صحیح را باز کند. |
 | C4 | ویزیت | ساخت، ذخیره، ارسال آنلاین، پاسخ شاگرد، بررسی و نهایی‌سازی درست باشند؛ حضوری مرحلهٔ تکراری نداشته باشد؛ تنظیمات برنامه حفظ و یادداشت خصوصی جدا بماند. |
-| C5 | ساخت برنامه | پیش‌نویس از همان ویزیت ساخته شود؛ ورودی‌های سطح، جلسه، هدف، آسیب، ضعف، محیط، وسیله، زمان و سیستم تمرینی اثر واقعی داشته باشند؛ بازبینی، انتشار و PDF موفق باشند. |
+| C5 | ساخت برنامه | پیش‌نویس از همان ویزیت ساخته شود؛ سطح، تعداد جلسه، هدف نهایی مربی، تصمیم عضلانی صریح، محدودیت آسیب تأییدشده، محیط، وسیله، زمان و سیستم تمرینی اثر قابل مشاهده داشته باشند؛ مشاهدهٔ ضعف/قوت به‌تنهایی برنامه را تغییر ندهد؛ بازبینی، انتشار و PDF موفق باشند. |
 | C6 | واردکردن حرکت | حرکت با عضله/وسیلهٔ درست ذخیره، پیدا، ویرایش و حذف/آرشیو شود؛ خطای تکراری فرم را از بین نبرد؛ راهنمای سه‌بخشی و ویدئوی آپلودشده فقط به حرکت همان مربی وصل باشند. |
 | C7 | واردکردن سیستم تمرینی | تعریف، ویرایش عمومی/شخصی و حذف طبق دسترسی کار کنند؛ پارامترهای اجرایی و عضلهٔ انتخابی ذخیره شوند و در ست/تکرار/استراحت/گروه‌بندی خروجی اثر قابل اثبات داشته باشند. |
 
@@ -90,7 +98,8 @@ publication, PDF download and student progress with typed exercise fixtures.
 
 - متوسط، باشگاه کامل، حجم، بدون آسیب؛ سناریوی پایه.
 - مبتدی، خانه و وسایل محدود، زمان کم؛ رعایت سطح و تجهیزات.
-- ضعف عضلهٔ مشخص؛ مقایسهٔ انتخاب و حجم با حالت بدون ضعف.
+- مشاهدهٔ ضعف/قوت بدون تصمیم مربی؛ خروجی نباید صرفاً به‌خاطر مشاهده تغییر کند.
+- تصمیم مربی برای تمرکز یا نگه‌داری یک عضله، مستقل از مشاهده؛ حجم/جلسه و شواهد باید تغییر کنند.
 - آسیب/محدودیت مشخص با قوانین مربی؛ حذف حرکت ناسازگار و هشدار کمبود گزینه.
 - تعداد جلسات مختلف و اولویت متفاوت درخواست/ویزیت؛ تطبیق دقیق خروجی با مرجع نهایی.
 - سیستم‌های تکی و گروهی روی عضلهٔ مشخص؛ کنترل حرکت همراه، ترتیب، ست و استراحت.

@@ -240,7 +240,6 @@ export interface GenerationRules {
   reps_max: number;
   rest_seconds: number;
   rir: number;
-  weakness_auto_focus: boolean;
   warmup_minutes: number;
   progression: "double_progression" | "maintain";
 }

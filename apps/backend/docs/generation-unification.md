@@ -7,9 +7,13 @@ review → publish. There is no separate final-assessment page.
 
 - Visit assessment overrides request/profile facts; explicit empty selections
   are answers, not missing values.
-- `program_settings.focus_muscles` is the coach's course decision. Observed
-  weakness is separate. `generation_rules.weakness_auto_focus` is an explicit
-  coach policy, off by default. Injury exclusion always precedes focus.
+- The visit's `program_settings.muscle_decisions` is the coach's final
+  per-muscle decision (`balanced`, `focus`, or `maintenance`). It determines
+  volume targets and, for automatic splits, session frequency. Weak/strong
+  findings remain assessment evidence and never change selection or volume by
+  themselves. The athlete's requested goal remains separate from the coach's
+  final goal recorded in the visit. Confirmed injury restrictions still filter
+  unsafe movements; a muscle focus cannot override them.
 - The coach rules aggregate exposes validated `generation_rules`, persisted in
   the existing owner-scoped `style_profile` JSON, not a parallel model.
 - Automatic prescriptions use numeric sets, repetition bounds, rest, RIR,
@@ -58,6 +62,12 @@ catalog selection returns an explicit selection-required warning and no
 invented dose. The old template editor and automatic template fallback are
 removed from the primary flow. Legacy rows remain for audit, not generation.
 
+Legacy `focus_muscles` visit/default values migrate to explicit `focus`
+decisions. The obsolete `weakness_auto_focus` switch is removed. Exact
+execution-plan templates remain authoritative for their programmed sessions;
+non-balanced visit decisions require the quick/automatic generation flow so
+they cannot be silently ignored.
+
 `/program-templates/` is the sole item CRUD endpoint. Duplicate nested template
 routes and the unused Arman compatibility module are removed. Migration files,
 archived exercises referenced by history, uploaded media and license metadata
@@ -101,7 +111,7 @@ complete program. The Stage catalog has active primary-back movements, but is
 missing a back-accessory role (for example, a catalogued pullover/straight-arm
 pull). Full-body quality therefore still depends on completing and validating
 that movement coverage. QA can
-explicitly select `--available-catalog-split` (chest/triceps, legs/shoulders) to
+explicitly select `--available-catalog-split` (chest/triceps, quadriceps/shoulders) to
 exercise publication with supported catalog muscles. This is a named test
 configuration, never an automatic fallback or a balanced full-body claim.
 

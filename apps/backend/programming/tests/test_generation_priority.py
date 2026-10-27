@@ -101,7 +101,14 @@ class GenerationPriorityTests(APITestCase):
     # 1. historical bank used when no injury -----------------------------
     def test_owned_catalog_used_when_no_injury(self):
         Exercise.objects.create(
-            coach=self.coach, name="پرس سینه هالتر", primary_muscle="سینه", level="all"
+            coach=self.coach,
+            name="پرس سینه هالتر",
+            primary_muscle="سینه",
+            level=Exercise.Level.ALL,
+            movement_pattern="push_horizontal",
+            mechanics="multi_joint",
+            joint_keys=["shoulder", "elbow"],
+            prescription_unit="reps",
         )
         student = self._make_student()
         document, warnings = self._generate(student)
@@ -182,6 +189,10 @@ class GenerationPriorityTests(APITestCase):
             primary_muscle="سینه",
             level=Exercise.Level.ALL,
             is_active=True,
+            movement_pattern="push_horizontal",
+            mechanics="multi_joint",
+            joint_keys=["shoulder", "elbow"],
+            prescription_unit="reps",
         )
         CoachExercisePreference.objects.create(
             coach=self.coach, exercise=exercise, is_preferred=True
@@ -281,6 +292,10 @@ class GenerationPriorityTests(APITestCase):
             primary_muscle="سینه",
             level=Exercise.Level.ALL,
             is_active=True,
+            movement_pattern="push_horizontal",
+            mechanics="multi_joint",
+            joint_keys=["shoulder", "elbow"],
+            prescription_unit="reps",
         )
         CoachExercisePreference.objects.create(
             coach=self.coach, exercise=exercise, is_preferred=True

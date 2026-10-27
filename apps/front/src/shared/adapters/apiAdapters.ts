@@ -772,7 +772,7 @@ export function generationEvidenceFromProgramGeneratorMeta(
     generationRunId: str(meta.generation_run_id),
     generatorVersion: str(meta.engine),
     injuryRules: [],
-    muscleFocus: { priorityMuscles: [], weakMuscles: [] },
+    muscleFocus: { priorityMuscles: [], strongMuscles: [], weakMuscles: [] },
     nutritionSupplement: { nutritionSelectionReasons: [], supplementSelectionReasons: [] },
     studentId,
     techniques: [],
@@ -788,9 +788,23 @@ function volumeAuditFromApi(value: unknown): GenerationEvidence["volumeAudit"] {
     name: str(row.name ?? key),
     actual: Number(row.actual ?? 0),
     target: Number(row.target ?? 0),
+    decision:
+      row.decision === "balanced" || row.decision === "focus" || row.decision === "maintenance"
+        ? row.decision
+        : undefined,
     weeklyCap: Number(row.weekly_cap ?? 0),
     sessionCap: Number(row.session_cap ?? 0)
   }));
+}
+
+function muscleDecisionsFromApi(value: unknown): GenerationEvidence["coachMuscleDecisions"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).filter(
+      ([, decision]) =>
+        decision === "balanced" || decision === "focus" || decision === "maintenance"
+    )
+  ) as GenerationEvidence["coachMuscleDecisions"];
 }
 
 function generationWarningLabel(value: string): string {
@@ -823,6 +837,8 @@ function generationWarningLabel(value: string): string {
     return "زمان برآوردشدهٔ یکی از جلسات از زمان تأییدشدهٔ ویزیت بیشتر است.";
   if (code === "volume_goal_review")
     return "پیش‌فرض حجم از چارچوب عضله‌سازی آمده است؛ تناسب آن با هدف خاص این شاگرد باید توسط مربی بررسی شود.";
+  if (code === "muscle_decision_split_shortfall")
+    return `تقسیم جلسات برای تصمیم مربی دربارهٔ ${name} کافی نیست (${count} جلسه). چیدمان جلسات را اصلاح کنید.`;
   if (code === "catalog_metadata_incomplete")
     return `مشخصات تصمیم‌ساز حرکت «${value.slice(code.length + 1)}» کامل نیست؛ کاتالوگ را بررسی کنید.`;
   return value;
@@ -844,6 +860,9 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
     (generatorMeta.evidence as Record<string, unknown>) ||
     null;
   const request = (dto.request as Record<string, unknown>) || {};
+  const coachMuscleDecisions = muscleDecisionsFromApi(
+    explicitEvidence?.coach_muscle_decisions ?? request.muscle_decisions
+  );
   const student = (inputSnapshot.student as Record<string, unknown>) || {};
   const goals = (student.goals as Record<string, unknown>) || {};
   const injuries = (student.injuries as Record<string, unknown>) || {};
@@ -894,13 +913,25 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
     injuryRules,
     muscleFocus: {
       priorityMuscles: asStringArray(goals.muscle_priorities),
+      strongMuscles: asStringArray(explicitEvidence?.strong_muscles ?? goals.strong_muscles),
       weakMuscles: asStringArray(goals.weak_muscles)
     },
+    coachMuscleDecisions,
     nutritionSupplement: {
       nutritionSelectionReasons: [],
       supplementSelectionReasons: []
     },
     ruleSetId: inputSnapshot.rules_digest ? str(inputSnapshot.rules_digest) : undefined,
+    coachGoal: explicitEvidence?.coach_goal
+      ? str(explicitEvidence.coach_goal)
+      : goals.primary_goal
+        ? str(goals.primary_goal)
+        : undefined,
+    athleteRequestedGoal: explicitEvidence?.athlete_requested_goal
+      ? str(explicitEvidence.athlete_requested_goal)
+      : goals.secondary_goal
+        ? str(goals.secondary_goal)
+        : undefined,
     studentGoal: goals.primary_goal ? str(goals.primary_goal) : undefined,
     studentId: str(dto.student_id ?? student.id ?? ""),
     sessionMuscles: Array.isArray(request.session_muscles)
@@ -931,6 +962,12 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
   return {
     ...base,
     volumeAudit: volumeAuditFromApi(explicitEvidence.volume_audit),
+    coachMuscleDecisions:
+      muscleDecisionsFromApi(explicitEvidence.coach_muscle_decisions) ?? base.coachMuscleDecisions,
+    coachGoal: explicitEvidence.coach_goal ? str(explicitEvidence.coach_goal) : base.coachGoal,
+    athleteRequestedGoal: explicitEvidence.athlete_requested_goal
+      ? str(explicitEvidence.athlete_requested_goal)
+      : base.athleteRequestedGoal,
     equipment: explicitEvidence.equipment
       ? asStringArray(explicitEvidence.equipment)
       : base.equipment,

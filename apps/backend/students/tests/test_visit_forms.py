@@ -552,6 +552,31 @@ class SeedVisitFormCreateOnlyTests(TestCase):
 
 
 class SemanticExtractionTests(TestCase):
+    def test_coach_visit_goal_overrides_athlete_goal_without_rewriting_observations(self):
+        visit = Visit(
+            visit_date=date(2026, 8, 1),
+            form_template_snapshot={"sections": MINIMAL_VISIT_FORM_TEMPLATE["sections"]},
+            answers={"goal": "fat_loss"},
+        )
+        context = build_generation_context_from_visit(visit)
+        merged = merge_student_with_assessment(
+            student_goals={
+                "primary_goal": "hypertrophy",
+                "secondary_goal": "قدرت",
+                "weak_muscles": ["glutes"],
+                "strong_muscles": ["chest"],
+            },
+            student_injuries={},
+            student_training_background={},
+            student_training_conditions={},
+            student_equipment={},
+            assessment_ctx=context,
+        )
+        self.assertEqual(merged["goals"]["primary_goal"], "fat_loss")
+        self.assertEqual(merged["goals"]["secondary_goal"], "قدرت")
+        self.assertEqual(merged["goals"]["weak_muscles"], ["glutes"])
+        self.assertEqual(merged["goals"]["strong_muscles"], ["chest"])
+
     def test_explicit_no_weakness_overrides_historical_muscle_details(self):
         visit = Visit(
             visit_date=date(2026, 8, 1),

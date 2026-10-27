@@ -68,26 +68,34 @@ def primary_key(item):
     )
 
 
-def build_volume_plan(policy, level, goal, focus):
+def build_volume_plan(policy, level, goal, muscle_decisions=None):
     rows = deepcopy(policy["volume_profiles"][level])
-    focus = {muscle_key(value) for value in focus}
-    if "پا" in focus:
-        focus.update({"quadriceps", "hamstrings", "glutes"})
+    decisions = {muscle_key(key): value for key, value in (muscle_decisions or {}).items()}
     for key, row in rows.items():
+        decision = decisions.get(key, "balanced")
+        if decision not in {"balanced", "focus", "maintenance"}:
+            raise ValueError(f"Unsupported muscle decision for {key}: {decision}")
+        goal_maintenance = goal in {"maintain", "maintain_weight"}
+        effective_decision = (
+            "maintenance" if goal_maintenance and decision == "balanced" else decision
+        )
+        row["decision"] = effective_decision
+        row["decision_source"] = "coach" if key in decisions else "goal"
         row["target"] = (
             row["maintenance"]
-            if goal in {"maintain", "maintain_weight"}
+            if effective_decision == "maintenance"
             else row["target_max"]
-            if key in focus
+            if effective_decision == "focus"
             else row["growth_start"]
             if goal == "fat_loss"
             else row["target_min"]
         )
-        row["priority"] = key in focus
+        row["priority"] = effective_decision == "focus"
     return {
         "source": PROFILE_SOURCE,
         "goal": goal,
         "level": level,
+        "muscle_decisions": decisions,
         "muscles": rows,
         "goal_review_required": goal
         not in {

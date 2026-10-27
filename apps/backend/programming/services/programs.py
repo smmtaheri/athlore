@@ -915,10 +915,16 @@ def _build_quick_generation_template(
     )
     if raw_level not in ProgramTemplate.Level.values:
         raise ValidationError({"level": ["سطح تمرین معتبر نیست."]})
-    raw_priorities = request_data.get("muscle_priorities")
+    from accounts.exercise_metadata import MUSCLE_NAMES, muscle_key
+
+    decisions = request_data.get("muscle_decisions")
     muscle_priorities = (
-        [item.strip() for item in raw_priorities if isinstance(item, str) and item.strip()]
-        if isinstance(raw_priorities, list)
+        [
+            MUSCLE_NAMES[muscle_key(key)]
+            for key, mode in decisions.items()
+            if muscle_key(key) in MUSCLE_NAMES and mode == "focus"
+        ]
+        if isinstance(decisions, dict)
         else []
     )
     rule_set = ensure_rule_set(coach)
@@ -1186,6 +1192,9 @@ def finalize_version(version: ProgramVersion, *, actor) -> ProgramVersion:
             for exercise in day.get("exercises", [])
         }
         missing = required - present
+        lower_body_muscles = {"چهارسر ران", "پشت پا", "باسن", "ساق"}
+        if "پا" in missing and present.intersection(lower_body_muscles):
+            missing.remove("پا")
         if missing:
             raise ValidationError(
                 {

@@ -131,7 +131,13 @@ export function GenerationEvidencePanel({
               }
             />
           ) : null}
-          <EvidenceRow label="هدف شاگرد" value={evidence.studentGoal || "—"} />
+          <EvidenceRow
+            label="هدف نهایی ویزیت مربی"
+            value={evidence.coachGoal || evidence.studentGoal || "—"}
+          />
+          {evidence.athleteRequestedGoal ? (
+            <EvidenceRow label="هدف اعلام‌شدهٔ شاگرد" value={evidence.athleteRequestedGoal} />
+          ) : null}
           <EvidenceRow label="سطح شاگرد" value={evidence.studentLevel || "—"} />
           <EvidenceRow
             label="تعداد روز"
@@ -157,12 +163,16 @@ export function GenerationEvidencePanel({
             }
           />
           <EvidenceRow
-            label="عضلات ضعیف"
+            label="مشاهدهٔ ضعف (بدون اثر خودکار)"
             value={<ChipList items={evidence.muscleFocus.weakMuscles} />}
           />
           <EvidenceRow
-            label="عضلات دارای اولویت"
-            value={<ChipList items={evidence.muscleFocus.priorityMuscles} />}
+            label="تصمیم نهایی مربی برای عضلات"
+            value={<DecisionList decisions={evidence.coachMuscleDecisions ?? {}} />}
+          />
+          <EvidenceRow
+            label="مشاهدهٔ قوت (بدون اثر خودکار)"
+            value={<ChipList items={evidence.muscleFocus.strongMuscles} />}
           />
           <EvidenceRow
             label="قوانین آسیب اعمال‌شده"
@@ -207,6 +217,7 @@ export function GenerationEvidencePanel({
                     <div key={row.key}>
                       <strong>{row.name}</strong>: {row.actual} ست از هدف {row.target}؛ سقف هفته{" "}
                       {row.weeklyCap} و سقف جلسه {row.sessionCap}
+                      {row.decision ? ` — ${decisionLabel(row.decision)}` : ""}
                       {row.actual < row.target
                         ? " — کمتر از هدف؛ زمان، محدودیت‌ها یا کاتالوگ را بررسی کنید."
                         : ""}
@@ -263,6 +274,40 @@ function ChipList({ items }: { items: string[] }) {
       ))}
     </span>
   );
+}
+
+const muscleLabels: Record<string, string> = {
+  chest: "سینه",
+  back: "زیربغل",
+  shoulders: "سرشانه",
+  quadriceps: "چهارسر ران",
+  hamstrings: "پشت پا",
+  glutes: "باسن",
+  biceps: "جلو بازو",
+  triceps: "پشت بازو",
+  calves: "ساق",
+  forearms: "ساعد",
+  core: "شکم",
+  traps: "کول"
+};
+
+function decisionLabel(decision: "balanced" | "focus" | "maintenance") {
+  return {
+    balanced: "متعادل",
+    focus: "تمرکز مربی",
+    maintenance: "نگهداری"
+  }[decision];
+}
+
+function DecisionList({
+  decisions
+}: {
+  decisions: Record<string, "balanced" | "focus" | "maintenance">;
+}) {
+  const items = Object.entries(decisions).map(
+    ([muscle, decision]) => `${muscleLabels[muscle] ?? muscle}: ${decisionLabel(decision)}`
+  );
+  return <ChipList items={items} />;
 }
 
 function ReplacementList({ items }: { items: GenerationEvidenceReplacement[] }) {

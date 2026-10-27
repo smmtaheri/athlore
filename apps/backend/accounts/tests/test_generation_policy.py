@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.exceptions import ValidationError
 
-from accounts.generation_policy import DEFAULT_POLICY, coach_policy, validate_policy
+from accounts.generation_policy import coach_policy, validate_policy
 from accounts.models import CoachProfile, ProgramTemplate
 from accounts.rules_services import replace_coach_rules
 from programming.services.training_selection import _candidate_names, _full_body_muscles, _prescribe
@@ -63,12 +63,22 @@ class GenerationPolicyTests(TestCase):
         self.assertEqual(row["raw_prescription"], "3×8-12")
         self.assertEqual(row["rpe"], "RIR 2")
 
-    def test_two_day_auto_split_covers_major_groups_each_day(self):
-        for day in _full_body_muscles(2, []):
-            self.assertEqual(set(day), {"سینه", "زیربغل", "پا", "سرشانه"})
-
-    def test_default_weakness_is_not_automatic_focus(self):
-        self.assertFalse(DEFAULT_POLICY["weakness_auto_focus"])
+    def test_auto_splits_use_common_patterns_for_three_to_six_days(self):
+        self.assertTrue(
+            all(
+                {"سینه", "زیربغل", "پا", "سرشانه"}.issubset(day)
+                for day in _full_body_muscles(3, [])
+            )
+        )
+        four = _full_body_muscles(4, [])
+        self.assertEqual(len(four), 4)
+        self.assertTrue("سینه" in four[0] and "چهارسر ران" not in four[0])
+        self.assertTrue("چهارسر ران" in four[1] and "سینه" not in four[1])
+        six = _full_body_muscles(6, [])
+        self.assertEqual(len(six), 6)
+        self.assertEqual(six[0], six[3])
+        self.assertEqual(six[1], six[4])
+        self.assertEqual(six[2], six[5])
 
     def test_empty_catalog_never_invents_fallback_movements(self):
         names, sources = _candidate_names(

@@ -187,6 +187,7 @@ export interface GenerationEvidenceReplacement {
 
 export interface GenerationEvidenceMuscleFocus {
   priorityMuscles: string[];
+  strongMuscles: string[];
   weakMuscles: string[];
 }
 
@@ -226,6 +227,7 @@ export interface GenerationEvidence {
     name: string;
     actual: number;
     target: number;
+    decision?: "balanced" | "focus" | "maintenance";
     weeklyCap: number;
     sessionCap: number;
   }>;
@@ -241,6 +243,9 @@ export interface GenerationEvidence {
   muscleFocus: GenerationEvidenceMuscleFocus;
   nutritionSupplement: GenerationEvidenceNutritionSupplement;
   ruleSetId?: string;
+  coachGoal?: string;
+  athleteRequestedGoal?: string;
+  coachMuscleDecisions?: Record<string, "balanced" | "focus" | "maintenance">;
   studentGoal?: string;
   studentId: string;
   sessionMuscles?: string[][];

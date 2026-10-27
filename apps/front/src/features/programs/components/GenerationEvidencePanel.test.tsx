@@ -39,7 +39,10 @@ const sampleEvidence: GenerationEvidence = {
   generationRunId: "run-123",
   generatorVersion: "rules_v1",
   injuryRules: ["نوع آسیب: گردن درد خفیف"],
-  muscleFocus: { priorityMuscles: ["سرشانه"], weakMuscles: ["سینه بالا"] },
+  muscleFocus: { priorityMuscles: ["سرشانه"], strongMuscles: ["بازو"], weakMuscles: ["سینه بالا"] },
+  coachGoal: "hypertrophy",
+  athleteRequestedGoal: "fat_loss",
+  coachMuscleDecisions: { glutes: "focus" },
   nutritionSupplement: {
     nutritionSelectionReasons: ["تطابق با کالری هدف"],
     supplementSelectionReasons: ["تطابق با هدف حجم"]
@@ -83,7 +86,12 @@ describe("GenerationEvidencePanel", () => {
     expect(screen.getByText("rules_v1")).toBeInTheDocument();
     expect(screen.getByText("فول بادی ۴ روزه")).toBeInTheDocument();
     expect(screen.getByText("سینه بالا")).toBeInTheDocument();
-    expect(screen.getByText("سرشانه")).toBeInTheDocument();
+    expect(screen.getByText("باسن: تمرکز مربی")).toBeInTheDocument();
+    expect(screen.getByText("بازو")).toBeInTheDocument();
+    expect(screen.getByText("مشاهدهٔ ضعف (بدون اثر خودکار)")).toBeInTheDocument();
+    expect(screen.getByText("مشاهدهٔ قوت (بدون اثر خودکار)")).toBeInTheDocument();
+    expect(screen.getByText("هدف نهایی ویزیت مربی")).toBeInTheDocument();
+    expect(screen.getByText("هدف اعلام‌شدهٔ شاگرد")).toBeInTheDocument();
     expect(screen.getByText("Burpee")).toBeInTheDocument();
     expect(screen.getByText("digest-abc")).toBeInTheDocument();
     expect(screen.getByText("run-123")).toBeInTheDocument();
@@ -124,7 +132,7 @@ describe("GenerationEvidencePanel", () => {
               replacements: []
             },
             injuryRules: [],
-            muscleFocus: { priorityMuscles: [], weakMuscles: [] },
+            muscleFocus: { priorityMuscles: [], strongMuscles: [], weakMuscles: [] },
             nutritionSupplement: { nutritionSelectionReasons: [], supplementSelectionReasons: [] },
             templateName: undefined,
             warnings: []

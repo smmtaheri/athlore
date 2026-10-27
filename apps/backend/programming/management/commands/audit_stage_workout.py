@@ -131,7 +131,10 @@ class Command(BaseCommand):
 
         request = ProgramRequest.objects.get(pk=request_id)
         if available_catalog_split:
-            visit.program_settings["session_muscles"] = [["سینه", "پشت بازو"], ["پا", "سرشانه"]]
+            visit.program_settings["session_muscles"] = [
+                ["سینه", "پشت بازو"],
+                ["چهارسر ران", "سرشانه"],
+            ]
             visit.save(update_fields=["program_settings"])
         start_request(request=request, visit_id=visit.id, assessment_mode="in_person")
         finalize_visit(visit, actor=coach.user)

@@ -51,3 +51,17 @@ it("keeps muscle selections independent per system and removes them with the sys
     { key: "superset", muscles: ["پا"] }
   ]);
 });
+
+it("stores the coach's per-muscle decision independently", () => {
+  render(<Harness />);
+  fireEvent.change(screen.getByRole("combobox", { name: "تصمیم باسن" }), {
+    target: { value: "focus" }
+  });
+  fireEvent.change(screen.getByRole("combobox", { name: "تصمیم سینه" }), {
+    target: { value: "maintenance" }
+  });
+  expect(JSON.parse(screen.getByTestId("settings").textContent ?? "{}").muscle_decisions).toEqual({
+    glutes: "focus",
+    chest: "maintenance"
+  });
+});

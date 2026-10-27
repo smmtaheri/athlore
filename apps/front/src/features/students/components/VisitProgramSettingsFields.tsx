@@ -23,6 +23,27 @@ const PROGRAM_MUSCLES = [
   "کول"
 ];
 
+const DECISION_MUSCLES = [
+  { key: "chest", label: "سینه" },
+  { key: "back", label: "زیربغل" },
+  { key: "shoulders", label: "سرشانه" },
+  { key: "quadriceps", label: "چهارسر ران" },
+  { key: "hamstrings", label: "پشت پا" },
+  { key: "glutes", label: "باسن" },
+  { key: "biceps", label: "جلو بازو" },
+  { key: "triceps", label: "پشت بازو" },
+  { key: "calves", label: "ساق" },
+  { key: "forearms", label: "ساعد" },
+  { key: "core", label: "شکم" },
+  { key: "traps", label: "کول" }
+] as const;
+
+const MUSCLE_DECISION_OPTIONS = [
+  { value: "balanced", label: "متعادل؛ مطابق هدف دوره" },
+  { value: "focus", label: "تمرکز مربی" },
+  { value: "maintenance", label: "حفظ وضعیت فعلی" }
+] as const;
+
 export function VisitProgramSettingsFields({
   value,
   onChange,
@@ -104,24 +125,33 @@ export function VisitProgramSettingsFields({
         ))}
       </FormField>
       <FormField
-        label="تمرکز این دوره"
-        hint="اختیاری؛ خالی یعنی برنامهٔ متعادل. ضعف مشاهده‌شده و آسیب جدا ثبت می‌شوند؛ محدودیت ایمنی همیشه مقدم است."
+        label="تصمیم نهایی مربی برای عضلات این دوره"
+        hint="هدف دوره را در بخش ارزیابی عمومی ویزیت تعیین کنید. ضعف و قوت فقط مشاهده‌اند و خودکار برنامه را تغییر نمی‌دهند. برای هر عضله، تصمیم نهایی این دوره را مشخص کنید؛ آسیب و محدودیت تأییدشده همچنان فیلتر ایمنی هستند."
       >
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem 1rem" }}>
-          {PROGRAM_MUSCLES.map((muscle) => (
-            <Checkbox
-              key={muscle}
-              label={muscle}
-              disabled={disabled}
-              checked={(value.focus_muscles ?? []).includes(muscle)}
-              onChange={(event) =>
-                update({
-                  focus_muscles: event.target.checked
-                    ? [...(value.focus_muscles ?? []), muscle]
-                    : (value.focus_muscles ?? []).filter((item) => item !== muscle)
-                })
-              }
-            />
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: "0.75rem"
+          }}
+        >
+          {DECISION_MUSCLES.map(({ key, label }) => (
+            <FormField key={key} label={label}>
+              <Select
+                aria-label={`تصمیم ${label}`}
+                disabled={disabled}
+                onChange={(event) =>
+                  update({
+                    muscle_decisions: {
+                      ...(value.muscle_decisions ?? {}),
+                      [key]: event.target.value as "balanced" | "focus" | "maintenance"
+                    }
+                  })
+                }
+                options={MUSCLE_DECISION_OPTIONS}
+                value={value.muscle_decisions?.[key] ?? "balanced"}
+              />
+            </FormField>
           ))}
         </div>
       </FormField>

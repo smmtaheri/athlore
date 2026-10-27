@@ -34,6 +34,7 @@ from programming.services.programs import (
     serialize_student_program_detail,
     update_draft_version,
 )
+from programming.services.training_selection import _full_body_muscles, _session_covers_muscle
 from programming.services.volume_planning import (
     allocate_volume,
     audit_volume,
@@ -68,7 +69,9 @@ def item(key, sets=3, **extra):
 class VolumePlannerTests(SimpleTestCase):
     def setUp(self):
         self.policy = validate_policy({})
-        self.plan = build_volume_plan(self.policy, "intermediate", "hypertrophy", ["باسن"])
+        self.plan = build_volume_plan(
+            self.policy, "intermediate", "hypertrophy", {"glutes": "focus"}
+        )
 
     def test_precise_muscles_survive_shared_leg_label_and_secondary_is_separate(self):
         days = [
@@ -85,11 +88,46 @@ class VolumePlannerTests(SimpleTestCase):
         self.assertEqual(primary_key(days[0]["exercises"][0]), "glutes")
         self.assertNotIn("پا", audit["direct_sets"])
 
-    def test_focus_does_not_raise_other_leg_targets_or_observed_weakness(self):
+    def test_coach_focus_applies_only_to_the_selected_muscle(self):
         rows = self.plan["muscles"]
         self.assertEqual(rows["glutes"]["target"], rows["glutes"]["target_max"])
         self.assertEqual(rows["hamstrings"]["target"], rows["hamstrings"]["target_min"])
         self.assertFalse(rows["quadriceps"]["priority"])
+
+    def test_coach_maintenance_overrides_the_course_goal_per_muscle(self):
+        plan = build_volume_plan(
+            self.policy,
+            "intermediate",
+            "hypertrophy",
+            {"glutes": "maintenance", "chest": "focus"},
+        )
+        self.assertEqual(plan["muscles"]["glutes"]["decision"], "maintenance")
+        self.assertEqual(
+            plan["muscles"]["glutes"]["target"], plan["muscles"]["glutes"]["maintenance"]
+        )
+        self.assertEqual(plan["muscles"]["chest"]["target"], plan["muscles"]["chest"]["target_max"])
+
+    def test_three_day_auto_split_is_full_body_and_priority_repeats(self):
+        plan = build_volume_plan(self.policy, "intermediate", "hypertrophy", {"glutes": "focus"})
+        sessions = _full_body_muscles(3, [], plan)
+        self.assertEqual(len(sessions), 3)
+        for session in sessions:
+            self.assertTrue({"سینه", "زیربغل", "پا", "سرشانه"}.issubset(session))
+        self.assertEqual(
+            sum(
+                any(_session_covers_muscle(label, "glutes") for label in session)
+                for session in sessions
+            ),
+            3,
+        )
+
+    def test_auto_split_repeats_focus_across_session_cap_for_five_days(self):
+        plan = build_volume_plan(self.policy, "intermediate", "hypertrophy", {"glutes": "focus"})
+        sessions = _full_body_muscles(5, [], plan)
+        self.assertEqual(len(sessions), 5)
+        self.assertGreaterEqual(
+            sum("باسن" in session or "پا" in session for session in sessions), 2
+        )
 
     def test_time_budget_is_enforced_and_shortfall_is_visible(self):
         student = SimpleNamespace(training_conditions={"session_duration_minutes": 30})
@@ -250,7 +288,7 @@ class VisitVolumeWorkflowTests(TestCase):
                     )
                 )
 
-    def prepare(self, focus=None):
+    def prepare(self, decisions=None, *, operation_key="volume-qa-prepare"):
         request, _ = program_requests.create_request(
             student=self.student,
             actor=self.coach.user,
@@ -266,7 +304,7 @@ class VisitVolumeWorkflowTests(TestCase):
                 "program_settings": {
                     "sections": ["workout"],
                     "training_systems": [],
-                    "focus_muscles": focus or [],
+                    "muscle_decisions": decisions or {},
                     "session_muscles": [["پا"], ["پا"]],
                 },
             },
@@ -274,17 +312,22 @@ class VisitVolumeWorkflowTests(TestCase):
         )
         request.visit = visit
         request.save(update_fields=["visit"])
-        return prepare_from_visit(self.coach, self.coach.user, visit.id, "volume-qa-prepare")
+        return prepare_from_visit(self.coach, self.coach.user, visit.id, operation_key)
 
     @patch("common.sms.http.client.HTTPSConnection")
     def test_request_visit_generation_audit_and_finalize_without_sms(self, transport):
-        program, run = self.prepare(["باسن"])
+        program, run = self.prepare({"glutes": "focus"})
         training = run.resulting_version.training
         audit = training["volume_audit"]
         self.assertEqual(
             audit["direct_sets"]["glutes"], training["volume_plan"]["muscles"]["glutes"]["target"]
         )
         self.assertLess(audit["direct_sets"]["hamstrings"], audit["direct_sets"]["glutes"])
+        self.assertEqual(run.request["muscle_decisions"], {"glutes": "focus"})
+        self.assertEqual(
+            run.output_snapshot["generator"]["evidence"]["coach_muscle_decisions"]["glutes"],
+            "focus",
+        )
         finalized = finalize_version(run.resulting_version, actor=self.coach.user)
         program.active_version = finalized
         program.save(update_fields=["active_version"])
@@ -294,6 +337,27 @@ class VisitVolumeWorkflowTests(TestCase):
         self.assertTrue(public["days"])
         transport.assert_not_called()
         self.assertEqual(program.student_id, self.student.pk)
+
+    def test_weak_and_strong_observations_do_not_change_weekly_muscle_decisions(self):
+        self.student.goals = {
+            "primary_goal": "hypertrophy",
+            "secondary_goal": "fat_loss",
+            "weak_muscles": ["باسن"],
+            "strong_muscles": ["سینه"],
+            "muscle_priorities": ["زیربغل"],
+        }
+        self.student.save(update_fields=["goals", "updated_at"])
+        _, run = self.prepare({"glutes": "balanced"}, operation_key="observation-is-not-a-plan")
+        evidence = run.output_snapshot["generator"]["evidence"]
+        plan = run.resulting_version.training["volume_plan"]["muscles"]
+        self.assertFalse(plan["glutes"]["priority"])
+        self.assertEqual(plan["glutes"]["target"], plan["glutes"]["target_min"])
+        self.assertFalse(plan["back"]["priority"])
+        self.assertIn("باسن", evidence["observed_weak_muscles"])
+        self.assertIn("سینه", evidence["strong_muscles"])
+        self.assertEqual(evidence["coach_goal"], "hypertrophy")
+        self.assertEqual(evidence["athlete_requested_goal"], "fat_loss")
+        self.assertEqual(evidence["coach_muscle_decisions"], {"glutes": "balanced"})
 
     def test_review_cannot_bypass_saved_caps_or_eligibility(self):
         _, run = self.prepare()
@@ -345,7 +409,7 @@ class VisitVolumeWorkflowTests(TestCase):
             apply_catalog=True,
             apply_general=True,
             apply_injury=True,
-            muscle_priorities_override=[],
+            muscle_decisions={},
             goals_override="",
             selected_training_systems=[],
             catalog_only=True,

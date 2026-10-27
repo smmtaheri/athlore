@@ -19,7 +19,6 @@ DEFAULT_POLICY = {
     "reps_max": 12,
     "rest_seconds": 90,
     "rir": 2,
-    "weakness_auto_focus": False,
     "warmup_minutes": 5,
     "progression": "double_progression",
     "volume_profiles": _default_profiles(),
@@ -45,8 +44,6 @@ def validate_policy(raw):
             raise ValidationError({"generation_rules": [f"{key}: expected {lo}..{hi}."]})
     if policy["reps_min"] > policy["reps_max"]:
         raise ValidationError({"generation_rules": ["Minimum reps must not exceed maximum reps."]})
-    if type(policy["weakness_auto_focus"]) is not bool:
-        raise ValidationError({"generation_rules": ["weakness_auto_focus must be boolean."]})
     if policy["progression"] not in {"double_progression", "maintain"}:
         raise ValidationError({"generation_rules": ["Unsupported progression rule."]})
     profiles = policy["volume_profiles"]

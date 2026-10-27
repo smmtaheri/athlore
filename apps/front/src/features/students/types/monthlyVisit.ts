@@ -58,7 +58,7 @@ export interface StudentVisit {
 }
 
 export interface VisitProgramSettings {
-  focus_muscles?: string[];
+  muscle_decisions?: Record<string, "balanced" | "focus" | "maintenance">;
   start_date?: string;
   training_systems?: Array<{ key: string; muscles?: string[]; variants?: string[] }>;
   session_muscles?: string[][];

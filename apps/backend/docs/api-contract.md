@@ -1163,8 +1163,12 @@ snapshots. A session label such as legs remains useful for arranging the split,
 but glutes, quadriceps, hamstrings and calves have separate working-set budgets.
 Visit-confirmed assessment overrides request/profile suggestions. Explicit empty
 weakness/injury selections clear those observations; missing answers remain
-unassessed. Weakness only becomes focus when `weakness_auto_focus` is enabled.
-Exercise replacement compares primary muscle, pattern, mechanics and unit.
+unassessed. Weakness and strength are observations only and do not automatically
+alter exercise selection or volume. The coach's final visit goal and explicit
+per-muscle decision (`balanced`, `focus`, or `maintenance`) drive generation;
+the athlete-requested goal remains separately visible as context. A confirmed
+injury restriction filters candidates before any focus decision. Exercise
+replacement compares primary muscle, pattern, mechanics and unit.
 Equipment filtering requires every specified device, not just one of several.
 
 `generation_rules.volume_profiles` contains three level dictionaries with a row
@@ -1176,9 +1180,12 @@ informed by RP's volume-landmark framework, not measured individual MEV/MRV or a
 exact reproduction of a source table. They are editable by the coach.
 
 Maintenance goals use maintenance volume, normal hypertrophy uses target_min,
-fat-loss uses growth_start, and explicit focus uses target_max. The coach's base
-set count controls distribution among movements. Separate historical extra-set
-and style-budget adjustments no longer stack on top of weekly allocation.
+fat-loss uses growth_start, and explicit coach focus uses target_max. Explicit
+per-muscle maintenance overrides the global goal for that muscle. Automatic
+splits distribute selected priorities across sessions; a manually specified
+split that cannot meet the requested frequency reports a warning. The coach's
+base set count controls distribution among movements. Separate historical
+extra-set and style-budget adjustments no longer stack on top of weekly allocation.
 
 `movement_restrictions` contains `{injury_key, joint_keys, movement_patterns}`
 rows. At least one joint/pattern selector is required. Matching active injury is

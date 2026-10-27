@@ -8,6 +8,7 @@ provided by the caller (generator orchestration).
 from __future__ import annotations
 
 import hashlib
+import math
 import random
 import re
 from collections import Counter
@@ -653,20 +654,70 @@ def _attach_session_duration_evidence(days: list[dict], student: Any, evidence: 
     ]
 
 
-def _full_body_muscles(days_per_week: int, priority_order: list[str]) -> list[list[str]]:
-    base = _unique(
-        [normalize_muscle(m) for m in priority_order] + ["سینه", "زیربغل", "پا", "سرشانه"]
+def _full_body_muscles(
+    days_per_week: int, priority_order: list[str], volume_plan: dict | None = None
+) -> list[list[str]]:
+    """Create a usable auto split, then repeat coach-priority muscles as needed."""
+    priority_labels = [normalize_muscle(m) for m in priority_order]
+    base = _unique(priority_labels + ["سینه", "زیربغل", "پا", "سرشانه"])
+    upper = _unique(
+        ["سینه", "زیربغل", "سرشانه", "پشت بازو", "جلو بازو", "کول", "ساعد"]
+        + [
+            muscle
+            for muscle in base
+            if muscle not in {"پا", "شکم", "ساق", "چهارسر ران", "پشت پا", "باسن"}
+        ]
     )
-    out: list[list[str]] = []
-    if days_per_week <= 2:
-        return [list(base) for _ in range(days_per_week)]
-    for i in range(days_per_week):
-        primary = base[i % len(base)]
-        secondary = base[(i + 2) % len(base)]
-        if secondary == primary:
-            secondary = base[(i + 1) % len(base)]
-        out.append(_unique([primary, secondary]))
-    return out
+    lower = ["چهارسر ران", "پشت پا", "باسن", "ساق", "شکم"]
+    push = ["سینه", "سرشانه", "پشت بازو"]
+    pull = ["زیربغل", "جلو بازو", "کول", "ساعد"]
+    legs = ["چهارسر ران", "پشت پا", "باسن", "ساق", "شکم"]
+
+    if days_per_week <= 3:
+        sessions = [list(base) for _ in range(days_per_week)]
+    elif days_per_week == 4:
+        sessions = [upper, lower, upper, lower]
+    elif days_per_week == 5:
+        sessions = [upper, lower, push, pull, legs]
+    else:
+        sessions = [push, pull, legs] * 2
+        if days_per_week == 7:
+            sessions.append(list(base))
+        sessions = sessions[:days_per_week]
+    sessions = [_unique(row) for row in sessions]
+
+    if not volume_plan:
+        return sessions
+
+    for key, row in volume_plan["muscles"].items():
+        if row.get("decision_source") != "coach" or row.get("decision") == "balanced":
+            continue
+        requested_frequency = max(2, math.ceil(row["target"] / max(1, row["session_cap"])))
+        required_frequency = min(days_per_week, requested_frequency)
+        current = sum(
+            any(_session_covers_muscle(label, key) for label in session) for session in sessions
+        )
+        while current < required_frequency:
+            candidates = [
+                index
+                for index, session in enumerate(sessions)
+                if not any(_session_covers_muscle(label, key) for label in session)
+            ]
+            if not candidates:
+                break
+            chosen = min(candidates, key=lambda index: (len(sessions[index]), index))
+            sessions[chosen].append(MUSCLE_NAMES.get(key, key))
+            current += 1
+    return sessions
+
+
+def _session_covers_muscle(label: str, key: str) -> bool:
+    normalized = normalize_muscle(label)
+    if normalized == "پا":
+        return key in {"quadriceps", "hamstrings", "glutes", "calves"}
+    return muscle_key(normalized) == key or normalized == normalize_muscle(
+        MUSCLE_NAMES.get(key, key)
+    )
 
 
 def build_training_days(
@@ -688,7 +739,7 @@ def build_training_days(
     forbidden: set[str],
     injury_alternative_map: dict[str, dict],
     level_rule: LevelRule | None,
-    muscle_priorities_override: list[str],
+    muscle_decisions: dict[str, str],
     goals_override: str,
     warnings: list[str],
     target_muscle: str = "",
@@ -703,6 +754,14 @@ def build_training_days(
     if template.execution_plan:
         from programming.services.template_execution import build_template_days
 
+        if any(value != "balanced" for value in muscle_decisions.values()):
+            raise ValidationError(
+                {
+                    "muscle_decisions": [
+                        "برای اعمال تصمیم عضلانی ویزیت، قالب دقیق را روی بدون قالب بگذارید."
+                    ]
+                }
+            )
         days, evidence = build_template_days(
             coach=coach,
             student=student,
@@ -721,7 +780,7 @@ def build_training_days(
             policy,
             level,
             (student.goals or {}).get("primary_goal", "hypertrophy"),
-            muscle_priorities_override,
+            {muscle_key(value): "focus" for value in template.muscle_priority_order},
         )
         audit, issues = audit_volume(days, plan, policy, student)
         evidence.update(volume_plan=plan, volume_audit=audit, generation_policy=policy)
@@ -730,13 +789,7 @@ def build_training_days(
     equipment_tokens = available_equipment_tokens(student.equipment)
     goals = student.goals or {}
     policy = coach_policy(coach)
-    raw_region_inputs = [
-        *((goals.get("weak_muscles") or []) if policy["weakness_auto_focus"] else []),
-        *(goals.get("muscle_priorities") or []),
-        *muscle_priorities_override,
-        target_muscle,
-        target_region,
-    ]
+    raw_region_inputs = [target_muscle, target_region]
     region_aliases = {
         "upper_chest": "upper_chest",
         "upper chest": "upper_chest",
@@ -805,12 +858,23 @@ def build_training_days(
         if normalized_region:
             structured_region_filters.setdefault(canonical_target, set()).add(normalized_region)
     observed_weak = {normalize_muscle(m) for m in (goals.get("weak_muscles") or [])}
-    weak = observed_weak if policy["weakness_auto_focus"] else set()
+    weak: set[str] = set()
+    effective_decisions = {
+        muscle_key(key): value for key, value in muscle_decisions.items() if key in MUSCLE_NAMES
+    }
+    for value in template.muscle_priority_order or []:
+        key = muscle_key(value)
+        if key in MUSCLE_NAMES:
+            effective_decisions.setdefault(key, "focus")
     priority = {
-        normalize_muscle(m)
-        for m in (muscle_priorities_override + list(goals.get("muscle_priorities") or []))
+        normalize_muscle(MUSCLE_NAMES[key])
+        for key, value in effective_decisions.items()
+        if value == "focus" and key in MUSCLE_NAMES
     }
     strong = {normalize_muscle(m) for m in (goals.get("strong_muscles") or [])}
+    volume_plan = build_volume_plan(
+        policy, level, goals.get("primary_goal", "hypertrophy"), effective_decisions
+    )
 
     preferred_names: set[str] = set()
     for pref in pref_by_exercise_id.values():
@@ -827,13 +891,32 @@ def build_training_days(
 
     # Resolve empty (full-body) labels.
     if any(not muscles for _, muscles in parsed):
+        decision_labels = [
+            MUSCLE_NAMES[key]
+            for key, value in effective_decisions.items()
+            if value != "balanced" and key in MUSCLE_NAMES
+        ]
         fb = _full_body_muscles(
-            days_per_week, list(template.muscle_priority_order or []) + list(priority)
+            days_per_week,
+            decision_labels + list(template.muscle_priority_order or []),
+            volume_plan,
         )
         resolved: list[tuple[str, list[str]]] = []
         for i, (title, muscles) in enumerate(parsed):
             resolved.append((title, muscles or fb[i]))
         parsed = resolved
+
+    decision_frequency = {}
+    for key, row in volume_plan["muscles"].items():
+        if row.get("decision_source") != "coach" or row.get("decision") == "balanced":
+            continue
+        required = min(days_per_week, max(2, math.ceil(row["target"] / max(1, row["session_cap"]))))
+        actual = sum(
+            any(_session_covers_muscle(label, key) for label in groups) for _, groups in parsed
+        )
+        decision_frequency[key] = {"required": required, "scheduled": actual}
+        if actual < required:
+            warnings.append(f"muscle_decision_split_shortfall:{key}:{actual}/{required}")
 
     # Cross-day muscle overlap is allowed only when split explicitly repeats a muscle.
     # (No round-robin injection.)
@@ -841,9 +924,6 @@ def build_training_days(
     used: set[str] = set()
     used |= _alias_names(coach, used)
     base_sets = policy["sets"]
-    volume_plan = build_volume_plan(
-        policy, level, goals.get("primary_goal", "hypertrophy"), list(priority | weak)
-    )
     selection_rng = random.Random(str(selection_seed or ""))
     previous_names: set[str] = set(avoid_exercise_names or [])
     previous_program = (
@@ -863,6 +943,8 @@ def build_training_days(
         "prescription_version": 2,
         "priority_muscles": sorted(priority),
         "strong_muscles": sorted(strong),
+        "coach_muscle_decisions": effective_decisions,
+        "muscle_decision_frequency": decision_frequency,
         "selected_due_to_preference": [],
         "selected_due_to_historical_signal": [],
         "excluded_due_to_injury": [],

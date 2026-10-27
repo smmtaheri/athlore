@@ -394,6 +394,7 @@ def build_input_snapshot(
                 "session_muscles": request.get("session_muscles") or [],
                 "exercise_variety": request.get("exercise_variety") or "balanced",
                 "training_systems": request.get("training_systems") or [],
+                "muscle_decisions": request.get("muscle_decisions") or {},
             }
             if quick_mode
             else None
@@ -459,8 +460,6 @@ def generate_document(
         assessment_ctx=assessment_ctx,
     )
     orig_goals = student.goals
-    if "muscle_priorities" in request:
-        merged["goals"]["muscle_priorities"] = list(request["muscle_priorities"])
     orig_injuries = student.injuries
     orig_bg = student.training_background
     orig_cond = student.training_conditions
@@ -648,7 +647,11 @@ def _generate_document_body(
             apply_muscle=apply_muscle,
             apply_catalog=apply_catalog,
             apply_general=apply_general,
-            muscle_priorities_override=_as_str_list(request.get("muscle_priorities")),
+            muscle_decisions=(
+                request.get("muscle_decisions")
+                if isinstance(request.get("muscle_decisions"), dict)
+                else {}
+            ),
             goals_override=str(request.get("goals") or ""),
             target_muscle=str(request.get("target_muscle") or ""),
             target_region=str(request.get("target_region") or ""),
@@ -780,6 +783,9 @@ def _generate_document_body(
             or ("coach_style_profile" if rule_set.style_profile else "platform_defaults"),
         },
         "training_days": days_per_week,
+        "coach_goal": str((student.goals or {}).get("primary_goal") or ""),
+        "athlete_requested_goal": str((student.goals or {}).get("secondary_goal") or ""),
+        "coach_muscle_decisions": training_evidence.get("coach_muscle_decisions", {}),
         "weak_muscles": training_evidence.get("weak_muscles", []),
         "priority_muscles": training_evidence.get("priority_muscles", []),
         "observed_weak_muscles": training_evidence.get("observed_weak_muscles", []),
@@ -964,7 +970,7 @@ def _build_training(
     apply_muscle: bool,
     apply_catalog: bool,
     apply_general: bool,
-    muscle_priorities_override: list[str],
+    muscle_decisions: dict[str, str],
     goals_override: str,
     target_muscle: str = "",
     target_region: str = "",
@@ -1132,7 +1138,7 @@ def _build_training(
         forbidden=forbidden,
         injury_alternative_map=injury_alternative_map,
         level_rule=level_rule,
-        muscle_priorities_override=muscle_priorities_override,
+        muscle_decisions=muscle_decisions,
         goals_override=goals_override,
         target_muscle=target_muscle,
         target_region=target_region,
@@ -1158,6 +1164,8 @@ def _build_training(
         "volume_audit": selection_evidence.get("volume_audit", {}),
         "weak_muscles": selection_evidence.get("weak_muscles", []),
         "priority_muscles": selection_evidence.get("priority_muscles", []),
+        "coach_muscle_decisions": selection_evidence.get("coach_muscle_decisions", {}),
+        "muscle_decision_frequency": selection_evidence.get("muscle_decision_frequency", {}),
         "strong_muscles": selection_evidence.get("strong_muscles", []),
         "injury_rules_applied": injury_rules_applied,
         "excluded_injury": excluded_injury,

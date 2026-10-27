@@ -8,6 +8,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
+from accounts.exercise_metadata import MUSCLE_NAMES, muscle_key
 from accounts.models import ProgramTemplate
 from programming.models import GenerationRun, ProgramRequest
 from programming.services import program_requests, programs
@@ -27,13 +28,26 @@ def validate_settings(data):
         "duration_weeks",
         "template_id",
         "sections",
-        "focus_muscles",
+        "muscle_decisions",
     }
     if set(data) - allowed:
         raise ValidationError({"program_settings": ["گزینهٔ ناشناخته در تنظیمات برنامه."]})
     result = deepcopy(data)
-    if "focus_muscles" in result:
-        result["focus_muscles"] = normalize_training_system_muscles(result["focus_muscles"])
+    if "muscle_decisions" in result:
+        decisions = result["muscle_decisions"]
+        if not isinstance(decisions, dict) or len(decisions) > len(MUSCLE_NAMES):
+            raise ValidationError({"muscle_decisions": ["تصمیم عضلانی معتبر نیست."]})
+        normalized_decisions = {}
+        for raw_muscle, decision in decisions.items():
+            key = muscle_key(raw_muscle)
+            if (
+                key not in MUSCLE_NAMES
+                or not isinstance(decision, str)
+                or decision not in {"balanced", "focus", "maintenance"}
+            ):
+                raise ValidationError({"muscle_decisions": ["عضله یا تصمیم انتخاب‌شده معتبر نیست."]})
+            normalized_decisions[key] = decision
+        result["muscle_decisions"] = normalized_decisions
     if result.get("start_date"):
         try:
             date.fromisoformat(result["start_date"])
@@ -202,7 +216,7 @@ def prepare_from_visit(coach, actor, visit_id, operation_key, section_methods=No
             request[flag] = section_methods.get(section) == "generated"
     if "session_muscles" in settings:
         request["session_muscles"] = settings["session_muscles"]
-    request["muscle_priorities"] = settings.get("focus_muscles", [])
+    request["muscle_decisions"] = settings.get("muscle_decisions", {})
     if level:
         request["level"] = level
     if settings.get("template_id"):

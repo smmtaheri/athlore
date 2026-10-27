@@ -460,11 +460,6 @@ function GenerationPolicyEditor({ rules, updateRules }: RulesEditorProps) {
           </FormField>
         ))}
       </div>
-      <Switch
-        checked={policy.weakness_auto_focus}
-        onCheckedChange={(checked) => change({ weakness_auto_focus: checked })}
-        label="ضعف ثبت‌شده خودکار اولویت این دوره باشد (پیش‌فرض: خاموش)"
-      />
       <GenerationVolumeFields value={policy} onChange={change} />
       <Switch
         checked={policy.progression === "double_progression"}
