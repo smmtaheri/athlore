@@ -77,6 +77,48 @@ for _pattern in PATTERNS:
     if _pattern.startswith(("shoulder_", "scapular_")):
         PATTERN_JOINTS[_pattern] = ["shoulder"]
 
+# Deliberately broad compatibility checks catch clear tagging errors without
+# guessing movement roles, risks, or secondary-muscle contribution from names.
+PATTERN_PRIMARY_MUSCLES = {
+    "push_horizontal": {"chest", "shoulders", "triceps"},
+    "push_vertical": {"shoulders", "triceps"},
+    "push_downward": {"chest", "triceps"},
+    "pull_horizontal": {"back", "biceps", "traps"},
+    "pull_vertical": {"back", "biceps"},
+    "shoulder_adduction": {"chest", "shoulders"},
+    "shoulder_abduction": {"shoulders"},
+    "shoulder_flexion": {"shoulders"},
+    "shoulder_extension": {"back", "shoulders"},
+    "shoulder_horizontal_abduction": {"shoulders", "back", "traps"},
+    "scapular_elevation": {"traps", "shoulders"},
+    "elbow_flexion": {"biceps", "forearms"},
+    "elbow_extension": {"triceps"},
+    "knee_dominant": {"quadriceps", "glutes"},
+    "hip_hinge": {"hamstrings", "glutes", "back"},
+    "hip_extension": {"glutes", "hamstrings"},
+    "hip_abduction": {"glutes"},
+    "hip_adduction": {"glutes"},
+    "knee_extension": {"quadriceps"},
+    "knee_flexion": {"hamstrings"},
+    "ankle_extension": {"calves"},
+    "trunk_flexion": {"core"},
+    "trunk_rotation": {"core"},
+    "trunk_stability": {"core"},
+    "wrist_flexion": {"forearms"},
+    "wrist_extension": {"forearms"},
+    "carry": {"traps", "forearms", "core"},
+}
+COMPOUND_PATTERNS = {
+    "push_horizontal",
+    "push_vertical",
+    "push_downward",
+    "pull_horizontal",
+    "pull_vertical",
+    "knee_dominant",
+    "hip_hinge",
+    "carry",
+}
+
 MUSCLE_NAMES = {
     "chest": "سینه",
     "back": "زیربغل",
@@ -133,24 +175,64 @@ def validate_metadata(payload):
             raise ValidationError({"joint_keys": ["مفاصل انتخاب‌شده معتبر نیستند."]})
         payload["joint_keys"] = list(dict.fromkeys(keys))
 
+    incompatible = [issue for issue in metadata_issues(payload) if issue.endswith("_mismatch")]
+    if incompatible:
+        raise ValidationError(
+            {"execution_metadata": ["الگوی حرکت، عضلهٔ اصلی، مفصل یا نوع حرکت با هم سازگار نیستند."]}
+        )
 
-def metadata_missing(exercise):
-    missing = [
-        field
-        for field, valid in (
-            ("movement_pattern", exercise.movement_pattern in PATTERNS),
-            ("mechanics", exercise.mechanics in MECHANICS),
-            ("joint_keys", bool(exercise.joint_keys)),
-            ("prescription_unit", exercise.prescription_unit in UNITS),
+
+def metadata_issues(exercise):
+    """Return missing and internally inconsistent execution metadata issue codes."""
+    if isinstance(exercise, dict):
+        get = exercise.get
+        targets = exercise.get("targets") or []
+    else:
+
+        def get(key, default=None):
+            return getattr(exercise, key, default)
+
+        targets = [
+            {"muscle_key": target.muscle.key, "role": target.role}
+            for target in exercise.muscle_targets.select_related("muscle").all()
+        ]
+
+    pattern = get("movement_pattern", "")
+    mechanics = get("mechanics", "")
+    joints = get("joint_keys", []) or []
+    unit = get("prescription_unit", "")
+    primary = next(
+        (
+            muscle_key(target.get("muscle_key") or target.get("muscle"))
+            for target in targets
+            if isinstance(target, dict) and target.get("role") == "primary"
+        ),
+        muscle_key(get("primary_muscle_key") or get("primary_muscle")),
+    )
+
+    issues = [
+        code
+        for code, valid in (
+            ("movement_pattern_missing", pattern in PATTERNS),
+            ("mechanics_missing", mechanics in MECHANICS),
+            ("joint_keys_missing", bool(joints) and all(key in JOINTS for key in joints)),
+            ("prescription_unit_missing", unit in UNITS),
+            ("primary_target_missing", primary in MUSCLE_NAMES),
         )
         if not valid
     ]
-    if muscle_key(exercise.primary_muscle) not in MUSCLE_NAMES and not any(
-        target.role == "primary" and target.muscle.key in MUSCLE_NAMES
-        for target in exercise.muscle_targets.all()
-    ):
-        missing.append("primary_target")
-    return missing
+    if pattern not in PATTERNS:
+        return issues
+
+    expected_joints = set(PATTERN_JOINTS.get(pattern, []))
+    if expected_joints and joints and not expected_joints.intersection(joints):
+        issues.append("pattern_joint_mismatch")
+    expected_muscles = PATTERN_PRIMARY_MUSCLES.get(pattern)
+    if primary in MUSCLE_NAMES and expected_muscles and primary not in expected_muscles:
+        issues.append("pattern_primary_mismatch")
+    if pattern in COMPOUND_PATTERNS and mechanics in MECHANICS and mechanics != "multi_joint":
+        issues.append("pattern_mechanics_mismatch")
+    return issues
 
 
 def movement_role(snapshot):
@@ -257,9 +339,15 @@ def infer_legacy_metadata(name, pattern=""):
             "knee_dominant",
         ),
         (("ددلیفت", "دد لیفت", "رومانی", "deadlift", "good morning"), "hip_hinge"),
-        (("نشر خم", "نشر خلفی", "rear delt", "reverse fly"), "shoulder_horizontal_abduction"),
+        (
+            ("نشر خم", "نشر خلفی", "rear delt", "reverse fly", "فیس پول", "face pull"),
+            "shoulder_horizontal_abduction",
+        ),
         (("نشر جانب", "نشر از جانب", "lateral raise"), "shoulder_abduction"),
-        (("نشر جلو", "نشر از جلو", "front raise"), "shoulder_flexion"),
+        (
+            ("نشر جلو", "نشر از جلو", "نشر روبرو", "نشر رو به رو", "نشر از روبرو", "front raise"),
+            "shoulder_flexion",
+        ),
         (("شراگ", "shrug"), "scapular_elevation"),
         (("پولاور", "پول اور", "pullover", "straight arm"), "shoulder_extension"),
         (
@@ -279,7 +367,18 @@ def infer_legacy_metadata(name, pattern=""):
         (("کرانچ", "crunch", "sit up"), "trunk_flexion"),
         (("ساعد", "مچ", "wrist"), "wrist_flexion"),
     ]
-    if pattern not in PATTERNS:
+    front_raise_aliases = (
+        "نشر جلو",
+        "نشر از جلو",
+        "نشر روبرو",
+        "نشر رو به رو",
+        "نشر از روبرو",
+        "front raise",
+    )
+    if any(word in text for word in front_raise_aliases):
+        # Grip descriptors such as "چکشی" must not turn a front raise into a curl.
+        pattern = "shoulder_flexion"
+    elif pattern not in PATTERNS:
         pattern = next((value for words, value in rules if any(word in text for word in words)), "")
     if not pattern:
         return {}

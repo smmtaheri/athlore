@@ -403,7 +403,7 @@ def _resolve_taxonomies(raw_items: list[dict[str, Any]]) -> tuple[list[dict[str,
             {
                 field: value
                 for field, value in inferred.items()
-                if field not in item or field == "movement_pattern"
+                if field not in item or not item[field]
             }
         )
         try:

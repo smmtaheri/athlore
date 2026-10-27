@@ -19,7 +19,7 @@ from accounts.exercise_metadata import (
     MECHANICS,
     PATTERNS,
     UNITS,
-    metadata_missing,
+    metadata_issues,
     validate_metadata,
 )
 from accounts.generation_policy import coach_policy
@@ -183,7 +183,7 @@ def serialize_exercise(ex: Exercise, preference: CoachExercisePreference | None 
         "mechanics": ex.mechanics,
         "joint_keys": ex.joint_keys,
         "prescription_unit": ex.prescription_unit,
-        "metadata_missing": metadata_missing(ex),
+        "metadata_issues": metadata_issues(ex),
         "laterality": ex.laterality,
         "risk_tags": list(ex.risk_tags or []),
         "source_document": ex.source_document,

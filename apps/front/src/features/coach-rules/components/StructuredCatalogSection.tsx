@@ -58,7 +58,7 @@ type CatalogExercise = ExerciseVideoState & {
   mechanics?: string;
   joint_keys?: string[];
   prescription_unit?: string;
-  metadata_missing?: string[];
+  metadata_issues?: string[];
   source_document: string;
   coach_notes: string;
   is_active: boolean;
@@ -86,6 +86,21 @@ function normalizeExerciseSearch(value: string): string {
     .replace(/[يى]/g, "ی")
     .replace(/ك/g, "ک")
     .replace(/[\s\u200c\u200d]+/g, "");
+}
+
+const metadataIssueLabels: Record<string, string> = {
+  movement_pattern_missing: "الگوی حرکت ثبت نشده",
+  mechanics_missing: "نوع مفصلی حرکت ثبت نشده",
+  joint_keys_missing: "مفصل‌های درگیر ثبت نشده",
+  prescription_unit_missing: "واحد تجویز ثبت نشده",
+  primary_target_missing: "عضلهٔ اصلی معتبر نیست",
+  pattern_joint_mismatch: "مفصل ثبت‌شده با الگوی حرکت سازگار نیست",
+  pattern_primary_mismatch: "عضلهٔ اصلی با الگوی حرکت سازگار نیست",
+  pattern_mechanics_mismatch: "حرکت چندمفصلی به‌عنوان تک‌مفصلی ثبت شده است"
+};
+
+function describeMetadataIssue(issue: string): string {
+  return metadataIssueLabels[issue] || issue;
 }
 
 type SecondaryTarget = { muscle_key: string; region_key: string };
@@ -570,6 +585,21 @@ export function StructuredCatalogSection() {
               },
               { id: "levels", header: "سطح", cell: (row) => row.levels.join("، ") || "ثبت نشده" },
               {
+                id: "generator-readiness",
+                header: "آمادگی برای تولید خودکار",
+                cell: (row) =>
+                  row.metadata_issues?.length ? (
+                    <div className={styles.pageStack}>
+                      <StatusBadge variant="warning">
+                        از انتخاب خودکار کنار گذاشته می‌شود
+                      </StatusBadge>
+                      <small>{row.metadata_issues.map(describeMetadataIssue).join("؛ ")}</small>
+                    </div>
+                  ) : (
+                    <StatusBadge variant="success">آماده</StatusBadge>
+                  )
+              },
+              {
                 id: "state",
                 header: "وضعیت",
                 cell: (row) => (
@@ -645,9 +675,14 @@ export function StructuredCatalogSection() {
                 </span>
                 <span>سطح: {row.levels.join("، ") || "ثبت نشده"}</span>
                 <span>تجهیزات: {row.equipment_keys.join("، ") || "ثبت نشده"}</span>
-                {row.metadata_missing?.length ? (
-                  <StatusBadge variant="warning">اطلاعات تصمیم‌ساز نیاز به تکمیل دارد</StatusBadge>
-                ) : null}
+                {row.metadata_issues?.length ? (
+                  <div className={styles.pageStack}>
+                    <StatusBadge variant="warning">از انتخاب خودکار کنار گذاشته می‌شود</StatusBadge>
+                    <small>{row.metadata_issues.map(describeMetadataIssue).join("؛ ")}</small>
+                  </div>
+                ) : (
+                  <StatusBadge variant="success">آمادهٔ انتخاب خودکار</StatusBadge>
+                )}
               </div>
               <div className={styles.mobileCatalogActions}>
                 <div className={styles.fullField}>

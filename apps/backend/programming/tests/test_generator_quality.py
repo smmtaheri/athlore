@@ -383,6 +383,10 @@ class GeneratorQualityTests(APITestCase):
                 primary_muscle=chest.name,
                 equipment="دمبل",
                 level=Exercise.Level.ALL,
+                movement_pattern="push_horizontal",
+                mechanics="multi_joint",
+                joint_keys=["shoulder", "elbow"],
+                prescription_unit="reps",
             )
             ExerciseMuscleTarget.objects.create(
                 exercise=exercise,
@@ -427,6 +431,10 @@ class GeneratorQualityTests(APITestCase):
                 primary_muscle=chest.name,
                 equipment="دمبل",
                 level=Exercise.Level.ALL,
+                movement_pattern="push_horizontal",
+                mechanics="multi_joint",
+                joint_keys=["shoulder", "elbow"],
+                prescription_unit="reps",
             )
             ExerciseMuscleTarget.objects.create(
                 exercise=exercise,
@@ -474,6 +482,42 @@ class GeneratorQualityTests(APITestCase):
         _by_pair, by_name, _metadata, excluded = gen._load_catalog(self.coach)
         self.assertNotIn(exercise.name, by_name)
         self.assertEqual(excluded[exercise.name], "inactive_primary_region")
+
+    def test_complete_but_incompatible_catalog_entry_is_excluded_from_auto_selection(self):
+        chest = MuscleTaxonomy.objects.get(key="chest")
+        exercise = Exercise.objects.create(
+            coach=self.coach,
+            name="حرکت آزمایشی با الگوی ناسازگار",
+            primary_muscle=chest.name,
+            equipment="دمبل",
+            level=Exercise.Level.ALL,
+            movement_pattern="elbow_flexion",
+            mechanics="single_joint",
+            joint_keys=["elbow"],
+            prescription_unit="reps",
+        )
+        ExerciseMuscleTarget.objects.create(
+            exercise=exercise,
+            muscle=chest,
+            role=ExerciseMuscleTarget.Role.PRIMARY,
+        )
+
+        _by_pair, _by_name, _metadata, excluded = gen._load_catalog(self.coach)
+        self.assertEqual(excluded[exercise.name], "execution_metadata:pattern_primary_mismatch")
+
+        document, _warnings = self._generate(self._mohammad())
+        selected_names = [
+            item["name"] for day in document["training"]["days"] for item in day["exercises"]
+        ]
+        self.assertNotIn(exercise.name, selected_names)
+        exclusions = document["generator"]["evidence"]["structured_catalog_excluded"]
+        self.assertTrue(
+            any(
+                row["name"] == exercise.name
+                and row["reason"] == "execution_metadata:pattern_primary_mismatch"
+                for row in exclusions
+            )
+        )
 
     def test_weak_muscle_increased_volume(self):
         student = self._mohammad()

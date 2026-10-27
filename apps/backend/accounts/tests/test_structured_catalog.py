@@ -640,6 +640,10 @@ class StructuredCatalogGeneratorTests(APITestCase):
             "targets": [{"muscle_key": "chest", "region_key": "upper_chest", "role": "primary"}],
             "levels": ["intermediate"],
             "equipment_keys": ["dumbbell"],
+            "movement_pattern": "push_horizontal",
+            "mechanics": "multi_joint",
+            "joint_keys": ["shoulder", "elbow"],
+            "prescription_unit": "reps",
             **flags,
         }
         response = self.client.post(

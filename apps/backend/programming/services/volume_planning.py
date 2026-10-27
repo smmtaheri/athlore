@@ -101,6 +101,68 @@ def build_volume_plan(policy, level, goal, focus):
     }
 
 
+def plan_session_exercise_counts(demands, duration_minutes, base_sets, policy):
+    """Choose movement counts across a whole session before allocating its sets."""
+    usable_seconds = max(
+        1,
+        int(duration_minutes) * 60 - int(policy["warmup_minutes"]) * 60,
+    )
+    nominal_exercise_seconds = max(1, int(base_sets)) * (36 + int(policy["rest_seconds"])) + 45
+    slot_budget = max(1, usable_seconds // nominal_exercise_seconds)
+
+    ordered = sorted(
+        demands,
+        key=lambda row: (
+            not row["priority"],
+            row["order"],
+            -row["per_session_sets"],
+            row["muscle_key"],
+        ),
+    )
+    selected = {row["muscle_key"]: 0 for row in ordered}
+    remaining_slots = slot_budget
+
+    # Give each selected primary muscle one movement before spending slots on variety.
+    for row in ordered:
+        if remaining_slots <= 0:
+            break
+        if row["available"] <= 0:
+            continue
+        selected[row["muscle_key"]] = 1
+        remaining_slots -= 1
+
+    while remaining_slots > 0:
+        eligible = [
+            row
+            for row in ordered
+            if selected[row["muscle_key"]] < min(row["desired"], row["available"])
+        ]
+        if not eligible:
+            break
+        row = max(
+            eligible,
+            key=lambda item: (
+                item["priority"],
+                item["per_session_sets"] / (selected[item["muscle_key"]] + 1),
+                -item["order"],
+            ),
+        )
+        selected[row["muscle_key"]] += 1
+        remaining_slots -= 1
+
+    uncovered = [
+        row["muscle_key"]
+        for row in ordered
+        if row["available"] > 0 and selected[row["muscle_key"]] == 0
+    ]
+    return {
+        "slot_budget": slot_budget,
+        "selected_counts": selected,
+        "uncovered_muscles": uncovered,
+        "selected_count": sum(selected.values()),
+    }
+
+
 def _rest_seconds(item, policy):
     match = re.search(r"\d+", str(item.get("rest", "")))
     return int(match[0]) if match else policy["rest_seconds"]

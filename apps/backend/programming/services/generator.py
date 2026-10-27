@@ -12,6 +12,7 @@ from copy import deepcopy
 from decimal import Decimal
 from typing import Any
 
+from accounts.exercise_metadata import metadata_issues
 from accounts.models import (
     CoachExercisePreference,
     CoachNutritionTemplate,
@@ -900,8 +901,6 @@ def _load_catalog(
         "equipment_rows__equipment",
     )
     for ex in rows:
-        from accounts.exercise_metadata import metadata_missing
-
         targets = list(ex.muscle_targets.all())
         primary_target = next((target for target in targets if target.role == "primary"), None)
         if primary_target and not primary_target.muscle.is_active:
@@ -917,9 +916,8 @@ def _load_catalog(
         )
         by_pair[(primary_group, ex.name)] = ex
         by_name.setdefault(ex.name, ex)
-        metadata.setdefault(
-            ex.name,
-            {
+        if ex.name not in metadata:
+            exercise_data = {
                 "primary_muscle": primary_group,
                 "region_keys": [
                     target.region.key
@@ -929,14 +927,13 @@ def _load_catalog(
                 "levels": [row.level for row in ex.suitable_level_rows.all()],
                 "equipment_names": [row.equipment.name for row in ex.equipment_rows.all()],
                 "priority": 0,
-                "primary_muscle_key": primary_target.muscle.key
-                if primary_target
-                else ex.primary_muscle,
                 "movement_pattern": ex.movement_pattern,
                 "mechanics": ex.mechanics,
                 "joint_keys": ex.joint_keys,
                 "prescription_unit": ex.prescription_unit,
-                "metadata_missing": metadata_missing(ex),
+                "primary_muscle_key": primary_target.muscle.key
+                if primary_target
+                else ex.primary_muscle,
                 "targets": [
                     {
                         "muscle_key": target.muscle.key,
@@ -945,8 +942,13 @@ def _load_catalog(
                     }
                     for target in targets
                 ],
-            },
-        )
+            }
+            exercise_data["metadata_issues"] = metadata_issues(exercise_data)
+            metadata[ex.name] = exercise_data
+            if exercise_data["metadata_issues"]:
+                excluded[ex.name] = "execution_metadata:" + ",".join(
+                    exercise_data["metadata_issues"]
+                )
     return by_pair, by_name, metadata, excluded
 
 

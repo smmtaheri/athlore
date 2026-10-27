@@ -1147,7 +1147,14 @@ Exercise writes accept `movement_pattern`, `mechanics` (`single_joint`,
 `movement_patterns`, `mechanics`, `joints`, and `prescription_units`.
 Unknown values return 400; recognized historical pattern aliases are normalized
 to the canonical key. A name, execution guide, or private note cannot define a
-movement's execution role. `metadata_missing` lists unresolved catalog fields.
+movement's execution role. `metadata_issues` lists missing execution fields and
+clear contradictions between movement pattern, primary muscle, involved joint,
+and mechanics. Affected movements remain editable in the coach catalog but are
+excluded from automatic selection until corrected. Catalog imports preserve
+explicit movement-pattern values and reject incompatible structured metadata
+instead of replacing it with a name-based guess. The read-only-by-default
+`complete_exercise_metadata` audit reports these issues and only offers
+conservative legacy corrections; `--apply` is required to persist them.
 Existing laterality and risk-tag data are preserved; neither is a new required
 coach input. Exercises, ownership, media links and published snapshots retain IDs.
 

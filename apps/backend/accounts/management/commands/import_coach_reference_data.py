@@ -222,7 +222,15 @@ class Command(BaseCommand):
                 "laterality": str(entry.get("laterality") or ""),
                 "source_document": str(entry.get("source_document") or ""),
             }
-            fields.update(infer_legacy_metadata(canonical_name, fields["movement_pattern"]))
+            fields.update(
+                {
+                    key: value
+                    for key, value in infer_legacy_metadata(
+                        canonical_name, fields["movement_pattern"]
+                    ).items()
+                    if not fields.get(key)
+                }
+            )
 
             if existing is None:
                 exercise = Exercise.objects.create(coach=coach, is_active=True, **fields)

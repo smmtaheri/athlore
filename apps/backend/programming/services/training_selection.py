@@ -17,6 +17,7 @@ from django.db.models import Q
 from rest_framework.exceptions import ValidationError
 
 from accounts.exercise_metadata import (
+    MUSCLE_NAMES,
     exercise_snapshot,
     matches_muscle,
     movement_class,
@@ -43,6 +44,7 @@ from programming.services.volume_planning import (
     allocate_volume,
     audit_volume,
     build_volume_plan,
+    plan_session_exercise_counts,
 )
 
 BODYWEIGHT_TOKENS = ("وزن بدن", "بدون وزنه", "bodyweight", "body weight")
@@ -59,22 +61,6 @@ EQUIPMENT_FLAG_TOKENS: dict[str, str] = {
 }
 EQUIPMENT_FULL_GYM_KEYS = ("has_full_gym", "hasFullGym")
 
-
-MUSCLE_ROLES: dict[str, list[str]] = {
-    "سینه": ["compound_press", "incline", "chest_accessory"],
-    "زیربغل": ["vertical_pull", "horizontal_pull", "back_accessory"],
-    "پا": ["quad", "hinge", "quad", "calf"],
-    "سرشانه": ["shoulder_press", "lateral", "rear_delt"],
-    "پشت بازو": ["triceps", "triceps"],
-    "جلو بازو": ["biceps", "biceps"],
-    "شکم": ["core_flexion", "core_stability"],
-    "ساق": ["calf"],
-    "ساعد": ["forearm"],
-    "چهارسر ران": ["quad"],
-    "پشت پا": ["hinge"],
-    "باسن": ["leg_accessory"],
-    "کول": ["accessory"],
-}
 
 ARM_MUSCLES = frozenset({"پشت بازو", "جلو بازو"})
 CORE_MUSCLES = frozenset({"شکم"})
@@ -900,8 +886,9 @@ def build_training_days(
         # Repeating a muscle across sessions is intentional; dedupe inside each session.
         used = set()
         day_exercises: list[dict] = []
+        demands_by_key: dict[str, dict] = {}
+        demand_order = 0
         for muscle in target_muscles:
-            roles = list(MUSCLE_ROLES.get(muscle, ["accessory"]))
             candidates, from_structured = _candidate_names(
                 muscle=muscle,
                 catalog=catalog,
@@ -947,52 +934,112 @@ def build_training_days(
                 warnings.append(f"missing_exercise_candidates:{muscle}")
                 continue
 
-            # Select enough distinct movements to make the weekly target feasible.
-            # The split label may be broad (legs), but dosage retains precise identities.
             keys = list(
                 dict.fromkeys(
-                    muscle_key(structured_catalog_by_name[name].get("primary_muscle_key"))
+                    muscle_key(
+                        structured_catalog_by_name[name].get("primary_muscle_key")
+                        or structured_catalog_by_name[name].get("primary_muscle")
+                    )
                     for name in filtered
                 )
             )
-            planned_roles = []
             for key in keys:
-                row = volume_plan["muscles"].get(key)
-                if row:
-                    sample = next(
-                        structured_catalog_by_name[name]
-                        for name in filtered
-                        if muscle_key(structured_catalog_by_name[name].get("primary_muscle_key"))
-                        == key
+                if key not in volume_plan["muscles"]:
+                    continue
+                key_candidates = [
+                    name
+                    for name in filtered
+                    if muscle_key(
+                        structured_catalog_by_name[name].get("primary_muscle_key")
+                        or structured_catalog_by_name[name].get("primary_muscle")
                     )
-                    frequency = max(
-                        1,
-                        sum(
-                            any(matches_muscle(sample, group) for group in groups)
-                            for _, groups in parsed
-                        ),
-                    )
-                    per_session = min(
-                        row["session_cap"], (row["target"] + frequency - 1) // frequency
-                    )
-                    count = max(1, min(5, (per_session + base_sets - 1) // base_sets))
-                    planned_roles.extend([f"muscle:{key}"] * count)
-            if planned_roles:
-                roles = planned_roles
-            if (
-                target_exercise_count
-                and target_muscle
-                and normalize_muscle(target_muscle) == muscle
-            ):
-                roles = roles[:target_exercise_count]
-            historical_map = _historical_usage_map(coach, filtered)
+                    == key
+                ]
+                if not key_candidates:
+                    continue
+                row = volume_plan["muscles"][key]
+                sample = structured_catalog_by_name[key_candidates[0]]
+                frequency = max(
+                    1,
+                    sum(
+                        any(matches_muscle(sample, group) for group in groups)
+                        for _, groups in parsed
+                    ),
+                )
+                per_session = min(row["session_cap"], (row["target"] + frequency - 1) // frequency)
+                desired = max(1, (per_session + base_sets - 1) // base_sets)
+                desired = min(3, desired, len(key_candidates))
+                explicit_count = bool(
+                    target_exercise_count
+                    and target_muscle
+                    and normalize_muscle(target_muscle)
+                    in {normalize_muscle(muscle), normalize_muscle(MUSCLE_NAMES.get(key, key))}
+                )
+                if explicit_count:
+                    desired = min(len(key_candidates), max(1, target_exercise_count))
+                demand = demands_by_key.get(key)
+                if demand is None:
+                    demand_order += 1
+                    demand = {
+                        "muscle_key": key,
+                        "muscle": muscle,
+                        "names": [],
+                        "from_structured": set(),
+                        "desired": desired,
+                        "per_session_sets": per_session,
+                        "available": 0,
+                        "priority": key in priority or key in weak or row["priority"],
+                        "order": demand_order,
+                        "explicit_count": explicit_count,
+                    }
+                    demands_by_key[key] = demand
+                else:
+                    demand["desired"] = max(demand["desired"], desired)
+                    demand["per_session_sets"] = max(demand["per_session_sets"], per_session)
+                    demand["priority"] = demand["priority"] or key in priority or key in weak
+                    demand["explicit_count"] = demand["explicit_count"] or explicit_count
+                demand["names"] = _unique(demand["names"] + key_candidates)
+                demand["from_structured"].update(
+                    name for name in key_candidates if name in from_structured
+                )
+                demand["available"] = len(demand["names"])
+
+        duration = (student.training_conditions or {}).get("session_duration_minutes")
+        try:
+            duration = int(duration or coach.default_session_minutes or 60)
+        except (TypeError, ValueError):
+            duration = int(coach.default_session_minutes or 60)
+        session_plan = plan_session_exercise_counts(
+            list(demands_by_key.values()), duration, base_sets, policy
+        )
+        evidence.setdefault("session_planning", []).append(
+            {
+                "day_index": index + 1,
+                "target_minutes": duration,
+                "exercise_slot_budget": session_plan["slot_budget"],
+                "selected_exercises": session_plan["selected_count"],
+                "eligible_primary_muscles": list(demands_by_key),
+                "uncovered_muscles": session_plan["uncovered_muscles"],
+            }
+        )
+        for key in session_plan["uncovered_muscles"]:
+            warnings.append(f"session_muscle_uncovered_due_to_time:{index + 1}:{key}")
+
+        for key, demand in demands_by_key.items():
+            count = session_plan["selected_counts"].get(key, 0)
+            candidates = [
+                name
+                for name in demand["names"]
+                if name not in used and not _fuzzy_forbidden(name, used)
+            ]
+            historical_map = _historical_usage_map(coach, candidates)
             picked = _pick_for_roles(
-                filtered,
-                roles,
-                muscle,
+                candidates,
+                [f"muscle:{key}"] * count,
+                demand["muscle"],
                 preferred_names=preferred_names,
                 historical_map=historical_map,
-                priority_boost=muscle in priority or muscle in weak,
+                priority_boost=demand["priority"],
                 variety_level=exercise_variety,
                 rng=selection_rng,
                 previous_names=previous_names,
@@ -1001,7 +1048,7 @@ def build_training_days(
             for idx, name in enumerate(picked):
                 used.add(name)
                 used |= _alias_names(coach, {name})
-                ex_ref = catalog.get((muscle, name)) or catalog_by_name.get(name)
+                ex_ref = catalog_by_name.get(name)
                 if ex_ref is None:
                     raise ValidationError(
                         {"catalog": ["حرکت انتخاب‌شده در کاتالوگ مربی وجود ندارد."]}
@@ -1010,7 +1057,7 @@ def build_training_days(
                 hist = historical_map.get(name) or {}
                 rx = _prescribe(
                     name=name,
-                    muscle=muscle,
+                    muscle=demand["muscle"],
                     level=level,
                     sets=sets,
                     template=template,
@@ -1020,7 +1067,7 @@ def build_training_days(
                     metadata=structured_catalog_by_name.get(name),
                 )
                 selection_source = "coach_catalog"
-                if name in from_structured:
+                if name in demand["from_structured"]:
                     selection_source = "coach_structured_catalog"
                     metadata = structured_catalog_by_name.get(name) or {}
                     evidence["structured_catalog_selected"].append(
@@ -1047,14 +1094,14 @@ def build_training_days(
 
                 day_exercises.append(
                     {
-                        "id": f"{index + 1}-{muscle}-{idx + 1}-{_stable_id(name)}",
+                        "id": f"{index + 1}-{demand['muscle']}-{idx + 1}-{_stable_id(name)}",
                         "order": 0,
                         "name": name,
                         "exercise_id": str(ex_ref.id) if ex_ref else None,
                         "tutorial_url": "",
                         "execution_guide": ex_ref.execution_guide if ex_ref else {},
                         "display_name": name,
-                        "targetMuscle": muscle,
+                        "targetMuscle": demand["muscle"],
                         "sets": rx["sets"],
                         "reps": rx["reps"],
                         "rest": rx["rest"],
@@ -1130,10 +1177,6 @@ def build_training_days(
     evidence["volume_plan"] = volume_plan
     evidence["volume_audit"] = volume_audit
     warnings.extend(volume_warnings)
-    for day in days:
-        for exercise in day["exercises"]:
-            if (structured_catalog_by_name.get(exercise["name"]) or {}).get("metadata_missing"):
-                warnings.append(f"catalog_metadata_incomplete:{exercise['name']}")
     for day in days:
         for exercise in day["exercises"]:
             sets = int(exercise["sets"])

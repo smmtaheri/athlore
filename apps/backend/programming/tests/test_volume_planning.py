@@ -14,7 +14,12 @@ from django.db import connection
 from django.test import SimpleTestCase, TestCase, override_settings
 from rest_framework.exceptions import ValidationError
 
-from accounts.exercise_metadata import movement_role, validate_metadata
+from accounts.exercise_metadata import (
+    infer_legacy_metadata,
+    metadata_issues,
+    movement_role,
+    validate_metadata,
+)
 from accounts.generation_policy import validate_policy
 from accounts.models import (
     CoachProfile,
@@ -33,6 +38,7 @@ from programming.services.volume_planning import (
     allocate_volume,
     audit_volume,
     build_volume_plan,
+    plan_session_exercise_counts,
     primary_key,
 )
 from students.models import Student
@@ -140,6 +146,58 @@ class VolumePlannerTests(SimpleTestCase):
         ):
             with self.assertRaises(ValidationError):
                 validate_metadata(payload)
+
+    def test_metadata_audit_detects_populated_but_incompatible_fields(self):
+        exercise = {
+            "movement_pattern": "elbow_flexion",
+            "mechanics": "single_joint",
+            "joint_keys": ["elbow"],
+            "prescription_unit": "reps",
+            "targets": [{"muscle_key": "shoulders", "role": "primary"}],
+        }
+        self.assertEqual(metadata_issues(exercise), ["pattern_primary_mismatch"])
+        with self.assertRaises(ValidationError):
+            validate_metadata(exercise)
+
+    def test_front_raise_grip_word_does_not_infer_an_elbow_curl(self):
+        inferred = infer_legacy_metadata("نشر روبرو دمبل چکشی جفت دست ایستاده")
+        self.assertEqual(inferred["movement_pattern"], "shoulder_flexion")
+        self.assertEqual(inferred["joint_keys"], ["shoulder"])
+
+    def test_session_capacity_covers_primary_muscles_before_extra_variety(self):
+        demands = [
+            {
+                "muscle_key": key,
+                "available": 3,
+                "desired": 2,
+                "per_session_sets": 12,
+                "priority": key == "chest",
+                "order": index,
+            }
+            for index, key in enumerate(("chest", "back", "quadriceps", "hamstrings"))
+        ]
+        result = plan_session_exercise_counts(demands, 60, 3, self.policy)
+        self.assertEqual(result["slot_budget"], 7)
+        self.assertEqual(result["selected_count"], 7)
+        self.assertEqual(result["uncovered_muscles"], [])
+        self.assertEqual(result["selected_counts"]["chest"], 2)
+
+    def test_short_session_reports_muscles_that_cannot_fit(self):
+        demands = [
+            {
+                "muscle_key": key,
+                "available": 2,
+                "desired": 2,
+                "per_session_sets": 10,
+                "priority": key == "hamstrings",
+                "order": index,
+            }
+            for index, key in enumerate(("chest", "back", "quadriceps", "hamstrings"))
+        ]
+        result = plan_session_exercise_counts(demands, 30, 3, self.policy)
+        self.assertEqual(result["selected_count"], 3)
+        self.assertNotIn("hamstrings", result["uncovered_muscles"])
+        self.assertEqual(len(result["uncovered_muscles"]), 1)
 
     def test_every_required_equipment_item_must_be_available(self):
         from programming.services.training_selection import _passes_equipment_hard
@@ -306,17 +364,33 @@ class VisitVolumeWorkflowTests(TestCase):
         legacy = Exercise.objects.create(
             coach=self.coach, name="جلوپا دستگاه", primary_muscle="چهارسر ران"
         )
+        mislabeled_raise = Exercise.objects.create(
+            coach=self.coach,
+            name="نشر روبرو دمبل چکشی",
+            primary_muscle="سرشانه",
+            movement_pattern="elbow_flexion",
+            mechanics="single_joint",
+            joint_keys=["elbow"],
+            prescription_unit="reps",
+        )
         original = legacy.pk
-        call_command("complete_exercise_metadata", coach_id=str(self.coach.pk), stdout=StringIO())
+        audit_output = StringIO()
+        call_command("complete_exercise_metadata", coach_id=str(self.coach.pk), stdout=audit_output)
         legacy.refresh_from_db()
         self.assertEqual(legacy.mechanics, "")
+        mislabeled_raise.refresh_from_db()
+        self.assertEqual(mislabeled_raise.movement_pattern, "elbow_flexion")
+        self.assertIn("pattern_primary_mismatch", audit_output.getvalue())
         call_command(
             "complete_exercise_metadata", coach_id=str(self.coach.pk), apply=True, stdout=StringIO()
         )
         legacy.refresh_from_db()
+        mislabeled_raise.refresh_from_db()
         self.assertEqual(legacy.pk, original)
         self.assertEqual(legacy.movement_pattern, "knee_extension")
         self.assertEqual(legacy.mechanics, "single_joint")
+        self.assertEqual(mislabeled_raise.movement_pattern, "shoulder_flexion")
+        self.assertEqual(mislabeled_raise.joint_keys, ["shoulder"])
 
     def test_api_rejects_invalid_metadata_without_changing_existing_fields(self):
         with self.assertRaises(ValidationError):
