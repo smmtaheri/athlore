@@ -61,14 +61,14 @@ MUSCLE_TO_GENERATOR = {
     "triceps": "پشت بازو",
     "calves": "ساق",
     "chest": "سینه",
-    "quadriceps": "پا",
+    "quadriceps": "چهارسر ران",
     "forearms": "ساعد",
     "back": "زیربغل",
-    "hamstrings": "پا",
+    "hamstrings": "پشت پا",
     "abs": "شکم",
     "biceps": "جلو بازو",
-    "glutes": "پا",
-    "traps": "زیربغل",
+    "glutes": "باسن",
+    "traps": "کول",
     "upper_chest": "سینه",
 }
 

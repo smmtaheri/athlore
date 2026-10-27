@@ -17,6 +17,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from accounts.exercise_metadata import infer_legacy_metadata
 from accounts.models import (
     CoachNutritionTemplate,
     CoachProfile,
@@ -144,8 +145,8 @@ class Command(BaseCommand):
         nutrition_data = self._load_json(dataset_dir, "nutrition_templates.json", default=[])
         supplement_data = self._load_json(dataset_dir, "supplement_templates.json", default=[])
 
-        exercise_counters, alias_counters, canonical_to_exercise = (
-            self._import_exercises(coach, exercises_data, extra_aliases_data)
+        exercise_counters, alias_counters, canonical_to_exercise = self._import_exercises(
+            coach, exercises_data, extra_aliases_data
         )
         historical_counters = self._import_historical_usage(
             coach, historical_data, canonical_to_exercise
@@ -221,6 +222,7 @@ class Command(BaseCommand):
                 "laterality": str(entry.get("laterality") or ""),
                 "source_document": str(entry.get("source_document") or ""),
             }
+            fields.update(infer_legacy_metadata(canonical_name, fields["movement_pattern"]))
 
             if existing is None:
                 exercise = Exercise.objects.create(coach=coach, is_active=True, **fields)

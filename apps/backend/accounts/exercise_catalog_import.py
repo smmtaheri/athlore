@@ -15,7 +15,9 @@ from pathlib import Path
 from typing import Any
 
 from django.db import transaction
+from rest_framework.exceptions import ValidationError
 
+from accounts.exercise_metadata import infer_legacy_metadata, validate_metadata
 from accounts.models import (
     CoachExercisePreference,
     CoachProfile,
@@ -34,6 +36,8 @@ SCHEMA_VERSION = 1
 EXTERNAL_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,159}$")
 LEVELS = {"beginner", "intermediate", "advanced"}
 TARGET_ROLES = {ExerciseMuscleTarget.Role.PRIMARY, ExerciseMuscleTarget.Role.SECONDARY}
+
+
 class CatalogImportError(ValueError):
     """A validation or safety error that must prevent all writes."""
 
@@ -81,7 +85,9 @@ def validate_document_shape(document: Any) -> None:
         errors.append("source must be an object.")
     else:
         if source.get("review_status") != "confirmed":
-            errors.append("source.review_status must be confirmed; unresolved source data cannot import.")
+            errors.append(
+                "source.review_status must be confirmed; unresolved source data cannot import."
+            )
         if not isinstance(source.get("documents"), list) or not source["documents"]:
             errors.append("source.documents must be a non-empty array.")
     raw_exercises = document.get("exercises")
@@ -90,10 +96,7 @@ def validate_document_shape(document: Any) -> None:
         raw_exercises = []
 
     allowed_root = {"schema", "version", "source", "exercises"}
-    errors.extend(
-        f"unknown root field: {key}"
-        for key in sorted(set(document) - allowed_root)
-    )
+    errors.extend(f"unknown root field: {key}" for key in sorted(set(document) - allowed_root))
     external_keys: set[str] = set()
     for index, raw in enumerate(raw_exercises):
         errors.extend(_validate_exercise_shape(raw, index, external_keys))
@@ -102,9 +105,7 @@ def validate_document_shape(document: Any) -> None:
         raise CatalogImportError(errors)
 
 
-def _validate_exercise_shape(
-    raw: Any, index: int, external_keys: set[str]
-) -> list[str]:
+def _validate_exercise_shape(raw: Any, index: int, external_keys: set[str]) -> list[str]:
     prefix = f"exercises[{index}]"
     errors: list[str] = []
     if not isinstance(raw, dict):
@@ -119,6 +120,9 @@ def _validate_exercise_shape(
         "levels",
         "equipment_keys",
         "movement_pattern",
+        "mechanics",
+        "joint_keys",
+        "prescription_unit",
         "risk_tags",
         "is_preferred",
         "is_prohibited",
@@ -144,13 +148,17 @@ def _validate_exercise_shape(
 
     errors.extend(_validate_string_array(raw.get("aliases_fa"), f"{prefix}.aliases_fa"))
     errors.extend(_validate_string_array(raw.get("levels"), f"{prefix}.levels", min_items=1))
-    errors.extend(_validate_string_array(raw.get("equipment_keys"), f"{prefix}.equipment_keys", min_items=1))
+    errors.extend(
+        _validate_string_array(raw.get("equipment_keys"), f"{prefix}.equipment_keys", min_items=1)
+    )
     errors.extend(_validate_string_array(raw.get("risk_tags", []), f"{prefix}.risk_tags"))
 
     levels = raw.get("levels")
     if isinstance(levels, list):
         unknown_levels = sorted(set(levels) - LEVELS)
-        errors.extend(f"{prefix}.levels contains unsupported key {level}" for level in unknown_levels)
+        errors.extend(
+            f"{prefix}.levels contains unsupported key {level}" for level in unknown_levels
+        )
         if len(levels) != len(set(levels)):
             errors.append(f"{prefix}.levels must not contain duplicates.")
 
@@ -193,9 +201,7 @@ def _validate_exercise_shape(
         role = target.get("role")
         if not isinstance(muscle_key, str) or not muscle_key.strip():
             errors.append(f"{target_prefix}.muscle_key must be a non-empty string.")
-        if region_key is not None and (
-            not isinstance(region_key, str) or not region_key.strip()
-        ):
+        if region_key is not None and (not isinstance(region_key, str) or not region_key.strip()):
             errors.append(f"{target_prefix}.region_key must be a string or null.")
         if role not in TARGET_ROLES:
             errors.append(f"{target_prefix}.role must be primary or secondary.")
@@ -221,8 +227,14 @@ def _validate_exercise_shape(
 def _validate_string_array(value: Any, field: str, *, min_items: int = 0) -> list[str]:
     if not isinstance(value, list):
         return [f"{field} must be an array of strings."]
-    errors = [f"{field} must contain at least {min_items} item(s)."] if len(value) < min_items else []
-    errors.extend(f"{field} must contain only non-empty strings." for item in value if not isinstance(item, str) or not item.strip())
+    errors = (
+        [f"{field} must contain at least {min_items} item(s)."] if len(value) < min_items else []
+    )
+    errors.extend(
+        f"{field} must contain only non-empty strings."
+        for item in value
+        if not isinstance(item, str) or not item.strip()
+    )
     return errors
 
 
@@ -376,22 +388,28 @@ def apply_import(plan: ImportPlan) -> dict[str, Any]:
 
 
 def _resolve_taxonomies(raw_items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
-    muscles = {
-        row.key: row
-        for row in MuscleTaxonomy.objects.filter(is_active=True)
-    }
+    muscles = {row.key: row for row in MuscleTaxonomy.objects.filter(is_active=True)}
     regions = {
         (row.muscle_id, row.key): row
         for row in MuscleRegion.objects.filter(is_active=True).select_related("muscle")
     }
-    equipment = {
-        row.key: row
-        for row in EquipmentTaxonomy.objects.filter(is_active=True)
-    }
+    equipment = {row.key: row for row in EquipmentTaxonomy.objects.filter(is_active=True)}
     items: list[dict[str, Any]] = []
     errors: list[str] = []
     for index, raw in enumerate(raw_items):
         item = dict(raw)
+        inferred = infer_legacy_metadata(item["name_fa"], item["movement_pattern"])
+        item.update(
+            {
+                field: value
+                for field, value in inferred.items()
+                if field not in item or field == "movement_pattern"
+            }
+        )
+        try:
+            validate_metadata(item)
+        except ValidationError as exc:
+            errors.append(f"exercises[{index}]: {exc.detail}")
         targets = []
         for target_index, raw_target in enumerate(raw["targets"]):
             muscle = muscles.get(raw_target["muscle_key"])
@@ -474,11 +492,12 @@ def _validate_alias_conflicts(
         return errors
     existing_aliases = {
         row.alias: row
-        for row in ExerciseAlias.objects.filter(coach=coach, alias__in=aliases).select_related("exercise")
+        for row in ExerciseAlias.objects.filter(coach=coach, alias__in=aliases).select_related(
+            "exercise"
+        )
     }
     existing_names = {
-        row.name: row
-        for row in Exercise.objects.filter(coach=coach, name__in=aliases)
+        row.name: row for row in Exercise.objects.filter(coach=coach, name__in=aliases)
     }
     for item in items:
         target = existing_by_external.get(item["external_key"]) or existing_by_name.get(
@@ -487,15 +506,19 @@ def _validate_alias_conflicts(
         for alias in item["aliases_fa"]:
             alias_row = existing_aliases.get(alias)
             if alias_row and (target is None or alias_row.exercise_id != target.id):
-                errors.append(f"{item['external_key']}: alias {alias!r} belongs to another exercise.")
+                errors.append(
+                    f"{item['external_key']}: alias {alias!r} belongs to another exercise."
+                )
             name_row = existing_names.get(alias)
             if name_row and (target is None or name_row.id != target.id):
-                errors.append(f"{item['external_key']}: alias {alias!r} is another canonical exercise name.")
+                errors.append(
+                    f"{item['external_key']}: alias {alias!r} is another canonical exercise name."
+                )
     return errors
 
 
 def _legacy_muscle_key(name: str) -> str:
-    digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha1(name.encode("utf-8"), usedforsecurity=False).hexdigest()[:12]
     return f"legacy-muscle-{digest}"
 
 
@@ -503,8 +526,9 @@ def _legacy_and_structured_primary_exercises(
     coach: CoachProfile, muscle: MuscleTaxonomy
 ) -> list[Exercise]:
     rows = list(
-        Exercise.objects.filter(coach=coach, primary_muscle=muscle.name)
-        .prefetch_related("muscle_targets__muscle")
+        Exercise.objects.filter(coach=coach, primary_muscle=muscle.name).prefetch_related(
+            "muscle_targets__muscle"
+        )
     )
     allowed_primary_keys = {muscle.key, _legacy_muscle_key(muscle.name)}
     return [
@@ -536,6 +560,9 @@ def _exercise_matches(exercise: Exercise, item: dict[str, Any]) -> bool:
             "external_key": item["external_key"],
             "primary_muscle": item["primary_muscle_name"],
             "movement_pattern": item["movement_pattern"],
+            "mechanics": item.get("mechanics", ""),
+            "joint_keys": item.get("joint_keys", []),
+            "prescription_unit": item.get("prescription_unit", "reps"),
             "coach_notes": item["coach_notes"],
             "source_document": item["source_document"],
             "is_active": item.get("is_active", True),
@@ -558,8 +585,7 @@ def _exercise_matches(exercise: Exercise, item: dict[str, Any]) -> bool:
     if exercise.equipment != ", ".join(row.name for row in item["resolved_equipment"]):
         return False
     target_values = {
-        (row.muscle_id, row.region_id, row.role)
-        for row in exercise.muscle_targets.all()
+        (row.muscle_id, row.region_id, row.role) for row in exercise.muscle_targets.all()
     }
     expected_targets = {
         (row["muscle"].id, row["region"].id if row["region"] else None, row["role"])
@@ -610,6 +636,9 @@ def _write_exercise(exercise: Exercise, item: dict[str, Any], source: dict[str, 
     exercise.equipment = ", ".join(row.name for row in item["resolved_equipment"])
     exercise.level = item["levels"][0] if len(item["levels"]) == 1 else Exercise.Level.ALL
     exercise.movement_pattern = item["movement_pattern"]
+    exercise.mechanics = item.get("mechanics", "")
+    exercise.joint_keys = item.get("joint_keys", [])
+    exercise.prescription_unit = item.get("prescription_unit", "reps")
     exercise.risk_tags = list(item.get("risk_tags") or [])
     exercise.source_document = item["source_document"] or ", ".join(source["documents"])
     exercise.coach_notes = item["coach_notes"]
@@ -640,7 +669,10 @@ def _write_exercise(exercise: Exercise, item: dict[str, Any], source: dict[str, 
     )
     exercise.aliases.all().delete()
     ExerciseAlias.objects.bulk_create(
-        [ExerciseAlias(coach=exercise.coach, exercise=exercise, alias=alias) for alias in item["aliases_fa"]]
+        [
+            ExerciseAlias(coach=exercise.coach, exercise=exercise, alias=alias)
+            for alias in item["aliases_fa"]
+        ]
     )
     preference, _ = CoachExercisePreference.objects.get_or_create(
         coach=exercise.coach,
@@ -661,7 +693,9 @@ def _verify_apply(plan: ImportPlan) -> None:
         for row in Exercise.objects.filter(coach=plan.coach, external_key__in=expected_keys)
     }
     if set(actual) != expected_keys:
-        raise CatalogImportError(["Apply verification failed: imported external keys are incomplete."])
+        raise CatalogImportError(
+            ["Apply verification failed: imported external keys are incomplete."]
+        )
     for item in plan.items:
         row = actual[item["external_key"]]
         if row.coach_id != plan.coach.id or not _exercise_matches(row, item):

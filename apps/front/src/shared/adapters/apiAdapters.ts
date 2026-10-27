@@ -760,6 +760,7 @@ export function generationEvidenceFromProgramGeneratorMeta(
   studentId: string
 ): GenerationEvidence {
   return {
+    volumeAudit: volumeAuditFromApi(meta.volume_audit),
     equipment: [],
     exerciseCatalog: { excluded: [], selected: [] },
     exerciseSelection: {
@@ -775,8 +776,56 @@ export function generationEvidenceFromProgramGeneratorMeta(
     nutritionSupplement: { nutritionSelectionReasons: [], supplementSelectionReasons: [] },
     studentId,
     techniques: [],
-    warnings: asStringArray(meta.warnings)
+    warnings: asStringArray(meta.warnings).map(generationWarningLabel)
   };
+}
+
+function volumeAuditFromApi(value: unknown): GenerationEvidence["volumeAudit"] {
+  const audit = value as { muscles?: Record<string, Record<string, unknown>> } | undefined;
+  if (!audit?.muscles) return undefined;
+  return Object.entries(audit.muscles).map(([key, row]) => ({
+    key,
+    name: str(row.name ?? key),
+    actual: Number(row.actual ?? 0),
+    target: Number(row.target ?? 0),
+    weeklyCap: Number(row.weekly_cap ?? 0),
+    sessionCap: Number(row.session_cap ?? 0)
+  }));
+}
+
+function generationWarningLabel(value: string): string {
+  const [code, key, count] = value.split(":");
+  const muscles: Record<string, string> = {
+    chest: "سینه",
+    back: "زیربغل",
+    shoulders: "سرشانه",
+    quadriceps: "چهارسر ران",
+    hamstrings: "پشت پا",
+    glutes: "باسن",
+    biceps: "جلو بازو",
+    triceps: "پشت بازو",
+    calves: "ساق",
+    forearms: "ساعد",
+    core: "شکم",
+    traps: "کول"
+  };
+  const name = muscles[key] ?? key;
+  if (code === "volume_target_shortfall")
+    return `حجم ${name} به هدف نرسیده است (${count} ست). زمان، محدودیت‌ها و بانک حرکات را بررسی کنید.`;
+  if (code === "volume_below_growth_start")
+    return `حجم ${name} کمتر از مقدار شروع رشد در قوانین مربی است.`;
+  if (code === "volume_profile_missing")
+    return `برای ${name} پروفایل حجم تعریف نشده است؛ عضلهٔ حرکت را بررسی کنید.`;
+  if (code === "volume_session_cap_exceeded")
+    return `ست‌های ${name} در یک جلسه از سقف قوانین بیشتر است.`;
+  if (code === "volume_weekly_cap_exceeded") return `ست‌های هفتگی ${name} از سقف قوانین بیشتر است.`;
+  if (code === "volume_session_time_exceeded")
+    return "زمان برآوردشدهٔ یکی از جلسات از زمان تأییدشدهٔ ویزیت بیشتر است.";
+  if (code === "volume_goal_review")
+    return "پیش‌فرض حجم از چارچوب عضله‌سازی آمده است؛ تناسب آن با هدف خاص این شاگرد باید توسط مربی بررسی شود.";
+  if (code === "catalog_metadata_incomplete")
+    return `مشخصات تصمیم‌ساز حرکت «${value.slice(code.length + 1)}» کامل نیست؛ کاتالوگ را بررسی کنید.`;
+  return value;
 }
 
 /**
@@ -871,7 +920,7 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
         : undefined,
     visitDate: visit?.visit_date ? str(visit.visit_date) : undefined,
     visitId: visit?.id ? str(visit.id) : undefined,
-    warnings: asStringArray(dto.warnings ?? generatorMeta.warnings)
+    warnings: asStringArray(dto.warnings ?? generatorMeta.warnings).map(generationWarningLabel)
   };
 
   if (!explicitEvidence) {
@@ -881,6 +930,7 @@ export function generationEvidenceFromApi(dto: Record<string, unknown>): Generat
   // Forward-compatible: prefer an explicit `evidence` object once the Backend adds one.
   return {
     ...base,
+    volumeAudit: volumeAuditFromApi(explicitEvidence.volume_audit),
     equipment: explicitEvidence.equipment
       ? asStringArray(explicitEvidence.equipment)
       : base.equipment,
@@ -1073,10 +1123,15 @@ export function programDetailFromApi(dto: Record<string, unknown>): GeneratedPro
     ...(draft ? { draftId: String(draft.id) } : {}),
     ...(dto.generator
       ? {
-          evidence: generationEvidenceFromProgramGeneratorMeta(
-            dto.generator as Record<string, unknown>,
-            String(dto.student_id ?? "")
-          ),
+          evidence: {
+            ...generationEvidenceFromProgramGeneratorMeta(
+              dto.generator as Record<string, unknown>,
+              String(dto.student_id ?? "")
+            ),
+            volumeAudit: volumeAuditFromApi(
+              (dto.training as Record<string, unknown> | undefined)?.volume_audit
+            )
+          },
           generationRunId: str((dto.generator as Record<string, unknown>).generation_run_id)
         }
       : {}),

@@ -426,6 +426,9 @@ class Exercise(models.Model):
     equipment = models.CharField(max_length=80, blank=True, default="")
     level = models.CharField(max_length=30, choices=Level.choices, default=Level.BEGINNER)
     movement_pattern = models.CharField(max_length=80, blank=True, default="")
+    mechanics = models.CharField(max_length=24, blank=True, default="")
+    joint_keys = models.JSONField(default=list, blank=True)
+    prescription_unit = models.CharField(max_length=12, default="reps")
     laterality = models.CharField(max_length=20, choices=Laterality.choices, blank=True, default="")
     risk_tags = models.JSONField(default=list, blank=True)
     # Reference document (e.g. a coach-provided PDF/program name) this entry was imported from.

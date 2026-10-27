@@ -11,10 +11,13 @@ The visit UI reveals muscle checkboxes only for selected systems. Each system
 has its own scope. Removing the system removes its scope; saving coach defaults
 and copying previous program settings preserve it. Missing or empty `muscles`
 retains the existing unrestricted behavior. The backend validates and normalizes
-the nine supported generator muscle groups; arbitrary muscle strings are rejected.
+the supported generator muscle groups, including separate quadriceps, hamstrings,
+glutes and traps; arbitrary muscle strings are rejected. The broad legs choice
+continues to cover its constituent primary targets.
 
-Generation matches the exercise's **primary** `targetMuscle`, not secondary
-muscles. Scopes filter eligible candidates before per-session limits and recipe
+Generation matches the exercise's canonical primary snapshot target, alongside
+the session's display group; secondary muscles never activate a technique scope.
+Scopes filter eligible candidates before per-session limits and recipe
 targets (such as last isolation) are applied. They do not force every exercise
 of the muscle to use the system. Level, injury, grouping and equipment constraints
 still apply. All members of a superset or larger group must be in scope; the

@@ -785,6 +785,8 @@ def _generate_document_body(
         "generation_policy": training_evidence.get("generation_policy", {}),
         "prescription_version": training_evidence.get("prescription_version"),
         "weekly_primary_sets": training_evidence.get("weekly_primary_sets", {}),
+        "volume_plan": training_evidence.get("volume_plan", {}),
+        "volume_audit": training_evidence.get("volume_audit", {}),
         "strong_muscles": training_evidence.get("strong_muscles", []),
         "injury_rules_applied": training_evidence.get("injury_rules_applied", []),
         "excluded_injury": training_evidence.get("excluded_injury", []),
@@ -898,6 +900,8 @@ def _load_catalog(
         "equipment_rows__equipment",
     )
     for ex in rows:
+        from accounts.exercise_metadata import metadata_missing
+
         targets = list(ex.muscle_targets.all())
         primary_target = next((target for target in targets if target.role == "primary"), None)
         if primary_target and not primary_target.muscle.is_active:
@@ -925,6 +929,22 @@ def _load_catalog(
                 "levels": [row.level for row in ex.suitable_level_rows.all()],
                 "equipment_names": [row.equipment.name for row in ex.equipment_rows.all()],
                 "priority": 0,
+                "primary_muscle_key": primary_target.muscle.key
+                if primary_target
+                else ex.primary_muscle,
+                "movement_pattern": ex.movement_pattern,
+                "mechanics": ex.mechanics,
+                "joint_keys": ex.joint_keys,
+                "prescription_unit": ex.prescription_unit,
+                "metadata_missing": metadata_missing(ex),
+                "targets": [
+                    {
+                        "muscle_key": target.muscle.key,
+                        "region_key": target.region.key if target.region else None,
+                        "role": target.role,
+                    }
+                    for target in targets
+                ],
             },
         )
     return by_pair, by_name, metadata, excluded
@@ -994,6 +1014,38 @@ def _build_training(
 
     # Priority #2 — student injury + movement restriction exclusions.
     injuries = student.injuries or {}
+    from accounts.generation_policy import coach_policy
+
+    active_injuries = set(injuries.get("injury_types") or [])
+    active_injuries.add(injuries.get("injury_type", ""))
+    if "mild_neck" in active_injuries:
+        active_injuries.add("neck")
+    for restriction in coach_policy(coach)["movement_restrictions"]:
+        if restriction["injury_key"] not in active_injuries:
+            continue
+        for name, metadata in structured_catalog_by_name.items():
+            if (restriction["joint_keys"] and not metadata["joint_keys"]) or (
+                restriction["movement_patterns"] and not metadata["movement_pattern"]
+            ):
+                _add_injury_forbidden(
+                    {name}, "missing_movement_safety_metadata", None, restriction["injury_key"], []
+                )
+                continue
+            joint_match = not restriction["joint_keys"] or bool(
+                set(restriction["joint_keys"]) & set(metadata["joint_keys"])
+            )
+            pattern_match = (
+                not restriction["movement_patterns"]
+                or metadata["movement_pattern"] in restriction["movement_patterns"]
+            )
+            if joint_match and pattern_match:
+                _add_injury_forbidden(
+                    {name},
+                    "structured_joint_pattern_restriction",
+                    None,
+                    restriction["injury_key"],
+                    [],
+                )
     student_profile_forbidden = _expand_forbidden(
         list(injuries.get("disallowed_exercises") or [])
         + list(injuries.get("aggravating_movements") or [])
@@ -1100,6 +1152,8 @@ def _build_training(
         "generation_policy": selection_evidence.get("generation_policy", {}),
         "prescription_version": selection_evidence.get("prescription_version"),
         "weekly_primary_sets": selection_evidence.get("weekly_primary_sets", {}),
+        "volume_plan": selection_evidence.get("volume_plan", {}),
+        "volume_audit": selection_evidence.get("volume_audit", {}),
         "weak_muscles": selection_evidence.get("weak_muscles", []),
         "priority_muscles": selection_evidence.get("priority_muscles", []),
         "strong_muscles": selection_evidence.get("strong_muscles", []),
@@ -1129,7 +1183,43 @@ def _build_training(
         "available_equipment": (student.equipment or {}).get("available_equipment", []),
         "session_duration_estimates": selection_evidence.get("session_duration"),
     }
-    return {"summary": summary, "days": days}, warnings, training_evidence
+    from programming.services.training_selection import _filter_candidates
+
+    eligible_names = _filter_candidates(
+        names=list(catalog_by_name),
+        forbidden=forbidden,
+        injury_alternative_map=injury_alternative_map,
+        level=level,
+        apply_level=apply_level,
+        catalog_by_name=catalog_by_name,
+        pref_by_exercise_id=pref_by_exercise_id,
+        equipment_tokens=_available_equipment_tokens(student),
+        used=set(),
+        replacements_applied=[],
+        excluded_equipment=[],
+        muscle="",
+        structured_catalog_by_name=structured_catalog_by_name,
+        excluded_catalog_by_name=excluded_catalog_by_name,
+    )
+    return (
+        {
+            "summary": summary,
+            "days": days,
+            "volume_plan": selection_evidence.get("volume_plan", {}),
+            "volume_audit": selection_evidence.get("volume_audit", {}),
+            "volume_policy": selection_evidence.get("generation_policy", {}),
+            "session_duration_minutes": (student.training_conditions or {}).get(
+                "session_duration_minutes"
+            ),
+            "eligible_exercise_ids": sorted(
+                str(catalog_by_name[name].id)
+                for name in set(eligible_names)
+                if name in catalog_by_name
+            ),
+        },
+        warnings,
+        training_evidence,
+    )
 
 
 def _select_day_exercises(*_args, **_kwargs):

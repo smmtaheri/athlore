@@ -72,7 +72,11 @@ export function GenerationEvidencePanel({
 
   const evidence =
     fetchedEvidence && fetchedEvidence.generationRunId === program.generationRunId
-      ? { ...program.evidence, ...fetchedEvidence.value }
+      ? {
+          ...program.evidence,
+          ...fetchedEvidence.value,
+          volumeAudit: program.evidence?.volumeAudit ?? fetchedEvidence.value.volumeAudit
+        }
       : program.evidence;
 
   const isLoadingFullEvidence =
@@ -194,6 +198,25 @@ export function GenerationEvidencePanel({
             value={<ChipList items={evidence.exerciseSelection.historical} />}
           />
           <EvidenceRow label="تجهیزات" value={<ChipList items={evidence.equipment} />} />
+          {evidence.volumeAudit?.length ? (
+            <EvidenceRow
+              label="حجم هفتگی عضلات"
+              value={
+                <div className={styles.pageStack}>
+                  {evidence.volumeAudit.map((row) => (
+                    <div key={row.key}>
+                      <strong>{row.name}</strong>: {row.actual} ست از هدف {row.target}؛ سقف هفته{" "}
+                      {row.weeklyCap} و سقف جلسه {row.sessionCap}
+                      {row.actual < row.target
+                        ? " — کمتر از هدف؛ زمان، محدودیت‌ها یا کاتالوگ را بررسی کنید."
+                        : ""}
+                    </div>
+                  ))}
+                  <small>ست‌های مستقیم؛ مشارکت عضلات کمکی جداگانه محاسبه می‌شود.</small>
+                </div>
+              }
+            />
+          ) : null}
           <EvidenceRow
             label="دلایل انتخاب تغذیه"
             value={<ChipList items={evidence.nutritionSupplement.nutritionSelectionReasons} />}

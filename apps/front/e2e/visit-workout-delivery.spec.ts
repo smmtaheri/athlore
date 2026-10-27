@@ -72,6 +72,20 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
   });
   expect(sessionResponse.status(), await sessionResponse.text()).toBe(200);
   const athleteSession = await sessionResponse.json();
+  const specs: Record<string, [string, string, string[]]> = {
+    "پرس سینه دستگاه": ["push_horizontal", "multi_joint", ["shoulder", "elbow"]],
+    "پرس بالا سینه دمبل": ["push_horizontal", "multi_joint", ["shoulder", "elbow"]],
+    "قفسه سینه دستگاه": ["shoulder_adduction", "single_joint", ["shoulder"]],
+    "زیربغل سیمکش": ["pull_vertical", "multi_joint", ["shoulder", "elbow"]],
+    "زیربغل قایقی": ["pull_horizontal", "multi_joint", ["shoulder", "elbow"]],
+    "زیربغل پول اور": ["shoulder_extension", "single_joint", ["shoulder"]],
+    "اسکوات دستگاه": ["knee_dominant", "multi_joint", ["hip", "knee", "ankle"]],
+    "جلو پا دستگاه": ["knee_extension", "single_joint", ["knee"]],
+    "پشت پا دستگاه": ["knee_flexion", "single_joint", ["knee"]],
+    "پرس سرشانه دستگاه": ["push_vertical", "multi_joint", ["shoulder", "elbow"]],
+    "نشر جانب دمبل": ["shoulder_abduction", "single_joint", ["shoulder"]],
+    "نشر خم دمبل": ["shoulder_horizontal_abduction", "single_joint", ["shoulder"]]
+  };
   for (const [name, muscle, equipment] of [
     ["پرس سینه دستگاه", "chest", "machine"],
     ["پرس بالا سینه دمبل", "chest", "dumbbell"],
@@ -93,6 +107,10 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
         targets: [{ muscle_key: muscle, role: "primary" }],
         levels: ["intermediate"],
         equipment_keys: [equipment],
+        movement_pattern: specs[name][0],
+        mechanics: specs[name][1],
+        joint_keys: specs[name][2],
+        prescription_unit: "reps",
         execution_guide: { execution: "حرکت را کنترل‌شده و بدون درد اجرا کنید." }
       }
     });
@@ -149,6 +167,20 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
   await page.locator("#login-password").fill(password);
   await page.getByRole("button", { name: "ورود به داشبورد", exact: true }).click();
   await expect(page).toHaveURL(/dashboard$/);
+  await page.goto(`${origin.origin}/coach-rules?section=levels`);
+  await page.getByText("حجم هفتگی عضلات و سقف هر جلسه", { exact: true }).click();
+  await expect(page.locator("#volume-profile-level")).toHaveValue("intermediate");
+  await page.locator("#volume-profile-muscle").selectOption("glutes");
+  await expect(page.locator("#volume-profile-target_max")).toHaveValue("16");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    )
+  ).toBeLessThanOrEqual(1);
+  await page.screenshot({
+    path: `artifacts/ui-review/volume-rules-${testInfo.project.name}.png`,
+    fullPage: true
+  });
   // A finalized visit is read-only for preparation; both viewports use its program entry.
   const fromVisitForm = false;
   await page.evaluate(
@@ -196,6 +228,9 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
   await expect(page).toHaveURL(new RegExp(`/programs/${program.id}$`));
   await expect(page.getByRole("heading", { name: "پیش نمایش برنامه", exact: true })).toBeVisible();
   expect(program.training.days.length).toBe(2);
+  expect(program.training.volume_audit.direct_sets.quadriceps).toBeGreaterThan(0);
+  expect(program.training.volume_audit.direct_sets.hamstrings).toBeGreaterThan(0);
+  expect(program.training.volume_plan.source.version).toBe("athlore-volume-v1");
   expect(
     program.training.days.every((day: { exercises: unknown[] }) => day.exercises.length > 0)
   ).toBeTruthy();

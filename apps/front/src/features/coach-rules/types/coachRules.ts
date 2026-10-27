@@ -229,13 +229,27 @@ export interface CoachRules {
 export type CoachRulesInput = CoachRules;
 
 export interface GenerationRules {
+  volume_profiles?: Record<string, Record<string, VolumeProfile>>;
+  movement_restrictions?: Array<{
+    injury_key: string;
+    joint_keys: string[];
+    movement_patterns: string[];
+  }>;
   sets: number;
   reps_min: number;
   reps_max: number;
   rest_seconds: number;
   rir: number;
-  focus_extra_sets: number;
   weakness_auto_focus: boolean;
   warmup_minutes: number;
   progression: "double_progression" | "maintain";
+}
+
+export interface VolumeProfile {
+  maintenance: number;
+  growth_start: number;
+  target_min: number;
+  target_max: number;
+  weekly_cap: number;
+  session_cap: number;
 }

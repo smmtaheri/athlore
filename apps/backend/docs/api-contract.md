@@ -1138,3 +1138,69 @@ program coach's catalog, including replacements and removals.
 
 See [exercise-video-uploads.md](exercise-video-uploads.md) for limits, state
 transitions, ownership, storage, and the acceptance flow.
+
+## Structured movement selection and weekly volume (stage)
+
+Exercise writes accept `movement_pattern`, `mechanics` (`single_joint`,
+`multi_joint`, `isometric`), `joint_keys`, and `prescription_unit` (`reps`,
+`seconds`). GET `/exercise-taxonomy/` supplies the executable options as
+`movement_patterns`, `mechanics`, `joints`, and `prescription_units`.
+Unknown values return 400; recognized historical pattern aliases are normalized
+to the canonical key. A name, execution guide, or private note cannot define a
+movement's execution role. `metadata_missing` lists unresolved catalog fields.
+Existing laterality and risk-tag data are preserved; neither is a new required
+coach input. Exercises, ownership, media links and published snapshots retain IDs.
+
+The generation pipeline keeps exact primary muscle identities in exercise
+snapshots. A session label such as legs remains useful for arranging the split,
+but glutes, quadriceps, hamstrings and calves have separate working-set budgets.
+Visit-confirmed assessment overrides request/profile suggestions. Explicit empty
+weakness/injury selections clear those observations; missing answers remain
+unassessed. Weakness only becomes focus when `weakness_auto_focus` is enabled.
+Exercise replacement compares primary muscle, pattern, mechanics and unit.
+Equipment filtering requires every specified device, not just one of several.
+
+`generation_rules.volume_profiles` contains three level dictionaries with a row
+per supported canonical muscle. Each row has integer `maintenance`, `growth_start`,
+`target_min`, `target_max`, `weekly_cap`, and `session_cap` values. Values must
+be ordered, from maintenance through weekly cap; session cap must be positive
+and no greater than weekly cap. Baselines are versioned Athlore starting estimates
+informed by RP's volume-landmark framework, not measured individual MEV/MRV or an
+exact reproduction of a source table. They are editable by the coach.
+
+Maintenance goals use maintenance volume, normal hypertrophy uses target_min,
+fat-loss uses growth_start, and explicit focus uses target_max. The coach's base
+set count controls distribution among movements. Separate historical extra-set
+and style-budget adjustments no longer stack on top of weekly allocation.
+
+`movement_restrictions` contains `{injury_key, joint_keys, movement_patterns}`
+rows. At least one joint/pattern selector is required. Matching active injury is
+required; joint and pattern conditions are combined with AND when both are
+present. Missing metadata needed to evaluate an active restriction excludes that
+candidate. This is coach-defined filtering, not an automatic medical diagnosis.
+
+Generated training stores `volume_plan`, `volume_policy`, `volume_audit`,
+`session_duration_minutes`, and `eligible_exercise_ids`. The audit separates
+direct primary working sets, secondary-muscle exposure and additional technique
+efforts. Drop/rest-pause mini-efforts are not arbitrarily multiplied into ordinary
+set equivalents. Session-time estimates include rest, grouping and executable
+recipe repeats; they remain estimates, not measured exercise durations.
+Shortfalls identify the muscle and actual/target count instead of silently
+adding an incompatible exercise. Template-defined prescriptions use the same
+audit without silently rewriting the explicit template.
+
+Draft edits preserve the server's generation contract and exercise snapshots.
+Adding a movement outside that visit's eligible catalog is rejected. Edits,
+regeneration and finalization recheck weekly/session ceilings and time. Excess
+returns a training validation error; below-target volume remains a visible
+review warning. Regeneration still preserves locks and rejects changed source
+snapshots. These fields do not alter the uploaded-PDF delivery flow.
+
+Migration `accounts.0025_exercise_execution_metadata` fills recognized legacy
+metadata and taxonomy aliases without deleting exercises or changing their IDs.
+Ambiguous movements remain marked for review. Inspect remaining entries after
+deployment with `python manage.py complete_exercise_metadata`; it is read-only by
+default. `--coach-id <uuid>` scopes the report; `--apply` explicitly fills known
+missing execution fields and preserves identities. Resolve unrecognized primary
+muscles and movements through the coach catalog. Existing finalized program
+content is not migrated.

@@ -245,6 +245,14 @@ def serialize_student_program_detail(program: Program) -> dict:
         raise NotFound(detail="Not found.")
     training = _deep_copy(version.training)
     if isinstance(training, dict):
+        for private_key in (
+            "volume_plan",
+            "volume_policy",
+            "volume_audit",
+            "volume_warnings",
+            "eligible_exercise_ids",
+        ):
+            training.pop(private_key, None)
         ensure_workout_schedule(training, program.date_range_start, program.date_range_end)
     # Instructional media and public education are live catalog data, not a frozen prescription.
     # Resolve replacements/removals for old programs without changing their
@@ -1002,6 +1010,16 @@ def update_draft_version(version: ProgramVersion, payload: dict) -> ProgramVersi
     coaches can regenerate PDFs without opening a new draft.
     """
     version = ProgramVersion.objects.select_for_update().get(pk=version.pk)
+    previous_volume_contract = {
+        key: _deep_copy((version.training or {}).get(key))
+        for key in (
+            "volume_plan",
+            "volume_policy",
+            "session_duration_minutes",
+            "eligible_exercise_ids",
+        )
+        if key in (version.training or {})
+    }
     previous_exercises = {
         str(item.get("id")): item
         for day in (version.training or {}).get("days", [])
@@ -1065,6 +1083,7 @@ def update_draft_version(version: ProgramVersion, payload: dict) -> ProgramVersi
 
     # Reject unknown exercise_id references belonging to other coaches
     training = version.training or {}
+    training.update(previous_volume_contract)
     days = training.get("days") or []
     if isinstance(days, list):
         from accounts.models import Exercise
@@ -1104,12 +1123,43 @@ def update_draft_version(version: ProgramVersion, payload: dict) -> ProgramVersi
                             for n in range(ex.get("sets", 0))
                         ]
                 ex_id = ex.get("exercise_id")
+                if (
+                    "eligible_exercise_ids" in training
+                    and str(ex_id) not in training["eligible_exercise_ids"]
+                ):
+                    raise ValidationError(
+                        {
+                            "training": [
+                                "این حرکت با سطح، تجهیزات یا محدودیت‌های تأییدشدهٔ همین ویزیت سازگار نیست."
+                            ]
+                        }
+                    )
                 if ex_id:
-                    if not Exercise.objects.filter(pk=ex_id, coach_id=version.coach_id).exists():
+                    reference = (
+                        Exercise.objects.filter(pk=ex_id, coach_id=version.coach_id)
+                        .prefetch_related(
+                            "muscle_targets__muscle",
+                            "muscle_targets__region",
+                            "equipment_rows__equipment",
+                            "suitable_level_rows",
+                        )
+                        .first()
+                    )
+                    if reference is None:
                         raise ValidationError(
                             {"training": ["Unknown or cross-coach exercise reference."]},
                             code="unknown_exercise",
                         )
+                    from accounts.exercise_metadata import exercise_snapshot
+
+                    ex["exercise_snapshot"] = (
+                        _deep_copy(old["exercise_snapshot"])
+                        if old.get("exercise_id") == ex_id and old.get("exercise_snapshot")
+                        else exercise_snapshot(reference)
+                    )
+    from programming.services.volume_planning import refresh_volume_audit
+
+    refresh_volume_audit(training)
     version.save()
     version.program.updated_at = timezone.now()
     version.program.save(update_fields=["updated_at"])
@@ -1124,6 +1174,9 @@ def finalize_version(version: ProgramVersion, *, actor) -> ProgramVersion:
         return version  # idempotent
     if version.status != ProgramVersion.Status.DRAFT:
         raise InvalidStateError(detail="Only draft versions can be finalized.")
+    from programming.services.volume_planning import refresh_volume_audit
+
+    refresh_volume_audit(version.training or {})
     from programming.services.split_parser import normalize_muscle
 
     for day in (version.training or {}).get("days", []):

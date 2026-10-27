@@ -14,6 +14,10 @@ CANONICAL_MUSCLES: tuple[str, ...] = (
     "شکم",
     "ساق",
     "ساعد",
+    "چهارسر ران",
+    "پشت پا",
+    "باسن",
+    "کول",
 )
 
 TAXONOMY_MUSCLE_GROUPS: dict[str, str] = {
@@ -28,6 +32,7 @@ TAXONOMY_MUSCLE_GROUPS: dict[str, str] = {
     "calves": "ساق",
     "forearms": "ساعد",
     "core": "شکم",
+    "traps": "کول",
 }
 
 MUSCLE_ALIASES: dict[str, str] = {
@@ -41,8 +46,12 @@ MUSCLE_ALIASES: dict[str, str] = {
     "lat": "زیربغل",
     "legs": "پا",
     "leg": "پا",
-    "quads": "پا",
-    "hamstrings": "پا",
+    "quads": "چهارسر ران",
+    "quadriceps": "چهارسر ران",
+    "hamstrings": "پشت پا",
+    "glutes": "باسن",
+    "همسترینگ": "پشت پا",
+    "traps": "کول",
     "shoulders": "سرشانه",
     "shoulder": "سرشانه",
     "delts": "سرشانه",

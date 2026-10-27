@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { GenerationVolumeFields } from "../components/GenerationVolumeFields";
 import { FileDown, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
 import { useSearchParams } from "react-router";
 import { ContentSection, PageContainer, PageHeader, Stack } from "../../../components/layout";
@@ -433,12 +434,11 @@ function GenerationPolicyEditor({ rules, updateRules }: RulesEditorProps) {
   const change = (values: Partial<typeof policy>) =>
     updateRules((next) => ({ ...next, generationRules: { ...policy, ...values } }));
   const fields = [
-    ["sets", "ست پایهٔ هر حرکت", 2, 5],
+    ["sets", "ست پایه برای تقسیم حجم بین حرکت‌ها", 2, 5],
     ["reps_min", "حداقل تکرار", 1, 30],
     ["reps_max", "حداکثر تکرار", 1, 30],
     ["rest_seconds", "استراحت بین ست‌ها (ثانیه)", 30, 300],
     ["rir", "تکرار ذخیره (RIR)", 1, 5],
-    ["focus_extra_sets", "ست اضافه برای عضلهٔ مورد تمرکز", 0, 2],
     ["warmup_minutes", "زمان گرم‌کردن (دقیقه)", 0, 20]
   ] as const;
   return (
@@ -465,6 +465,7 @@ function GenerationPolicyEditor({ rules, updateRules }: RulesEditorProps) {
         onCheckedChange={(checked) => change({ weakness_auto_focus: checked })}
         label="ضعف ثبت‌شده خودکار اولویت این دوره باشد (پیش‌فرض: خاموش)"
       />
+      <GenerationVolumeFields value={policy} onChange={change} />
       <Switch
         checked={policy.progression === "double_progression"}
         onCheckedChange={(checked) =>

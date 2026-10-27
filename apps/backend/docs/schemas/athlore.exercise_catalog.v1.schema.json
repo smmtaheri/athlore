@@ -90,6 +90,9 @@
           "items": { "type": "string", "minLength": 1 }
         },
         "movement_pattern": { "type": "string", "minLength": 1 },
+        "mechanics": { "enum": ["single_joint", "multi_joint", "isometric", ""] },
+        "joint_keys": { "$ref": "#/$defs/stringArray" },
+        "prescription_unit": { "enum": ["reps", "seconds"] },
         "risk_tags": { "$ref": "#/$defs/stringArray" },
         "is_preferred": { "type": "boolean" },
         "is_prohibited": { "type": "boolean" },

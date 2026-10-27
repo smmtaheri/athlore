@@ -4,6 +4,7 @@ from copy import copy, deepcopy
 
 from rest_framework.exceptions import ValidationError
 
+from accounts.exercise_metadata import exercise_snapshot, movement_class
 from accounts.template_plans import validate_execution_plan
 from programming.services.split_parser import TAXONOMY_MUSCLE_GROUPS
 from programming.services.techniques import (
@@ -52,7 +53,6 @@ def build_template_days(
         MUSCLE_ROLES,
         _filter_candidates,
         _historical_usage_map,
-        _movement_class,
         _pick_for_roles,
         _stable_id,
         available_equipment_tokens,
@@ -173,6 +173,7 @@ def build_template_days(
                     preferred_names=preferred,
                     historical_map=history,
                     priority_boost=False,
+                    metadata_by_name=structured_catalog_by_name,
                 )[0]
                 role_counts[muscle] = role_index + 1
                 used.add(name)
@@ -196,11 +197,7 @@ def build_template_days(
                     else "coach_structured_catalog",
                     "catalog_source": "coach",
                     "template_block": block_index,
-                    "exercise_snapshot": {
-                        "id": str(ref.id),
-                        "name": ref.name,
-                        "movement_pattern": ref.movement_pattern,
-                    },
+                    "exercise_snapshot": exercise_snapshot(ref),
                     "supersetGroupId": None,
                     "supersetWithPrevious": False,
                 }
@@ -225,9 +222,7 @@ def build_template_days(
                 order = (recipe.get("grouping") or {}).get("exercise_order")
                 if order in ("isolation_first", "compound_first"):
                     exercises.sort(
-                        key=lambda item: (
-                            _movement_class(item["name"], item["targetMuscle"]) == "isolation"
-                        ),
+                        key=lambda item: movement_class(item) == "isolation",
                         reverse=order == "isolation_first",
                     )
                 grouping = recipe.get("grouping")

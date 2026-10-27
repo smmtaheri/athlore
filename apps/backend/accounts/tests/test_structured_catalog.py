@@ -7,12 +7,33 @@ from unittest.mock import patch
 from django.test import override_settings
 from rest_framework.test import APITestCase
 
+from accounts.exercise_metadata import infer_legacy_metadata
 from accounts.models import ProgramTemplate
 from accounts.rules_services import ensure_rule_set
 from common.testing import auth_header, register
 from programming.services.generator import generate_document
-from programming.services.techniques import apply_structured_techniques
+from programming.services.techniques import apply_structured_techniques as execute_techniques
 from students.models import Student
+
+
+def structured_fixture(days):
+    """Provide typed fixture metadata; fictional recipe exercises are single-joint."""
+    for day in days:
+        for exercise in day.get("exercises", []):
+            exercise.setdefault(
+                "exercise_snapshot",
+                {
+                    "mechanics": "single_joint",
+                    "prescription_unit": "reps",
+                    **infer_legacy_metadata(exercise.get("name", "")),
+                },
+            )
+    return days
+
+
+def apply_structured_techniques(days, *args, **kwargs):
+    structured_fixture(days)
+    return execute_techniques(days, *args, **kwargs)
 
 
 @override_settings(PUBLIC_REGISTRATION_ENABLED=True)
@@ -1074,6 +1095,7 @@ class StructuredCatalogGeneratorTests(APITestCase):
             }
         ]
 
+        structured_fixture(baseline)
         normal_days, normal_evidence, _ = apply_structured_techniques(
             copy.deepcopy(baseline), self.coach, "intermediate", selected_systems=[]
         )

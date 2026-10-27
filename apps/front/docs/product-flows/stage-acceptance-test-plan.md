@@ -32,6 +32,38 @@
 
 ## پنل مربی
 
+### Structured catalog and volume regression checks
+
+Run these on the disposable mock-SMS backend in both browser projects. Shared
+Stage SMS must remain enabled. `visit-workout-delivery.spec.ts` covers real
+publication, PDF download and student progress with typed exercise fixtures.
+
+- Catalog: create/edit pattern, mechanics, joints and prescription unit using
+  taxonomy options. Reopen and verify persistence; arbitrary pattern text must
+  fail API validation. Preserve exercise IDs and uploaded coach media.
+- Conversion: audit with `complete_exercise_metadata` before using `--apply`.
+  Recognized values can be completed; unresolved movements require review.
+  Record counts/IDs and verify duplicate legacy names never remove a row.
+- Focus: use a two-session leg split and glute focus. Inspect exact glute,
+  quadriceps and hamstring counts; focus must not become whole-leg priority.
+  Observed weakness alone must not turn into focus unless the coach enables it.
+- Restrictions: a knee + knee-extension rule should exclude matched exercises
+  while preserving compatible alternatives. Missing safety metadata cannot pass
+  that rule. Require all equipment items when an exercise lists multiple devices.
+- Volume: edit a level/muscle profile in coach rules, reload, then generate from
+  a visit. Verify direct/secondary counts, selected target, weekly/session caps
+  and source version in the generation evidence.
+- Time: repeat with two 30-minute sessions and limited equipment. Inspect the
+  precise shortfall warning rather than accepting invented or incompatible work.
+- Techniques: count superset members separately for their actual muscles; report
+  additional drop/rest-pause efforts separately. Recheck recipe repetitions and
+  grouped rest in estimated session duration.
+- Review: change sets, swap a movement and regenerate with a locked group.
+  Eligibility, volume/time ceilings, locks and ownership must survive. Changing
+  catalog/rule source data must invalidate stale regeneration snapshots.
+- Publication: excessive volume/time must prevent finalization; an acceptable
+  reviewed draft must publish and produce the same student-visible PDF/content.
+
 | شناسه | سناریو | معیار قبولی |
 |---|---|---|
 | C1 | ورود | ورود با رمز و OTP ماک هویت مربی را حفظ کند؛ نقش و مقصد درست باشند؛ شکست ورود و خروج درست مدیریت شوند. |

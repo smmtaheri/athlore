@@ -221,6 +221,14 @@ export interface GenerationEvidenceTechnique {
  * and/or `GET /generation-runs/{id}/` — never rendered as free-form AI text.
  */
 export interface GenerationEvidence {
+  volumeAudit?: Array<{
+    key: string;
+    name: string;
+    actual: number;
+    target: number;
+    weeklyCap: number;
+    sessionCap: number;
+  }>;
   daysPerWeek?: number;
   exerciseVariety?: "stable" | "balanced" | "varied";
   equipment: string[];

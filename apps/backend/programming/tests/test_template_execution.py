@@ -37,6 +37,12 @@ class TemplateExecutionTests(APITestCase):
                     "targets": [{"muscle_key": "chest", "role": "primary"}],
                     "levels": ["intermediate"],
                     "equipment_keys": ["machine"],
+                    "movement_pattern": "push_horizontal"
+                    if name.startswith("پرس")
+                    else "shoulder_adduction",
+                    "mechanics": "multi_joint" if name.startswith("پرس") else "single_joint",
+                    "joint_keys": ["shoulder", "elbow"] if name.startswith("پرس") else ["shoulder"],
+                    "prescription_unit": "reps",
                 },
                 format="json",
                 **self.headers,

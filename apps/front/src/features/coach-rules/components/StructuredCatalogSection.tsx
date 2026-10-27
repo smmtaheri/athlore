@@ -55,6 +55,10 @@ type CatalogExercise = ExerciseVideoState & {
   levels: string[];
   equipment_keys: string[];
   movement_pattern: string;
+  mechanics?: string;
+  joint_keys?: string[];
+  prescription_unit?: string;
+  metadata_missing?: string[];
   source_document: string;
   coach_notes: string;
   is_active: boolean;
@@ -100,6 +104,9 @@ type ExerciseDraft = {
   levels: string[];
   equipment_keys: string[];
   movement_pattern: string;
+  mechanics: string;
+  joint_keys: string[];
+  prescription_unit: string;
   source_document: string;
   coach_notes: string;
   is_preferred: boolean;
@@ -122,6 +129,9 @@ const emptyDraft: ExerciseDraft = {
   levels: [],
   equipment_keys: [],
   movement_pattern: "",
+  mechanics: "",
+  joint_keys: [],
+  prescription_unit: "reps",
   source_document: "",
   coach_notes: "",
   is_preferred: false,
@@ -162,6 +172,9 @@ function exerciseFromRow(row: CatalogExercise, taxonomy: ExerciseTaxonomy): Exer
     is_prohibited: row.is_prohibited,
     levels: row.levels,
     movement_pattern: row.movement_pattern,
+    mechanics: row.mechanics ?? "",
+    joint_keys: row.joint_keys ?? [],
+    prescription_unit: row.prescription_unit ?? "reps",
     name: row.name,
     name_en: row.name_en,
     priority: row.priority,
@@ -195,6 +208,9 @@ function exercisePayload(draft: ExerciseDraft) {
     levels: draft.levels,
     equipment_keys: draft.equipment_keys,
     movement_pattern: draft.movement_pattern,
+    mechanics: draft.mechanics,
+    joint_keys: draft.joint_keys,
+    prescription_unit: draft.prescription_unit,
     source_document: draft.source_document,
     execution_guide: draft.execution_guide,
     coach_notes: draft.coach_notes,
@@ -629,6 +645,9 @@ export function StructuredCatalogSection() {
                 </span>
                 <span>سطح: {row.levels.join("، ") || "ثبت نشده"}</span>
                 <span>تجهیزات: {row.equipment_keys.join("، ") || "ثبت نشده"}</span>
+                {row.metadata_missing?.length ? (
+                  <StatusBadge variant="warning">اطلاعات تصمیم‌ساز نیاز به تکمیل دارد</StatusBadge>
+                ) : null}
               </div>
               <div className={styles.mobileCatalogActions}>
                 <div className={styles.fullField}>
@@ -752,12 +771,78 @@ export function StructuredCatalogSection() {
                 placeholder="بدون ناحیه"
               />
             </FormField>
-            <FormField className={styles.fullField} label="الگو">
-              <Input
+            <FormField
+              className={styles.fullField}
+              label="الگوی حرکت"
+              htmlFor="exercise-movement-pattern"
+              hint="مثلاً پرس سینه: فشار افقی؛ برای تعادل برنامه و پیشنهاد جایگزین استفاده می‌شود."
+            >
+              <Select
+                id="exercise-movement-pattern"
+                options={(taxonomy.movement_patterns ?? []).map((item) => ({
+                  value: item.key,
+                  label: item.name
+                }))}
+                placeholder="انتخاب الگوی حرکت"
                 value={draft.movement_pattern}
                 onChange={(event) => setDraft({ ...draft, movement_pattern: event.target.value })}
               />
             </FormField>
+            <FormField
+              label="نوع حرکت"
+              htmlFor="exercise-mechanics"
+              hint="مثلاً جلوپا تک‌مفصلی و اسکوات چندمفصلی است؛ در ترتیب و ترکیب حرکت‌ها اثر دارد."
+            >
+              <Select
+                id="exercise-mechanics"
+                placeholder="انتخاب کنید"
+                options={(taxonomy.mechanics ?? []).map((item) => ({
+                  value: item.key,
+                  label: item.name
+                }))}
+                value={draft.mechanics}
+                onChange={(event) => setDraft({ ...draft, mechanics: event.target.value })}
+              />
+            </FormField>
+            <FormField
+              label="واحد اجرای حرکت"
+              htmlFor="exercise-prescription-unit"
+              hint="مثلاً پرس با تعداد تکرار و پلانک با ثانیه ثبت می‌شود."
+            >
+              <Select
+                id="exercise-prescription-unit"
+                options={(taxonomy.prescription_units ?? []).map((item) => ({
+                  value: item.key,
+                  label: item.name
+                }))}
+                value={draft.prescription_unit}
+                onChange={(event) => setDraft({ ...draft, prescription_unit: event.target.value })}
+              />
+            </FormField>
+            <div className={styles.fullField}>
+              <strong>مفاصل درگیر</strong>
+              <p>این انتخاب‌ها طبق قوانین محدودیت مربی در تولید برنامه استفاده می‌شوند.</p>
+              {(taxonomy.joints ?? []).map((item) => (
+                <Checkbox
+                  key={item.key}
+                  label={item.name}
+                  checked={draft.joint_keys.includes(item.key)}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      joint_keys: event.target.checked
+                        ? [...draft.joint_keys, item.key]
+                        : draft.joint_keys.filter((key) => key !== item.key)
+                    })
+                  }
+                />
+              ))}
+              {!draft.movement_pattern || !draft.mechanics || !draft.joint_keys.length ? (
+                <p role="status">
+                  اطلاعات تصمیم‌ساز این حرکت کامل نیست؛ الگو، نوع حرکت و مفاصل را بررسی کنید.
+                </p>
+              ) : null}
+            </div>
             <div className={styles.fullField}>
               <strong>سطح‌های مناسب</strong>
               {taxonomy.levels.map((level) => (

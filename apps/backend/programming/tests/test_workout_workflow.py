@@ -11,6 +11,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 
+from accounts.exercise_metadata import infer_legacy_metadata
 from accounts.models import CoachProfile, Exercise
 from programming.models import GenerationRun, Program, ProgramVersion, WorkoutSession
 from programming.services.preparation import prepare_from_visit, validate_settings
@@ -51,7 +52,11 @@ class WorkoutWorkflowTests(TestCase):
         }.items():
             for name in names:
                 Exercise.objects.create(
-                    coach=cls.coach, name=name, primary_muscle=muscle, level="intermediate"
+                    coach=cls.coach,
+                    name=name,
+                    primary_muscle=muscle,
+                    level="intermediate",
+                    **infer_legacy_metadata(name),
                 )
 
     def visit(self):

@@ -16,7 +16,11 @@ const PROGRAM_MUSCLES = [
   "جلو بازو",
   "شکم",
   "ساق",
-  "ساعد"
+  "ساعد",
+  "چهارسر ران",
+  "پشت پا",
+  "باسن",
+  "کول"
 ];
 
 export function VisitProgramSettingsFields({

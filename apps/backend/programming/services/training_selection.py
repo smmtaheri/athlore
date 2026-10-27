@@ -10,20 +10,26 @@ from __future__ import annotations
 import hashlib
 import random
 import re
+from collections import Counter
 from typing import Any
 
 from django.db.models import Q
 from rest_framework.exceptions import ValidationError
 
+from accounts.exercise_metadata import (
+    exercise_snapshot,
+    matches_muscle,
+    movement_class,
+    movement_role,
+    muscle_key,
+)
 from accounts.generation_policy import coach_policy
 from accounts.models import (
     CoachExercisePreference,
-    CoachTechnique,
     Exercise,
     ExerciseAlias,
     ExerciseHistoricalUsage,
     LevelRule,
-    MusclePriority,
     MuscleRegion,
     MuscleTaxonomy,
     ProgramTemplate,
@@ -33,9 +39,10 @@ from programming.services.split_parser import (
     normalize_muscle,
     parse_template_split,
 )
-from programming.services.style_calibration import (
-    day_style_target,
-    session_set_target,
+from programming.services.volume_planning import (
+    allocate_volume,
+    audit_volume,
+    build_volume_plan,
 )
 
 BODYWEIGHT_TOKENS = ("وزن بدن", "بدون وزنه", "bodyweight", "body weight")
@@ -52,42 +59,6 @@ EQUIPMENT_FLAG_TOKENS: dict[str, str] = {
 }
 EQUIPMENT_FULL_GYM_KEYS = ("has_full_gym", "hasFullGym")
 
-ROLE_PATTERNS: dict[str, tuple[str, ...]] = {
-    "compound_press": (
-        "پرس سینه تخت",
-        "پرس سینه هالتر",
-        "پرس سینه دمبل",
-        "پرس سینه دستگاه",
-        "chest press",
-        "bench",
-    ),
-    "incline": ("بالا سینه", "بالاسینه", "incline", "بالایی", "پرس بالا"),
-    "chest_accessory": ("کراس", "قفسه", "فلای", "pec deck", "پروانه"),
-    "vertical_pull": ("لت", "بارفیکس", "pulldown", "pull-down", "pull up", "pullup"),
-    "horizontal_pull": ("روئینگ", "قایق", "row", "خم", "تی بار", "t-bar"),
-    "back_accessory": (
-        "پول اور",
-        "پولاور",
-        "پول‌اور",
-        "pullover",
-        "straight arm",
-        "تک‌خم",
-        "تک خم",
-    ),
-    "quad": ("اسکوات", "اسکات", "پرس پا", "جلوپا", "جلو پا", "لانج", "لunge", "هاک"),
-    "hinge": ("ددلیفت", "رومانی", "rdl", "پشت پا", "leg curl", "good morning"),
-    "leg_accessory": ("ساق", "adductor", "abductor", "hip thrust", "پشت ران", "هیپ تراست"),
-    "calf": ("ساق", "calf"),
-    "shoulder_press": ("پرس سرشانه", "پرس نظامی", "shoulder press", "overhead press"),
-    "lateral": ("نشر جانب", "lateral raise", "نشر از جانب"),
-    "rear_delt": ("فیس پول", "face pull", "نشر خم", "rear delt", "خلفی", "نشر از جلو"),
-    "triceps": ("پشت بازو", "دیپ", "فرانسوی", "kickback", "triceps", "پوش داون", "پوشدان"),
-    "biceps": ("جلو بازو", "جلوبازو", "چکش", "bicep", "چکشی", "لاری"),
-    "core_flexion": ("کرانچ", "crunch", "sit-up", "شکم سیم", "زیرشکم"),
-    "core_stability": ("پلانک", "plank", "اصلاحی", "dead bug", "چرخش", "تنه"),
-    "core": ("شکم", "کرانچ", "پلانک", "زیرشکم", "اصلاحی", "crunch", "plank", "dead bug"),
-    "forearm": ("ساعد", "مچ", "wrist", "forearm"),
-}
 
 MUSCLE_ROLES: dict[str, list[str]] = {
     "سینه": ["compound_press", "incline", "chest_accessory"],
@@ -99,6 +70,10 @@ MUSCLE_ROLES: dict[str, list[str]] = {
     "شکم": ["core_flexion", "core_stability"],
     "ساق": ["calf"],
     "ساعد": ["forearm"],
+    "چهارسر ران": ["quad"],
+    "پشت پا": ["hinge"],
+    "باسن": ["leg_accessory"],
+    "کول": ["accessory"],
 }
 
 ARM_MUSCLES = frozenset({"پشت بازو", "جلو بازو"})
@@ -124,66 +99,6 @@ def _unique(items: list[str]) -> list[str]:
 def _matches_any(name: str, needles: tuple[str, ...]) -> bool:
     lower = name.lower()
     return any(n.lower() in lower or n in name for n in needles)
-
-
-def _role_of_name(name: str, muscle: str) -> str:
-    roles = MUSCLE_ROLES.get(muscle, [])
-    for role in roles:
-        patterns = ROLE_PATTERNS.get(role, ())
-        if patterns and _matches_any(name, patterns):
-            return role
-    if muscle in CORE_MUSCLES or _matches_any(name, ROLE_PATTERNS["core"]):
-        if _matches_any(name, ROLE_PATTERNS["core_stability"]):
-            return "core_stability"
-        return "core_flexion"
-    if muscle in ARM_MUSCLES:
-        return "isolation"
-    if _matches_any(name, ("پرس", "اسکوات", "اسکات", "ددلیفت", "بارفیکس", "روئینگ", "لت")):
-        return "compound"
-    return "accessory"
-
-
-def _movement_class(name: str, muscle: str) -> str:
-    if _matches_any(name, ("جلوپا", "جلو پا", "پشت پا", "leg curl", "leg extension")):
-        return "isolation"
-    role = _role_of_name(name, muscle)
-    if role.startswith("core") or muscle in CORE_MUSCLES:
-        return "core"
-    if muscle in ARM_MUSCLES or role in {
-        "triceps",
-        "biceps",
-        "lateral",
-        "rear_delt",
-        "calf",
-        "chest_accessory",
-    }:
-        return "isolation"
-    if role in {
-        "compound_press",
-        "incline",
-        "vertical_pull",
-        "horizontal_pull",
-        "quad",
-        "hinge",
-        "shoulder_press",
-    }:
-        return "compound"
-    return "accessory"
-
-
-def _session_rank(name: str, muscle: str) -> tuple[int, int, str]:
-    movement = _movement_class(name, muscle)
-    if movement == "compound":
-        group = 0
-    elif muscle in ARM_MUSCLES:
-        group = 3
-    elif movement == "core" or muscle in CORE_MUSCLES:
-        group = 4
-    elif movement == "isolation":
-        group = 2
-    else:
-        group = 1
-    return (group, 0 if muscle not in ARM_MUSCLES | CORE_MUSCLES else 1, name)
 
 
 def _fuzzy_forbidden(name: str, forbidden: set[str]) -> bool:
@@ -231,33 +146,25 @@ def _passes_equipment_hard(
         return True
     ex = catalog_by_name.get(name)
     if ex is None:
-        # Unknown catalog entry: allow only when no explicit equipment tokens required,
-        # or treat as bodyweight-friendly string heuristics.
-        return _name_looks_bodyweight(name) if not tokens else _name_matches_tokens(name, tokens)
+        return False
     structured = (structured_catalog_by_name or {}).get(name) or {}
     structured_equipment = structured.get("equipment_names") or []
     eq = (ex.equipment or "").strip()
     if structured_equipment:
         if not tokens:
-            return any(_matches_any(item, BODYWEIGHT_TOKENS) for item in structured_equipment)
-        return any(
-            any(token in item.lower() or item in token for token in tokens)
+            return all(_matches_any(item, BODYWEIGHT_TOKENS) for item in structured_equipment)
+        return all(
+            _matches_any(item, BODYWEIGHT_TOKENS)
+            or any(token in item.lower() or item in token for token in tokens)
             for item in structured_equipment
         )
-    if not eq or any(t in eq.lower() or t in eq for t in BODYWEIGHT_TOKENS):
-        return True
-    if not tokens:
-        # Explicit all-false: reject machine/dumbbell/barbell/cable tagged work.
+    if not eq:
         return False
-    return any(t == eq or t in eq or eq in t for t in tokens)
-
-
-def _name_looks_bodyweight(name: str) -> bool:
-    return _matches_any(name, ("پلانک", "کرانچ", "بارفیکس", "شنا", "دیپ", "اصلاحی"))
-
-
-def _name_matches_tokens(name: str, tokens: set[str]) -> bool:
-    return any(t in name for t in tokens)
+    return all(
+        _matches_any(part, BODYWEIGHT_TOKENS) or any(token in part for token in tokens)
+        for part in re.split(r"[,،+]| و ", eq)
+        if part.strip()
+    )
 
 
 def available_equipment_tokens(student_equipment: dict | None) -> set[str] | None:
@@ -280,6 +187,9 @@ def available_equipment_tokens(student_equipment: dict | None) -> set[str] | Non
             "barbell": "هالتر",
             "cable": "کابل",
             "machines": "دستگاه",
+            "machine": "دستگاه",
+            "smith_machine": "اسمیت",
+            "kettlebell": "کتل بل",
             "resistance_band": "کش",
         }
         return {labels[item] for item in selected if item in labels}
@@ -345,7 +255,7 @@ def _candidate_names(
         structured = [
             (name, metadata)
             for name, metadata in structured_catalog_by_name.items()
-            if normalize_muscle(str(metadata.get("primary_muscle") or "")) == muscle
+            if matches_muscle(metadata, muscle)
             and (
                 not region_keys
                 or bool(set(metadata.get("region_keys") or []).intersection(region_keys))
@@ -361,7 +271,10 @@ def _candidate_names(
     raw.extend(name for name, _metadata in structured)
     from_structured.update(name for name, _metadata in structured)
     for (pm, name), _ex in sorted(catalog.items(), key=lambda x: x[0][1]):
-        if normalize_muscle(pm) == muscle and name not in from_structured:
+        if (
+            matches_muscle(structured_catalog_by_name.get(name) or {"primary_muscle": pm}, muscle)
+            and name not in from_structured
+        ):
             if strict_region and not (
                 name in structured_catalog_by_name
                 and bool(
@@ -386,8 +299,7 @@ def _has_structured_region_data(
     if not region_keys:
         return False
     return any(
-        normalize_muscle(str(metadata.get("primary_muscle") or "")) == muscle
-        and bool(metadata.get("region_keys"))
+        matches_muscle(metadata, muscle) and bool(metadata.get("region_keys"))
         for metadata in structured_catalog_by_name.values()
     )
 
@@ -508,6 +420,7 @@ def _pick_for_roles(
     variety_level: str = "stable",
     rng: random.Random | None = None,
     previous_names: set[str] | None = None,
+    metadata_by_name: dict[str, dict] | None = None,
 ) -> list[str]:
     remaining = list(candidates)
     picked: list[str] = []
@@ -521,14 +434,35 @@ def _pick_for_roles(
         )
 
     for role in roles:
-        patterns = ROLE_PATTERNS.get(role, ())
-        matched = [n for n in remaining if patterns and _matches_any(n, patterns)]
+        matched = [
+            n
+            for n in remaining
+            if (
+                muscle_key((metadata_by_name or {}).get(n, {}).get("primary_muscle_key"))
+                == role.removeprefix("muscle:")
+                if role.startswith("muscle:")
+                else movement_role((metadata_by_name or {}).get(n, {})) == role
+            )
+        ]
         if not matched:
-            # Role unmet: take best remaining general candidate.
+            if role.startswith("muscle:"):
+                continue
+            # A missing execution pattern stays unclassified; muscle matching remains explicit.
             if not remaining:
                 break
             matched = list(remaining)
         matched.sort(key=sort_key)
+        seen_roles = Counter(
+            movement_role((metadata_by_name or {}).get(name, {})) for name in picked
+        )
+        minimum_seen = min(
+            seen_roles[movement_role((metadata_by_name or {}).get(name, {}))] for name in matched
+        )
+        matched = [
+            name
+            for name in matched
+            if seen_roles[movement_role((metadata_by_name or {}).get(name, {}))] == minimum_seen
+        ]
         if variety_level in {"balanced", "varied"}:
             preferred_tier = matched[0] in preferred_names
             choice_pool = [name for name in matched if (name in preferred_names) == preferred_tier]
@@ -546,47 +480,6 @@ def _pick_for_roles(
     return picked
 
 
-def _roles_for_muscle(
-    muscle: str,
-    *,
-    weak: set[str],
-    priority: set[str],
-    strong: set[str],
-    style_count: tuple[int, int] | None,
-    volume_text: str,
-) -> list[str]:
-    """Build role slots capped by coach style-profile exercise count targets."""
-    roles = list(MUSCLE_ROLES.get(muscle, ["accessory"]))
-    lo, hi = style_count or (len(roles), len(roles))
-
-    if muscle == "سینه":
-        # main + incline + accessory; optional isolation only when weak and budget allows
-        roles = ["compound_press", "incline", "chest_accessory"]
-        if muscle in weak and hi >= 4:
-            roles.append("chest_accessory")
-        roles = roles[: max(lo, min(hi, 4 if muscle in weak | priority else 3))]
-    elif muscle == "زیربغل":
-        roles = ["vertical_pull", "horizontal_pull", "back_accessory"]
-        if "متوسط" in (volume_text or "") or "زیاد" in (volume_text or "") or hi >= 4:
-            roles.append("back_accessory")
-        roles = roles[:hi]
-    elif muscle in {"جلو بازو", "پشت بازو"}:
-        roles = [roles[0]] * max(lo, 2)
-        roles = roles[:hi]
-    elif muscle == "شکم":
-        roles = ["core_flexion", "core_stability"]
-    elif muscle == "پا":
-        roles = ["quad", "hinge", "quad", "calf"]
-        # Strong legs keep structural coverage; volume is controlled via sets, not by dropping roles.
-        roles = roles[: max(3, min(hi, 4))]
-    elif muscle == "سرشانه":
-        roles = ["shoulder_press", "lateral", "rear_delt"][:hi]
-    else:
-        roles = roles[:hi]
-
-    return roles[: max(1, hi)]
-
-
 def _prescribe(
     *,
     name: str,
@@ -597,10 +490,10 @@ def _prescribe(
     exercise_index: int,
     historical_raw: str | None,
     coach=None,
+    metadata: dict | None = None,
 ) -> dict[str, Any]:
-    movement = _movement_class(name, muscle)
     policy = coach_policy(coach)
-    timed = movement == "core" and _matches_any(name, ("پلانک", "plank"))
+    timed = (metadata or {}).get("prescription_unit") == "seconds"
     reps = "30 ثانیه" if timed else f"{policy['reps_min']}-{policy['reps_max']}"
     return {
         "sets": sets,
@@ -644,8 +537,10 @@ def _superset_pair_allowed(
     if not first_muscle or not second_muscle or "شکم" in {first_muscle, second_muscle}:
         return False
 
-    first_class = _movement_class(first["name"], first["targetMuscle"])
-    second_class = _movement_class(second["name"], second["targetMuscle"])
+    first_class = movement_class(first)
+    second_class = movement_class(second)
+    if "unclassified" in {first_class, second_class}:
+        return False
     if not allow_compound and "compound" in {first_class, second_class}:
         return False
 
@@ -724,55 +619,6 @@ def _apply_real_supersets(
             i += 2
             continue
         i += 1
-
-
-def _trim_day_to_budget(day_exercises: list[dict], budget: int) -> list[dict]:
-    """Reduce sets on trailing accessories/isolations until within session budget."""
-    if budget <= 0 or not day_exercises:
-        return day_exercises
-
-    def total() -> int:
-        return sum(int(e.get("sets") or 0) for e in day_exercises)
-
-    guard = 0
-    while total() > budget and guard < 40:
-        guard += 1
-        # Prefer reducing later isolation/accessory sets, never below 2.
-        candidates = [
-            e
-            for e in reversed(day_exercises)
-            if _movement_class(e["name"], e["targetMuscle"]) in {"isolation", "accessory", "core"}
-            and int(e.get("sets") or 0) > 2
-        ]
-        if not candidates:
-            candidates = [e for e in reversed(day_exercises) if int(e.get("sets") or 0) > 2]
-        if not candidates:
-            break
-        candidates[0]["sets"] = int(candidates[0]["sets"]) - 1
-        rx = candidates[0].get("prescription") or {}
-        rx["sets"] = candidates[0]["sets"]
-        candidates[0]["prescription"] = rx
-    while total() > budget:
-        removable = next(
-            (
-                e
-                for e in reversed(day_exercises)
-                if sum(other["targetMuscle"] == e["targetMuscle"] for other in day_exercises) > 1
-                and not e.get("supersetGroupId")
-                and not e.get("trainingGroupId")
-            ),
-            None,
-        )
-        if removable is None:
-            raise ValidationError(
-                {
-                    "session_duration_minutes": [
-                        "زمان جلسه برای پوشش عضلات انتخاب‌شده کافی نیست؛ زمان را بیشتر یا عضلات جلسه را کمتر کنید."
-                    ]
-                }
-            )
-        day_exercises.remove(removable)
-    return day_exercises
 
 
 def _attach_session_duration_evidence(days: list[dict], student: Any, evidence: dict) -> None:
@@ -884,6 +730,16 @@ def build_training_days(
             injury_alternative_map=injury_alternative_map,
         )
         _attach_session_duration_evidence(days, student, evidence)
+        policy = coach_policy(coach)
+        plan = build_volume_plan(
+            policy,
+            level,
+            (student.goals or {}).get("primary_goal", "hypertrophy"),
+            muscle_priorities_override,
+        )
+        audit, issues = audit_volume(days, plan, policy, student)
+        evidence.update(volume_plan=plan, volume_audit=audit, generation_policy=policy)
+        warnings.extend(issues)
         return days, evidence
     equipment_tokens = available_equipment_tokens(student.equipment)
     goals = student.goals or {}
@@ -926,6 +782,17 @@ def build_training_days(
         key = region_aliases.get(str(raw_value).strip().lower())
         if key:
             structured_region_filters.setdefault("سینه", set()).add(key)
+        region = (
+            MuscleRegion.objects.select_related("muscle")
+            .filter(is_active=True, muscle__is_active=True)
+            .filter(Q(key__iexact=str(raw_value).strip()) | Q(name__iexact=str(raw_value).strip()))
+            .first()
+        )
+        if region:
+            group = TAXONOMY_MUSCLE_GROUPS.get(
+                region.muscle.key, normalize_muscle(region.muscle.name)
+            )
+            structured_region_filters.setdefault(group, set()).add(region.key)
     if target_region and target_muscle:
         canonical_target = normalize_muscle(target_muscle)
         normalized_region = region_aliases.get(str(target_region).strip().lower())
@@ -966,11 +833,6 @@ def build_training_days(
         if pref.exercise.name in structured_catalog_by_name:
             structured_catalog_by_name[pref.exercise.name]["priority"] = int(pref.priority or 0)
 
-    muscle_priority_map: dict[str, MusclePriority] = {}
-    if apply_muscle:
-        for mp in MusclePriority.objects.filter(coach=coach).order_by("sort_order"):
-            muscle_priority_map[normalize_muscle(mp.muscle)] = mp
-
     try:
         parsed = parse_template_split(template.split, days_per_week=days_per_week)
     except ValueError as exc:
@@ -993,6 +855,9 @@ def build_training_days(
     used: set[str] = set()
     used |= _alias_names(coach, used)
     base_sets = policy["sets"]
+    volume_plan = build_volume_plan(
+        policy, level, goals.get("primary_goal", "hypertrophy"), list(priority | weak)
+    )
     selection_rng = random.Random(str(selection_seed or ""))
     previous_names: set[str] = set(avoid_exercise_names or [])
     previous_program = (
@@ -1003,13 +868,6 @@ def build_training_days(
             previous_names.update(
                 item.get("name", "") for item in previous_day.get("exercises", [])
             )
-
-    allow_superset = False
-    if level_rule and level != "beginner":
-        techniques = " ".join(level_rule.allowed_techniques or [])
-        allow_superset = "سوپرست" in techniques
-    elif level == "intermediate":
-        allow_superset = True
 
     days: list[dict] = []
     evidence = {
@@ -1035,83 +893,15 @@ def build_training_days(
         "exercise_variety": exercise_variety,
     }
 
-    structured_technique_keys: set[str] = set()
     structured_technique_evidence: list[dict] = []
-    structured_technique_handler = None
-    has_superset_override = CoachTechnique.objects.filter(
-        coach=coach, base_technique__handler_key="superset"
-    ).exists()
-    from programming.services.techniques import enabled_techniques_for_level
-
     allowed_technique_names = set(level_rule.allowed_techniques or []) if level_rule else set()
-    for config in enabled_techniques_for_level(coach, level, allowed_names=allowed_technique_names):
-        if config.base_technique and config.base_technique.handler_key:
-            structured_technique_keys.add(config.key)
-            if config.base_technique.handler_key == "superset":
-                structured_technique_handler = "superset"
 
     for index, (day_title, target_muscles) in enumerate(parsed):
         # Repeating a muscle across sessions is intentional; dedupe inside each session.
         used = set()
-        style = day_style_target(target_muscles, coach=coach)
-        per_muscle_targets = style.get("per_muscle") or {}
-        day_budget = session_set_target(template.volume or "", level, coach=coach)
-        session_duration = (student.training_conditions or {}).get("session_duration_minutes")
-        try:
-            session_duration = int(session_duration)
-        except (TypeError, ValueError):
-            session_duration = 0
-        duration_cap = None
-        if 15 <= session_duration <= 180:
-            # Approximate three minutes per working set, including rest and transitions.
-            seconds_per_set = 40 + policy["rest_seconds"]
-            duration_cap = max(
-                2, int((session_duration - policy["warmup_minutes"]) * 60 / seconds_per_set)
-            )
-        # Mild weak/strong session bias within a tight band.
-        if any(m in weak for m in target_muscles if m not in ARM_MUSCLES | CORE_MUSCLES):
-            day_budget += 1
-        strong_primary = any(
-            m in strong for m in target_muscles if m not in ARM_MUSCLES | CORE_MUSCLES
-        )
-        if strong_primary:
-            day_budget -= 2
-        day_budget = max(12 if strong_primary else 14, min(20, day_budget))
-        if duration_cap is not None:
-            day_budget = min(day_budget, duration_cap)
-
         day_exercises: list[dict] = []
         for muscle in target_muscles:
-            style_count = per_muscle_targets.get(muscle)
-            if (
-                target_exercise_count
-                and target_muscle
-                and normalize_muscle(target_muscle) == muscle
-            ):
-                style_count = (target_exercise_count, target_exercise_count)
-            if style_count is None:
-                style_count = (2, 3) if muscle in ARM_MUSCLES | CORE_MUSCLES else (3, 4)
-            roles = _roles_for_muscle(
-                muscle,
-                weak=weak,
-                priority=priority,
-                strong=strong,
-                style_count=style_count,
-                volume_text=template.volume or "",
-            )
-            # Cap by MusclePriority.extra_exercises without exploding volume.
-            mp = muscle_priority_map.get(muscle)
-            if (
-                apply_muscle
-                and mp
-                and int(mp.extra_exercises or 0) > 0
-                and muscle in weak | priority
-            ):
-                hi = style_count[1]
-                if len(roles) < hi:
-                    roles = roles + [roles[-1]]
-                    roles = roles[:hi]
-
+            roles = list(MUSCLE_ROLES.get(muscle, ["accessory"]))
             candidates, from_structured = _candidate_names(
                 muscle=muscle,
                 catalog=catalog,
@@ -1157,6 +947,44 @@ def build_training_days(
                 warnings.append(f"missing_exercise_candidates:{muscle}")
                 continue
 
+            # Select enough distinct movements to make the weekly target feasible.
+            # The split label may be broad (legs), but dosage retains precise identities.
+            keys = list(
+                dict.fromkeys(
+                    muscle_key(structured_catalog_by_name[name].get("primary_muscle_key"))
+                    for name in filtered
+                )
+            )
+            planned_roles = []
+            for key in keys:
+                row = volume_plan["muscles"].get(key)
+                if row:
+                    sample = next(
+                        structured_catalog_by_name[name]
+                        for name in filtered
+                        if muscle_key(structured_catalog_by_name[name].get("primary_muscle_key"))
+                        == key
+                    )
+                    frequency = max(
+                        1,
+                        sum(
+                            any(matches_muscle(sample, group) for group in groups)
+                            for _, groups in parsed
+                        ),
+                    )
+                    per_session = min(
+                        row["session_cap"], (row["target"] + frequency - 1) // frequency
+                    )
+                    count = max(1, min(5, (per_session + base_sets - 1) // base_sets))
+                    planned_roles.extend([f"muscle:{key}"] * count)
+            if planned_roles:
+                roles = planned_roles
+            if (
+                target_exercise_count
+                and target_muscle
+                and normalize_muscle(target_muscle) == muscle
+            ):
+                roles = roles[:target_exercise_count]
             historical_map = _historical_usage_map(coach, filtered)
             picked = _pick_for_roles(
                 filtered,
@@ -1168,6 +996,7 @@ def build_training_days(
                 variety_level=exercise_variety,
                 rng=selection_rng,
                 previous_names=previous_names,
+                metadata_by_name=structured_catalog_by_name,
             )
             for idx, name in enumerate(picked):
                 used.add(name)
@@ -1177,9 +1006,7 @@ def build_training_days(
                     raise ValidationError(
                         {"catalog": ["حرکت انتخاب‌شده در کاتالوگ مربی وجود ندارد."]}
                     )
-                sets = base_sets + (policy["focus_extra_sets"] if muscle in priority | weak else 0)
-                if apply_muscle and mp and muscle in priority | weak:
-                    sets = base_sets + min(2, max(0, int(mp.extra_sets)))
+                sets = base_sets
                 hist = historical_map.get(name) or {}
                 rx = _prescribe(
                     name=name,
@@ -1190,6 +1017,7 @@ def build_training_days(
                     exercise_index=idx,
                     historical_raw=hist.get("raw_prescription"),
                     coach=coach,
+                    metadata=structured_catalog_by_name.get(name),
                 )
                 selection_source = "coach_catalog"
                 if name in from_structured:
@@ -1246,33 +1074,7 @@ def build_training_days(
                         "replacement_notes": "",
                         "selection_source": selection_source,
                         "catalog_source": "coach",
-                        "exercise_snapshot": (
-                            {
-                                "id": str(ex_ref.id),
-                                "name": ex_ref.name,
-                                "name_en": ex_ref.name_en,
-                                "primary_muscle": ex_ref.primary_muscle,
-                                "secondary_muscles": list(ex_ref.secondary_muscles or []),
-                                "equipment": ex_ref.equipment,
-                                "level": ex_ref.level,
-                                "movement_pattern": ex_ref.movement_pattern,
-                                "source_document": ex_ref.source_document,
-                                "targets": [
-                                    {
-                                        "muscle_key": target.muscle.key,
-                                        "region_key": target.region.key if target.region else None,
-                                        "role": target.role,
-                                    }
-                                    for target in ex_ref.muscle_targets.all()
-                                ],
-                                "levels": [row.level for row in ex_ref.suitable_level_rows.all()],
-                                "equipment_keys": [
-                                    row.equipment.key for row in ex_ref.equipment_rows.all()
-                                ],
-                            }
-                            if ex_ref
-                            else None
-                        ),
+                        "exercise_snapshot": (exercise_snapshot(ex_ref) if ex_ref else None),
                         "supersetGroupId": None,
                         "supersetWithPrevious": False,
                         "supersetPartnerName": None,
@@ -1282,7 +1084,7 @@ def build_training_days(
         # Session order: compound → secondary → isolation → arms → core
         day_exercises.sort(
             key=lambda ex: (
-                _session_rank(ex["name"], ex["targetMuscle"])[0],
+                {"compound": 0, "isolation": 2, "core": 4}.get(movement_class(ex), 3),
                 0 if ex["targetMuscle"] in priority | weak else 1,
                 ex["name"],
             )
@@ -1293,19 +1095,6 @@ def build_training_days(
         core_block = [e for e in non_arm if e["targetMuscle"] in CORE_MUSCLES]
         main_block = [e for e in non_arm if e["targetMuscle"] not in CORE_MUSCLES]
         day_exercises = main_block + arm_block + core_block
-
-        _apply_real_supersets(
-            day_exercises,
-            allow=(
-                selected_training_systems is None
-                and allow_superset
-                and apply_general
-                and not structured_technique_handler
-                and not has_superset_override
-            ),
-            max_pairs=int(style.get("supersets") or 0) or (1 if allow_superset else 0),
-        )
-        day_exercises = _trim_day_to_budget(day_exercises, day_budget)
 
         for i, ex in enumerate(day_exercises):
             ex["order"] = i + 1
@@ -1322,12 +1111,13 @@ def build_training_days(
                     else "فرم صحیح و کنترل دامنه حرکت اولویت دارد."
                 ),
                 "exercises": day_exercises,
-                "volumeBudget": day_budget,
+                "volumeBudget": sum(item["sets"] for item in day_exercises),
             }
         )
 
     from programming.services.techniques import apply_structured_techniques
 
+    days = allocate_volume(days, volume_plan, policy, student, warnings)
     days, structured_technique_evidence, _handled = apply_structured_techniques(
         days,
         coach,
@@ -1336,7 +1126,14 @@ def build_training_days(
         selected_systems=selected_training_systems,
     )
     evidence["techniques"] = structured_technique_evidence
-    weekly_sets: dict[str, int] = {}
+    volume_audit, volume_warnings = audit_volume(days, volume_plan, policy, student)
+    evidence["volume_plan"] = volume_plan
+    evidence["volume_audit"] = volume_audit
+    warnings.extend(volume_warnings)
+    for day in days:
+        for exercise in day["exercises"]:
+            if (structured_catalog_by_name.get(exercise["name"]) or {}).get("metadata_missing"):
+                warnings.append(f"catalog_metadata_incomplete:{exercise['name']}")
     for day in days:
         for exercise in day["exercises"]:
             sets = int(exercise["sets"])
@@ -1358,15 +1155,7 @@ def build_training_days(
                 ],
                 "progression": policy["progression"],
             }
-            muscle = exercise["targetMuscle"]
-            weekly_sets[muscle] = weekly_sets.get(muscle, 0) + sets
-        seconds = policy["warmup_minutes"] * 60
-        for exercise in day["exercises"]:
-            rest_match = re.search(r"\d+", exercise["rest"])
-            rest_seconds = int(rest_match[0]) if rest_match else policy["rest_seconds"]
-            seconds += int(exercise["sets"]) * (40 + rest_seconds) + 45
-        day["estimatedMinutes"] = round(seconds / 60, 1)
-    evidence["weekly_primary_sets"] = weekly_sets
+    evidence["weekly_primary_sets"] = volume_audit["direct_sets"]
 
     if goals_override and days:
         days[0]["notes"] = f"{days[0]['notes']} اهداف: {goals_override}"

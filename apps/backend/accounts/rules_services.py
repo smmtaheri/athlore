@@ -14,6 +14,14 @@ from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
+from accounts.exercise_metadata import (
+    JOINTS,
+    MECHANICS,
+    PATTERNS,
+    UNITS,
+    metadata_missing,
+    validate_metadata,
+)
 from accounts.generation_policy import coach_policy
 from accounts.models import (
     CoachExercisePreference,
@@ -172,6 +180,10 @@ def serialize_exercise(ex: Exercise, preference: CoachExercisePreference | None 
         "equipment": ex.equipment,
         "level": ex.level,
         "movement_pattern": ex.movement_pattern,
+        "mechanics": ex.mechanics,
+        "joint_keys": ex.joint_keys,
+        "prescription_unit": ex.prescription_unit,
+        "metadata_missing": metadata_missing(ex),
         "laterality": ex.laterality,
         "risk_tags": list(ex.risk_tags or []),
         "source_document": ex.source_document,
@@ -262,6 +274,10 @@ def serialize_taxonomy(*, include_inactive: bool = False) -> dict:
             for key, label in Exercise.Level.choices
             if key != Exercise.Level.ALL
         ],
+        "movement_patterns": [{"key": key, "name": name} for key, name in PATTERNS.items()],
+        "joints": [{"key": key, "name": name} for key, name in JOINTS.items()],
+        "mechanics": [{"key": key, "name": name} for key, name in MECHANICS.items()],
+        "prescription_units": [{"key": key, "name": name} for key, name in UNITS.items()],
     }
 
 
@@ -1204,6 +1220,7 @@ def _validate_exercise_guide(payload):
 @transaction.atomic
 def create_exercise(coach: CoachProfile, payload: dict) -> Exercise:
     _validate_exercise_guide(payload)
+    validate_metadata(payload)
     name = str(payload.get("name") or "").strip()
     external_key = str(payload.get("external_key") or "").strip().lower()
     primary = str(payload.get("primary_muscle") or "").strip()
@@ -1246,6 +1263,9 @@ def create_exercise(coach: CoachProfile, payload: dict) -> Exercise:
         equipment=str(payload.get("equipment") or ""),
         level=str(payload.get("level") or Exercise.Level.BEGINNER),
         movement_pattern=str(payload.get("movement_pattern") or ""),
+        mechanics=str(payload.get("mechanics") or ""),
+        joint_keys=payload.get("joint_keys", []),
+        prescription_unit=payload.get("prescription_unit", "reps"),
         laterality=str(payload.get("laterality") or ""),
         risk_tags=_as_str_list(payload.get("risk_tags", []), "risk_tags"),
         source_document=str(payload.get("source_document") or ""),
@@ -1294,6 +1314,10 @@ def _upsert_preference(coach: CoachProfile, ex: Exercise, payload: dict) -> None
 @transaction.atomic
 def update_exercise(exercise: Exercise, payload: dict) -> Exercise:
     _validate_exercise_guide(payload)
+    validate_metadata(payload)
+    for field in ("mechanics", "joint_keys", "prescription_unit"):
+        if field in payload:
+            setattr(exercise, field, payload[field])
     if "name" in payload:
         exercise.name = str(payload["name"]).strip() or exercise.name
     if "name_en" in payload:

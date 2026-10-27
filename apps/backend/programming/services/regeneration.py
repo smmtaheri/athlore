@@ -9,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 from programming.models import GenerationRun, ProgramVersion
 from programming.services import programs
 from programming.services.generator import build_input_snapshot, generate_document
-from programming.services.training_selection import _role_of_name
+from programming.services.volume_planning import primary_key, refresh_volume_audit
 
 
 @transaction.atomic
@@ -112,8 +112,12 @@ def regenerate(coach, program_id, data):
                     candidate
                     for candidate in fresh.get("exercises", [])
                     if candidate.get("targetMuscle") == item.get("targetMuscle")
-                    and _role_of_name(candidate.get("name", ""), item.get("targetMuscle", ""))
-                    == _role_of_name(item.get("name", ""), item.get("targetMuscle", ""))
+                    and primary_key(candidate) == primary_key(item)
+                    and all(
+                        (candidate.get("exercise_snapshot") or {}).get(field)
+                        == (item.get("exercise_snapshot") or {}).get(field)
+                        for field in ("movement_pattern", "mechanics", "prescription_unit")
+                    )
                     and candidate.get("name") not in used
                     and not candidate.get("supersetGroupId")
                     and not candidate.get("trainingGroupId")
@@ -132,6 +136,7 @@ def regenerate(coach, program_id, data):
     if not matched:
         raise ValidationError({"exercise": ["حرکت متفاوت و سازگاری پیدا نشد؛ برنامهٔ فعلی حفظ شد."]})
     old = deepcopy(version.training)
+    refresh_volume_audit(training)
     version.training = training
     run = GenerationRun.objects.create(
         coach=coach,

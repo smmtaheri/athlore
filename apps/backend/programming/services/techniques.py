@@ -8,6 +8,7 @@ from typing import Any
 
 from rest_framework.exceptions import ValidationError
 
+from accounts.exercise_metadata import movement_class
 from accounts.models import CoachProfile, CoachTechnique, TrainingTechnique
 from accounts.training_recipes import validate_training_recipe
 from programming.services.split_parser import CANONICAL_MUSCLES, normalize_muscle
@@ -103,8 +104,16 @@ def normalize_training_system_muscles(value: Any) -> list[str]:
 
 
 def _matches_system_muscles(exercise: dict, config: CoachTechnique) -> bool:
+    from accounts.exercise_metadata import MUSCLE_NAMES
+    from programming.services.volume_planning import primary_key
+
     muscles = getattr(config, "_selected_muscles", [])
-    return not muscles or normalize_muscle(str(exercise.get("targetMuscle") or "")) in muscles
+    exact = MUSCLE_NAMES.get(primary_key(exercise), "")
+    return (
+        not muscles
+        or exact in muscles
+        or normalize_muscle(str(exercise.get("targetMuscle") or "")) in muscles
+    )
 
 
 def normalize_training_system_selection(
@@ -549,7 +558,7 @@ def _apply_recipe_prescriptions(exercise: dict, steps: list[dict[str, Any]]) -> 
 def _apply_recipe_grouping(
     days: list[dict], config: CoachTechnique, grouping: dict[str, Any]
 ) -> tuple[int, list[tuple[dict, list[dict]]]]:
-    from programming.services.training_selection import _movement_class, _superset_pair_allowed
+    from programming.services.training_selection import _superset_pair_allowed
 
     size = grouping["size"]
     mode = grouping["mode"]
@@ -569,13 +578,7 @@ def _apply_recipe_grouping(
         if order in {"isolation_first", "compound_first"}:
             reverse = order == "isolation_first"
             exercises.sort(
-                key=lambda exercise: (
-                    _movement_class(
-                        str(exercise.get("name") or ""),
-                        str(exercise.get("targetMuscle") or ""),
-                    )
-                    == "isolation"
-                ),
+                key=lambda exercise: movement_class(exercise) == "isolation",
                 reverse=reverse,
             )
         day_groups = 0
@@ -674,16 +677,8 @@ def _apply_recipe(
                 )
             ]
             if target == "last_isolation":
-                from programming.services.training_selection import _movement_class
-
                 candidates = [
-                    exercise
-                    for exercise in candidates
-                    if _movement_class(
-                        str(exercise.get("name") or ""),
-                        str(exercise.get("targetMuscle") or ""),
-                    )
-                    == "isolation"
+                    exercise for exercise in candidates if movement_class(exercise) == "isolation"
                 ]
             if target in {"last_exercise", "last_isolation", "last_set"}:
                 candidates = candidates[-1:]

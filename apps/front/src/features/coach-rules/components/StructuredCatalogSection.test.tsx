@@ -12,9 +12,20 @@ vi.mock("../../../shared/api/client", () => ({
 
 describe("StructuredCatalogSection", () => {
   beforeEach(() => {
+    apiRequestMock.mockClear();
     apiRequestMock.mockImplementation(async (path: string) => {
       if (path === "/exercise-taxonomy/") {
         return {
+          movement_patterns: [{ key: "push_horizontal", name: "فشار افقی" }],
+          mechanics: [{ key: "multi_joint", name: "چندمفصلی" }],
+          joints: [
+            { key: "shoulder", name: "شانه" },
+            { key: "elbow", name: "آرنج" }
+          ],
+          prescription_units: [
+            { key: "reps", name: "تکرار" },
+            { key: "seconds", name: "ثانیه" }
+          ],
           equipment: [{ key: "dumbbell", name: "دمبل" }],
           levels: [{ key: "intermediate", name: "نیمه‌حرفه‌ای" }],
           muscles: [
@@ -168,6 +179,41 @@ describe("StructuredCatalogSection", () => {
         }
       ];
     });
+  });
+
+  it("saves structured movement metadata with the exercise instead of free text", async () => {
+    const user = userEvent.setup();
+    const base = apiRequestMock.getMockImplementation()!;
+    apiRequestMock.mockImplementation(
+      async (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === "/exercises/exercise-1/" && options?.method === "PATCH")
+          return { ...(await base("/exercises/")).results[0], ...options.body };
+        return base(path, options);
+      }
+    );
+    render(<StructuredCatalogSection />);
+    const table = await screen.findByRole("table", { name: "کاتالوگ حرکات" });
+    const row = (await within(table).findByText("پرس بالاسینه دمبل")).closest("tr")!;
+    await user.click(within(row).getByRole("button", { name: "ویرایش" }));
+    const dialog = screen.getByRole("dialog", { name: "ویرایش حرکت" });
+    await user.selectOptions(within(dialog).getByLabelText("الگوی حرکت"), "push_horizontal");
+    await user.selectOptions(within(dialog).getByLabelText("نوع حرکت"), "multi_joint");
+    await user.selectOptions(within(dialog).getByLabelText("واحد اجرای حرکت"), "reps");
+    await user.click(within(dialog).getByRole("checkbox", { name: "شانه" }));
+    await user.click(within(dialog).getByRole("checkbox", { name: "آرنج" }));
+    await user.click(within(dialog).getByRole("button", { name: "ذخیره حرکت" }));
+    expect(apiRequestMock).toHaveBeenCalledWith(
+      "/exercises/exercise-1/",
+      expect.objectContaining({
+        method: "PATCH",
+        body: expect.objectContaining({
+          movement_pattern: "push_horizontal",
+          mechanics: "multi_joint",
+          joint_keys: ["shoulder", "elbow"],
+          prescription_unit: "reps"
+        })
+      })
+    );
   });
 
   it("loads only the requested page and searches across the server catalog", async () => {
