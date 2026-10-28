@@ -10,7 +10,7 @@ from rest_framework.exceptions import ValidationError
 
 from accounts.exercise_metadata import movement_class
 from accounts.models import CoachProfile, CoachTechnique, TrainingTechnique
-from accounts.training_recipes import validate_training_recipe
+from accounts.training_recipes import tempo_seconds, validate_training_recipe
 from programming.services.split_parser import CANONICAL_MUSCLES, normalize_muscle
 
 PARTIAL_REP_VARIANTS = {
@@ -550,6 +550,11 @@ def _apply_recipe_prescriptions(exercise: dict, steps: list[dict[str, Any]]) -> 
                 exercise["rest"] = f"{step['rest_seconds']} ثانیه"
             if "rpe" in step:
                 exercise["rpe"] = step["rpe"]
+        elif step["op"] == "tempo":
+            exercise["tempo"] = step["pattern"]
+            exercise["tempoSecondsPerRep"] = tempo_seconds(
+                step["pattern"], step.get("hold_seconds", 0)
+            )
         elif step["op"] == "repeat":
             for _ in range(step["count"]):
                 _apply_recipe_prescriptions(exercise, step["steps"])
@@ -680,6 +685,14 @@ def _apply_recipe(
                 candidates = [
                     exercise for exercise in candidates if movement_class(exercise) == "isolation"
                 ]
+            if target == "first_compound":
+                candidates = [
+                    exercise
+                    for exercise in candidates
+                    if movement_class(exercise) == "compound"
+                    and (exercise.get("exercise_snapshot") or {}).get("prescription_unit")
+                    != "seconds"
+                ][:1]
             if target in {"last_exercise", "last_isolation", "last_set"}:
                 candidates = candidates[-1:]
             if max_per_session:

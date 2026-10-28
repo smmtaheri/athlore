@@ -184,7 +184,11 @@ def estimated_seconds(item, policy):
     snapshot = item.get("exercise_snapshot") or {}
     timed = snapshot.get("prescription_unit") == "seconds"
     numbers = [int(value) for value in re.findall(r"\d+", str(item.get("reps", "")))]
-    work = max(numbers or [30]) if timed else max(numbers or [12]) * 3
+    work = (
+        max(numbers or [30])
+        if timed
+        else max(numbers or [12]) * int(item.get("tempoSecondsPerRep") or 3)
+    )
     # A technique may prescribe more than one effort inside one working set.
     _, extra = additional_efforts(item, work)
     return int(item.get("sets") or 0) * (work + _rest_seconds(item, policy)) + extra + 45

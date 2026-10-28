@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from typing import Any
 
@@ -19,11 +20,13 @@ STEP_FIELDS = {
     "instruction": {"title", "text"},
     "repeat": {"count", "steps"},
 }
-TARGETS = {"all", "last_exercise", "last_isolation", "last_set"}
+TARGETS = {"all", "last_exercise", "last_isolation", "last_set", "first_compound"}
 GROUP_MODES = {"same_muscle", "same_muscle_isolation", "antagonist", "any_eligible", "alternating"}
 
 
 def _integer(value: Any, field: str, minimum: int, maximum: int) -> int:
+    if isinstance(value, bool) or (isinstance(value, float) and not value.is_integer()):
+        raise ValidationError({"recipe": [f"{field} must be an integer."]})
     try:
         number = int(value)
     except (TypeError, ValueError) as exc:
@@ -31,6 +34,21 @@ def _integer(value: Any, field: str, minimum: int, maximum: int) -> int:
     if number < minimum or number > maximum:
         raise ValidationError({"recipe": [f"{field} must be between {minimum} and {maximum}."]})
     return number
+
+
+def tempo_seconds(pattern: str, hold_seconds=0) -> int:
+    """Four phases: eccentric, bottom pause, concentric, top pause; legacy three phases remain valid."""
+    phases = re.split(r"\s*[-:–]\s*", str(pattern).strip())
+    if len(phases) not in {3, 4}:
+        raise ValidationError({"recipe": ["Tempo needs three or four numeric phases."]})
+    values = []
+    for index, phase in enumerate(phases):
+        values.append(
+            1 if phase.upper() == "X" and index == 2 else _integer(phase, "tempo phase", 0, 30)
+        )
+    if not sum(values):
+        raise ValidationError({"recipe": ["Tempo duration must be positive."]})
+    return sum(values) + max(0, int(hold_seconds or 0) - values[1])
 
 
 def _steps(value: Any, depth: int = 0) -> list[dict[str, Any]]:
@@ -57,6 +75,14 @@ def _steps(value: Any, depth: int = 0) -> list[dict[str, Any]]:
                 reps = str(item["reps"]).strip()
                 if not reps or len(reps) > 40:
                     raise ValidationError({"recipe": ["reps must contain 1-40 characters."]})
+                bounds = re.fullmatch(r"(\d+)(?:\s*[-–]\s*(\d+))?", reps)
+                if bounds:
+                    low = _integer(bounds[1], "minimum reps", 1, 100)
+                    high = _integer(bounds[2] or bounds[1], "maximum reps", 1, 100)
+                    if low > high:
+                        raise ValidationError(
+                            {"recipe": ["Minimum reps cannot exceed maximum reps."]}
+                        )
                 step["reps"] = reps
             if "rest_seconds" in item:
                 step["rest_seconds"] = _integer(item["rest_seconds"], "rest_seconds", 0, 900)
@@ -86,6 +112,7 @@ def _steps(value: Any, depth: int = 0) -> list[dict[str, Any]]:
             step["pattern"] = pattern
             if "hold_seconds" in item:
                 step["hold_seconds"] = _integer(item["hold_seconds"], "hold_seconds", 1, 120)
+            tempo_seconds(step["pattern"], step.get("hold_seconds", 0))
         elif operation == "instruction":
             title = str(item.get("title") or "").strip()
             text = str(item.get("text") or "").strip()
@@ -116,6 +143,14 @@ def validate_training_recipe(value: Any, *, allow_empty: bool = True) -> dict[st
         raise ValidationError({"recipe": [f"Unsupported target: {target}."]})
     result: dict[str, Any] = {"version": RECIPE_VERSION, "target": target}
     if "grouping" in value:
+        if target == "first_compound":
+            raise ValidationError(
+                {
+                    "recipe": [
+                        "First-compound targeting cannot be combined with a multi-exercise group."
+                    ]
+                }
+            )
         grouping = value["grouping"]
         if not isinstance(grouping, dict) or set(grouping) - {
             "size",
