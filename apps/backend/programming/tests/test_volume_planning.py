@@ -34,7 +34,11 @@ from programming.services.programs import (
     serialize_student_program_detail,
     update_draft_version,
 )
-from programming.services.training_selection import _full_body_muscles, _session_covers_muscle
+from programming.services.training_selection import (
+    _full_body_muscles,
+    _pick_for_roles,
+    _session_covers_muscle,
+)
 from programming.services.volume_planning import (
     allocate_volume,
     audit_volume,
@@ -236,6 +240,46 @@ class VolumePlannerTests(SimpleTestCase):
         self.assertEqual(result["selected_count"], 3)
         self.assertNotIn("hamstrings", result["uncovered_muscles"])
         self.assertEqual(len(result["uncovered_muscles"]), 1)
+        self.assertLessEqual(result["selected_count"], result["slot_budget"])
+
+    def test_catalog_priority_selects_a_coach_ranked_candidate(self):
+        selected = _pick_for_roles(
+            ["ordinary", "coach-ranked"],
+            ["muscle:chest"],
+            "سینه",
+            preferred_names=set(),
+            historical_map={},
+            metadata_by_name={
+                "ordinary": {"primary_muscle_key": "chest", "priority": 0},
+                "coach-ranked": {"primary_muscle_key": "chest", "priority": 8},
+            },
+        )
+        self.assertEqual(selected, ["coach-ranked"])
+
+    def test_strength_prefers_loadable_option_before_numeric_preference(self):
+        selected = _pick_for_roles(
+            ["bodyweight", "weighted"],
+            ["muscle:chest"],
+            "سینه",
+            preferred_names=set(),
+            historical_map={},
+            goal="strength",
+            metadata_by_name={
+                "bodyweight": {
+                    "primary_muscle_key": "chest",
+                    "movement_pattern": "push_horizontal",
+                    "equipment_keys": ["bodyweight"],
+                    "priority": 100,
+                },
+                "weighted": {
+                    "primary_muscle_key": "chest",
+                    "movement_pattern": "push_horizontal",
+                    "equipment_keys": ["dumbbell"],
+                    "priority": 0,
+                },
+            },
+        )
+        self.assertEqual(selected, ["weighted"])
 
     def test_every_required_equipment_item_must_be_available(self):
         from programming.services.training_selection import _passes_equipment_hard

@@ -234,6 +234,12 @@ class ExecutionContractTests(SimpleTestCase):
         self.assertEqual((main["reps"], main["rest"]), ("3-6", "180 ثانیه"))
         self.assertEqual((accessory["reps"], accessory["rest"]), ("8-12", "90 ثانیه"))
         self.assertEqual(timed["reps"], "30 ثانیه")
+        self.assertIn("زمان نگه‌داری", timed["progression_hint"])
+        band = _prescribe(
+            **{**common, "goal": "hypertrophy"},
+            metadata={"movement_pattern": "elbow_flexion", "equipment_keys": ["resistance_band"]},
+        )
+        self.assertIn("کش", band["progression_hint"])
 
     def test_incomplete_draft_can_be_saved_but_not_published(self):
         policy = validate_policy({})

@@ -241,6 +241,24 @@ function RecipeStepsEditor({
                   }
                 />
               </FormField>
+              <FormField
+                htmlFor={`recipe-duration-${depth}-${index}`}
+                label="زمان هر ست (ثانیه؛ فقط حرکت زمان‌دار)"
+              >
+                <Input
+                  id={`recipe-duration-${depth}-${index}`}
+                  min={1}
+                  max={900}
+                  type="number"
+                  placeholder="از برنامه"
+                  value={step.seconds == null ? "" : Number(step.seconds)}
+                  onChange={(event) =>
+                    update(index, {
+                      seconds: event.target.value === "" ? undefined : Number(event.target.value)
+                    })
+                  }
+                />
+              </FormField>
               <FormField htmlFor={`recipe-rpe-${depth}-${index}`} label="شدت / RPE (اختیاری)">
                 <select
                   className={styles.select}
@@ -967,6 +985,25 @@ export function TrainingSystemsSection({
                               value={String(prescription.reps ?? "")}
                               onChange={(event) =>
                                 updateGroupPrescription(index, "reps", event.target.value)
+                              }
+                            />
+                          </FormField>
+                          <FormField
+                            htmlFor={`group-seconds-${index}`}
+                            label={`حرکت ${index + 1} · زمان هر ست (ثانیه)`}
+                          >
+                            <Input
+                              id={`group-seconds-${index}`}
+                              min={1}
+                              max={900}
+                              type="number"
+                              value={String(prescription.seconds ?? "")}
+                              onChange={(event) =>
+                                updateGroupPrescription(
+                                  index,
+                                  "seconds",
+                                  event.target.value === "" ? undefined : Number(event.target.value)
+                                )
                               }
                             />
                           </FormField>

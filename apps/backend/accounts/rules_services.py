@@ -1299,11 +1299,14 @@ def _upsert_preference(coach: CoachProfile, ex: Exercise, payload: dict) -> None
         pref.is_prohibited = bool(payload["is_prohibited"])
     if "priority" in payload:
         try:
-            pref.priority = max(0, int(payload.get("priority") or 0))
+            priority = int(payload.get("priority") or 0)
         except (TypeError, ValueError) as exc:
             raise ValidationError(
                 {"priority": ["Priority must be a non-negative integer."]}
             ) from exc
+        if priority < 0 or priority > 100:
+            raise ValidationError({"priority": ["Priority must be between 0 and 100."]})
+        pref.priority = priority
     if "suitable_levels" in payload:
         pref.suitable_levels = _as_str_list(payload.get("suitable_levels"), "suitable_levels")
     if "preference_notes" in payload:

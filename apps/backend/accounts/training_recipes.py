@@ -12,7 +12,7 @@ RECIPE_VERSION = 1
 MAX_STEPS = 24
 MAX_REPEAT = 10
 STEP_FIELDS = {
-    "prescribe": {"sets", "reps", "rest_seconds", "rpe"},
+    "prescribe": {"sets", "reps", "seconds", "rest_seconds", "rpe"},
     "rest": {"seconds"},
     "load_change": {"direction", "percent"},
     "partial_range": {"mode", "count", "range"},
@@ -84,6 +84,8 @@ def _steps(value: Any, depth: int = 0) -> list[dict[str, Any]]:
                             {"recipe": ["Minimum reps cannot exceed maximum reps."]}
                         )
                 step["reps"] = reps
+            if "seconds" in item:
+                step["seconds"] = _integer(item["seconds"], "seconds", 1, 900)
             if "rest_seconds" in item:
                 step["rest_seconds"] = _integer(item["rest_seconds"], "rest_seconds", 0, 900)
             if "rpe" in item:
@@ -195,6 +197,7 @@ def validate_training_recipe(value: Any, *, allow_empty: bool = True) -> dict[st
                 if not isinstance(prescription, dict) or set(prescription) - {
                     "sets",
                     "reps",
+                    "seconds",
                     "rest_seconds",
                     "rpe",
                 }:
@@ -213,6 +216,10 @@ def validate_training_recipe(value: Any, *, allow_empty: bool = True) -> dict[st
                             {"recipe": ["Group reps must contain 1-40 characters."]}
                         )
                     normalized["reps"] = reps
+                if "seconds" in prescription:
+                    normalized["seconds"] = _integer(
+                        prescription["seconds"], f"group.prescription[{index}].seconds", 1, 900
+                    )
                 if "rest_seconds" in prescription:
                     normalized["rest_seconds"] = _integer(
                         prescription["rest_seconds"],

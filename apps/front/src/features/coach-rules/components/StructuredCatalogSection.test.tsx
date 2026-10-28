@@ -120,7 +120,7 @@ describe("StructuredCatalogSection", () => {
               equipment_keys: ["dumbbell"],
               movement_pattern: "press",
               source_document: "manual",
-              coach_notes: "",
+              coach_notes: "یادداشت خصوصی موجود",
               is_active: true,
               is_archived: false,
               is_preferred: true,
@@ -376,7 +376,7 @@ describe("StructuredCatalogSection", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("حرکت ذخیره شد.");
   });
 
-  it("saves the three public lesson sections independently and preserves private notes", async () => {
+  it("saves public lesson sections and preserves existing coach notes without an inert field", async () => {
     apiRequestMock.mockClear();
     render(<StructuredCatalogSection />);
     const row = (await screen.findAllByText("پرس بالاسینه دمبل"))
@@ -392,9 +392,7 @@ describe("StructuredCatalogSection", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "اشتباهات رایج" }), {
       target: { value: "حرکت شتاب‌زده" }
     });
-    fireEvent.change(screen.getByRole("textbox", { name: "توضیح مربی" }), {
-      target: { value: "یادداشت خصوصی" }
-    });
+    expect(screen.queryByRole("textbox", { name: "توضیح مربی" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "ذخیره حرکت" }));
     await screen.findByRole("status");
     const saved = apiRequestMock.mock.calls.find(
@@ -405,7 +403,7 @@ describe("StructuredCatalogSection", () => {
       tips: "تنفس منظم",
       mistakes: "حرکت شتاب‌زده"
     });
-    expect(saved?.[1].body.coach_notes).toBe("یادداشت خصوصی");
+    expect(saved?.[1].body.coach_notes).toBe("یادداشت خصوصی موجود");
   });
 
   it("shows library education in the editor without saving untouched defaults as overrides", async () => {

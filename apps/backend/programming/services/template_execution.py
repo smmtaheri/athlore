@@ -169,7 +169,6 @@ def build_template_days(
                     muscle,
                     preferred_names=preferred,
                     historical_map=history,
-                    priority_boost=False,
                     metadata_by_name=structured_catalog_by_name,
                 )[0]
                 used.add(name)

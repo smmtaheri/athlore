@@ -174,6 +174,14 @@ class StructuredCatalogApiTests(APITestCase):
         self.assertEqual(patched.status_code, 200)
         self.assertFalse(patched.data["is_active"])
 
+        invalid_priority = self.client.patch(
+            f"/api/v1/exercises/{exercise_id}/",
+            {"priority": 101},
+            format="json",
+            **auth_header(self.tokens_a),
+        )
+        self.assertEqual(invalid_priority.status_code, 400)
+
         archived = self.client.delete(
             f"/api/v1/exercises/{exercise_id}/", **auth_header(self.tokens_a)
         )
@@ -516,8 +524,22 @@ class StructuredCatalogApiTests(APITestCase):
         recipe = {
             "version": 1,
             "target": "last_isolation",
+            "grouping": {
+                "size": 2,
+                "mode": "same_muscle",
+                "max_groups_per_session": 1,
+                "rest_between_seconds": 0,
+                "rest_after_seconds": 90,
+                "exercise_prescriptions": [{"sets": 3, "seconds": 45}, {"sets": 3, "seconds": 30}],
+            },
             "steps": [
-                {"op": "prescribe", "sets": 4, "reps": "۱۰ تا ۱۲", "rest_seconds": 75},
+                {
+                    "op": "prescribe",
+                    "sets": 4,
+                    "reps": "۱۰ تا ۱۲",
+                    "seconds": 40,
+                    "rest_seconds": 75,
+                },
                 {"op": "tempo", "pattern": "3-1-2"},
             ],
         }
@@ -533,7 +555,11 @@ class StructuredCatalogApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, 201, response.content)
         self.assertEqual(response.data["handler_status"], "implemented")
-        self.assertEqual(response.data["recipe"], recipe)
+        self.assertEqual(response.data["recipe"]["steps"], recipe["steps"])
+        self.assertEqual(
+            response.data["recipe"]["grouping"]["exercise_prescriptions"],
+            recipe["grouping"]["exercise_prescriptions"],
+        )
 
 
 @override_settings(PUBLIC_REGISTRATION_ENABLED=True)
@@ -874,6 +900,46 @@ class StructuredCatalogGeneratorTests(APITestCase):
         self.assertIn("در بخش منفی حرکت سه ثانیه کنترل کن.", curl["notes"])
         self.assertEqual(evidence[0]["status"], "applied")
         self.assertEqual(evidence[0]["applications"][0]["exercise_name"], "جلو بازو دمبل")
+
+    def test_timed_recipe_uses_seconds_for_timed_movement(self):
+        recipe = {
+            "version": 1,
+            "target": "all",
+            "steps": [{"op": "prescribe", "sets": 3, "seconds": 45, "rest_seconds": 30}],
+        }
+        created = self.client.post(
+            "/api/v1/training-techniques/",
+            {"key": "custom-timed-system", "name": "روش زمان‌دار", "recipe": recipe},
+            format="json",
+            **auth_header(self.tokens),
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+        days, _, _ = apply_structured_techniques(
+            [
+                {
+                    "id": "day-1",
+                    "exercises": [
+                        {
+                            "id": "plank",
+                            "name": "پلانک",
+                            "targetMuscle": "شکم",
+                            "sets": 2,
+                            "reps": "30 ثانیه",
+                            "rest": "60 ثانیه",
+                            "exercise_snapshot": {"prescription_unit": "seconds"},
+                            "techniques": [],
+                        }
+                    ],
+                }
+            ],
+            self.coach,
+            "intermediate",
+            selected_systems=[{"key": "custom-timed-system"}],
+        )
+        timed = days[0]["exercises"][0]
+        self.assertEqual(timed["sets"], 3)
+        self.assertEqual(timed["reps"], "45 ثانیه")
+        self.assertIn("45 ثانیه", timed["notes"])
 
     def test_generic_recipe_builds_three_exercise_group_with_individual_reps(self):
         recipe = {

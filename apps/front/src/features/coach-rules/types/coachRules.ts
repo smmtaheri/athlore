@@ -2,7 +2,6 @@ export type CoachRuleSection =
   | "templates"
   | "levels"
   | "injuries"
-  | "muscles"
   | "exercises"
   | "trainingSystems"
   | "nutritionTemplates"

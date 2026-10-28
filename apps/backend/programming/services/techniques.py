@@ -493,7 +493,7 @@ def _walk_recipe_steps(steps: list[dict[str, Any]]):
             yield from _walk_recipe_steps(step["steps"])
 
 
-def _recipe_instructions(steps: list[dict[str, Any]]) -> list[str]:
+def _recipe_instructions(steps: list[dict[str, Any]], exercise_unit: str = "reps") -> list[str]:
     instructions: list[str] = []
     for step in steps:
         operation = step["op"]
@@ -501,7 +501,9 @@ def _recipe_instructions(steps: list[dict[str, Any]]) -> list[str]:
             values = []
             if "sets" in step:
                 values.append(f"{step['sets']} ست")
-            if "reps" in step:
+            if exercise_unit == "seconds" and "seconds" in step:
+                values.append(f"{step['seconds']} ثانیه")
+            elif exercise_unit != "seconds" and "reps" in step:
                 values.append(f"{step['reps']} تکرار")
             if "rest_seconds" in step:
                 values.append(f"استراحت {step['rest_seconds']} ثانیه")
@@ -534,7 +536,7 @@ def _recipe_instructions(steps: list[dict[str, Any]]) -> list[str]:
         elif operation == "instruction":
             instructions.append(f"{step['title']}: {step['text']}")
         elif operation == "repeat":
-            nested = "، ".join(_recipe_instructions(step["steps"]))
+            nested = "، ".join(_recipe_instructions(step["steps"], exercise_unit))
             instructions.append(f"{step['count']} دور: {nested}")
     return instructions
 
@@ -547,6 +549,8 @@ def _apply_recipe_prescriptions(exercise: dict, steps: list[dict[str, Any]]) -> 
             unit = (exercise.get("exercise_snapshot") or {}).get("prescription_unit", "reps")
             if "reps" in step and unit == "reps":
                 exercise["reps"] = step["reps"]
+            if "seconds" in step and unit == "seconds":
+                exercise["reps"] = f"{step['seconds']} ثانیه"
             if "rest_seconds" in step:
                 exercise["rest"] = f"{step['rest_seconds']} ثانیه"
             if "rpe" in step:
@@ -726,7 +730,8 @@ def _apply_recipe(
                         direct[-1].update(prescription)
                     else:
                         steps.insert(0, {"op": "prescribe", **prescription})
-            instructions = _recipe_instructions(steps)
+            unit = (exercise.get("exercise_snapshot") or {}).get("prescription_unit", "reps")
+            instructions = _recipe_instructions(steps, unit)
             if target != "last_set":
                 _apply_recipe_prescriptions(exercise, steps)
             detail = "؛ ".join(instructions)

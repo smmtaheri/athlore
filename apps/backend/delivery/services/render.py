@@ -102,9 +102,8 @@ def build_pdf_context(
                         "sets": _esc(ex_d.get("sets") or ""),
                         "reps": _esc(ex_d.get("reps") or ex_d.get("repetitions") or ""),
                         "rest": _esc(ex_d.get("rest") or ex_d.get("rest_seconds") or ""),
-                        "tempo": _esc(
-                            ex_d.get("tempo") or ex_d.get("rpe") or ex_d.get("intensity") or ""
-                        ),
+                        "tempo": _esc(ex_d.get("tempo") or ""),
+                        "effort": _esc(ex_d.get("rpe") or ex_d.get("intensity") or ""),
                         "supersetWithPrevious": bool(ex_d.get("supersetWithPrevious")),
                         "trainingGroupName": _esc(ex_d.get("trainingGroupName") or ""),
                         "supersetRestBetweenSeconds": ex_d.get("supersetRestBetweenSeconds"),

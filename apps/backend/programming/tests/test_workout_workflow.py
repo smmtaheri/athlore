@@ -12,6 +12,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 
 from accounts.exercise_metadata import infer_legacy_metadata
+from accounts.generation_policy import validate_policy
 from accounts.models import CoachProfile, Exercise
 from programming.models import GenerationRun, Program, ProgramVersion, WorkoutSession
 from programming.services.preparation import prepare_from_visit, validate_settings
@@ -22,6 +23,7 @@ from programming.services.programs import (
     serialize_student_program_detail,
 )
 from programming.services.regeneration import regenerate
+from programming.services.volume_planning import build_volume_plan
 from programming.services.workouts import finish_workout_session, save_progress
 from students.models import Student, StudentProfile
 from students.services import create_visit
@@ -139,6 +141,55 @@ class WorkoutWorkflowTests(TestCase):
         finalized = finalize_version(version, actor=self.coach.user)
 
         self.assertEqual(finalized.status, ProgramVersion.Status.FINALIZED)
+
+    def test_weekly_maintenance_target_does_not_block_a_day_without_that_muscle(self):
+        program = Program.objects.create(
+            coach=self.coach,
+            student=self.student,
+            title="Weekly maintenance audit",
+            program_type="workout",
+            date_range_start=date(2026, 10, 1),
+            date_range_end=date(2026, 10, 28),
+        )
+        policy = validate_policy({})
+        volume_plan = build_volume_plan(
+            policy, "intermediate", "hypertrophy", {"core": "maintenance"}
+        )
+        version = ProgramVersion.objects.create(
+            program=program,
+            coach=self.coach,
+            version_number=1,
+            status=ProgramVersion.Status.DRAFT,
+            training={
+                "volume_plan": volume_plan,
+                "volume_policy": policy,
+                "days": [
+                    {"id": "day-without-core", "targetMuscles": ["شکم"], "exercises": []},
+                    {
+                        "id": "day-with-core",
+                        "targetMuscles": ["شکم"],
+                        "exercises": [
+                            {
+                                "id": "core-maintenance",
+                                "name": "پلانک",
+                                "targetMuscle": "شکم",
+                                "sets": 2,
+                                "reps": "30 ثانیه",
+                                "exercise_snapshot": {
+                                    "prescription_unit": "seconds",
+                                    "targets": [{"muscle_key": "core", "role": "primary"}],
+                                },
+                            }
+                        ],
+                    },
+                ],
+            },
+        )
+
+        finalized = finalize_version(version, actor=self.coach.user)
+
+        self.assertEqual(finalized.status, ProgramVersion.Status.FINALIZED)
+        self.assertEqual(finalized.training["volume_audit"]["muscles"]["core"]["actual"], 2)
 
     @override_settings(PUBLIC_DOMAIN="stage.athlore.ir")
     def test_stage_audit_uses_real_lifecycle_and_no_sms_network(self):

@@ -46,6 +46,7 @@ from programming.services.volume_planning import (
     audit_volume,
     build_volume_plan,
     plan_session_exercise_counts,
+    primary_key,
 )
 
 BODYWEIGHT_TOKENS = ("وزن بدن", "بدون وزنه", "bodyweight", "body weight")
@@ -406,7 +407,6 @@ def _pick_for_roles(
     *,
     preferred_names: set[str],
     historical_map: dict[str, dict],
-    priority_boost: bool,
     variety_level: str = "stable",
     rng: random.Random | None = None,
     previous_names: set[str] | None = None,
@@ -418,9 +418,16 @@ def _pick_for_roles(
     picked: list[str] = []
 
     def sort_key(n: str) -> tuple:
+        metadata = (metadata_by_name or {}).get(n, {})
+        preference_score = 101 if n in preferred_names else int(metadata.get("priority") or 0)
+        loadable_for_strength = bool(
+            set(metadata.get("equipment_keys") or []).intersection(
+                {"dumbbell", "barbell", "kettlebell", "machine", "smith_machine", "cable"}
+            )
+        )
         return (
-            0 if n in preferred_names else 1,
-            0 if priority_boost else 1,
+            -preference_score,
+            -int(goal == "strength" and loadable_for_strength),
             -historical_map.get(n, {}).get("count", 0),
             n,
         )
@@ -498,9 +505,44 @@ def _pick_for_roles(
             for name in matched
             if seen_roles[movement_role((metadata_by_name or {}).get(name, {}))] == minimum_seen
         ]
+        if goal == "strength":
+            has_loadable_option = any(
+                set(
+                    (metadata_by_name or {}).get(name, {}).get("equipment_keys") or []
+                ).intersection(
+                    {"dumbbell", "barbell", "kettlebell", "machine", "smith_machine", "cable"}
+                )
+                for name in matched
+            )
+            if has_loadable_option:
+                matched = [
+                    name
+                    for name in matched
+                    if set(
+                        (metadata_by_name or {}).get(name, {}).get("equipment_keys") or []
+                    ).intersection(
+                        {"dumbbell", "barbell", "kettlebell", "machine", "smith_machine", "cable"}
+                    )
+                ]
+        best_priority = max(
+            101
+            if name in preferred_names
+            else int((metadata_by_name or {}).get(name, {}).get("priority") or 0)
+            for name in matched
+        )
+        if best_priority:
+            matched = [
+                name
+                for name in matched
+                if (
+                    101
+                    if name in preferred_names
+                    else int((metadata_by_name or {}).get(name, {}).get("priority") or 0)
+                )
+                == best_priority
+            ]
         if variety_level in {"balanced", "varied"}:
-            preferred_tier = matched[0] in preferred_names
-            choice_pool = [name for name in matched if (name in preferred_names) == preferred_tier]
+            choice_pool = matched
             novel = [name for name in choice_pool if name not in (previous_names or set())]
             if novel:
                 choice_pool = novel
@@ -544,12 +586,28 @@ def _prescribe(
         policy = {**policy, **policy["strength_prescriptions"]["main" if main else "accessory"]}
     timed = (metadata or {}).get("prescription_unit") == "seconds"
     reps = "30 ثانیه" if timed else f"{policy['reps_min']}-{policy['reps_max']}"
+    equipment = set((metadata or {}).get("equipment_keys") or [])
+    if policy["progression"] == "maintain":
+        progression_hint = (
+            "وزنه یا سختی فعلی را حفظ کن و همهٔ ست‌ها را با فرم و شدت تعیین‌شده اجرا کن."
+        )
+    elif timed or (metadata or {}).get("mechanics") == "isometric":
+        progression_hint = "وقتی همهٔ ست‌ها با فرم و شدت تعیین‌شده کامل شد، زمان نگه‌داری را در گام‌های کوچک بالا ببر؛ با رسیدن به سقف، مربی سختی حرکت را بازبینی کند."
+    elif "resistance_band" in equipment and not equipment.intersection(
+        {"dumbbell", "barbell", "kettlebell", "machine", "smith_machine", "cable"}
+    ):
+        progression_hint = "وقتی همهٔ ست‌ها به سقف تکرار با فرم و شدت تعیین‌شده رسید، کشش کش را کمی بیشتر کن یا از کش مقاوم‌تر استفاده کن."
+    elif equipment == {"bodyweight"}:
+        progression_hint = "وقتی همهٔ ست‌ها به سقف تکرار با فرم و شدت تعیین‌شده رسید، برای انتخاب نسخهٔ دشوارتر حرکت با مربی هماهنگ کن."
+    else:
+        progression_hint = "وقتی همهٔ ست‌ها به سقف تکرار با فرم و شدت تعیین‌شده رسید، جلسهٔ بعد کوچک‌ترین افزایش بارِ در دسترس را اعمال کن."
     return {
         "sets": sets,
         "reps": reps,
         "rest": f"{policy['rest_seconds']} ثانیه",
         "raw_prescription": f"{sets}×{reps}",
         "rpe": f"RIR {max(3 if level == 'beginner' else 1, policy['rir'])}",
+        "progression_hint": progression_hint,
     }
 
 
@@ -1202,7 +1260,6 @@ def build_training_days(
                 demand["muscle"],
                 preferred_names=preferred_names,
                 historical_map=historical_map,
-                priority_boost=demand["priority"],
                 variety_level=exercise_variety,
                 rng=selection_rng,
                 previous_names=previous_names,
@@ -1280,11 +1337,7 @@ def build_training_days(
                             "reps_text": rx["reps"],
                             "raw_prescription": rx["raw_prescription"],
                         },
-                        "notes": (
-                            "وقتی همهٔ ست‌ها به سقف تکرار رسیدند و RIR و فرم حفظ شد، جلسهٔ بعد کوچک‌ترین افزایش وزنهٔ در دسترس را اعمال کنید؛ در غیر این صورت همان وزنه را نگه دارید."
-                            if policy["progression"] == "double_progression"
-                            else "وزنه و تکرار را با حفظ فرم و RIR نگه دارید."
-                        ),
+                        "notes": rx["progression_hint"],
                         "replacement_notes": "",
                         "selection_source": selection_source,
                         "catalog_source": "coach",
@@ -1347,6 +1400,27 @@ def build_training_days(
     # Technique costs and group rests are part of the same time budget as solo work.
     # Explicit recipe set counts remain fixed during allocation.
     days = allocate_volume(days, volume_plan, policy, student, warnings)
+    # Session labels describe what the athlete will actually train that day.
+    # A maintenance muscle may be scheduled on fewer days than the split's
+    # default full-body labels when its weekly target is already met.
+    for day in days:
+        present_keys = {primary_key(item) for item in day.get("exercises", [])}
+        kept_targets = []
+        for label in day.get("targetMuscles", []):
+            matching_key = next(
+                (key for key in volume_plan["muscles"] if _session_covers_muscle(label, key)),
+                None,
+            )
+            row = volume_plan["muscles"].get(matching_key) if matching_key else None
+            if (
+                row
+                and row.get("decision") == "maintenance"
+                and matching_key not in present_keys
+                and volume_plan["goal"] not in {"maintain", "maintain_weight"}
+            ):
+                continue
+            kept_targets.append(label)
+        day["targetMuscles"] = kept_targets
     from programming.services.execution import compile_execution
 
     evidence["system_warnings"] = [

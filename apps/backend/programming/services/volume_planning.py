@@ -138,11 +138,11 @@ def plan_session_exercise_counts(demands, duration_minutes, base_sets, policy):
     selected = {row["muscle_key"]: 0 for row in ordered}
     remaining_slots = slot_budget
 
-    # Preserve one movement for every available primary muscle before spending
-    # the approximate slot budget on additional variety. Real session time is
-    # checked after exercise prescriptions and techniques have been applied.
+    # First reserve one movement per muscle while slots remain. If the session
+    # cannot fit every muscle, coach-priority and volume demand decide which
+    # muscles receive a slot; never silently exceed the time-derived budget.
     for row in ordered:
-        if row["available"] <= 0:
+        if row["available"] <= 0 or remaining_slots <= 0:
             continue
         selected[row["muscle_key"]] = 1
         remaining_slots -= 1
@@ -155,10 +155,14 @@ def plan_session_exercise_counts(demands, duration_minutes, base_sets, policy):
         ]
         if not eligible:
             break
+        # A movement is capped at five work sets. Prioritize extra movements
+        # needed to make a coach-approved target achievable before optional
+        # variety, while respecting the same session slot budget.
         row = max(
             eligible,
             key=lambda item: (
                 item["priority"],
+                int(item["per_session_sets"]) > 5 * selected[item["muscle_key"]],
                 item["per_session_sets"] / (selected[item["muscle_key"]] + 1),
                 -item["order"],
             ),
@@ -172,9 +176,7 @@ def plan_session_exercise_counts(demands, duration_minutes, base_sets, policy):
         "selected_counts": selected,
         "uncovered_muscles": uncovered,
         "selected_count": sum(selected.values()),
-        "coverage_over_slot_budget": max(
-            0, sum(row["available"] > 0 for row in ordered) - slot_budget
-        ),
+        "coverage_over_slot_budget": max(0, sum(selected.values()) - slot_budget),
     }
 
 
@@ -300,9 +302,7 @@ def allocate_volume(days, plan, policy, student, warnings):
         if duration:
             while session_seconds(day, policy) > duration * 60:
                 local_sets = Counter(
-                    primary_key(item)
-                    for item in day["exercises"]
-                    for _ in range(int(item["sets"]))
+                    primary_key(item) for item in day["exercises"] for _ in range(int(item["sets"]))
                 )
                 candidates = [
                     item

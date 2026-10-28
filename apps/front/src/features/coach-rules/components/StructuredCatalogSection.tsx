@@ -984,23 +984,16 @@ export function StructuredCatalogSection() {
                 />
               </FormField>
             ))}
-            <FormField label="اولویت">
+            <FormField
+              hint="۰ یعنی اولویت عادی؛ عدد بالاتر حرکت را فقط بین گزینه‌های امن، مجاز و قابل‌دسترس جلو می‌اندازد. «محبوب» بالاترین اولویت را دارد."
+              label="اولویت انتخاب حرکت (۰ تا ۱۰۰)"
+            >
               <Input
                 min={0}
+                max={100}
                 type="number"
                 value={draft.priority}
                 onChange={(event) => setDraft({ ...draft, priority: Number(event.target.value) })}
-              />
-            </FormField>
-            <FormField
-              className={styles.fullField}
-              label="توضیح مربی"
-              htmlFor="exercise-coach-notes"
-            >
-              <Textarea
-                id="exercise-coach-notes"
-                value={draft.coach_notes}
-                onChange={(event) => setDraft({ ...draft, coach_notes: event.target.value })}
               />
             </FormField>
             <Checkbox

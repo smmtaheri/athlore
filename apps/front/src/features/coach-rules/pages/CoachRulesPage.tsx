@@ -6,15 +6,13 @@ import { ContentSection, PageContainer, PageHeader, Stack } from "../../../compo
 import {
   Button,
   Card,
-  Checkbox,
   EmptyState,
   FormField,
   Input,
   Modal,
   Skeleton,
   Switch,
-  Tabs,
-  Select
+  Tabs
 } from "../../../components/ui";
 import { ApiError, firstFieldError, persianMessageForApiError } from "../../../shared/api/errors";
 import { downloadCoachRulesPdf } from "../../../shared/api/exportPdf";
@@ -26,7 +24,6 @@ import { SupplementCatalogSection } from "../components/SupplementCatalogSection
 import { TrainingSystemsSection } from "../components/TrainingSystemsSection";
 import { ProgramTemplateEditor } from "../components/ProgramTemplateEditor";
 import { ExerciseNamePicker } from "../components/ExerciseNamePicker";
-import { trainingSystemsRepository } from "../services/trainingSystemsRepository";
 import { validateTemplatePlans } from "../services/templatePlans";
 import {
   coachRulesRepository,
@@ -37,14 +34,7 @@ import {
   nutritionSupplementTemplatesRepository,
   type NutritionSupplementTemplatesRepository
 } from "../services/nutritionSupplementTemplatesRepository";
-import type {
-  CoachRuleSection,
-  CoachRules,
-  InjuryRule,
-  LevelRule,
-  MusclePriorityRule,
-  TrainingSystem
-} from "../types/coachRules";
+import type { CoachRuleSection, CoachRules, InjuryRule, LevelRule } from "../types/coachRules";
 
 const sectionLabels: Record<CoachRuleSection, string> = {
   visitForms: "فرم‌های ویزیت",
@@ -52,7 +42,6 @@ const sectionLabels: Record<CoachRuleSection, string> = {
   trainingSystems: "سیستم‌های تمرینی",
   injuries: "آسیب ها و محدودیت ها",
   levels: "قوانین تولید برنامه",
-  muscles: "اولویت عضلات",
   nutritionTemplates: "تغذیه و مکمل",
   supplementTemplates: "بانک مکمل‌ها",
   templates: "قالب های برنامه"
@@ -383,10 +372,6 @@ function RulesSection({ rules, section, templatesRepository, updateRules }: Rule
           <InjuryRules rules={rules} updateRules={updateRules} />
         </details>
         <details>
-          <summary>اولویت عضلات</summary>
-          <MuscleRules rules={rules} updateRules={updateRules} />
-        </details>
-        <details>
           <summary>قالب دقیق برنامه (اختیاری)</summary>
           <ProgramTemplateEditor rules={rules} updateRules={updateRules} />
         </details>
@@ -395,9 +380,6 @@ function RulesSection({ rules, section, templatesRepository, updateRules }: Rule
   }
   if (section === "injuries") {
     return <InjuryRules rules={rules} updateRules={updateRules} />;
-  }
-  if (section === "muscles") {
-    return <MuscleRules rules={rules} updateRules={updateRules} />;
   }
   if (section === "exercises") {
     return <StructuredCatalogSection />;
@@ -473,44 +455,17 @@ function GenerationPolicyEditor({ rules, updateRules }: RulesEditorProps) {
 }
 
 function LevelRules({ rules, updateRules }: RulesEditorProps) {
-  const [systems, setSystems] = useState<TrainingSystem[]>([]);
-  const [systemsStatus, setSystemsStatus] = useState<"error" | "loaded" | "loading">("loading");
-
-  useEffect(() => {
-    let isMounted = true;
-    trainingSystemsRepository
-      .list()
-      .then((items) => {
-        if (!isMounted) return;
-        setSystems(items);
-        setSystemsStatus("loaded");
-      })
-      .catch(() => {
-        if (isMounted) setSystemsStatus("error");
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
   return (
     <Card className={styles.pageStack}>
       <SectionHeader
-        description="حرکت ممنوع و روش‌های اجرایی فعال را از کاتالوگ انتخاب کنید؛ ست، تکرار، استراحت و پیشرفت از قوانین عددی بالا می‌آیند."
+        description="این بخش فقط حرکات ممنوع در هر سطح را مشخص می‌کند. سیستم تمرینی را مربی در ویزیت انتخاب می‌کند؛ ست، تکرار، استراحت و پیشرفت از قوانین عددی بالا می‌آیند."
         title="قوانین سطح تمرین"
       />
-      {systemsStatus === "error" ? (
-        <div role="alert">
-          دریافت سیستم‌های تمرینی انجام نشد؛ برای تغییر این قانون دوباره صفحه را باز کنید.
-        </div>
-      ) : null}
       <div className={styles.threeColumnGrid}>
         {rules.levels.map((rule) => (
           <EditableLevelRule
             key={rule.id}
             rule={rule}
-            systems={systems}
-            systemsStatus={systemsStatus}
             onChange={(nextRule) =>
               updateRules((next) => ({
                 ...next,
@@ -526,14 +481,10 @@ function LevelRules({ rules, updateRules }: RulesEditorProps) {
 
 function EditableLevelRule({
   onChange,
-  rule,
-  systems,
-  systemsStatus
+  rule
 }: {
   onChange: (rule: LevelRule) => void;
   rule: LevelRule;
-  systems: TrainingSystem[];
-  systemsStatus: "error" | "loaded" | "loading";
 }) {
   return (
     <Card className={styles.editableCard} padding="sm">
@@ -545,94 +496,7 @@ function EditableLevelRule({
         onChange={(forbiddenExercises) => onChange({ ...rule, forbiddenExercises })}
         value={rule.forbiddenExercises}
       />
-      <AllowedTechniqueOptions
-        status={systemsStatus}
-        onChange={(allowedTechniques) => onChange({ ...rule, allowedTechniques })}
-        rule={rule}
-        systems={systems}
-      />
     </Card>
-  );
-}
-
-function AllowedTechniqueOptions({
-  status,
-  onChange,
-  rule,
-  systems
-}: {
-  status: "error" | "loaded" | "loading";
-  onChange: (values: string[]) => void;
-  rule: LevelRule;
-  systems: TrainingSystem[];
-}) {
-  const options = systems.filter(
-    (system) =>
-      system.handler_status === "implemented" &&
-      (system.source === "platform" || system.enabled) &&
-      (!system.allowed_levels.length || system.allowed_levels.includes(rule.id))
-  );
-  const unresolved = rule.allowedTechniques.filter(
-    (value) => !options.some((system) => value === system.key || value === system.name)
-  );
-  const selected = new Set(
-    options
-      .filter(
-        (system) =>
-          rule.allowedTechniques.includes(system.key) ||
-          rule.allowedTechniques.includes(system.name)
-      )
-      .map((system) => system.key)
-  );
-
-  const update = (key: string, checked: boolean) => {
-    const next = new Set(selected);
-    if (checked) next.add(key);
-    else next.delete(key);
-    onChange([...unresolved, ...next]);
-  };
-
-  return (
-    <div className={styles.pageStack}>
-      <strong>سیستم‌های مجاز این سطح</strong>
-      <p className={styles.sectionDescription}>
-        فقط روش‌های اجرایی فعال نمایش داده می‌شوند. برای افزودن گزینه، آن را در تب سیستم‌های تمرینی
-        تعریف و فعال کنید.
-      </p>
-      {status === "loading" ? <p>در حال دریافت سیستم‌های تمرینی…</p> : null}
-      {status === "loaded" && options.length === 0 ? (
-        <p>سیستم اجرایی فعالی برای این سطح موجود نیست.</p>
-      ) : null}
-      {options.map((system) => (
-        <Checkbox
-          checked={selected.has(system.key)}
-          key={system.key}
-          label={system.name}
-          onChange={(event) => update(system.key, event.target.checked)}
-        />
-      ))}
-      {unresolved.length ? (
-        <div role="status">
-          <p>
-            این موارد قدیمی یا غیرفعال‌اند و در موتور فعلی اجرا نمی‌شوند؛ برای پاک‌کردن آن‌ها × را
-            بزنید:
-          </p>
-          <div className={styles.toolbarActions}>
-            {unresolved.map((value) => (
-              <Button
-                aria-label={`حذف سیستم قدیمی ${value}`}
-                key={value}
-                onClick={() => onChange(rule.allowedTechniques.filter((item) => item !== value))}
-                size="sm"
-                variant="secondary"
-              >
-                {value} ×
-              </Button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -731,84 +595,6 @@ function EditableInjuryRule({
     </Card>
   );
 }
-
-function MuscleRules({ rules, updateRules }: RulesEditorProps) {
-  return (
-    <Card className={styles.pageStack}>
-      <SectionHeader
-        description="افزایش حجم برای عضلات مورد تمرکز این دوره؛ ضعف به‌تنهایی اولویت خودکار نیست."
-        title="اولویت عضلات"
-      />
-      <div className={styles.cardGrid}>
-        {rules.musclePriorities.map((rule) => (
-          <EditableMuscleRule
-            key={rule.id}
-            rule={rule}
-            onChange={(nextRule) =>
-              updateRules((next) => ({
-                ...next,
-                musclePriorities: next.musclePriorities.map((item) =>
-                  item.id === nextRule.id ? nextRule : item
-                )
-              }))
-            }
-          />
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function EditableMuscleRule({
-  onChange,
-  rule
-}: {
-  onChange: (rule: MusclePriorityRule) => void;
-  rule: MusclePriorityRule;
-}) {
-  return (
-    <Card className={styles.editableCard} padding="sm">
-      <FormField label="عضله">
-        <Select
-          options={MUSCLE_RULE_OPTIONS}
-          value={rule.muscle}
-          onChange={(event) => onChange({ ...rule, muscle: event.target.value })}
-        >
-          {!MUSCLE_RULE_OPTIONS.some((option) => option.value === rule.muscle) ? (
-            <option value={rule.muscle}>{rule.muscle} — قدیمی، لطفاً اصلاح شود</option>
-          ) : null}
-        </Select>
-      </FormField>
-      <Checkbox
-        checked={rule.extraExercises > 0}
-        description="فقط وقتی این عضله در تمرکز برنامه یا ضعفِ دارای اولویت باشد اعمال می‌شود."
-        label="یک حرکت اضافه برای این عضله"
-        onChange={(event) => onChange({ ...rule, extraExercises: event.target.checked ? 1 : 0 })}
-      />
-      <FormField label="افزایش ست">
-        <Input
-          type="number"
-          min={0}
-          max={2}
-          value={rule.extraSets}
-          onChange={(event) => onChange({ ...rule, extraSets: Number(event.target.value) })}
-        />
-      </FormField>
-    </Card>
-  );
-}
-
-const MUSCLE_RULE_OPTIONS = [
-  { label: "سینه", value: "سینه" },
-  { label: "زیربغل", value: "زیربغل" },
-  { label: "پا", value: "پا" },
-  { label: "سرشانه", value: "سرشانه" },
-  { label: "پشت بازو", value: "پشت بازو" },
-  { label: "جلو بازو", value: "جلو بازو" },
-  { label: "شکم", value: "شکم" },
-  { label: "ساق", value: "ساق" },
-  { label: "ساعد", value: "ساعد" }
-];
 
 function SectionHeader({
   action,

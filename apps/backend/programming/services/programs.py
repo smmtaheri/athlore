@@ -1227,6 +1227,14 @@ def finalize_version(version: ProgramVersion, *, actor) -> ProgramVersion:
             for exercise in day.get("exercises", [])
         }
         missing = required - present
+        volume_muscles = ((version.training or {}).get("volume_audit") or {}).get("muscles", {})
+        fulfilled_maintenance = {
+            normalize_muscle(row.get("name") or key)
+            for key, row in volume_muscles.items()
+            if row.get("decision") == "maintenance"
+            and int(row.get("actual") or 0) >= int(row.get("target") or 0)
+        }
+        missing -= fulfilled_maintenance
         lower_body_muscles = {"چهارسر ران", "پشت پا", "باسن", "ساق"}
         if "پا" in missing and present.intersection(lower_body_muscles):
             missing.remove("پا")

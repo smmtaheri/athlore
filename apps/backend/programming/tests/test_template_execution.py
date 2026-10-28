@@ -179,7 +179,8 @@ class TemplateExecutionTests(APITestCase):
             coach=self.coach,
         )
         self.assertTrue(context["days"][0]["exercises"][1]["supersetWithPrevious"])
-        self.assertEqual(context["days"][0]["exercises"][0]["tempo"], "RIR 2")
+        self.assertEqual(context["days"][0]["exercises"][0]["tempo"], "")
+        self.assertEqual(context["days"][0]["exercises"][0]["effort"], "RIR 2")
 
     def test_ordered_group_keeps_role_defaults_and_slot_specific_reps(self):
         self.plan["days"][0]["blocks"] = [

@@ -4,7 +4,6 @@ import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { coachRulesFixture } from "../fixtures/coachRules";
 import { createCoachRulesRepository } from "../services/coachRulesRepository";
-import { trainingSystemsRepository } from "../services/trainingSystemsRepository";
 import type { NutritionSupplementTemplatesRepository } from "../services/nutritionSupplementTemplatesRepository";
 import { CoachRulesPage } from "./CoachRulesPage";
 
@@ -69,23 +68,6 @@ describe("CoachRulesPage", () => {
   });
 
   it("keeps generation rules actionable and removes prose-only controls", async () => {
-    const user = userEvent.setup();
-    vi.spyOn(trainingSystemsRepository, "list").mockResolvedValue([
-      {
-        allowed_levels: ["beginner"],
-        base_technique_key: null,
-        description: "",
-        enabled: true,
-        execution_method: "",
-        handler_status: "implemented",
-        id: "system-1",
-        key: "drop_set",
-        max_per_session: 1,
-        name: "دراپ ست",
-        parameters: {},
-        source: "coach_private"
-      }
-    ]);
     const repository = createCoachRulesRepository(window.localStorage);
     await repository.reset();
 
@@ -95,8 +77,10 @@ describe("CoachRulesPage", () => {
       </MemoryRouter>
     );
 
-    await user.click(await screen.findByText("محدودیت‌های هر سطح"));
-    expect(await screen.findByLabelText("دراپ ست")).toBeInTheDocument();
+    expect(
+      await screen.findByText(/سیستم تمرینی را مربی در ویزیت انتخاب می‌کند/)
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("دراپ ست")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /انتخاب از کاتالوگ/ }).length).toBeGreaterThan(0);
     expect(screen.queryByText("حرکات ضروری")).not.toBeInTheDocument();
     expect(screen.queryByText("توضیحات مربی")).not.toBeInTheDocument();
