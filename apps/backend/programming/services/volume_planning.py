@@ -285,6 +285,11 @@ def allocate_volume(days, plan, policy, student, warnings):
             for step in (technique.get("recipe") or {}).get("steps", [])
         )
 
+    def minimum_sets(item):
+        # A circuit/superset member cannot be silently dropped after grouping;
+        # keep one working set so its group remains executable and valid.
+        return 1 if item.get("trainingGroupId") or item.get("supersetGroupId") else 0
+
     for day in days:
         remaining_items = Counter(primary_key(item) for item in day["exercises"])
         used = Counter()
@@ -305,7 +310,10 @@ def allocate_volume(days, plan, policy, student, warnings):
                 continue
             left = max(0, targets[key] - used[key])
             if not fixed_sets(item):
-                item["sets"] = min(5, (left + remaining_items[key] - 1) // remaining_items[key])
+                item["sets"] = max(
+                    minimum_sets(item),
+                    min(5, (left + remaining_items[key] - 1) // remaining_items[key]),
+                )
             used[key] += item["sets"]
             remaining_items[key] -= 1
         scheduled_keys = set(remaining_items)
@@ -318,7 +326,7 @@ def allocate_volume(days, plan, policy, student, warnings):
                 candidates = [
                     item
                     for item in day["exercises"]
-                    if item["sets"] > 0
+                    if item["sets"] > minimum_sets(item)
                     and not fixed_sets(item)
                     and (
                         primary_key(item) not in plan.get("required_muscles", [])

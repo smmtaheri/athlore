@@ -46,7 +46,6 @@ from programming.services.volume_planning import (
     audit_volume,
     build_volume_plan,
     plan_session_exercise_counts,
-    primary_key,
 )
 
 BODYWEIGHT_TOKENS = ("وزن بدن", "بدون وزنه", "bodyweight", "body weight")
@@ -82,6 +81,12 @@ def _unique(items: list[str]) -> list[str]:
         seen.add(item)
         out.append(item)
     return out
+
+
+def _targets_present_in_session(target_muscles: list[str], exercises: list[dict]) -> list[str]:
+    """Keep day labels truthful when weekly planning rotates work across sessions."""
+    present = {normalize_muscle(item.get("targetMuscle") or "") for item in exercises}
+    return [muscle for muscle in target_muscles if normalize_muscle(muscle) in present]
 
 
 def _matches_any(name: str, needles: tuple[str, ...]) -> bool:
@@ -1410,27 +1415,12 @@ def build_training_days(
     # Technique costs and group rests are part of the same time budget as solo work.
     # Explicit recipe set counts remain fixed during allocation.
     days = allocate_volume(days, volume_plan, policy, student, warnings)
-    # Session labels describe what the athlete will actually train that day.
-    # A maintenance muscle may be scheduled on fewer days than the split's
-    # default full-body labels when its weekly target is already met.
+    # Session labels describe only work that survived the final weekly/time
+    # allocation. Full-body coverage can rotate across days when time is tight.
     for day in days:
-        present_keys = {primary_key(item) for item in day.get("exercises", [])}
-        kept_targets = []
-        for label in day.get("targetMuscles", []):
-            matching_key = next(
-                (key for key in volume_plan["muscles"] if _session_covers_muscle(label, key)),
-                None,
-            )
-            row = volume_plan["muscles"].get(matching_key) if matching_key else None
-            if (
-                row
-                and row.get("decision") == "maintenance"
-                and matching_key not in present_keys
-                and volume_plan["goal"] not in {"maintain", "maintain_weight"}
-            ):
-                continue
-            kept_targets.append(label)
-        day["targetMuscles"] = kept_targets
+        day["targetMuscles"] = _targets_present_in_session(
+            day.get("targetMuscles", []), day.get("exercises", [])
+        )
     from programming.services.execution import compile_execution
 
     evidence["system_warnings"] = [

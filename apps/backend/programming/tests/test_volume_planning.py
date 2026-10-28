@@ -38,6 +38,7 @@ from programming.services.training_selection import (
     _full_body_muscles,
     _pick_for_roles,
     _session_covers_muscle,
+    _targets_present_in_session,
 )
 from programming.services.volume_planning import (
     allocate_volume,
@@ -280,6 +281,43 @@ class VolumePlannerTests(SimpleTestCase):
         self.assertTrue({"shoulders", "core"}.issubset(second["selected_counts"]))
         self.assertIn("shoulders", first["uncovered_muscles"])
         self.assertIn("core", first["uncovered_muscles"])
+
+    def test_session_labels_only_name_muscles_with_exercises_that_day(self):
+        targets = ["سینه", "زیربغل", "شکم"]
+        exercises = [
+            {"targetMuscle": "سینه"},
+            {"targetMuscle": "زیربغل"},
+        ]
+        self.assertEqual(_targets_present_in_session(targets, exercises), ["سینه", "زیربغل"])
+
+    def test_grouped_movements_keep_one_set_when_weekly_target_is_already_met(self):
+        plan = build_volume_plan(self.policy, "beginner", "maintain")
+        exercises = [
+            {
+                **item(key, sets=3),
+                "trainingGroupId": "circuit-1",
+                "trainingGroupSize": 3,
+                "trainingGroupName": "Circuit",
+            }
+            for key in ("chest", "back", "quadriceps")
+        ]
+        days = [
+            {"id": f"day-{index}", "exercises": [dict(row) for row in exercises]}
+            for index in range(1, 4)
+        ]
+        warnings = []
+
+        allocate_volume(
+            days,
+            plan,
+            self.policy,
+            SimpleNamespace(training_conditions={"session_duration_minutes": 75}),
+            warnings,
+        )
+
+        for day in days:
+            self.assertEqual(len(day["exercises"]), 3)
+            self.assertTrue(all(row["sets"] >= 1 for row in day["exercises"]))
 
     def test_catalog_priority_selects_a_coach_ranked_candidate(self):
         selected = _pick_for_roles(
