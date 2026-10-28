@@ -19,7 +19,6 @@ from rest_framework.exceptions import ValidationError
 
 from accounts.exercise_metadata import (
     MUSCLE_NAMES,
-    STRENGTH_LOADABLE_EQUIPMENT,
     exercise_snapshot,
     matches_muscle,
     movement_class,
@@ -426,12 +425,8 @@ def _pick_for_roles(
     def sort_key(n: str) -> tuple:
         metadata = (metadata_by_name or {}).get(n, {})
         preference_score = 101 if n in preferred_names else int(metadata.get("priority") or 0)
-        loadable_for_strength = bool(
-            set(metadata.get("equipment_keys") or []).intersection(STRENGTH_LOADABLE_EQUIPMENT)
-        )
         return (
             -preference_score,
-            -int(goal == "strength" and loadable_for_strength),
             -historical_map.get(n, {}).get("count", 0),
             n,
         )
@@ -454,27 +449,13 @@ def _pick_for_roles(
             if not remaining:
                 break
             matched = list(remaining)
-        if goal == "strength" and not picked:
-            anchors = {
-                "chest": {"push_horizontal"},
-                "back": {"pull_horizontal", "pull_vertical"},
-                "shoulders": {"push_vertical"},
-                "quadriceps": {"knee_dominant"},
-                "hamstrings": {"hip_hinge"},
-            }.get(role.removeprefix("muscle:"), set())
-            main = [
-                name
-                for name in matched
-                if (metadata_by_name or {}).get(name, {}).get("movement_pattern") in anchors
-            ]
-            if main:
-                matched = main
         matched.sort(key=sort_key)
         seen_roles = Counter(
             movement_role((metadata_by_name or {}).get(name, {})) for name in picked
         )
         # Weekly functional coverage precedes coach preference and seeded variety.
         # Stable selection still repeats once each available role has been covered.
+        coverage_role_selected = False
         if weekly_roles is not None:
             coverage_order = {
                 "shoulders": ["lateral", "rear_delt", "shoulder_press", "front_delt"],
@@ -490,6 +471,7 @@ def _pick_for_roles(
                 ]
                 if eligible_role and not weekly_roles[(muscle, required_role)]:
                     matched = eligible_role
+                    coverage_role_selected = True
                     break
             minimum_weekly = min(
                 weekly_roles[(muscle, movement_role((metadata_by_name or {}).get(name, {})))]
@@ -509,21 +491,21 @@ def _pick_for_roles(
             for name in matched
             if seen_roles[movement_role((metadata_by_name or {}).get(name, {}))] == minimum_seen
         ]
-        if goal == "strength":
-            has_loadable_option = any(
-                set(
-                    (metadata_by_name or {}).get(name, {}).get("equipment_keys") or []
-                ).intersection(STRENGTH_LOADABLE_EQUIPMENT)
+        if goal == "strength" and not picked and not coverage_role_selected:
+            anchors = {
+                "chest": {"push_horizontal"},
+                "back": {"pull_horizontal", "pull_vertical"},
+                "shoulders": {"push_vertical"},
+                "quadriceps": {"knee_dominant"},
+                "hamstrings": {"hip_hinge"},
+            }.get(role.removeprefix("muscle:"), set())
+            main = [
+                name
                 for name in matched
-            )
-            if has_loadable_option:
-                matched = [
-                    name
-                    for name in matched
-                    if set(
-                        (metadata_by_name or {}).get(name, {}).get("equipment_keys") or []
-                    ).intersection(STRENGTH_LOADABLE_EQUIPMENT)
-                ]
+                if (metadata_by_name or {}).get(name, {}).get("movement_pattern") in anchors
+            ]
+            if main:
+                matched = main
         best_priority = max(
             101
             if name in preferred_names
@@ -575,8 +557,7 @@ def _prescribe(
 ) -> dict[str, Any]:
     policy = policy or coach_policy(coach)
     equipment = set((metadata or {}).get("equipment_keys") or [])
-    strength_loadable = bool(equipment.intersection(STRENGTH_LOADABLE_EQUIPMENT))
-    if goal == "strength" and strength_loadable:
+    if goal == "strength":
         main = (metadata or {}).get("movement_pattern") in {
             "push_horizontal",
             "push_vertical",

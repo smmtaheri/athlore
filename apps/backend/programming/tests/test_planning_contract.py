@@ -44,7 +44,7 @@ from programming.services.preparation import prepare_from_visit
 from programming.services.program_requests import create_request, start_request
 from programming.services.programs import activate_version, finalize_version
 from programming.services.techniques import _apply_recipe
-from programming.services.training_selection import _prescribe
+from programming.services.training_selection import _pick_for_roles, _prescribe
 from programming.services.volume_planning import (
     allocate_volume,
     audit_volume,
@@ -247,7 +247,7 @@ class ExecutionContractTests(SimpleTestCase):
         )
         self.assertIn("کش", band["progression_hint"])
 
-    def test_strength_prescription_keeps_bodyweight_and_band_work_in_general_rep_range(self):
+    def test_strength_prescription_uses_movement_role_not_equipment_for_rep_range(self):
         common = dict(
             name="display",
             muscle="",
@@ -269,7 +269,70 @@ class ExecutionContractTests(SimpleTestCase):
                         "equipment_keys": [equipment],
                     },
                 )
-                self.assertEqual((result["reps"], result["rest"]), ("8-12", "90 ثانیه"))
+                self.assertEqual((result["reps"], result["rest"]), ("3-6", "180 ثانیه"))
+
+    def test_strength_selection_covers_lateral_and_rear_delts_before_press_anchor(self):
+        candidates = ["shoulder-press", "lateral-raise", "rear-fly"]
+        metadata = {
+            "shoulder-press": {
+                "primary_muscle_key": "shoulders",
+                "movement_pattern": "push_vertical",
+                "mechanics": "multi_joint",
+                "equipment_keys": ["dumbbell"],
+            },
+            "lateral-raise": {
+                "primary_muscle_key": "shoulders",
+                "movement_pattern": "shoulder_abduction",
+                "mechanics": "single_joint",
+                "equipment_keys": ["dumbbell"],
+            },
+            "rear-fly": {
+                "primary_muscle_key": "shoulders",
+                "movement_pattern": "shoulder_horizontal_abduction",
+                "mechanics": "single_joint",
+                "equipment_keys": ["dumbbell"],
+            },
+        }
+
+        selected = _pick_for_roles(
+            candidates,
+            ["muscle:shoulders"] * 3,
+            "سرشانه",
+            preferred_names=set(),
+            historical_map={},
+            metadata_by_name=metadata,
+            weekly_roles=Counter(),
+            goal="strength",
+        )
+
+        self.assertEqual(
+            [movement_role(metadata[name]) for name in selected],
+            ["lateral", "rear_delt", "shoulder_press"],
+        )
+
+    def test_strength_selection_does_not_filter_compounds_by_loadability(self):
+        selected = _pick_for_roles(
+            ["a-bodyweight-squat", "z-barbell-squat"],
+            ["knee_dominant"],
+            "چهارسر ران",
+            preferred_names=set(),
+            historical_map={},
+            metadata_by_name={
+                "a-bodyweight-squat": {
+                    "movement_pattern": "knee_dominant",
+                    "mechanics": "multi_joint",
+                    "equipment_keys": ["bodyweight"],
+                },
+                "z-barbell-squat": {
+                    "movement_pattern": "knee_dominant",
+                    "mechanics": "multi_joint",
+                    "equipment_keys": ["barbell"],
+                },
+            },
+            goal="strength",
+        )
+
+        self.assertEqual(selected, ["a-bodyweight-squat"])
 
     def test_strength_5x5_never_falls_back_to_bodyweight_compound(self):
         recipe = {

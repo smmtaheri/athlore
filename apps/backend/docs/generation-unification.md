@@ -130,9 +130,12 @@ cannot inject a named movement absent from the owning coach's catalog.
   existing eligible movements and actual session time, minimums before extras.
 - Selection balances derived movement roles across the week before preference,
   historical frequency and seeded variety. Front deltoid is not lateral deltoid;
-  knee flexion is not a hip hinge. Strength sessions select a main movement
-  anchor where the catalog supports one and use separate validated main and
-  accessory prescriptions. Time-based movements remain time-based.
+  knee flexion is not a hip hinge. Strength sessions preserve weekly role
+  coverage (including lateral and rear deltoids) before selecting a main
+  movement anchor. Main/accessory strength prescriptions derive from structured
+  movement pattern and mechanics, not equipment. Equipment does not exclude an
+  otherwise eligible movement; it only gates techniques that require external
+  loading, such as 5×5. Time-based movements remain time-based.
 - Precise Persian split labels preserve hamstrings, quadriceps and glutes;
   matching the word for leg inside a longer label must not expand its scope.
 - Training systems are applied before volume allocation, with explicit recipe
