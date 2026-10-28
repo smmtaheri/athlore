@@ -43,6 +43,7 @@ from programming.services.generator import _build_training
 from programming.services.preparation import prepare_from_visit
 from programming.services.program_requests import create_request, start_request
 from programming.services.programs import activate_version, finalize_version
+from programming.services.techniques import _apply_recipe
 from programming.services.training_selection import _prescribe
 from programming.services.volume_planning import (
     allocate_volume,
@@ -221,7 +222,12 @@ class ExecutionContractTests(SimpleTestCase):
             goal="strength",
         )
         main = _prescribe(
-            **common, metadata={"movement_pattern": "hip_hinge", "mechanics": "multi_joint"}
+            **common,
+            metadata={
+                "movement_pattern": "hip_hinge",
+                "mechanics": "multi_joint",
+                "equipment_keys": ["dumbbell"],
+            },
         )
         accessory = _prescribe(
             **common,
@@ -240,6 +246,88 @@ class ExecutionContractTests(SimpleTestCase):
             metadata={"movement_pattern": "elbow_flexion", "equipment_keys": ["resistance_band"]},
         )
         self.assertIn("کش", band["progression_hint"])
+
+    def test_strength_prescription_keeps_bodyweight_and_band_work_in_general_rep_range(self):
+        common = dict(
+            name="display",
+            muscle="",
+            level="beginner",
+            sets=3,
+            template=None,
+            exercise_index=0,
+            historical_raw=None,
+            policy=validate_policy({}),
+            goal="strength",
+        )
+        for equipment in ("bodyweight", "resistance_band"):
+            with self.subTest(equipment=equipment):
+                result = _prescribe(
+                    **common,
+                    metadata={
+                        "movement_pattern": "knee_dominant",
+                        "mechanics": "multi_joint",
+                        "equipment_keys": [equipment],
+                    },
+                )
+                self.assertEqual((result["reps"], result["rest"]), ("8-12", "90 ثانیه"))
+
+    def test_strength_5x5_never_falls_back_to_bodyweight_compound(self):
+        recipe = {
+            "version": 1,
+            "target": "first_compound",
+            "steps": [
+                {
+                    "op": "prescribe",
+                    "sets": 5,
+                    "reps": "5",
+                    "rest_seconds": 180,
+                    "rpe": "RIR 2",
+                }
+            ],
+        }
+        config = SimpleNamespace(
+            id=None,
+            key="strength_5x5",
+            name="قدرتی ۵×۵",
+            recipe=recipe,
+            base_technique=SimpleNamespace(key="strength_5x5", handler_key="recipe", recipe=recipe),
+            parameters={},
+            max_per_session=0,
+            execution_method="",
+        )
+        bodyweight = {
+            "id": "bodyweight-squat",
+            "name": "اسکوات وزن بدن",
+            "sets": 3,
+            "reps": "8-12",
+            "rest": "90 ثانیه",
+            "rpe": "RIR 3",
+            "exercise_snapshot": {
+                "mechanics": "multi_joint",
+                "prescription_unit": "reps",
+                "equipment_keys": ["bodyweight"],
+            },
+            "techniques": [],
+        }
+        weighted = {
+            **bodyweight,
+            "id": "weighted-squat",
+            "name": "اسکوات دمبل",
+            "techniques": [],
+            "exercise_snapshot": {
+                **bodyweight["exercise_snapshot"],
+                "equipment_keys": ["dumbbell"],
+            },
+        }
+
+        count, applications = _apply_recipe(
+            [{"id": "day-1", "exercises": [bodyweight, weighted]}], config
+        )
+
+        self.assertEqual(count, 1)
+        self.assertEqual([item["exercise_name"] for item in applications], ["اسکوات دمبل"])
+        self.assertEqual(bodyweight["techniques"], [])
+        self.assertEqual(weighted["sets"], 5)
 
     def test_incomplete_draft_can_be_saved_but_not_published(self):
         policy = validate_policy({})

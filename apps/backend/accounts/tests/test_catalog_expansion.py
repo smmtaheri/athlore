@@ -218,6 +218,7 @@ class CatalogExpansionTests(TestCase):
                         "exercise_snapshot": {
                             "mechanics": "multi_joint",
                             "prescription_unit": "reps",
+                            "equipment_keys": ["barbell"],
                         },
                     },
                     {

@@ -8,7 +8,7 @@ from typing import Any
 
 from rest_framework.exceptions import ValidationError
 
-from accounts.exercise_metadata import movement_class
+from accounts.exercise_metadata import STRENGTH_LOADABLE_EQUIPMENT, movement_class
 from accounts.models import CoachProfile, CoachTechnique, TrainingTechnique
 from accounts.training_recipes import tempo_seconds, validate_training_recipe
 from programming.services.split_parser import CANONICAL_MUSCLES, normalize_muscle
@@ -703,23 +703,17 @@ def _apply_recipe(
                 base = config.base_technique
                 technique_key = base.key if base else config.key
                 if technique_key == "strength_5x5":
-                    loadable = {
-                        "dumbbell",
-                        "barbell",
-                        "kettlebell",
-                        "machine",
-                        "smith_machine",
-                        "cable",
-                    }
                     loaded_candidates = [
                         exercise
                         for exercise in candidates
                         if set(
                             (exercise.get("exercise_snapshot") or {}).get("equipment_keys") or []
-                        ).intersection(loadable)
+                        ).intersection(STRENGTH_LOADABLE_EQUIPMENT)
                     ]
-                    if loaded_candidates:
-                        candidates = loaded_candidates
+                    # 5×5 prescribes repeatable, progressively loadable work. A
+                    # bodyweight fallback has no reliable load increment and
+                    # can contradict its progression instructions.
+                    candidates = loaded_candidates
                 candidates = candidates[:1]
             if target in {"last_exercise", "last_isolation", "last_set"}:
                 candidates = candidates[-1:]

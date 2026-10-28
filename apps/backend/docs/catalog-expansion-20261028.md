@@ -21,7 +21,9 @@ These inform starter definitions, not universal prescriptions or injury clearanc
 
 - `straight_sets`: the generator's set count is preserved; 8–12 reps, 90-second
   rests and RIR 2 are editable defaults.
-- `strength_5x5`: five sets of five on the first eligible rep-based compound
+- `strength_5x5`: five sets of five on the first loadable rep-based compound;
+  it is not applied to bodyweight-only movements because the defined progression
+  requires a measurable load increment.
   movement in each scoped session, not on every exercise or a timed carry.
 - `circuit_training`: one group of three eligible different-primary-muscle
   exercises; 20 seconds between movements and 120 seconds after the group.

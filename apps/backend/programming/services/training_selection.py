@@ -19,6 +19,7 @@ from rest_framework.exceptions import ValidationError
 
 from accounts.exercise_metadata import (
     MUSCLE_NAMES,
+    STRENGTH_LOADABLE_EQUIPMENT,
     exercise_snapshot,
     matches_muscle,
     movement_class,
@@ -426,9 +427,7 @@ def _pick_for_roles(
         metadata = (metadata_by_name or {}).get(n, {})
         preference_score = 101 if n in preferred_names else int(metadata.get("priority") or 0)
         loadable_for_strength = bool(
-            set(metadata.get("equipment_keys") or []).intersection(
-                {"dumbbell", "barbell", "kettlebell", "machine", "smith_machine", "cable"}
-            )
+            set(metadata.get("equipment_keys") or []).intersection(STRENGTH_LOADABLE_EQUIPMENT)
         )
         return (
             -preference_score,
@@ -514,9 +513,7 @@ def _pick_for_roles(
             has_loadable_option = any(
                 set(
                     (metadata_by_name or {}).get(name, {}).get("equipment_keys") or []
-                ).intersection(
-                    {"dumbbell", "barbell", "kettlebell", "machine", "smith_machine", "cable"}
-                )
+                ).intersection(STRENGTH_LOADABLE_EQUIPMENT)
                 for name in matched
             )
             if has_loadable_option:
@@ -525,9 +522,7 @@ def _pick_for_roles(
                     for name in matched
                     if set(
                         (metadata_by_name or {}).get(name, {}).get("equipment_keys") or []
-                    ).intersection(
-                        {"dumbbell", "barbell", "kettlebell", "machine", "smith_machine", "cable"}
-                    )
+                    ).intersection(STRENGTH_LOADABLE_EQUIPMENT)
                 ]
         best_priority = max(
             101
@@ -579,7 +574,9 @@ def _prescribe(
     policy: dict | None = None,
 ) -> dict[str, Any]:
     policy = policy or coach_policy(coach)
-    if goal == "strength":
+    equipment = set((metadata or {}).get("equipment_keys") or [])
+    strength_loadable = bool(equipment.intersection(STRENGTH_LOADABLE_EQUIPMENT))
+    if goal == "strength" and strength_loadable:
         main = (metadata or {}).get("movement_pattern") in {
             "push_horizontal",
             "push_vertical",
@@ -591,7 +588,6 @@ def _prescribe(
         policy = {**policy, **policy["strength_prescriptions"]["main" if main else "accessory"]}
     timed = (metadata or {}).get("prescription_unit") == "seconds"
     reps = "30 ثانیه" if timed else f"{policy['reps_min']}-{policy['reps_max']}"
-    equipment = set((metadata or {}).get("equipment_keys") or [])
     if policy["progression"] == "maintain":
         progression_hint = (
             "وزنه یا سختی فعلی را حفظ کن و همهٔ ست‌ها را با فرم و شدت تعیین‌شده اجرا کن."

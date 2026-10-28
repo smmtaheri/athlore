@@ -118,6 +118,9 @@ COMPOUND_PATTERNS = {
     "hip_hinge",
     "carry",
 }
+STRENGTH_LOADABLE_EQUIPMENT = frozenset(
+    {"dumbbell", "barbell", "kettlebell", "machine", "smith_machine", "cable"}
+)
 
 MUSCLE_NAMES = {
     "chest": "سینه",
