@@ -66,6 +66,49 @@ class CatalogExpansionTests(TestCase):
         technique.refresh_from_db()
         self.assertEqual(technique.name, "Coach's preferred name")
 
+    def test_strength_5x5_prefers_a_loadable_compound_when_available(self):
+        definition = next(row for row in new_systems() if row["key"] == "strength_5x5")
+        config = CoachTechnique(coach=self.coach, **definition)
+        days = [
+            {
+                "id": "day-1",
+                "exercises": [
+                    {
+                        "id": "bodyweight",
+                        "name": "Bodyweight squat",
+                        "targetMuscle": "پا",
+                        "sets": 3,
+                        "reps": "8-12",
+                        "exercise_snapshot": {
+                            "mechanics": "multi_joint",
+                            "prescription_unit": "reps",
+                            "equipment_keys": ["bodyweight"],
+                        },
+                    },
+                    {
+                        "id": "loaded",
+                        "name": "Barbell squat",
+                        "targetMuscle": "پا",
+                        "sets": 3,
+                        "reps": "8-12",
+                        "exercise_snapshot": {
+                            "mechanics": "multi_joint",
+                            "prescription_unit": "reps",
+                            "equipment_keys": ["barbell"],
+                        },
+                    },
+                ],
+            }
+        ]
+
+        count, _ = _apply_recipe(days, config)
+
+        exercises = {row["id"]: row for row in days[0]["exercises"]}
+        self.assertEqual(count, 1)
+        self.assertEqual(exercises["loaded"]["sets"], 5)
+        self.assertEqual(exercises["loaded"]["reps"], "5")
+        self.assertEqual(exercises["bodyweight"]["sets"], 3)
+
     def test_only_explicit_pending_release_rows_are_activated(self):
         seed_systems()
         pending = TrainingTechnique.objects.get(key="strength_5x5")

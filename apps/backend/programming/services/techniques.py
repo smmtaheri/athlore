@@ -699,7 +699,28 @@ def _apply_recipe(
                     if movement_class(exercise) == "compound"
                     and (exercise.get("exercise_snapshot") or {}).get("prescription_unit")
                     != "seconds"
-                ][:1]
+                ]
+                base = config.base_technique
+                technique_key = base.key if base else config.key
+                if technique_key == "strength_5x5":
+                    loadable = {
+                        "dumbbell",
+                        "barbell",
+                        "kettlebell",
+                        "machine",
+                        "smith_machine",
+                        "cable",
+                    }
+                    loaded_candidates = [
+                        exercise
+                        for exercise in candidates
+                        if set(
+                            (exercise.get("exercise_snapshot") or {}).get("equipment_keys") or []
+                        ).intersection(loadable)
+                    ]
+                    if loaded_candidates:
+                        candidates = loaded_candidates
+                candidates = candidates[:1]
             if target in {"last_exercise", "last_isolation", "last_set"}:
                 candidates = candidates[-1:]
             if max_per_session:

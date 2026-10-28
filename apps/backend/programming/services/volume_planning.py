@@ -126,10 +126,19 @@ def plan_session_exercise_counts(demands, duration_minutes, base_sets, policy):
     nominal_exercise_seconds = max(1, int(base_sets)) * (36 + int(policy["rest_seconds"])) + 45
     slot_budget = max(1, usable_seconds // nominal_exercise_seconds)
 
+    def weekly_deficit(row, selected_count=0):
+        assigned = int(row.get("weekly_sets_assigned") or 0)
+        minimum = int(row.get("weekly_minimum") or 0)
+        projected = assigned + selected_count * int(base_sets)
+        sessions_left = max(1, int(row.get("sessions_remaining") or 1))
+        return max(0, minimum - projected) / sessions_left
+
     ordered = sorted(
         demands,
         key=lambda row: (
             not row["priority"],
+            bool(row.get("weekly_sets_assigned")),
+            -weekly_deficit(row),
             row["order"],
             -row["per_session_sets"],
             row["muscle_key"],
@@ -162,6 +171,8 @@ def plan_session_exercise_counts(demands, duration_minutes, base_sets, policy):
             eligible,
             key=lambda item: (
                 item["priority"],
+                weekly_deficit(item, selected[item["muscle_key"]]) > 0,
+                weekly_deficit(item, selected[item["muscle_key"]]),
                 int(item["per_session_sets"]) > 5 * selected[item["muscle_key"]],
                 item["per_session_sets"] / (selected[item["muscle_key"]] + 1),
                 -item["order"],

@@ -1073,6 +1073,7 @@ def build_training_days(
             )
 
     days: list[dict] = []
+    weekly_planned_sets = Counter()
     evidence = {
         "weak_muscles": sorted(weak),
         "observed_weak_muscles": sorted(observed_weak),
@@ -1224,6 +1225,14 @@ def build_training_days(
                 )
                 demand["available"] = len(demand["names"])
 
+        for key, demand in demands_by_key.items():
+            demand["weekly_sets_assigned"] = weekly_planned_sets[key]
+            demand["weekly_minimum"] = int(volume_plan["muscles"][key].get("minimum") or 0)
+            demand["sessions_remaining"] = sum(
+                any(_session_covers_muscle(label, key) for label in groups)
+                for _, groups in parsed[index:]
+            )
+
         duration = (student.training_conditions or {}).get("session_duration_minutes")
         try:
             duration = int(duration or coach.default_session_minutes or 60)
@@ -1290,6 +1299,7 @@ def build_training_days(
                     goal=goals.get("primary_goal", "hypertrophy"),
                     policy=policy,
                 )
+                weekly_planned_sets[key] += int(rx["sets"])
                 selection_source = "coach_catalog"
                 if name in demand["from_structured"]:
                     selection_source = "coach_structured_catalog"

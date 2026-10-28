@@ -242,6 +242,45 @@ class VolumePlannerTests(SimpleTestCase):
         self.assertEqual(len(result["uncovered_muscles"]), 1)
         self.assertLessEqual(result["selected_count"], result["slot_budget"])
 
+    def test_session_slots_rotate_to_cover_weekly_unserved_muscles(self):
+        keys = (
+            "chest",
+            "back",
+            "quadriceps",
+            "hamstrings",
+            "glutes",
+            "calves",
+            "shoulders",
+            "core",
+        )
+        demands = [
+            {
+                "muscle_key": key,
+                "available": 2,
+                "desired": 1,
+                "per_session_sets": 6,
+                "weekly_minimum": 2,
+                "weekly_sets_assigned": 0,
+                "sessions_remaining": 3,
+                "priority": False,
+                "order": index,
+            }
+            for index, key in enumerate(keys)
+        ]
+        first = plan_session_exercise_counts(demands, 50, 3, self.policy)
+        self.assertEqual(first["slot_budget"], 6)
+        assigned = {key: 3 for key, count in first["selected_counts"].items() if count}
+        second_demands = [
+            {**row, "weekly_sets_assigned": assigned.get(row["muscle_key"], 0)} for row in demands
+        ]
+
+        second = plan_session_exercise_counts(second_demands, 50, 3, self.policy)
+
+        self.assertEqual(second["selected_count"], 6)
+        self.assertTrue({"shoulders", "core"}.issubset(second["selected_counts"]))
+        self.assertIn("shoulders", first["uncovered_muscles"])
+        self.assertIn("core", first["uncovered_muscles"])
+
     def test_catalog_priority_selects_a_coach_ranked_candidate(self):
         selected = _pick_for_roles(
             ["ordinary", "coach-ranked"],
