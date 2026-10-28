@@ -139,6 +139,15 @@ def prepare_from_visit(coach, actor, visit_id, operation_key, section_methods=No
     sections = settings.get("sections", ["workout"])
     methods = settings.get("training_systems", semantic.get("training_methods", []))
     methods = [{"key": item} if isinstance(item, str) else item for item in methods]
+    if settings.get("template_id") and "workout" in sections and methods:
+        raise ValidationError(
+            {
+                "training_systems": [
+                    "قالب دقیق، حرکت‌ها و سیستم‌های خودش را تعیین می‌کند؛ برای اعمال سیستم‌های "
+                    "انتخاب‌شده در همین ویزیت، قالب را روی «بدون قالب؛ تقسیم خودکار» بگذارید."
+                ]
+            }
+        )
     weeks = settings.get("duration_weeks", 4)
     start = (
         date.fromisoformat(settings["start_date"])
@@ -221,21 +230,6 @@ def prepare_from_visit(coach, actor, visit_id, operation_key, section_methods=No
         request["level"] = level
     if settings.get("template_id"):
         request["template_id"] = settings["template_id"]
-        if any(method.get("muscles") for method in methods):
-            if (
-                ProgramTemplate.objects.filter(pk=settings["template_id"], coach=coach)
-                .exclude(execution_plan={})
-                .exists()
-            ):
-                raise ValidationError(
-                    {
-                        "template_id": [
-                            "برای اعمال سیستم روی عضلات انتخاب‌شده، قالب دقیق را روی بدون قالب بگذارید."
-                        ]
-                    }
-                )
-        else:
-            request.pop("training_systems")
     if not open_request:
         # Establish the in-person request before taking the generation snapshot:
         # its profile defaults must not mutate the source after generation.

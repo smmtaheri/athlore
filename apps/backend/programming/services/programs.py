@@ -672,6 +672,7 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
         generation_data = {
             **request_data,
             "program_request_id": str(program_request.id),
+            "athlete_requested_goal": program_request.goal or "",
             "program_sections": selected_sections,
             "program_request_constraints": {
                 **(
@@ -695,6 +696,27 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
             generation_data["visit_id"] = str(program_request.visit_id)
 
     visit = _visit_for_generation(coach, student, generation_data)
+    requested_sessions = _visit_sessions_per_week(visit)
+    if requested_sessions is None and request_id:
+        requested_sessions = program_request.sessions_per_week
+    if requested_sessions is None:
+        requested_sessions = (student.training_conditions or {}).get("training_days_per_week")
+    explicit_sessions = request_data.get("days_per_week")
+    if requested_sessions not in (None, "") and explicit_sessions not in (None, ""):
+        try:
+            matches_final_sessions = int(explicit_sessions) == int(requested_sessions)
+        except (TypeError, ValueError):
+            matches_final_sessions = False
+        if not matches_final_sessions:
+            raise ValidationError(
+                {
+                    "days_per_week": [
+                        f"تعداد جلسات نهایی شاگرد {requested_sessions} است؛ این مقدار با ویزیت یا "
+                        "درخواست برنامه هم‌خوان نیست."
+                    ]
+                },
+                code="incompatible_visit_sessions",
+            )
 
     if template_id:
         try:
@@ -706,16 +728,23 @@ def generate_program(coach: CoachProfile, request_data: dict) -> tuple[Program, 
             raise InvalidStateError(
                 detail="Template is archived or inactive.", code="archived_template"
             )
+        if requested_sessions and int(template.days_per_week) != int(requested_sessions):
+            raise ValidationError(
+                {
+                    "template_id": [
+                        f"این قالب {template.days_per_week} جلسه دارد، اما تعداد جلسات نهایی شاگرد "
+                        f"{requested_sessions} است. قالب هم‌تعداد را انتخاب کنید یا قالب را بردارید."
+                    ]
+                },
+                code="incompatible_template_sessions",
+            )
         generation_data = {**generation_data, "template_mode": "template"}
     else:
         template, quick_settings = _build_quick_generation_template(
             coach=coach,
             student=student,
             request_data=generation_data,
-            requested_sessions=(
-                _visit_sessions_per_week(visit)
-                or (program_request.sessions_per_week if request_id else None)
-            ),
+            requested_sessions=requested_sessions,
         )
         generation_data = {
             **generation_data,

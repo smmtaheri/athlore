@@ -1182,6 +1182,7 @@ def build_training_days(
                 "selected_exercises": session_plan["selected_count"],
                 "eligible_primary_muscles": list(demands_by_key),
                 "uncovered_muscles": session_plan["uncovered_muscles"],
+                "coverage_over_slot_budget": session_plan["coverage_over_slot_budget"],
             }
         )
         for key in session_plan["uncovered_muscles"]:

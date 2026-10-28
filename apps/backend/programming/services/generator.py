@@ -603,7 +603,8 @@ def _generate_document_body(
         warnings.append("no_sections_enabled")
 
     apply_injury = bool(request.get("apply_injury_rules", True))
-    apply_level = bool(request.get("apply_level_rules", True))
+    # Level suitability is a hard constraint for every generated program.
+    apply_level = True
     apply_muscle = bool(request.get("apply_muscle_priority_rules", True))
     apply_catalog = bool(request.get("apply_exercise_catalog", True))
     apply_general = bool(request.get("apply_general_rules", True))
@@ -663,11 +664,7 @@ def _generate_document_body(
             selected_training_systems=(
                 request.get("training_systems") if "training_systems" in request else None
             ),
-            exercise_variety=(
-                str(request.get("exercise_variety") or "balanced")
-                if request.get("template_mode") == "quick"
-                else "stable"
-            ),
+            exercise_variety=str(request.get("exercise_variety") or "balanced"),
             selection_seed=str(request.get("seed") or ""),
             avoid_exercise_names=request.get("avoid_exercise_names"),
             catalog_only=bool(request.get("catalog_only")),
@@ -784,7 +781,11 @@ def _generate_document_body(
         },
         "training_days": days_per_week,
         "coach_goal": str((student.goals or {}).get("primary_goal") or ""),
-        "athlete_requested_goal": str((student.goals or {}).get("secondary_goal") or ""),
+        "athlete_requested_goal": str(
+            request.get("athlete_requested_goal")
+            or (student.goals or {}).get("secondary_goal")
+            or ""
+        ),
         "coach_muscle_decisions": training_evidence.get("coach_muscle_decisions", {}),
         "weak_muscles": training_evidence.get("weak_muscles", []),
         "priority_muscles": training_evidence.get("priority_muscles", []),
@@ -857,9 +858,7 @@ def _generate_document_body(
                 else template.name
             ),
             "generation_mode": request.get("template_mode") or "template",
-            "exercise_variety": (
-                request.get("exercise_variety") if request.get("template_mode") == "quick" else None
-            ),
+            "exercise_variety": str(request.get("exercise_variety") or "balanced"),
             "level": level,
             "days_per_week": days_per_week,
             "warnings": list(warnings),
@@ -1225,6 +1224,7 @@ def _build_training(
             "planning_version": 3,
             "system_warnings": selection_evidence.get("system_warnings", []),
             "required_system_keys": selection_evidence.get("required_system_keys", []),
+            "goal": str((student.goals or {}).get("primary_goal") or ""),
             "session_duration_minutes": (student.training_conditions or {}).get(
                 "session_duration_minutes"
             ),

@@ -230,8 +230,8 @@ def build_pdf_context(
                 "general_fitness": "آمادگی عمومی",
                 "balance": "تعادل",
             }.get(
-                goals.get("primary_goal") or goals.get("goal"),
-                goals.get("primary_goal") or goals.get("goal") or "",
+                training.get("goal") or goals.get("primary_goal") or goals.get("goal"),
+                training.get("goal") or goals.get("primary_goal") or goals.get("goal") or "",
             )
         ),
         "level": _esc(

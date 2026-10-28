@@ -544,7 +544,8 @@ def _apply_recipe_prescriptions(exercise: dict, steps: list[dict[str, Any]]) -> 
         if step["op"] == "prescribe":
             if "sets" in step:
                 exercise["sets"] = step["sets"]
-            if "reps" in step:
+            unit = (exercise.get("exercise_snapshot") or {}).get("prescription_unit", "reps")
+            if "reps" in step and unit == "reps":
                 exercise["reps"] = step["reps"]
             if "rest_seconds" in step:
                 exercise["rest"] = f"{step['rest_seconds']} ثانیه"
@@ -564,6 +565,7 @@ def _apply_recipe_grouping(
     days: list[dict], config: CoachTechnique, grouping: dict[str, Any]
 ) -> tuple[int, list[tuple[dict, list[dict]]]]:
     from programming.services.training_selection import _superset_pair_allowed
+    from programming.services.volume_planning import primary_key
 
     size = grouping["size"]
     mode = grouping["mode"]
@@ -587,26 +589,27 @@ def _apply_recipe_grouping(
                 reverse=reverse,
             )
         day_groups = 0
+
+        def can_group(candidate):
+            if mode == "alternating":
+                muscle_keys = [primary_key(exercise) for exercise in candidate]
+                return all(muscle_keys) and len(set(muscle_keys)) == size
+            return all(
+                _superset_pair_allowed(
+                    candidate[pair_index],
+                    candidate[pair_index + 1],
+                    pairing_mode=mode,
+                    allow_compound=bool(grouping.get("allow_compound")),
+                )
+                for pair_index in range(len(candidate) - 1)
+            )
+
         while day_groups < max_groups:
             group = next(
                 (
                     list(candidate)
                     for candidate in combinations(exercises, size)
-                    if all(
-                        (
-                            bool(candidate[pair_index].get("targetMuscle"))
-                            and candidate[pair_index].get("targetMuscle")
-                            != candidate[pair_index + 1].get("targetMuscle")
-                            if mode == "alternating"
-                            else _superset_pair_allowed(
-                                candidate[pair_index],
-                                candidate[pair_index + 1],
-                                pairing_mode=mode,
-                                allow_compound=bool(grouping.get("allow_compound")),
-                            )
-                        )
-                        for pair_index in range(len(candidate) - 1)
-                    )
+                    if can_group(candidate)
                 ),
                 None,
             )

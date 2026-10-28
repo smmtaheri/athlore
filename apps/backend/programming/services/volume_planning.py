@@ -138,10 +138,10 @@ def plan_session_exercise_counts(demands, duration_minutes, base_sets, policy):
     selected = {row["muscle_key"]: 0 for row in ordered}
     remaining_slots = slot_budget
 
-    # Give each selected primary muscle one movement before spending slots on variety.
+    # Preserve one movement for every available primary muscle before spending
+    # the approximate slot budget on additional variety. Real session time is
+    # checked after exercise prescriptions and techniques have been applied.
     for row in ordered:
-        if remaining_slots <= 0:
-            break
         if row["available"] <= 0:
             continue
         selected[row["muscle_key"]] = 1
@@ -172,6 +172,9 @@ def plan_session_exercise_counts(demands, duration_minutes, base_sets, policy):
         "selected_counts": selected,
         "uncovered_muscles": uncovered,
         "selected_count": sum(selected.values()),
+        "coverage_over_slot_budget": max(
+            0, sum(row["available"] > 0 for row in ordered) - slot_budget
+        ),
     }
 
 
@@ -296,8 +299,20 @@ def allocate_volume(days, plan, policy, student, warnings):
         day["exercises"] = [item for item in day["exercises"] if item["sets"] > 0]
         if duration:
             while session_seconds(day, policy) > duration * 60:
+                local_sets = Counter(
+                    primary_key(item)
+                    for item in day["exercises"]
+                    for _ in range(int(item["sets"]))
+                )
                 candidates = [
-                    item for item in day["exercises"] if item["sets"] > 0 and not fixed_sets(item)
+                    item
+                    for item in day["exercises"]
+                    if item["sets"] > 0
+                    and not fixed_sets(item)
+                    and (
+                        primary_key(item) not in plan.get("required_muscles", [])
+                        or local_sets[primary_key(item)] > 1
+                    )
                 ]
                 if not candidates:
                     break
