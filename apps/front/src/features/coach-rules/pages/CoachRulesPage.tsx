@@ -363,15 +363,15 @@ function RulesSection({ rules, section, templatesRepository, updateRules }: Rule
     return (
       <Card className={styles.pageStack} data-testid="generation-rules-card">
         <GenerationPolicyEditor rules={rules} updateRules={updateRules} />
-        <details className={styles.formAdvancedDetails}>
+        <details>
           <summary>محدودیت‌های هر سطح</summary>
           <LevelRules rules={rules} updateRules={updateRules} />
         </details>
-        <details className={styles.formAdvancedDetails}>
+        <details>
           <summary>آسیب‌ها و محدودیت‌های ایمنی</summary>
           <InjuryRules rules={rules} updateRules={updateRules} />
         </details>
-        <details className={styles.formAdvancedDetails}>
+        <details>
           <summary>قالب دقیق برنامه (اختیاری)</summary>
           <ProgramTemplateEditor rules={rules} updateRules={updateRules} />
         </details>
