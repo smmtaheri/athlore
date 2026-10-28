@@ -228,6 +228,10 @@ def build_pdf_context(
                 "endurance": "استقامت",
                 "general_fitness": "آمادگی عمومی",
                 "balance": "تعادل",
+                "maintain": "حفظ وضعیت فعلی",
+                "maintain_weight": "حفظ وزن",
+                "general_muscle_gain": "افزایش عمومی عضله",
+                "body_recomposition": "بازترکیب بدنی",
             }.get(
                 training.get("goal") or goals.get("primary_goal") or goals.get("goal"),
                 training.get("goal") or goals.get("primary_goal") or goals.get("goal") or "",

@@ -272,6 +272,17 @@ class PdfArtifactServiceTests(PdfTestMixin, APITestCase):
         self.assertEqual(ctx["goal"], "عضله‌سازی")
         self.assertEqual(ctx["level"], "متوسط")
 
+    def test_pdf_localizes_maintenance_goal(self):
+        self.final.training = {"goal": "maintain", "days": []}
+        ctx = build_pdf_context(
+            artifact=None,
+            program=self.program,
+            version=self.final,
+            student=self.student,
+            coach=self.coach_a,
+        )
+        self.assertEqual(ctx["goal"], "حفظ وضعیت فعلی")
+
     def test_delete_revokes_share_and_hides(self):
         artifact = artifact_services.create_and_render(
             self.coach_a, self.program, version_id=self.final.id
