@@ -58,12 +58,37 @@ def compile_execution(days):
         for item in day.get("exercises", []):
             prescription = item.get("prescription") or {}
             if prescription.get("version") == 2:
+                saved_sets = prescription.get("set_plan") or []
                 prescription["set_plan"] = [
                     {
+                        **(
+                            saved_sets[row["setIndex"]]
+                            if row["setIndex"] < len(saved_sets)
+                            and isinstance(saved_sets[row["setIndex"]], dict)
+                            else {}
+                        ),
                         "set": row["setIndex"] + 1,
-                        "reps_text": item["reps"],
-                        "rest": f"{row['restSeconds']} ثانیه",
-                        "effort": item.get("rpe", ""),
+                        "reps_text": (
+                            saved_sets[row["setIndex"]].get("reps_text")
+                            or item["reps"]
+                            if row["setIndex"] < len(saved_sets)
+                            and isinstance(saved_sets[row["setIndex"]], dict)
+                            else item["reps"]
+                        ),
+                        "rest": (
+                            saved_sets[row["setIndex"]].get("rest")
+                            if row["phase"] == "solo"
+                            and row["setIndex"] < len(saved_sets)
+                            and isinstance(saved_sets[row["setIndex"]], dict)
+                            and saved_sets[row["setIndex"]].get("rest")
+                            else f"{row['restSeconds']} ثانیه"
+                        ),
+                        "effort": (
+                            saved_sets[row["setIndex"]].get("effort", item.get("rpe", ""))
+                            if row["setIndex"] < len(saved_sets)
+                            and isinstance(saved_sets[row["setIndex"]], dict)
+                            else item.get("rpe", "")
+                        ),
                     }
                     for row in item["executionPlan"]["sets"]
                 ]

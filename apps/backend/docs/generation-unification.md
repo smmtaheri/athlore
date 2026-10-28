@@ -21,6 +21,14 @@ review → publish. There is no separate final-assessment page.
   longer inject pyramid/partial/drop prescriptions into ordinary training.
 - Explicit training systems and precise templates retain their structured
   execution semantics. Published versions are never rewritten by this change.
+- Automatic exercise order preserves the coach's per-session muscle order after
+  applying explicit focus decisions. Whole-exercise systems that prescribe
+  their own working sets reserve distinct eligible isolation movements before
+  selection; a second system cannot silently overwrite the first system's
+  prescription. Grouping systems claim only the remaining unassigned movements.
+- Version-2 per-set prescriptions remain authoritative through execution-plan
+  compilation. Group timers may adjust rest for paired rounds, while standalone
+  sets retain their individual repetitions, rest and effort targets.
 
 The generation snapshot includes the aggregate digest; changing the policy
 invalidates regeneration from an older context. New automatic prescriptions
@@ -113,6 +121,13 @@ from an earlier catalog audit. QA can
 explicitly select `--available-catalog-split` (chest/triceps, quadriceps/shoulders) to
 exercise publication with supported catalog muscles. This is a named test
 configuration, never an automatic fallback or a balanced full-body claim.
+
+Generated workout PDFs use a Letter-size, coach-sheet layout with compact
+movement/prescription rows and paired movements on one row. The reference PDFs
+embed Arial and Calibri fonts; the application uses Liberation Sans for the
+Arial-compatible Latin face and Noto Sans Arabic for Persian glyphs. Those
+redistributable fonts approximate the reference metrics and appearance but are
+not the proprietary font files themselves.
 
 Hard-coded exercise fallback banks have also been removed from the shared
 selector, not merely disabled by visit preparation. Low-level generation APIs

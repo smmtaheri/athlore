@@ -422,6 +422,14 @@ def _pick_for_roles(
     remaining = list(candidates)
     picked: list[str] = []
 
+    def matches_role(name: str, role: str) -> bool:
+        metadata = (metadata_by_name or {}).get(name, {})
+        if role.startswith("required_class:"):
+            return movement_class(metadata) == role.removeprefix("required_class:")
+        if role.startswith("muscle:"):
+            return muscle_key(metadata.get("primary_muscle_key")) == role.removeprefix("muscle:")
+        return movement_role(metadata) == role
+
     def sort_key(n: str) -> tuple:
         metadata = (metadata_by_name or {}).get(n, {})
         preference_score = 101 if n in preferred_names else int(metadata.get("priority") or 0)
@@ -432,17 +440,10 @@ def _pick_for_roles(
         )
 
     for role in roles:
-        matched = [
-            n
-            for n in remaining
-            if (
-                muscle_key((metadata_by_name or {}).get(n, {}).get("primary_muscle_key"))
-                == role.removeprefix("muscle:")
-                if role.startswith("muscle:")
-                else movement_role((metadata_by_name or {}).get(n, {})) == role
-            )
-        ]
+        matched = [name for name in remaining if matches_role(name, role)]
         if not matched:
+            if role.startswith("required_class:"):
+                continue
             if role.startswith("muscle:"):
                 continue
             # A missing execution pattern stays unclassified; muscle matching remains explicit.
@@ -981,6 +982,28 @@ def build_training_days(
         policy, level, goals.get("primary_goal", "hypertrophy"), effective_decisions
     )
 
+    # Reserve distinct isolation movements for each selected system that
+    # prescribes a whole exercise. This prevents a drop set and a 100-rep
+    # recipe from both overwriting the only isolation movement in a session.
+    technique_isolation_slots: Counter = Counter()
+    if selected_training_systems:
+        from programming.services.techniques import (
+            _recipe_for,
+            _selected_configs,
+            normalize_training_system_selection,
+        )
+
+        normalized_systems = normalize_training_system_selection(
+            coach, level, selected_training_systems
+        )
+        for config in _selected_configs(coach, normalized_systems or []):
+            if _recipe_for(config).get("target") != "last_isolation":
+                continue
+            for selected_muscle in getattr(config, "_selected_muscles", []):
+                selected_key = muscle_key(selected_muscle)
+                if selected_key:
+                    technique_isolation_slots[selected_key] += 1
+
     preferred_names: set[str] = set()
     for pref in pref_by_exercise_id.values():
         if pref.is_preferred or int(pref.priority or 0) > 0:
@@ -1171,7 +1194,17 @@ def build_training_days(
                 )
                 per_session = min(row["session_cap"], (row["target"] + frequency - 1) // frequency)
                 desired = max(1, (per_session + base_sets - 1) // base_sets)
-                desired = min(3, desired, len(key_candidates))
+                available_isolations = sum(
+                    movement_class(structured_catalog_by_name[name]) == "isolation"
+                    for name in key_candidates
+                )
+                required_isolations = min(
+                    available_isolations, technique_isolation_slots.get(key, 0)
+                )
+                reserved_movements = required_isolations + bool(required_isolations)
+                desired = min(
+                    len(key_candidates), max(min(3, desired), reserved_movements)
+                )
                 explicit_count = bool(
                     target_exercise_count
                     and target_muscle
@@ -1189,6 +1222,7 @@ def build_training_days(
                         "names": [],
                         "from_structured": set(),
                         "desired": desired,
+                        "required_isolation_count": required_isolations,
                         "per_session_sets": per_session,
                         "available": 0,
                         "priority": key in priority or key in weak or row["priority"],
@@ -1198,6 +1232,9 @@ def build_training_days(
                     demands_by_key[key] = demand
                 else:
                     demand["desired"] = max(demand["desired"], desired)
+                    demand["required_isolation_count"] = max(
+                        demand["required_isolation_count"], required_isolations
+                    )
                     demand["per_session_sets"] = max(demand["per_session_sets"], per_session)
                     demand["priority"] = demand["priority"] or key in priority or key in weak
                     demand["explicit_count"] = demand["explicit_count"] or explicit_count
@@ -1245,9 +1282,15 @@ def build_training_days(
                 if name not in used and not _fuzzy_forbidden(name, used)
             ]
             historical_map = _historical_usage_map(coach, candidates)
+            required_isolations = min(
+                count, int(demand.get("required_isolation_count") or 0)
+            )
+            roles = ["required_class:isolation"] * required_isolations + [
+                f"muscle:{key}"
+            ] * max(0, count - required_isolations)
             picked = _pick_for_roles(
                 candidates,
-                [f"muscle:{key}"] * count,
+                roles,
                 demand["muscle"],
                 preferred_names=preferred_names,
                 historical_map=historical_map,
@@ -1258,6 +1301,15 @@ def build_training_days(
                 weekly_roles=weekly_roles,
                 goal=goals.get("primary_goal", "hypertrophy"),
             )
+            selected_isolations = sum(
+                movement_class(structured_catalog_by_name.get(name, {})) == "isolation"
+                for name in picked
+            )
+            if selected_isolations < required_isolations:
+                warnings.append(
+                    f"technique_isolation_slot_shortfall:{index + 1}:{key}:"
+                    f"{required_isolations}/{selected_isolations}"
+                )
             for idx, name in enumerate(picked):
                 used.add(name)
                 used |= _alias_names(coach, {name})
@@ -1340,11 +1392,17 @@ def build_training_days(
                     }
                 )
 
-        # Session order: compound → secondary → isolation → arms → core
+        # Keep the coach's muscle order, then sort movements within each group.
+        split_order = {}
+        for muscle_index, label in enumerate(target_muscles):
+            for key in demands_by_key:
+                if _session_covers_muscle(label, key):
+                    split_order.setdefault(key, muscle_index)
         day_exercises.sort(
             key=lambda ex: (
-                {"compound": 0, "isolation": 2, "core": 4}.get(movement_class(ex), 3),
                 0 if ex["targetMuscle"] in priority | weak else 1,
+                split_order.get(muscle_key(ex["targetMuscle"]), len(target_muscles)),
+                {"compound": 0, "isolation": 2, "core": 4}.get(movement_class(ex), 3),
                 ex["name"],
             )
         )

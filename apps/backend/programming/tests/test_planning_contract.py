@@ -141,6 +141,71 @@ def exercise(key, sets=3, **extra):
 
 
 class ExecutionContractTests(SimpleTestCase):
+    def test_compile_execution_preserves_per_set_repetition_targets(self):
+        item = exercise("chest", sets=3)
+        item["prescription"] = {
+            "version": 2,
+            "sets": 3,
+            "reps_text": "8-12",
+            "set_plan": [
+                {"set": 1, "reps_text": "12", "rest": "90 ثانیه", "effort": "RIR 2"},
+                {"set": 2, "reps_text": "10", "rest": "90 ثانیه", "effort": "RIR 2"},
+                {"set": 3, "reps_text": "8", "rest": "120 ثانیه", "effort": "RIR 1"},
+            ],
+        }
+        compile_execution([{"id": "day-1", "exercises": [item]}])
+        self.assertEqual(
+            [row["reps_text"] for row in item["prescription"]["set_plan"]], ["12", "10", "8"]
+        )
+        self.assertEqual(item["prescription"]["set_plan"][2]["rest"], "120 ثانیه")
+
+    def test_separate_whole_exercise_techniques_claim_distinct_movements(self):
+        from types import SimpleNamespace
+
+        recipe = {
+            "version": 1,
+            "target": "last_isolation",
+            "steps": [{"op": "prescribe", "sets": 1, "reps": "100"}],
+        }
+
+        def config(key):
+            return SimpleNamespace(
+                recipe=recipe,
+                base_technique=None,
+                key=key,
+                name=key,
+                max_per_session=1,
+                execution_method="",
+                parameters={},
+                id=None,
+                _selected_muscles=["سینه"],
+            )
+
+        day = {
+            "id": "day-1",
+            "exercises": [
+                {
+                    "id": "fly-a",
+                    "name": "قفسه دستگاه",
+                    "targetMuscle": "سینه",
+                    "sets": 3,
+                    "exercise_snapshot": {"primary_muscle_key": "chest", "mechanics": "single_joint"},
+                },
+                {
+                    "id": "fly-b",
+                    "name": "کراس کابل",
+                    "targetMuscle": "سینه",
+                    "sets": 3,
+                    "exercise_snapshot": {"primary_muscle_key": "chest", "mechanics": "single_joint"},
+                },
+            ],
+        }
+        first_count, first = _apply_recipe([day], config("drop_set"))
+        second_count, second = _apply_recipe([day], config("100_reps"))
+        self.assertEqual(first_count, 1)
+        self.assertEqual(second_count, 1)
+        self.assertNotEqual(first[0]["exercise_id"], second[0]["exercise_id"])
+
     def test_full_session_rebalances_extras_to_meet_all_minimums(self):
         policy = validate_policy({})
         plan = build_volume_plan(policy, "intermediate", "hypertrophy")

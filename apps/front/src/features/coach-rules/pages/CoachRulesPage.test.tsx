@@ -85,6 +85,10 @@ describe("CoachRulesPage", () => {
     expect(screen.queryByText("حرکات ضروری")).not.toBeInTheDocument();
     expect(screen.queryByText("توضیحات مربی")).not.toBeInTheDocument();
     expect(screen.queryByText("یادداشت‌های مربی (غیراجرایی)")).not.toBeInTheDocument();
+    const rulesCard = screen.getByTestId("generation-rules-card");
+    expect(rulesCard).toContainElement(screen.getByText("محدودیت‌های هر سطح"));
+    expect(rulesCard).toContainElement(screen.getByText("آسیب‌ها و محدودیت‌های ایمنی"));
+    expect(rulesCard).toContainElement(screen.getByText("قالب دقیق برنامه (اختیاری)"));
   });
 
   it("shows read-only empty state when no nutrition/supplement templates are returned", async () => {

@@ -361,21 +361,21 @@ function RulesSection({ rules, section, templatesRepository, updateRules }: Rule
   }
   if (section === "levels") {
     return (
-      <Stack gap="20px">
+      <Card className={styles.pageStack} data-testid="generation-rules-card">
         <GenerationPolicyEditor rules={rules} updateRules={updateRules} />
-        <details>
+        <details className={styles.formAdvancedDetails}>
           <summary>محدودیت‌های هر سطح</summary>
           <LevelRules rules={rules} updateRules={updateRules} />
         </details>
-        <details>
+        <details className={styles.formAdvancedDetails}>
           <summary>آسیب‌ها و محدودیت‌های ایمنی</summary>
           <InjuryRules rules={rules} updateRules={updateRules} />
         </details>
-        <details>
+        <details className={styles.formAdvancedDetails}>
           <summary>قالب دقیق برنامه (اختیاری)</summary>
           <ProgramTemplateEditor rules={rules} updateRules={updateRules} />
         </details>
-      </Stack>
+      </Card>
     );
   }
   if (section === "injuries") {
@@ -424,7 +424,7 @@ function GenerationPolicyEditor({ rules, updateRules }: RulesEditorProps) {
     ["warmup_minutes", "زمان گرم‌کردن (دقیقه)", 0, 20]
   ] as const;
   return (
-    <Card className={styles.pageStack}>
+    <div className={styles.pageStack}>
       <SectionHeader
         title="قوانین اجرایی تولید خودکار"
         description="این اعداد مستقیماً دوز تمرین و سقف زمان را تعیین می‌کنند. سیستم تمرینی انتخاب‌شده می‌تواند روش اجرای حرکت را تغییر دهد؛ ایمنی همیشه مقدم است."
@@ -450,7 +450,7 @@ function GenerationPolicyEditor({ rules, updateRules }: RulesEditorProps) {
         }
         label="پیشرفت دوگانه: ابتدا افزایش تکرار، سپس وزنه با حفظ فرم و RIR"
       />
-    </Card>
+    </div>
   );
 }
 

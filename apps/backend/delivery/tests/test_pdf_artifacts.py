@@ -425,6 +425,51 @@ class PdfArtifactServiceTests(PdfTestMixin, APITestCase):
         )
         self.assertEqual(ctx["days"][0]["exercises"][0]["name"], "VERSION_EX")
 
+    def test_workout_pdf_rows_keep_superset_pair_and_set_prescriptions_compact(self):
+        self.final.training = {
+            "days": [
+                {
+                    "order": 1,
+                    "title": "سینه و زیربغل",
+                    "exercises": [
+                        {
+                            "id": "press",
+                            "name": "پرس سینه هالتر",
+                            "sets": 3,
+                            "reps": "8-12",
+                            "rest": "90 ثانیه",
+                            "supersetGroupId": "pair-1",
+                        },
+                        {
+                            "id": "row",
+                            "name": "قایقی کابل",
+                            "sets": 3,
+                            "reps": "10-12",
+                            "rest": "90 ثانیه",
+                            "supersetGroupId": "pair-1",
+                            "supersetWithPrevious": True,
+                        },
+                    ],
+                }
+            ]
+        }
+        context = build_pdf_context(
+            artifact=None,
+            program=self.program,
+            version=self.final,
+            student=self.student,
+            coach=self.coach_a,
+        )
+        self.assertEqual(len(context["workout_pages"]), 1)
+        rows = context["workout_pages"][0][0]["exercise_rows"]
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["grouped"])
+        self.assertEqual(rows[0]["compact_prescription"], "3 ست × 8-12 + 10-12")
+        self.assertEqual(
+            [member["prescription"] for member in rows[0]["members"]],
+            ["3 ست × 8-12", "3 ست × 10-12"],
+        )
+
 
 @override_settings(MEDIA_ROOT="/tmp/should-be-overridden")
 @override_settings(PUBLIC_REGISTRATION_ENABLED=True)

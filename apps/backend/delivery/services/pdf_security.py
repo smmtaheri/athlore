@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from delivery.services.render import resolve_font_path
+from delivery.services.render import resolve_font_path, resolve_latin_font_path
 
 
 class LocalFontUrlFetcher:
@@ -16,7 +16,10 @@ class LocalFontUrlFetcher:
     """
 
     def __init__(self) -> None:
-        self._allowed: set[Path] = {resolve_font_path().resolve()}
+        self._allowed: set[Path] = {
+            resolve_font_path().resolve(),
+            resolve_latin_font_path().resolve(),
+        }
         for parent in {p.parent for p in self._allowed}:
             if not parent.exists():
                 continue

@@ -5,150 +5,223 @@
   <title>{{ file_title }}</title>
   <style>
     @font-face {
-      font-family: "CoachNaskh";
+      font-family: "AthloreArabic";
       src: url("{{ font_path }}");
-      font-weight: normal;
-      font-style: normal;
+      font-weight: 400;
+    }
+    @font-face {
+      font-family: "AthloreArabic";
+      src: url("{{ font_bold_path }}");
+      font-weight: 700;
+    }
+    @font-face {
+      font-family: "AthloreLatin";
+      src: url("{{ latin_font_path }}");
+      font-weight: 400;
+    }
+    @font-face {
+      font-family: "AthloreLatin";
+      src: url("{{ latin_font_bold_path }}");
+      font-weight: 700;
     }
     @page {
-      size: A4;
-      margin: 18mm 14mm 20mm 14mm;
+      size: letter;
+      margin: 15pt;
+      background: #d9d9d9;
       @bottom-center {
-        content: "نسخه {{ version_label }} · صفحه " counter(page) " از " counter(pages);
-        font-family: "CoachNaskh", sans-serif;
-        font-size: 9pt;
-        color: #555;
+        content: "{{ version_label }} · " counter(page);
+        font-family: "AthloreLatin", "AthloreArabic", sans-serif;
+        font-size: 8pt;
+        color: #424b57;
       }
     }
     * { box-sizing: border-box; }
     body {
-      font-family: "CoachNaskh", "DejaVu Sans", sans-serif;
+      font-family: "AthloreLatin", "AthloreArabic", sans-serif;
       direction: rtl;
       text-align: right;
-      color: #1a1a1a;
-      font-size: 11pt;
-      line-height: 1.55;
+      color: #202226;
+      font-size: 13pt;
+      line-height: 1.75;
       margin: 0;
     }
-    h1, h2, h3 { margin: 0 0 8pt; font-weight: normal; }
-    h1 { font-size: 18pt; }
-    h2 { font-size: 14pt; border-bottom: 1px solid #ccc; padding-bottom: 4pt; margin-top: 16pt; }
-    h3 { font-size: 12pt; margin-top: 12pt; }
-    .meta { font-size: 10pt; color: #333; margin: 2pt 0; }
-    .badge {
+    h1, h2, h3, p { margin: 0; }
+    .workout-page {
+      min-height: 748pt;
+      border: 3pt double #243b61;
+      background: #d9d9d9;
+      padding: 21pt 28pt 28pt;
+      break-after: page;
+    }
+    .sheet-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20pt;
+      border-bottom: 1.2pt solid #263f69;
+      padding-bottom: 11pt;
+      margin-bottom: 12pt;
+    }
+    .brand {
+      color: #183a72;
+      font-family: "AthloreLatin", "AthloreArabic", sans-serif;
+      font-size: 17pt;
+      font-weight: 700;
+      letter-spacing: .4pt;
+      white-space: nowrap;
+    }
+    .header-info { flex: 1; min-width: 0; }
+    .header-info h1 { font-size: 17pt; line-height: 1.5; font-weight: 700; }
+    .header-meta { color: #42474d; font-size: 10pt; line-height: 1.55; }
+    .day { margin-top: 9pt; break-inside: avoid; }
+    .day-title {
       display: inline-block;
-      border: 1px solid #444;
-      padding: 2pt 8pt;
-      font-size: 9pt;
-      margin-top: 6pt;
+      margin-bottom: 4pt;
+      padding: 0 5pt;
+      background: #fff06a;
+      color: #151515;
+      font-size: 15pt;
+      line-height: 1.55;
+      font-weight: 700;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 8pt 0 12pt;
+    .day-focus { color: #41464d; font-size: 9.5pt; margin: 0 0 2pt; }
+    .exercise-list { margin-top: 2pt; }
+    .exercise-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 190pt;
+      gap: 10pt;
+      align-items: baseline;
+      padding: 1.5pt 0 2pt;
+      border-bottom: .35pt solid rgb(52 65 82 / 18%);
+      break-inside: avoid;
+      line-height: 1.75;
+    }
+    .movement { min-width: 0; font-weight: 700; }
+    .movement-names { overflow-wrap: anywhere; }
+    .plus { padding: 0 3pt; color: #193b74; font-family: "AthloreLatin", sans-serif; }
+    .prescription {
+      text-align: left;
+      direction: rtl;
+      font-family: "AthloreLatin", "AthloreArabic", sans-serif;
+      font-size: 12pt;
+      font-weight: 700;
+      white-space: normal;
+    }
+    .movement-note, .rx-note, .group-note {
+      color: #444b54;
+      font-size: 9pt;
+      line-height: 1.45;
+      font-weight: 400;
+    }
+    .method-label { color: #263f69; font-size: 8.5pt; font-weight: 700; }
+    .page-continuation {
+      margin: 0 0 8pt;
+      color: #273d61;
       font-size: 10pt;
+      font-weight: 700;
     }
-    th, td {
-      border: 1px solid #bbb;
-      padding: 5pt 6pt;
-      vertical-align: top;
-      text-align: right;
-    }
-    th { background: #f3f3f3; }
     .section { page-break-inside: auto; }
-    .day { page-break-inside: auto; margin-bottom: 14pt; }
-    h2, h3 { page-break-after: avoid; }
-    thead { display: table-header-group; }
-    tr { page-break-inside: avoid; }
-    .muted { color: #555; font-size: 10pt; }
-    .footer-note {
-      margin-top: 20pt;
-      padding-top: 8pt;
-      border-top: 1px solid #ddd;
-      font-size: 9pt;
-      color: #444;
+    .section h2 {
+      display: inline-block;
+      margin: 0 0 8pt;
+      padding: 0 5pt;
+      background: #fff06a;
+      font-size: 15pt;
     }
-    ul { margin: 4pt 0 8pt; padding-right: 18pt; }
+    .section h3 { margin: 8pt 0 3pt; font-size: 12pt; }
+    .muted { color: #555; font-size: 9.5pt; }
+    .generic-header { margin-bottom: 14pt; padding-bottom: 8pt; border-bottom: 1pt solid #263f69; }
+    .generic-header h1 { font-size: 17pt; }
+    .badge { font-size: 9pt; }
+    table { width: 100%; border-collapse: collapse; margin: 7pt 0 10pt; font-size: 9.5pt; }
+    th, td { border: 1px solid #85898d; padding: 4pt 5pt; vertical-align: top; text-align: right; }
+    th { background: #c4c7cb; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; }
+    .summary-line { margin: 4pt 0 8pt; color: #41464d; font-size: 9.5pt; }
+    .footer-note { margin-top: 14pt; padding-top: 6pt; border-top: 1px solid #74797e; color: #444; font-size: 8pt; }
+    ul { margin: 3pt 0 5pt; padding-right: 16pt; }
   </style>
 </head>
 <body>
-  <header>
-    <div class="muted">{{ product_title }}</div>
-    <h1>{{ file_title }}</h1>
-    {% if subtitle %}<div class="meta">{{ subtitle }}</div>{% endif %}
-    {% if coach_name %}<div class="meta">مربی: {{ coach_name }}</div>{% endif %}
-    {% if student_name %}<div class="meta">شاگرد: {{ student_name }}</div>{% endif %}
-    <div class="meta">برنامه: {{ program_title }} · نوع: {{ program_type }}</div>
-    <div class="meta">بازه: {{ date_range }}</div>
-    <div class="meta">نسخه نهایی: {{ version_label }}{% if finalized_at %} · {{ finalized_at }}{% endif %}</div>
-    <div class="badge">نسخه نهایی‌شده</div>
-  </header>
+  {% if include_training and workout_pages %}
+    {% for page_days in workout_pages %}
+    <section class="workout-page">
+      {% if forloop.first %}
+      <header class="sheet-header">
+        <div class="brand">ATHLORE</div>
+        <div class="header-info">
+          <h1>{{ file_title }}</h1>
+          <div class="header-meta">
+            {% if coach_name %}مربی: {{ coach_name }}{% endif %}
+            {% if student_name %} · شاگرد: {{ student_name }}{% endif %}
+          </div>
+          <div class="header-meta">
+            {{ program_title }}{% if date_range %} · {{ date_range }}{% endif %}
+            {% if weekly_days %} · {{ weekly_days }} جلسه در هفته{% endif %}
+            {% if goal %} · {{ goal }}{% endif %}
+          </div>
+          {% if subtitle %}<div class="header-meta">{{ subtitle }}</div>{% endif %}
+          {% if level or finalized_at %}
+          <div class="header-meta">{% if level %}سطح: {{ level }}{% endif %}{% if finalized_at %} · {{ finalized_at }}{% endif %}</div>
+          {% endif %}
+          <div class="header-meta">{{ version_label }}</div>
+          {% if limitations %}<div class="header-meta">محدودیت: {% for item in limitations %}{{ item }}{% if not forloop.last %}، {% endif %}{% endfor %}</div>{% endif %}
+          {% if coach_notes %}<div class="header-meta">یادداشت مربی: {{ coach_notes }}</div>{% endif %}
+          {% if contact_info %}<div class="header-meta">تماس: {{ contact_info }}</div>{% endif %}
+          {% if training_summary %}<div class="header-meta">{{ training_summary }}</div>{% endif %}
+          {% for note in training_instructions %}<div class="header-meta">{{ note }}</div>{% endfor %}
+        </div>
+      </header>
+      {% else %}
+      <div class="page-continuation">{{ file_title }} · {% if student_name %}{{ student_name }}{% else %}{{ program_title }}{% endif %}</div>
+      {% endif %}
 
-  <section class="section">
-    <h2>خلاصه شاگرد</h2>
-    {% if goal %}<div class="meta">هدف: {{ goal }}</div>{% endif %}
-    {% if level %}<div class="meta">سطح: {{ level }}</div>{% endif %}
-    {% if weekly_days %}<div class="meta">روزهای تمرین هفتگی: {{ weekly_days }}</div>{% endif %}
-    {% if limitations %}
-      <div class="meta">محدودیت‌ها:</div>
-      <ul>{% for item in limitations %}<li>{{ item }}</li>{% endfor %}</ul>
-    {% endif %}
-    {% if coach_notes %}<div class="meta">یادداشت PDF مربی: {{ coach_notes }}</div>{% endif %}
-    {% if contact_info %}<div class="meta">تماس: {{ contact_info }}</div>{% endif %}
-  </section>
-
-  {% if include_training %}
-  <section class="section">
-    <h2>تمرین</h2>
-    {% if training_summary %}<p class="muted">{{ training_summary }}</p>{% endif %}
-    {% for note in training_instructions %}<p class="muted">{{ note }}</p>{% endfor %}
-    {% for day in days %}
-      <div class="day">
-        <h3>{% if day.order %}روز {{ day.order }} — {% endif %}{{ day.title }}</h3>
-        {% if day.focus %}<div class="muted">تمرکز: {{ day.focus }}</div>{% endif %}
-        {% if day.notes %}<div class="muted">{{ day.notes }}</div>{% endif %}
-        {% if day.exercises %}
-        <table>
-          <thead>
-            <tr>
-              <th>حرکت</th>
-              <th>ست</th>
-              <th>تکرار</th>
-              <th>استراحت</th>
-              <th>تمپو</th>
-              <th>شدت</th>
-              <th>یادداشت</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for ex in day.exercises %}
-            <tr>
-              <td>
-                {% if ex.supersetWithPrevious %}
-                  + {{ ex.name }}
-                {% else %}
-                  {{ ex.name }}
+      {% for day in page_days %}
+      <article class="day">
+        <h2 class="day-title">{% if day.order %}جلسه {{ day.order }}: {% endif %}{{ day.title }}</h2>
+        {% if day.focus %}<div class="day-focus">تمرکز: {{ day.focus }}</div>{% endif %}
+        {% if day.notes %}<div class="day-focus">{{ day.notes }}</div>{% endif %}
+        <div class="exercise-list">
+          {% for row in day.exercise_rows %}
+          <div class="exercise-row">
+            <div class="movement">
+              <div class="movement-names">
+                {% for member in row.members %}
+                  <span>{{ member.name }}</span>{% if not forloop.last %}<span class="plus">+</span>{% endif %}
+                {% endfor %}
+              </div>
+              {% for member in row.members %}
+                {% if member.techniques %}<div class="method-label">{% for technique in member.techniques %}{{ technique }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+                {% if member.notes %}<div class="movement-note">{{ member.notes }}</div>{% endif %}
+              {% endfor %}
+            </div>
+            <div>
+              <div class="prescription">{% if row.compact_prescription %}{{ row.compact_prescription }}{% else %}{% for member in row.members %}{{ member.prescription }}{% if not forloop.last %}<span class="plus">+</span>{% endif %}{% endfor %}{% endif %}</div>
+              {% for member in row.members %}
+                {% if member.rest or member.tempo or member.effort %}
+                <div class="rx-note">{% if member.rest %}استراحت {{ member.rest }}{% endif %}{% if member.tempo %} · تمپو {{ member.tempo }}{% endif %}{% if member.effort %} · {{ member.effort }}{% endif %}</div>
                 {% endif %}
-                {% if ex.trainingGroupName %}<div class="muted">{{ ex.trainingGroupName }}</div>{% endif %}
-                {% if ex.pairedRounds %}<div class="muted">{{ ex.pairedRounds }} دور گروهی{% if ex.soloSets %}؛ سپس {{ ex.soloSets }} ست تکی{% endif %}</div>{% endif %}
-                {% if ex.supersetRestBetweenSeconds != None and not ex.supersetWithPrevious %}
-                  <div class="muted">بین حرکت‌ها: {{ ex.supersetRestBetweenSeconds }} ثانیه؛ بعد از گروه: {{ ex.supersetRestAfterSeconds }} ثانیه</div>
-                {% endif %}
-              </td>
-              <td>{{ ex.sets }}</td>
-              <td>{{ ex.reps }}</td>
-              <td>{{ ex.rest }}</td>
-              <td>{{ ex.tempo }}</td>
-              <td>{{ ex.effort }}</td>
-              <td>{{ ex.notes }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% endif %}
-      </div>
+              {% endfor %}
+              {% if row.grouped and row.rest_between %}<div class="group-note">{{ row.rest_between }}{% if row.rest_after %}؛ {{ row.rest_after }}{% endif %}</div>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </article>
+      {% endfor %}
+    </section>
     {% endfor %}
-  </section>
+  {% else %}
+    <header class="generic-header">
+      <div class="muted">{{ product_title }}</div>
+      <h1>{{ file_title }}</h1>
+      {% if subtitle %}<div class="header-meta">{{ subtitle }}</div>{% endif %}
+      {% if coach_name %}<div class="header-meta">مربی: {{ coach_name }}</div>{% endif %}
+      {% if student_name %}<div class="header-meta">شاگرد: {{ student_name }}</div>{% endif %}
+      <div class="header-meta">{{ program_title }} · {{ program_type }} · {{ date_range }}</div>
+      <div class="badge">نسخه نهایی‌شده · {{ version_label }}</div>
+    </header>
   {% endif %}
 
   {% if include_nutrition %}
@@ -161,15 +234,7 @@
       {% if meal.items %}
       <table>
         <thead><tr><th>مورد</th><th>مقدار</th><th>یادداشت</th></tr></thead>
-        <tbody>
-          {% for item in meal.items %}
-          <tr>
-            <td>{{ item.description }}</td>
-            <td>{{ item.quantity }}</td>
-            <td>{{ item.notes }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
+        <tbody>{% for item in meal.items %}<tr><td>{{ item.description }}</td><td>{{ item.quantity }}</td><td>{{ item.notes }}</td></tr>{% endfor %}</tbody>
       </table>
       {% endif %}
     {% endfor %}
@@ -183,24 +248,10 @@
     {% if supplement_notes %}<p class="muted">{{ supplement_notes }}</p>{% endif %}
     {% if supplement_items %}
     <table>
-      <thead>
-        <tr>
-          <th>نام</th>
-          <th>مقدار</th>
-          <th>زمان</th>
-          <th>دستور</th>
-          <th>یادداشت</th>
-        </tr>
-      </thead>
+      <thead><tr><th>نام</th><th>مقدار</th><th>زمان</th><th>دستور</th><th>یادداشت</th></tr></thead>
       <tbody>
         {% for item in supplement_items %}
-        <tr>
-          <td>{{ item.name }}</td>
-          <td>{{ item.amount }}</td>
-          <td>{{ item.timing }}</td>
-          <td>{{ item.instructions }}</td>
-          <td>{{ item.notes }}{% if item.warnings %}<br />هشدار: {{ item.warnings }}{% endif %}</td>
-        </tr>
+        <tr><td>{{ item.name }}</td><td>{{ item.amount }}</td><td>{{ item.timing }}</td><td>{{ item.instructions }}</td><td>{{ item.notes }}{% if item.warnings %}<br/>هشدار: {{ item.warnings }}{% endif %}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -208,9 +259,6 @@
   </section>
   {% endif %}
 
-  <div class="footer-note">
-    <div>تولید شده در {{ generated_at }} · نسخه برنامه {{ version_label }}</div>
-    <div>{{ safety_notice }}</div>
-  </div>
+  <div class="footer-note">{{ safety_notice }} · {{ generated_at }} · {{ version_label }}</div>
 </body>
 </html>

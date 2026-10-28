@@ -13,15 +13,29 @@ from django.utils import timezone
 from common.calendar import format_date, format_date_text
 
 # Bump when template structure or CSS layout changes in a meaningful way.
-RENDER_TEMPLATE_VERSION = "1.4.0"
+RENDER_TEMPLATE_VERSION = "2.0.0"
 RENDER_ENGINE_NAME = "weasyprint"
-RENDER_ENGINE_VERSION = "66"
+RENDER_ENGINE_VERSION = "69"
 
-# System font — Noto Naskh Arabic connects Persian glyphs correctly; no CDN fetch.
-DEFAULT_FONT_PATH = Path("/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf")
+# Noto Sans Arabic keeps Persian forms close to the source sheets' sans-serif face.
+DEFAULT_FONT_PATH = Path("/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf")
 FALLBACK_FONT_PATHS = (
-    Path("/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf"),
+    Path("/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf"),
     Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+)
+LATIN_FONT_PATHS = (
+    Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
+    Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"),
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+)
+ARABIC_BOLD_FONT_PATHS = (
+    Path("/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf"),
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+)
+LATIN_BOLD_FONT_PATHS = (
+    Path("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
+    Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"),
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
 )
 
 
@@ -32,6 +46,128 @@ def resolve_font_path() -> Path:
         if path.is_file():
             return path
     raise FileNotFoundError("No Unicode Arabic-capable font found for PDF rendering.")
+
+
+def resolve_latin_font_path() -> Path:
+    for path in LATIN_FONT_PATHS:
+        if path.is_file():
+            return path
+    return resolve_font_path()
+
+
+def _resolve_font(paths: tuple[Path, ...], fallback: Path) -> Path:
+    return next((path for path in paths if path.is_file()), fallback)
+
+
+def _pdf_exercise(exercise: dict, *, shared_notes: set[str] | None = None) -> dict:
+    prescription = _as_dict(exercise.get("prescription"))
+    set_plan = _as_list(prescription.get("set_plan"))
+    reps = str(exercise.get("reps") or exercise.get("repetitions") or "")
+    set_reps = [
+        str(_as_dict(row).get("reps_text") or reps)
+        for row in set_plan
+        if isinstance(row, dict)
+    ]
+    uniform_reps = not set_reps or len(set(set_reps)) <= 1
+    if set_reps and len(set(set_reps)) > 1:
+        reps_label = " · ".join(
+            f"{row.get('set') or index + 1}: {row.get('reps_text') or reps}"
+            for index, row in enumerate(set_plan)
+            if isinstance(row, dict)
+        )
+        rx = " · ".join(
+            f"{row.get('set') or index + 1}: {row.get('reps_text') or reps}"
+            for index, row in enumerate(set_plan)
+            if isinstance(row, dict)
+        )
+    else:
+        sets = str(exercise.get("sets") or "")
+        reps_label = set_reps[0] if set_reps else reps
+        rx = f"{sets} ست × {reps_label}".strip()
+    rest = str(exercise.get("rest") or exercise.get("rest_seconds") or "").strip()
+    if rest and rest.isdigit():
+        rest = f"{rest} ثانیه"
+    techniques = list(
+        dict.fromkeys(
+            str(_as_dict(item).get("name") or "").strip()
+            for item in _as_list(exercise.get("techniques"))
+            if _as_dict(item).get("name")
+        )
+    )
+    notes = exercise.get("coach_notes") or exercise.get("notes") or ""
+    if str(notes) in (shared_notes or set()) and not exercise.get("coach_notes"):
+        notes = ""
+    return {
+        "name": _esc(exercise.get("name") or exercise.get("exercise_name") or ""),
+        "sets": str(exercise.get("sets") or ""),
+        "reps_label": reps_label,
+        "uniform_reps": uniform_reps,
+        "prescription": _esc(rx),
+        "rest": _esc(rest),
+        "tempo": _esc(exercise.get("tempo") or ""),
+        "effort": _esc(exercise.get("rpe") or exercise.get("intensity") or ""),
+        "techniques": [_esc(name) for name in techniques],
+        "notes": _esc(notes),
+    }
+
+
+def _pdf_exercise_rows(
+    exercises: list[dict], *, shared_notes: set[str] | None = None
+) -> list[dict]:
+    rows = []
+    index = 0
+    while index < len(exercises):
+        exercise = exercises[index]
+        group_id = exercise.get("trainingGroupId") or exercise.get("supersetGroupId")
+        members = [exercise]
+        if group_id:
+            cursor = index + 1
+            while cursor < len(exercises):
+                candidate = exercises[cursor]
+                candidate_group = candidate.get("trainingGroupId") or candidate.get(
+                    "supersetGroupId"
+                )
+                if candidate_group != group_id:
+                    break
+                members.append(candidate)
+                cursor += 1
+            index = cursor - 1
+        formatted_members = [
+            _pdf_exercise(item, shared_notes=shared_notes) for item in members
+        ]
+        compact_prescription = ""
+        if (
+            len(formatted_members) > 1
+            and all(member["uniform_reps"] for member in formatted_members)
+            and len({member["sets"] for member in formatted_members}) == 1
+            and formatted_members[0]["sets"]
+        ):
+            repetitions = [member["reps_label"] for member in formatted_members]
+            separator = "-" if all(value.isdigit() for value in repetitions) else " + "
+            compact_prescription = _esc(
+                f"{formatted_members[0]['sets']} ست × {separator.join(repetitions)}"
+            )
+        rows.append(
+            {
+                "grouped": len(members) > 1,
+                "members": formatted_members,
+                "compact_prescription": compact_prescription,
+                "rest_between": _esc(
+                    f"{exercise.get('supersetRestBetweenSeconds')} ثانیه بین حرکت‌ها"
+                    if len(members) > 1
+                    and exercise.get("supersetRestBetweenSeconds") is not None
+                    else ""
+                ),
+                "rest_after": _esc(
+                    f"{exercise.get('supersetRestAfterSeconds')} ثانیه بعد از گروه"
+                    if len(members) > 1
+                    and exercise.get("supersetRestAfterSeconds") is not None
+                    else ""
+                ),
+            }
+        )
+        index += 1
+    return rows
 
 
 def _esc(value: Any) -> str:
@@ -94,8 +230,12 @@ def build_pdf_context(
         for day in _as_list(training.get("days")):
             day_d = _as_dict(day)
             exercises_out = []
-            for ex in _as_list(day_d.get("exercises")):
-                ex_d = _as_dict(ex)
+            source_exercises = [
+                _as_dict(ex)
+                for ex in _as_list(day_d.get("exercises"))
+                if isinstance(ex, dict)
+            ]
+            for ex_d in source_exercises:
                 exercises_out.append(
                     {
                         "name": _esc(ex_d.get("name") or ex_d.get("exercise_name") or ""),
@@ -128,8 +268,13 @@ def build_pdf_context(
                     ),
                     "notes": _esc(day_d.get("notes") or ""),
                     "exercises": exercises_out,
+                    "exercise_rows": _pdf_exercise_rows(
+                        source_exercises, shared_notes=shared_notes
+                    ),
                 }
             )
+
+    workout_pages = [days_out[index : index + 2] for index in range(0, len(days_out), 2)]
 
     meals_out = []
     if include_nutrition and nutrition:
@@ -184,6 +329,11 @@ def build_pdf_context(
 
     return {
         "font_path": resolve_font_path().as_uri(),
+        "font_bold_path": _resolve_font(ARABIC_BOLD_FONT_PATHS, resolve_font_path()).as_uri(),
+        "latin_font_path": resolve_latin_font_path().as_uri(),
+        "latin_font_bold_path": _resolve_font(
+            LATIN_BOLD_FONT_PATHS, resolve_latin_font_path()
+        ).as_uri(),
         "product_title": "Athlore",
         "file_title": _esc(file_title),
         "subtitle": _esc(subtitle),
@@ -254,6 +404,7 @@ def build_pdf_context(
         "training_summary": _esc(training.get("summary") or ""),
         "training_instructions": [_esc(note) for note in repeated_notes if note in shared_notes],
         "days": days_out,
+        "workout_pages": workout_pages,
         "nutrition_notes": _esc(nutrition.get("notes") or ""),
         "meals": meals_out,
         "supplement_notes": _esc(supplements.get("notes") or ""),

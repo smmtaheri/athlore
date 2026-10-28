@@ -493,6 +493,20 @@ def _walk_recipe_steps(steps: list[dict[str, Any]]):
             yield from _walk_recipe_steps(step["steps"])
 
 
+def _has_exclusive_prescription_technique(exercise: dict[str, Any]) -> bool:
+    """A whole-exercise prescription must not be overwritten by a second recipe."""
+    for technique in exercise.get("techniques", []):
+        recipe = technique.get("recipe") or {}
+        if recipe.get("target") == "last_set":
+            continue
+        if any(
+            step.get("op") in {"prescribe", "load_change"}
+            for step in _walk_recipe_steps(recipe.get("steps") or [])
+        ):
+            return True
+    return False
+
+
 def _recipe_instructions(steps: list[dict[str, Any]], exercise_unit: str = "reps") -> list[str]:
     instructions: list[str] = []
     for step in steps:
@@ -684,6 +698,7 @@ def _apply_recipe(
                 if _matches_system_muscles(exercise, config)
                 and not exercise.get("supersetGroupId")
                 and not exercise.get("dropSet")
+                and not _has_exclusive_prescription_technique(exercise)
                 and not any(
                     item.get("key") == config.key for item in exercise.get("techniques", [])
                 )
@@ -833,12 +848,16 @@ def apply_structured_techniques(
     else:
         normalized = normalize_training_system_selection(coach, level, selected_systems)
         configurations = _selected_configs(coach, normalized or [])
+        # Apply movement-specific prescriptions before groups claim their members.
+        # The request order remains stable among equally constrained systems.
         configurations.sort(
-            key=lambda config: {
-                "superset": 0,
-                "drop_set": 1,
-                "partial_reps": 2,
-            }.get(config.base_technique.handler_key if config.base_technique else "", 3)
+            key=lambda config: bool(
+                (config.recipe or (config.base_technique.recipe if config.base_technique else {})).get(
+                    "grouping"
+                )
+                or (config.base_technique.handler_key if config.base_technique else "")
+                == "superset"
+            )
         )
 
     for config in configurations:
