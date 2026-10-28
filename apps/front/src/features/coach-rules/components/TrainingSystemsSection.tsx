@@ -21,6 +21,7 @@ import {
   type TrainingSystemsRepository
 } from "../services/trainingSystemsRepository";
 import styles from "./trainingSystems.module.css";
+import { operationStep, repBounds, tempoParts } from "./recipeInputs";
 
 const levels = [
   { key: "beginner", label: "مبتدی" },
@@ -29,6 +30,7 @@ const levels = [
 ];
 
 const targets = [
+  { value: "first_compound", label: "اولین حرکت اصلی چندمفصلی (نه حرکت زمان‌دار)" },
   { value: "all", label: "همهٔ حرکت‌های واجد شرایط" },
   { value: "last_exercise", label: "آخرین حرکت جلسه" },
   { value: "last_isolation", label: "آخرین حرکت ایزولهٔ جلسه" },
@@ -156,19 +158,8 @@ function RecipeStepsEditor({
               id={`recipe-op-${depth}-${index}`}
               value={step.op}
               onChange={(event) => {
-                const next = freshStep();
-                next.op = event.target.value;
-                if (next.op === "prescribe")
-                  Object.assign(next, { sets: 3, reps: "۸ تا ۱۲", rest_seconds: 90 });
-                if (next.op === "rest") Object.assign(next, { seconds: 20 });
-                if (next.op === "load_change")
-                  Object.assign(next, { direction: "down", percent: 20 });
-                if (next.op === "partial_range")
-                  Object.assign(next, { mode: "after_failure", count: 3 });
-                if (next.op === "tempo") Object.assign(next, { pattern: "3-1-2" });
-                if (next.op === "repeat") Object.assign(next, { count: 2, steps: [freshStep()] });
-                if (next.op === "instruction") Object.assign(next, { title: "", text: "" });
-                update(index, next);
+                const next = operationStep(event.target.value);
+                onChange(steps.map((item, itemIndex) => (itemIndex === index ? next : item)));
               }}
             >
               {operationOptions.map((option) => (
@@ -185,18 +176,52 @@ function RecipeStepsEditor({
                 <Input
                   id={`recipe-sets-${depth}-${index}`}
                   min={1}
+                  max={30}
                   type="number"
-                  value={Number(step.sets ?? 3)}
-                  onChange={(event) => update(index, { sets: Number(event.target.value) })}
+                  placeholder="از برنامه"
+                  value={step.sets == null ? "" : Number(step.sets)}
+                  onChange={(event) =>
+                    update(index, {
+                      sets: event.target.value === "" ? undefined : Number(event.target.value)
+                    })
+                  }
                 />
               </FormField>
-              <FormField htmlFor={`recipe-reps-${depth}-${index}`} label="تکرار / الگو">
-                <Input
-                  id={`recipe-reps-${depth}-${index}`}
-                  value={String(step.reps ?? "")}
-                  onChange={(event) => update(index, { reps: event.target.value })}
-                />
-              </FormField>
+              {repBounds(step.reps) ? (
+                ([0, 1] as const).map((bound) => (
+                  <FormField
+                    key={bound}
+                    htmlFor={`recipe-reps-${depth}-${index}-${bound}`}
+                    label={bound === 0 ? "حداقل تکرار" : "حداکثر تکرار"}
+                  >
+                    <Input
+                      id={`recipe-reps-${depth}-${index}-${bound}`}
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={repBounds(step.reps)![bound]}
+                      onChange={(event) => {
+                        const bounds = repBounds(step.reps)!;
+                        bounds[bound] = Number(event.target.value);
+                        update(index, { reps: `${bounds[0]}-${bounds[1]}` });
+                      }}
+                    />
+                  </FormField>
+                ))
+              ) : (
+                <div>
+                  <p className={styles.method}>
+                    الگوی ترکیبی موجود: {String(step.reps ?? "از برنامه")}؛ بدون تغییر حفظ می‌شود.
+                  </p>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => update(index, { reps: "8-12" })}
+                  >
+                    تنظیم محدودهٔ تکرار
+                  </Button>
+                </div>
+              )}
               <FormField
                 htmlFor={`recipe-rest-${depth}-${index}`}
                 label="استراحت بین ست‌ها (ثانیه)"
@@ -204,17 +229,40 @@ function RecipeStepsEditor({
                 <Input
                   id={`recipe-rest-${depth}-${index}`}
                   min={0}
+                  max={900}
                   type="number"
-                  value={Number(step.rest_seconds ?? 90)}
-                  onChange={(event) => update(index, { rest_seconds: Number(event.target.value) })}
+                  placeholder="از برنامه"
+                  value={step.rest_seconds == null ? "" : Number(step.rest_seconds)}
+                  onChange={(event) =>
+                    update(index, {
+                      rest_seconds:
+                        event.target.value === "" ? undefined : Number(event.target.value)
+                    })
+                  }
                 />
               </FormField>
               <FormField htmlFor={`recipe-rpe-${depth}-${index}`} label="شدت / RPE (اختیاری)">
-                <Input
+                <select
+                  className={styles.select}
                   id={`recipe-rpe-${depth}-${index}`}
                   value={String(step.rpe ?? "")}
-                  onChange={(event) => update(index, { rpe: event.target.value })}
-                />
+                  onChange={(event) => update(index, { rpe: event.target.value || undefined })}
+                >
+                  <option value="">از برنامه</option>
+                  {Array.from({ length: 6 }, (_, value) => `RIR ${value}`).map((value) => (
+                    <option key={value} value={value}>
+                      {value} تکرار باقی‌مانده
+                    </option>
+                  ))}
+                  {[6, 7, 8, 9, 10].map((value) => (
+                    <option key={value} value={`RPE ${value}`}>
+                      RPE {value}
+                    </option>
+                  ))}
+                  {Boolean(step.rpe) && !/^(RIR [0-5]|RPE (?:[6-9]|10))$/.test(String(step.rpe)) ? (
+                    <option value={String(step.rpe)}>{String(step.rpe)} (مقدار قبلی)</option>
+                  ) : null}
+                </select>
               </FormField>
             </div>
           ) : null}
@@ -297,23 +345,66 @@ function RecipeStepsEditor({
 
           {step.op === "tempo" ? (
             <div className={styles.twoColumns}>
-              <FormField htmlFor={`recipe-tempo-${depth}-${index}`} label="تمپو (مثلاً ۳-۱-۲)">
-                <Input
-                  id={`recipe-tempo-${depth}-${index}`}
-                  value={String(step.pattern ?? "3-1-2")}
-                  onChange={(event) => update(index, { pattern: event.target.value })}
-                />
-              </FormField>
+              {tempoParts(step.pattern) ? (
+                ["پایین‌رفتن / منفی", "مکث پایین", "بالابردن / مثبت", "مکث بالا"].map(
+                  (label, phase) => (
+                    <FormField
+                      key={phase}
+                      htmlFor={`recipe-tempo-${depth}-${index}-${phase}`}
+                      label={`${label} (ثانیه)`}
+                    >
+                      {phase === 2 && tempoParts(step.pattern)![phase].toUpperCase() === "X" ? (
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            const parts = tempoParts(step.pattern)!;
+                            parts[phase] = "1";
+                            update(index, { pattern: parts.join("-") });
+                          }}
+                        >
+                          اجرای انفجاری X؛ تبدیل به ۱ ثانیه
+                        </Button>
+                      ) : (
+                        <Input
+                          id={`recipe-tempo-${depth}-${index}-${phase}`}
+                          type="number"
+                          min={0}
+                          max={30}
+                          value={tempoParts(step.pattern)![phase]}
+                          onChange={(event) => {
+                            const parts = tempoParts(step.pattern)!;
+                            parts[phase] = String(Number(event.target.value || 0));
+                            update(index, { pattern: parts.join("-") });
+                          }}
+                        />
+                      )}
+                    </FormField>
+                  )
+                )
+              ) : (
+                <p className={styles.method}>
+                  تمپوی قبلی: {String(step.pattern)}؛{" "}
+                  <Button size="sm" onClick={() => update(index, { pattern: "3-1-2-0" })}>
+                    تنظیم تمپوی عددی
+                  </Button>
+                </p>
+              )}
               <FormField
                 htmlFor={`recipe-hold-${depth}-${index}`}
-                label="مکث ایزومتریک (ثانیه، اختیاری)"
+                label="حداقل مکث پایین (ثانیه؛ داخل زمان تمپو حساب می‌شود)"
               >
                 <Input
                   id={`recipe-hold-${depth}-${index}`}
                   min={1}
                   type="number"
-                  value={Number(step.hold_seconds ?? "")}
-                  onChange={(event) => update(index, { hold_seconds: Number(event.target.value) })}
+                  max={120}
+                  value={step.hold_seconds == null ? "" : Number(step.hold_seconds)}
+                  onChange={(event) =>
+                    update(index, {
+                      hold_seconds:
+                        event.target.value === "" ? undefined : Number(event.target.value)
+                    })
+                  }
                 />
               </FormField>
             </div>

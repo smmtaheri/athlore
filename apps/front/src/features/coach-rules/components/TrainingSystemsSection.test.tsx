@@ -6,6 +6,40 @@ import type { TrainingSystemsRepository } from "../services/trainingSystemsRepos
 import { TrainingSystemsSection } from "./TrainingSystemsSection";
 
 describe("TrainingSystemsSection", () => {
+  it("saves typed prescriptions after replacing an instruction operation", async () => {
+    const user = userEvent.setup();
+    const repository: TrainingSystemsRepository = {
+      list: vi.fn(),
+      listPage: vi.fn(async () => ({ results: [], count: 0, next: null })),
+      savePlatform: vi.fn(),
+      save: vi.fn(
+        async (input) =>
+          ({
+            ...input,
+            id: "new",
+            source: "coach_private",
+            handler_status: "implemented"
+          }) as TrainingSystem
+      ),
+      remove: vi.fn()
+    };
+    render(<TrainingSystemsSection repository={repository} />);
+    await screen.findByText("فهرست خالی است");
+    await user.click(screen.getByRole("button", { name: "سیستم جدید" }));
+    await user.type(screen.getByLabelText(/نام سیستم/), "سیستم عددی");
+    await user.click(screen.getByRole("button", { name: "افزودن مرحله" }));
+    await user.selectOptions(screen.getByLabelText("نوع مرحله"), "prescribe");
+    expect(screen.getByLabelText("حداقل تکرار")).toHaveValue(8);
+    expect(screen.getByLabelText("حداکثر تکرار")).toHaveValue(12);
+    await user.selectOptions(screen.getByLabelText("شدت / RPE (اختیاری)"), "");
+    await user.click(screen.getByRole("button", { name: "ذخیره سیستم" }));
+    await waitFor(() => expect(repository.save).toHaveBeenCalled());
+    const input = vi.mocked(repository.save).mock.calls[0][0];
+    if (!input.recipe) throw new Error("Saved recipe is missing");
+    expect(input.recipe.steps[0]).toMatchObject({ op: "prescribe", reps: "8-12", sets: 3 });
+    expect(input.recipe.steps[0]).not.toHaveProperty("text");
+    expect(input.recipe.steps[0].rpe).toBeUndefined();
+  });
   it("keeps shared editing in the dedicated systems tab", async () => {
     const user = userEvent.setup();
     const system: TrainingSystem = {

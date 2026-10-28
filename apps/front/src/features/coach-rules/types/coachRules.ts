@@ -164,7 +164,7 @@ export interface TrainingRecipeGrouping {
 export interface TrainingRecipe {
   grouping?: TrainingRecipeGrouping;
   steps: TrainingRecipeStep[];
-  target: "all" | "last_exercise" | "last_isolation" | "last_set";
+  target: "all" | "last_exercise" | "last_isolation" | "last_set" | "first_compound";
   version: 1;
 }
 
