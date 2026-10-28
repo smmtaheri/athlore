@@ -73,6 +73,51 @@ export function GenerationVolumeFields({
   return (
     <>
       <details>
+        <summary>نسخهٔ قدرتی؛ حرکت اصلی و کمکی</summary>
+        <p>
+          فقط برای هدف «افزایش قدرت» استفاده می‌شود. حرکات اصلی چندمفصلی و حرکات کمکی نسخهٔ جدا
+          دارند؛ حرکت زمان‌دار همچنان با ثانیه تجویز می‌شود.
+        </p>
+        {(["main", "accessory"] as const).map((kind) => {
+          const prescription = value.strength_prescriptions?.[kind];
+          if (!prescription) return null;
+          return (
+            <fieldset key={kind}>
+              <legend>{kind === "main" ? "حرکت اصلی" : "حرکت کمکی"}</legend>
+              <div className={styles.threeColumnGrid}>
+                {(
+                  [
+                    ["reps_min", "حداقل تکرار", 1, 30],
+                    ["reps_max", "حداکثر تکرار", 1, 30],
+                    ["rest_seconds", "استراحت (ثانیه)", 30, 300],
+                    ["rir", "تکرار باقی‌مانده (RIR)", 1, 5]
+                  ] as const
+                ).map(([key, label, min, max]) => (
+                  <FormField key={key} label={label} htmlFor={`strength-${kind}-${key}`}>
+                    <Input
+                      id={`strength-${kind}-${key}`}
+                      type="number"
+                      min={min}
+                      max={max}
+                      value={prescription[key]}
+                      onChange={(event) => {
+                        if (!value.strength_prescriptions) return;
+                        onChange({
+                          strength_prescriptions: {
+                            ...value.strength_prescriptions,
+                            [kind]: { ...prescription, [key]: Number(event.target.value) }
+                          }
+                        });
+                      }}
+                    />
+                  </FormField>
+                ))}
+              </div>
+            </fieldset>
+          );
+        })}
+      </details>
+      <details>
         <summary>حجم هفتگی عضلات و سقف هر جلسه</summary>
         <p>
           مقادیر پیش‌فرض، برآورد شروع برای عضله‌سازی‌اند. موتور بر اساس تمرکز، تعداد جلسات و زمان،

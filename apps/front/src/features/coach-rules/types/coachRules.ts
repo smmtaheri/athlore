@@ -229,6 +229,15 @@ export interface CoachRules {
 export type CoachRulesInput = CoachRules;
 
 export interface GenerationRules {
+  strength_prescriptions?: Record<
+    "main" | "accessory",
+    {
+      reps_min: number;
+      reps_max: number;
+      rest_seconds: number;
+      rir: number;
+    }
+  >;
   volume_profiles?: Record<string, Record<string, VolumeProfile>>;
   movement_restrictions?: Array<{
     injury_key: string;

@@ -32,7 +32,10 @@ const equipmentLabels: Record<string, string> = {
   barbell: "هالتر",
   cable: "کابل",
   machines: "دستگاه",
-  resistance_band: "کش"
+  resistance_band: "کش",
+  bench_flat: "نیمکت صاف",
+  bench_adjustable: "نیمکت شیب‌دار",
+  pullup_bar: "میله بارفیکس"
 };
 
 const environmentLabels: Record<string, string> = {

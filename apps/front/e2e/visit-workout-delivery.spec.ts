@@ -82,6 +82,7 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
     "اسکوات دستگاه": ["knee_dominant", "multi_joint", ["hip", "knee", "ankle"]],
     "جلو پا دستگاه": ["knee_extension", "single_joint", ["knee"]],
     "پشت پا دستگاه": ["knee_flexion", "single_joint", ["knee"]],
+    "پشت پا نشسته دستگاه": ["knee_flexion", "single_joint", ["knee"]],
     "پرس سرشانه دستگاه": ["push_vertical", "multi_joint", ["shoulder", "elbow"]],
     "نشر جانب دمبل": ["shoulder_abduction", "single_joint", ["shoulder"]],
     "نشر خم دمبل": ["shoulder_horizontal_abduction", "single_joint", ["shoulder"]]
@@ -96,6 +97,7 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
     ["اسکوات دستگاه", "quadriceps", "machine"],
     ["جلو پا دستگاه", "quadriceps", "machine"],
     ["پشت پا دستگاه", "hamstrings", "machine"],
+    ["پشت پا نشسته دستگاه", "hamstrings", "machine"],
     ["پرس سرشانه دستگاه", "shoulders", "machine"],
     ["نشر جانب دمبل", "shoulders", "dumbbell"],
     ["نشر خم دمبل", "shoulders", "dumbbell"]
@@ -130,7 +132,7 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
         exercise_variety: "varied",
         session_muscles: [
           ["سینه", "زیربغل"],
-          ["پا", "سرشانه"]
+          ["چهارسر ران", "پشت پا", "سرشانه"]
         ]
       }
     }
@@ -247,10 +249,15 @@ test("visit prepares one draft, publishes a PDF and persists athlete set progres
     path: `artifacts/ui-review/workout-review-${testInfo.project.name}.png`,
     fullPage: true
   });
+  const finalizedResponse = page.waitForResponse((response) =>
+    response.url().endsWith("/finalize/") && response.request().method() === "POST"
+  );
   await page
     .getByRole("button", { name: "نهایی‌سازی و ارسال به شاگرد", exact: true })
     .first()
     .click();
+  const finalizedProgram = await finalizedResponse;
+  expect(finalizedProgram.status(), await finalizedProgram.text()).toBe(200);
   await expect(page).toHaveURL(new RegExp(`/students/${student.id}/programs$`), { timeout: 60000 });
   const fulfilled = await request.get(`${api}/program-requests/${programRequest.id}/`, { headers });
   expect((await fulfilled.json()).status).toBe("fulfilled");

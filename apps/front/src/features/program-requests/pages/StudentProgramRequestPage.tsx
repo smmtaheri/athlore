@@ -38,7 +38,10 @@ const equipmentOptions = [
   { value: "barbell", label: "هالتر" },
   { value: "cable", label: "کابل" },
   { value: "machines", label: "دستگاه" },
-  { value: "resistance_band", label: "کش تمرینی" }
+  { value: "resistance_band", label: "کش تمرینی" },
+  { value: "bench_flat", label: "نیمکت صاف" },
+  { value: "bench_adjustable", label: "نیمکت شیب‌دار" },
+  { value: "pullup_bar", label: "میله بارفیکس" }
 ];
 
 const purposeLabels: Record<ProgramRequestPurpose, string> = {

@@ -20,6 +20,7 @@ import type {
 } from "../../programs/types/generatedProgram";
 import styles from "./studentPortal.module.css";
 import { exerciseEducation } from "./exerciseEducation";
+import { executionRestSeconds } from "./workoutExecution";
 
 interface LoggedSet {
   set_index: number;
@@ -84,18 +85,6 @@ function formatTime(seconds: number): string {
   const wholeSeconds = Number.isFinite(seconds) ? Math.floor(Math.max(0, seconds)) : 0;
   const value = `${Math.floor(wholeSeconds / 60)}:${String(wholeSeconds % 60).padStart(2, "0")}`;
   return persianDigits(value);
-}
-
-function parseRestSeconds(value: string): number | null {
-  const normalized = normalizeDigits(value);
-  const clock = normalized.match(/^(\d{1,2}):(\d{1,2})$/);
-  if (clock) return Math.max(1, Number(clock[1]) * 60 + Number(clock[2]));
-  const match = normalized.match(/(\d+(?:\.\d+)?)/);
-  if (!match) return null;
-  const amount = Number(match[1]);
-  if (/دقیقه|min(?:ute)?s?/i.test(normalized)) return Math.max(1, Math.round(amount * 60));
-  if (/ثانیه|sec(?:ond)?s?/i.test(normalized)) return Math.max(1, Math.round(amount));
-  return null;
 }
 
 function prescribedExerciseSeconds(exercise: TrainingExercise): number | null {
@@ -414,9 +403,13 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
   };
 
   const requestTimer = (exercise: TrainingExercise, kind: "rest" | "exercise") => {
-    const seconds = kind === "rest" ? parseRestSeconds(exercise.rest) : prescribedExerciseSeconds(exercise);
+    const completed = current?.completed_sets?.[exercise.id] ?? [];
+    const setIndex = Math.max(0, ...completed);
+    const seconds = kind === "rest" ? executionRestSeconds(exercise, setIndex) : prescribedExerciseSeconds(exercise);
     if (!seconds) {
-      setMessage(kind === "rest" ? "زمان استراحت برای این حرکت در برنامه مشخص نشده است." : "زمان تمرین برای این حرکت در برنامه مشخص نشده است.");
+      setMessage(kind === "rest" && exercise.executionPlan?.groupId
+        ? "بدون استراحت، حرکت بعدی همین گروه را اجرا کن."
+        : kind === "rest" ? "زمان استراحت برای این حرکت در برنامه مشخص نشده است." : "زمان تمرین برای این حرکت در برنامه مشخص نشده است.");
       return;
     }
     startTimer(seconds, kind, exercise.id);
@@ -468,13 +461,18 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
       if (newlyCompleted.length) {
         delete restStartedAtByExercise.current[restKey];
         const nextIncomplete = savedLogs.some((item) => item.set_index > newlyCompleted[0] && !item.completed);
-        const restSeconds = parseRestSeconds(exercise.rest);
-        if (newlyCompleted.length === 1 && nextIncomplete && restSeconds) {
-          startTimer(restSeconds, "rest", exercise.id, false);
+        const step = exercise.executionPlan?.sets.find((row) => row.setIndex === newlyCompleted[0]);
+        const restSeconds = executionRestSeconds(exercise, newlyCompleted[0]);
+        if (newlyCompleted.length === 1 && (nextIncomplete || step?.nextExerciseId) && restSeconds) {
+          startTimer(restSeconds, "rest", step?.nextExerciseId ?? exercise.id, false);
         } else {
           setActiveTimer((timer) =>
             timer?.kind === "rest" && timer.exerciseId === exercise.id ? null : timer
           );
+          if (step?.phase === "paired" && !restSeconds) {
+            const next = day.exercises.find((item) => item.id === step.nextExerciseId);
+            setMessage(`بدون استراحت، ${next?.name ?? "حرکت بعدی گروه"} را اجرا کن.`);
+          }
         }
       }
       return true;
@@ -779,7 +777,11 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
                         <span>{exercise.reps} تکرار</span>
                         {exercise.rest ? (
                           <button className={styles.workoutPrescriptionButton} onClick={() => requestTimer(exercise, "rest")} type="button">
-                            <Clock3 size={13} /> استراحت {exercise.rest}
+                            <Clock3 size={13} /> {exercise.executionPlan
+                              ? executionRestSeconds(exercise, Math.max(0, ...completed)) > 0
+                                ? `استراحت ${persianDigits(executionRestSeconds(exercise, Math.max(0, ...completed)))} ثانیه`
+                                : "بدون استراحت تا حرکت بعدی گروه"
+                              : `استراحت ${exercise.rest}`}
                           </button>
                         ) : null}
                         {exercise.rpe ? <span>شدت {exercise.rpe}</span> : null}
@@ -787,6 +789,8 @@ export function InteractiveWorkout({ program }: { program: GeneratedProgram }) {
                       {exercise.trainingGroupName || exercise.supersetGroupId ? (
                         <p className={styles.workoutExerciseSubline}>
                           {exercise.trainingGroupName || "سوپرست"} · حرکت‌ها را به‌ترتیب گروه اجرا کن.
+                          {exercise.executionPlan?.pairedRounds ? ` ${persianDigits(exercise.executionPlan.pairedRounds)} دور گروهی؛ ${persianDigits(exercise.supersetRestBetweenSeconds ?? 0)} ثانیه بین حرکت‌ها و ${persianDigits(exercise.supersetRestAfterSeconds ?? 0)} ثانیه پس از دور.` : ""}
+                          {exercise.executionPlan?.soloSets ? ` سپس ${persianDigits(exercise.executionPlan.soloSets)} ست تکی با استراحت ${exercise.rest}.` : ""}
                         </p>
                       ) : null}
                       {exercise.dropSet ? (

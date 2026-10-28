@@ -76,7 +76,10 @@ const standardExerciseEquipmentKeys = new Set([
   "machine",
   "smith_machine",
   "kettlebell",
-  "resistance_band"
+  "resistance_band",
+  "bench_flat",
+  "bench_adjustable",
+  "pullup_bar"
 ]);
 
 function normalizeExerciseSearch(value: string): string {

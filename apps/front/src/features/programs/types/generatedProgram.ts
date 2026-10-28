@@ -80,6 +80,18 @@ export interface TrainingExercise {
   supersetPartnerName?: string | null;
   supersetRestBetweenSeconds?: number;
   supersetRestAfterSeconds?: number;
+  executionPlan?: {
+    version: number;
+    groupId?: string;
+    pairedRounds: number;
+    soloSets: number;
+    sets: Array<{
+      setIndex: number;
+      phase: "solo" | "paired";
+      restSeconds: number;
+      nextExerciseId?: string | null;
+    }>;
+  };
   dropSet?: { drops: number; reduction_percent: number };
   partialReps?: {
     variant: "one_and_half" | "after_failure" | "partial_only";
