@@ -13,7 +13,7 @@ from django.utils import timezone
 from common.calendar import format_date, format_date_text
 
 # Bump when template structure or CSS layout changes in a meaningful way.
-RENDER_TEMPLATE_VERSION = "2.0.0"
+RENDER_TEMPLATE_VERSION = "2.0.1"
 RENDER_ENGINE_NAME = "weasyprint"
 RENDER_ENGINE_VERSION = "69"
 
@@ -64,9 +64,7 @@ def _pdf_exercise(exercise: dict, *, shared_notes: set[str] | None = None) -> di
     set_plan = _as_list(prescription.get("set_plan"))
     reps = str(exercise.get("reps") or exercise.get("repetitions") or "")
     set_reps = [
-        str(_as_dict(row).get("reps_text") or reps)
-        for row in set_plan
-        if isinstance(row, dict)
+        str(_as_dict(row).get("reps_text") or reps) for row in set_plan if isinstance(row, dict)
     ]
     uniform_reps = not set_reps or len(set(set_reps)) <= 1
     if set_reps and len(set(set_reps)) > 1:
@@ -132,9 +130,7 @@ def _pdf_exercise_rows(
                 members.append(candidate)
                 cursor += 1
             index = cursor - 1
-        formatted_members = [
-            _pdf_exercise(item, shared_notes=shared_notes) for item in members
-        ]
+        formatted_members = [_pdf_exercise(item, shared_notes=shared_notes) for item in members]
         compact_prescription = ""
         if (
             len(formatted_members) > 1
@@ -154,14 +150,12 @@ def _pdf_exercise_rows(
                 "compact_prescription": compact_prescription,
                 "rest_between": _esc(
                     f"{exercise.get('supersetRestBetweenSeconds')} ثانیه بین حرکت‌ها"
-                    if len(members) > 1
-                    and exercise.get("supersetRestBetweenSeconds") is not None
+                    if len(members) > 1 and exercise.get("supersetRestBetweenSeconds") is not None
                     else ""
                 ),
                 "rest_after": _esc(
                     f"{exercise.get('supersetRestAfterSeconds')} ثانیه بعد از گروه"
-                    if len(members) > 1
-                    and exercise.get("supersetRestAfterSeconds") is not None
+                    if len(members) > 1 and exercise.get("supersetRestAfterSeconds") is not None
                     else ""
                 ),
             }
@@ -231,9 +225,7 @@ def build_pdf_context(
             day_d = _as_dict(day)
             exercises_out = []
             source_exercises = [
-                _as_dict(ex)
-                for ex in _as_list(day_d.get("exercises"))
-                if isinstance(ex, dict)
+                _as_dict(ex) for ex in _as_list(day_d.get("exercises")) if isinstance(ex, dict)
             ]
             for ex_d in source_exercises:
                 exercises_out.append(

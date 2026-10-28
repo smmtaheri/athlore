@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.template.loader import render_to_string
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
@@ -469,6 +470,66 @@ class PdfArtifactServiceTests(PdfTestMixin, APITestCase):
             [member["prescription"] for member in rows[0]["members"]],
             ["3 ست × 8-12", "3 ست × 10-12"],
         )
+
+    def test_workout_pdf_omits_header_and_session_prose_but_keeps_prescriptions(self):
+        progression = "وقتی همهٔ ست‌ها به سقف تکرار رسید، وزنه را افزایش بده."
+        technique_instruction = "دراپ‌ست: پس از آخرین ست، بار را ۲۰ درصد کاهش بده."
+        movement_note = "آرنج‌ها را در مسیر حرکت ثابت نگه دار."
+        self.student.injuries = {"has_injury": True, "note": "LIMITATION_HEADER_COPY"}
+        self.final.pdf_settings.update(
+            contactInfo="CONTACT_HEADER_COPY", coachNotes="COACH_HEADER_COPY"
+        )
+        self.final.training = {
+            "summary": "TRAINING_SUMMARY_COPY",
+            "days": [
+                {
+                    "order": index + 1,
+                    "title": f"جلسه تست {index + 1}",
+                    "focus_muscles": ["SESSION_FOCUS_COPY"],
+                    "notes": "SESSION_DESCRIPTION_COPY",
+                    "exercises": [
+                        {
+                            "name": f"حرکت تست {index + 1}",
+                            "sets": 3,
+                            "reps": "8-12",
+                            "rest": "90 ثانیه",
+                            "rpe": "RIR 2",
+                            "notes": progression
+                            if index < 2
+                            else f"{progression} {technique_instruction}",
+                            "coach_notes": movement_note if index == 0 else "",
+                            "techniques": [{"name": "دراپ‌ست"}] if index >= 2 else [],
+                        }
+                    ],
+                }
+                for index in range(4)
+            ],
+        }
+        context = build_pdf_context(
+            artifact=None,
+            program=self.program,
+            version=self.final,
+            student=self.student,
+            coach=self.coach_a,
+        )
+        document = render_to_string("delivery/program_pdf.html", context)
+        self.assertEqual(len(context["workout_pages"]), 2)
+        for removed in (
+            "LIMITATION_HEADER_COPY",
+            "CONTACT_HEADER_COPY",
+            "COACH_HEADER_COPY",
+            "TRAINING_SUMMARY_COPY",
+            "SESSION_DESCRIPTION_COPY",
+            "SESSION_FOCUS_COPY",
+            progression,
+            technique_instruction,
+        ):
+            with self.subTest(copy=removed):
+                self.assertNotIn(removed, document)
+        for retained in ("3 ست × 8-12", "90 ثانیه", "RIR 2", "دراپ‌ست", movement_note):
+            with self.subTest(copy=retained):
+                self.assertIn(retained, document)
+        self.assertIn("SESSION_DESCRIPTION_COPY", self.final.training["days"][0]["notes"])
 
 
 @override_settings(MEDIA_ROOT="/tmp/should-be-overridden")

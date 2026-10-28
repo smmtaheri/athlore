@@ -84,7 +84,6 @@
       line-height: 1.55;
       font-weight: 700;
     }
-    .day-focus { color: #41464d; font-size: 9.5pt; margin: 0 0 2pt; }
     .exercise-list { margin-top: 2pt; }
     .exercise-row {
       display: grid;
@@ -166,11 +165,6 @@
           <div class="header-meta">{% if level %}سطح: {{ level }}{% endif %}{% if finalized_at %} · {{ finalized_at }}{% endif %}</div>
           {% endif %}
           <div class="header-meta">{{ version_label }}</div>
-          {% if limitations %}<div class="header-meta">محدودیت: {% for item in limitations %}{{ item }}{% if not forloop.last %}، {% endif %}{% endfor %}</div>{% endif %}
-          {% if coach_notes %}<div class="header-meta">یادداشت مربی: {{ coach_notes }}</div>{% endif %}
-          {% if contact_info %}<div class="header-meta">تماس: {{ contact_info }}</div>{% endif %}
-          {% if training_summary %}<div class="header-meta">{{ training_summary }}</div>{% endif %}
-          {% for note in training_instructions %}<div class="header-meta">{{ note }}</div>{% endfor %}
         </div>
       </header>
       {% else %}
@@ -180,8 +174,6 @@
       {% for day in page_days %}
       <article class="day">
         <h2 class="day-title">{% if day.order %}جلسه {{ day.order }}: {% endif %}{{ day.title }}</h2>
-        {% if day.focus %}<div class="day-focus">تمرکز: {{ day.focus }}</div>{% endif %}
-        {% if day.notes %}<div class="day-focus">{{ day.notes }}</div>{% endif %}
         <div class="exercise-list">
           {% for row in day.exercise_rows %}
           <div class="exercise-row">
