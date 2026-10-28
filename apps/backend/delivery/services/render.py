@@ -13,7 +13,7 @@ from django.utils import timezone
 from common.calendar import format_date, format_date_text
 
 # Bump when template structure or CSS layout changes in a meaningful way.
-RENDER_TEMPLATE_VERSION = "2.0.1"
+RENDER_TEMPLATE_VERSION = "2.0.2"
 RENDER_ENGINE_NAME = "weasyprint"
 RENDER_ENGINE_VERSION = "69"
 
@@ -37,6 +37,7 @@ LATIN_BOLD_FONT_PATHS = (
     Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"),
     Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
 )
+PDF_DIGIT_TRANSLATION = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
 
 def resolve_font_path() -> Path:
@@ -59,12 +60,18 @@ def _resolve_font(paths: tuple[Path, ...], fallback: Path) -> Path:
     return next((path for path in paths if path.is_file()), fallback)
 
 
+def _ascii_digits(value: Any) -> str:
+    return str(value if value is not None else "").translate(PDF_DIGIT_TRANSLATION)
+
+
 def _pdf_exercise(exercise: dict, *, shared_notes: set[str] | None = None) -> dict:
     prescription = _as_dict(exercise.get("prescription"))
     set_plan = _as_list(prescription.get("set_plan"))
-    reps = str(exercise.get("reps") or exercise.get("repetitions") or "")
+    reps = _ascii_digits(exercise.get("reps") or exercise.get("repetitions") or "")
     set_reps = [
-        str(_as_dict(row).get("reps_text") or reps) for row in set_plan if isinstance(row, dict)
+        _ascii_digits(_as_dict(row).get("reps_text") or reps)
+        for row in set_plan
+        if isinstance(row, dict)
     ]
     uniform_reps = not set_reps or len(set(set_reps)) <= 1
     if set_reps and len(set(set_reps)) > 1:
@@ -97,13 +104,13 @@ def _pdf_exercise(exercise: dict, *, shared_notes: set[str] | None = None) -> di
         notes = ""
     return {
         "name": _esc(exercise.get("name") or exercise.get("exercise_name") or ""),
-        "sets": str(exercise.get("sets") or ""),
-        "reps_label": reps_label,
+        "sets": _ascii_digits(exercise.get("sets") or ""),
+        "reps_label": _ascii_digits(reps_label),
         "uniform_reps": uniform_reps,
-        "prescription": _esc(rx),
-        "rest": _esc(rest),
-        "tempo": _esc(exercise.get("tempo") or ""),
-        "effort": _esc(exercise.get("rpe") or exercise.get("intensity") or ""),
+        "prescription": _esc(_ascii_digits(rx)),
+        "rest": _esc(_ascii_digits(rest)),
+        "tempo": _esc(_ascii_digits(exercise.get("tempo") or "")),
+        "effort": _esc(_ascii_digits(exercise.get("rpe") or exercise.get("intensity") or "")),
         "techniques": [_esc(name) for name in techniques],
         "notes": _esc(notes),
     }
@@ -131,6 +138,11 @@ def _pdf_exercise_rows(
                 cursor += 1
             index = cursor - 1
         formatted_members = [_pdf_exercise(item, shared_notes=shared_notes) for item in members]
+        techniques = list(
+            dict.fromkeys(
+                technique for member in formatted_members for technique in member["techniques"]
+            )
+        )
         compact_prescription = ""
         if (
             len(formatted_members) > 1
@@ -147,14 +159,15 @@ def _pdf_exercise_rows(
             {
                 "grouped": len(members) > 1,
                 "members": formatted_members,
+                "techniques": techniques,
                 "compact_prescription": compact_prescription,
                 "rest_between": _esc(
-                    f"{exercise.get('supersetRestBetweenSeconds')} ثانیه بین حرکت‌ها"
+                    f"{_ascii_digits(exercise.get('supersetRestBetweenSeconds'))} ثانیه بین حرکت‌ها"
                     if len(members) > 1 and exercise.get("supersetRestBetweenSeconds") is not None
                     else ""
                 ),
                 "rest_after": _esc(
-                    f"{exercise.get('supersetRestAfterSeconds')} ثانیه بعد از گروه"
+                    f"{_ascii_digits(exercise.get('supersetRestAfterSeconds'))} ثانیه بعد از گروه"
                     if len(members) > 1 and exercise.get("supersetRestAfterSeconds") is not None
                     else ""
                 ),

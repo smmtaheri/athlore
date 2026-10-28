@@ -183,8 +183,8 @@
                   <span>{{ member.name }}</span>{% if not forloop.last %}<span class="plus">+</span>{% endif %}
                 {% endfor %}
               </div>
+              {% if row.techniques %}<div class="method-label">{% for technique in row.techniques %}{{ technique }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endif %}
               {% for member in row.members %}
-                {% if member.techniques %}<div class="method-label">{% for technique in member.techniques %}{{ technique }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endif %}
                 {% if member.notes %}<div class="movement-note">{{ member.notes }}</div>{% endif %}
               {% endfor %}
             </div>
