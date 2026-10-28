@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,7 @@ from django.utils import timezone
 from common.calendar import format_date, format_date_text
 
 # Bump when template structure or CSS layout changes in a meaningful way.
-RENDER_TEMPLATE_VERSION = "1.3.0"
+RENDER_TEMPLATE_VERSION = "1.4.0"
 RENDER_ENGINE_NAME = "weasyprint"
 RENDER_ENGINE_VERSION = "66"
 
@@ -82,6 +83,13 @@ def build_pdf_context(
     conditions = _as_dict(student.training_conditions)
 
     days_out = []
+    repeated_notes = Counter(
+        str(ex.get("notes") or "")
+        for day in _as_list(training.get("days"))
+        for ex in _as_list(_as_dict(day).get("exercises"))
+        if isinstance(ex, dict) and ex.get("notes")
+    )
+    shared_notes = {note for note, count in repeated_notes.items() if count > 1}
     if include_training:
         for day in _as_list(training.get("days")):
             day_d = _as_dict(day)
@@ -101,7 +109,13 @@ def build_pdf_context(
                         "trainingGroupName": _esc(ex_d.get("trainingGroupName") or ""),
                         "supersetRestBetweenSeconds": ex_d.get("supersetRestBetweenSeconds"),
                         "supersetRestAfterSeconds": ex_d.get("supersetRestAfterSeconds"),
-                        "notes": _esc(ex_d.get("notes") or ex_d.get("coach_notes") or ""),
+                        "pairedRounds": _as_dict(ex_d.get("executionPlan")).get("pairedRounds", 0),
+                        "soloSets": _as_dict(ex_d.get("executionPlan")).get("soloSets", 0),
+                        "notes": _esc(
+                            ""
+                            if ex_d.get("notes") in shared_notes
+                            else ex_d.get("notes") or ex_d.get("coach_notes") or ""
+                        ),
                     }
                 )
             days_out.append(
@@ -235,6 +249,7 @@ def build_pdf_context(
         "include_nutrition": include_nutrition and bool(nutrition),
         "include_supplements": include_supplements and bool(supplements),
         "training_summary": _esc(training.get("summary") or ""),
+        "training_instructions": [_esc(note) for note in repeated_notes if note in shared_notes],
         "days": days_out,
         "nutrition_notes": _esc(nutrition.get("notes") or ""),
         "meals": meals_out,

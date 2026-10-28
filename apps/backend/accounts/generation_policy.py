@@ -23,6 +23,10 @@ DEFAULT_POLICY = {
     "progression": "double_progression",
     "volume_profiles": _default_profiles(),
     "movement_restrictions": [],
+    "strength_prescriptions": {
+        "main": {"reps_min": 3, "reps_max": 6, "rest_seconds": 180, "rir": 2},
+        "accessory": {"reps_min": 8, "reps_max": 12, "rest_seconds": 90, "rir": 2},
+    },
 }
 
 
@@ -46,6 +50,20 @@ def validate_policy(raw):
         raise ValidationError({"generation_rules": ["Minimum reps must not exceed maximum reps."]})
     if policy["progression"] not in {"double_progression", "maintain"}:
         raise ValidationError({"generation_rules": ["Unsupported progression rule."]})
+    strength = policy["strength_prescriptions"]
+    if not isinstance(strength, dict) or set(strength) != {"main", "accessory"}:
+        raise ValidationError(
+            {"generation_rules": ["Main and accessory strength prescriptions are required."]}
+        )
+    for row in strength.values():
+        if not isinstance(row, dict) or set(row) != {"reps_min", "reps_max", "rest_seconds", "rir"}:
+            raise ValidationError({"generation_rules": ["Invalid strength prescription fields."]})
+        for key, value in row.items():
+            lo, hi = limits[key]
+            if type(value) is not int or not lo <= value <= hi:
+                raise ValidationError({"generation_rules": [f"Invalid strength {key}."]})
+        if row["reps_min"] > row["reps_max"]:
+            raise ValidationError({"generation_rules": ["Invalid strength rep range."]})
     profiles = policy["volume_profiles"]
     defaults = _default_profiles()
     if not isinstance(profiles, dict) or set(profiles) != set(defaults):

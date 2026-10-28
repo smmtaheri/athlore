@@ -178,6 +178,9 @@ def available_equipment_tokens(student_equipment: dict | None) -> set[str] | Non
             "smith_machine": "اسمیت",
             "kettlebell": "کتل بل",
             "resistance_band": "کش",
+            "bench_flat": "نیمکت صاف",
+            "bench_adjustable": "نیمکت شیب‌دار",
+            "pullup_bar": "میله بارفیکس",
         }
         return {labels[item] for item in selected if item in labels}
     if not equipment:
@@ -408,6 +411,8 @@ def _pick_for_roles(
     rng: random.Random | None = None,
     previous_names: set[str] | None = None,
     metadata_by_name: dict[str, dict] | None = None,
+    weekly_roles: Counter | None = None,
+    goal: str = "hypertrophy",
 ) -> list[str]:
     remaining = list(candidates)
     picked: list[str] = []
@@ -438,10 +443,53 @@ def _pick_for_roles(
             if not remaining:
                 break
             matched = list(remaining)
+        if goal == "strength" and not picked:
+            anchors = {
+                "chest": {"push_horizontal"},
+                "back": {"pull_horizontal", "pull_vertical"},
+                "shoulders": {"push_vertical"},
+                "quadriceps": {"knee_dominant"},
+                "hamstrings": {"hip_hinge"},
+            }.get(role.removeprefix("muscle:"), set())
+            main = [
+                name
+                for name in matched
+                if (metadata_by_name or {}).get(name, {}).get("movement_pattern") in anchors
+            ]
+            if main:
+                matched = main
         matched.sort(key=sort_key)
         seen_roles = Counter(
             movement_role((metadata_by_name or {}).get(name, {})) for name in picked
         )
+        # Weekly functional coverage precedes coach preference and seeded variety.
+        # Stable selection still repeats once each available role has been covered.
+        if weekly_roles is not None:
+            coverage_order = {
+                "shoulders": ["lateral", "rear_delt", "shoulder_press", "front_delt"],
+                "back": ["horizontal_pull", "vertical_pull", "back_accessory"],
+                "hamstrings": ["hinge", "knee_curl"],
+                "core": ["core_stability", "core_flexion"],
+            }.get(role.removeprefix("muscle:"), [])
+            for required_role in coverage_order:
+                eligible_role = [
+                    name
+                    for name in matched
+                    if movement_role((metadata_by_name or {}).get(name, {})) == required_role
+                ]
+                if eligible_role and not weekly_roles[(muscle, required_role)]:
+                    matched = eligible_role
+                    break
+            minimum_weekly = min(
+                weekly_roles[(muscle, movement_role((metadata_by_name or {}).get(name, {})))]
+                for name in matched
+            )
+            matched = [
+                name
+                for name in matched
+                if weekly_roles[(muscle, movement_role((metadata_by_name or {}).get(name, {})))]
+                == minimum_weekly
+            ]
         minimum_seen = min(
             seen_roles[movement_role((metadata_by_name or {}).get(name, {}))] for name in matched
         )
@@ -462,6 +510,8 @@ def _pick_for_roles(
         else:
             choice = matched[0]
         picked.append(choice)
+        if weekly_roles is not None:
+            weekly_roles[(muscle, movement_role((metadata_by_name or {}).get(choice, {})))] += 1
         remaining = [n for n in remaining if n != choice]
 
     return picked
@@ -478,8 +528,20 @@ def _prescribe(
     historical_raw: str | None,
     coach=None,
     metadata: dict | None = None,
+    goal: str = "hypertrophy",
+    policy: dict | None = None,
 ) -> dict[str, Any]:
-    policy = coach_policy(coach)
+    policy = policy or coach_policy(coach)
+    if goal == "strength":
+        main = (metadata or {}).get("movement_pattern") in {
+            "push_horizontal",
+            "push_vertical",
+            "pull_horizontal",
+            "pull_vertical",
+            "knee_dominant",
+            "hip_hinge",
+        } and (metadata or {}).get("mechanics") == "multi_joint"
+        policy = {**policy, **policy["strength_prescriptions"]["main" if main else "accessory"]}
     timed = (metadata or {}).get("prescription_unit") == "seconds"
     reps = "30 ثانیه" if timed else f"{policy['reps_min']}-{policy['reps_max']}"
     return {
@@ -659,7 +721,7 @@ def _full_body_muscles(
 ) -> list[list[str]]:
     """Create a usable auto split, then repeat coach-priority muscles as needed."""
     priority_labels = [normalize_muscle(m) for m in priority_order]
-    base = _unique(priority_labels + ["سینه", "زیربغل", "پا", "سرشانه"])
+    base = _unique(priority_labels + ["سینه", "زیربغل", "پا", "سرشانه", "شکم"])
     upper = _unique(
         ["سینه", "زیربغل", "سرشانه", "پشت بازو", "جلو بازو", "کول", "ساعد"]
         + [
@@ -774,6 +836,9 @@ def build_training_days(
             forbidden=forbidden,
             injury_alternative_map=injury_alternative_map,
         )
+        from programming.services.execution import compile_execution
+
+        compile_execution(days)
         _attach_session_duration_evidence(days, student, evidence)
         policy = coach_policy(coach)
         plan = build_volume_plan(
@@ -907,10 +972,24 @@ def build_training_days(
         parsed = resolved
 
     decision_frequency = {}
+    volume_plan["required_muscles"] = [
+        key
+        for key in volume_plan["muscles"]
+        if any(_session_covers_muscle(label, key) for _, groups in parsed for label in groups)
+    ]
+    for key, row in volume_plan["muscles"].items():
+        frequency = sum(
+            any(_session_covers_muscle(label, key) for label in groups) for _, groups in parsed
+        )
+        row["preferred_target"] = row["target"]
+        if frequency:
+            row["target"] = min(row["target"], frequency * row["session_cap"])
     for key, row in volume_plan["muscles"].items():
         if row.get("decision_source") != "coach" or row.get("decision") == "balanced":
             continue
-        required = min(days_per_week, max(2, math.ceil(row["target"] / max(1, row["session_cap"]))))
+        required = min(
+            days_per_week, max(2, math.ceil(row["minimum"] / max(1, row["session_cap"])))
+        )
         actual = sum(
             any(_session_covers_muscle(label, key) for label in groups) for _, groups in parsed
         )
@@ -962,6 +1041,7 @@ def build_training_days(
     }
 
     structured_technique_evidence: list[dict] = []
+    weekly_roles = Counter()
     allowed_technique_names = set(level_rule.allowed_techniques or []) if level_rule else set()
 
     for index, (day_title, target_muscles) in enumerate(parsed):
@@ -1126,6 +1206,8 @@ def build_training_days(
                 rng=selection_rng,
                 previous_names=previous_names,
                 metadata_by_name=structured_catalog_by_name,
+                weekly_roles=weekly_roles,
+                goal=goals.get("primary_goal", "hypertrophy"),
             )
             for idx, name in enumerate(picked):
                 used.add(name)
@@ -1147,6 +1229,8 @@ def build_training_days(
                     historical_raw=hist.get("raw_prescription"),
                     coach=coach,
                     metadata=structured_catalog_by_name.get(name),
+                    goal=goals.get("primary_goal", "hypertrophy"),
+                    policy=policy,
                 )
                 selection_source = "coach_catalog"
                 if name in demand["from_structured"]:
@@ -1246,7 +1330,6 @@ def build_training_days(
 
     from programming.services.techniques import apply_structured_techniques
 
-    days = allocate_volume(days, volume_plan, policy, student, warnings)
     days, structured_technique_evidence, _handled = apply_structured_techniques(
         days,
         coach,
@@ -1255,10 +1338,45 @@ def build_training_days(
         selected_systems=selected_training_systems,
     )
     evidence["techniques"] = structured_technique_evidence
+    evidence["required_system_keys"] = (
+        sorted({row["key"] for row in structured_technique_evidence})
+        if selected_training_systems
+        else []
+    )
+    # Technique costs and group rests are part of the same time budget as solo work.
+    # Explicit recipe set counts remain fixed during allocation.
+    days = allocate_volume(days, volume_plan, policy, student, warnings)
+    from programming.services.execution import compile_execution
+
+    evidence["system_warnings"] = [
+        f"training_system_unapplied:{row.get('name') or row.get('key') or row.get('technique_id', '')}:{row['status']}"
+        for row in structured_technique_evidence
+        if row.get("status") != "applied"
+    ]
+    warnings.extend(evidence["system_warnings"])
     volume_audit, volume_warnings = audit_volume(days, volume_plan, policy, student)
     evidence["volume_plan"] = volume_plan
     evidence["volume_audit"] = volume_audit
     warnings.extend(volume_warnings)
+    actual_roles = {
+        key: Counter(
+            movement_role(exercise["exercise_snapshot"])
+            for day in days
+            for exercise in day["exercises"]
+            if muscle_key(exercise["exercise_snapshot"].get("primary_muscle_key")) == key
+        )
+        for key in volume_plan["required_muscles"]
+    }
+    evidence["movement_coverage"] = {key: dict(counts) for key, counts in actual_roles.items()}
+    for key, expected in {
+        "shoulders": {"lateral", "rear_delt"},
+        "back": {"horizontal_pull", "vertical_pull"},
+    }.items():
+        if key in actual_roles:
+            warnings.extend(
+                f"movement_coverage_missing:{key}:{role}"
+                for role in sorted(expected - actual_roles[key].keys())
+            )
     for day in days:
         for exercise in day["exercises"]:
             sets = int(exercise["sets"])
@@ -1280,6 +1398,7 @@ def build_training_days(
                 ],
                 "progression": policy["progression"],
             }
+    compile_execution(days)
     evidence["weekly_primary_sets"] = volume_audit["direct_sets"]
 
     if goals_override and days:

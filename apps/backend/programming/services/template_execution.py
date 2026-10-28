@@ -50,7 +50,6 @@ def build_template_days(
     injury_alternative_map,
 ):
     from programming.services.training_selection import (
-        MUSCLE_ROLES,
         _filter_candidates,
         _historical_usage_map,
         _pick_for_roles,
@@ -77,7 +76,7 @@ def build_template_days(
     }
     days = []
     for day_index, spec in enumerate(plan["days"], 1):
-        used, role_counts, system_counts = set(), {}, {}
+        used, system_counts = set(), {}
         day = {
             "id": f"day-{day_index}-{_stable_id(template.id, day_index)}",
             "order": day_index,
@@ -164,18 +163,15 @@ def build_template_days(
                         f"{label}: حرکت مجاز برای این عضله، سطح و تجهیزات پیدا نشد؛ کاتالوگ یا انتخاب ثابت را بررسی کنید."
                     )
                 history = _historical_usage_map(coach, filtered)
-                roles = MUSCLE_ROLES.get(muscle, ["accessory"])
-                role_index = role_counts.get(muscle, 0)
                 name = _pick_for_roles(
                     filtered,
-                    [roles[role_index % len(roles)]],
+                    [f"muscle:{slot['muscle_key']}"],
                     muscle,
                     preferred_names=preferred,
                     historical_map=history,
                     priority_boost=False,
                     metadata_by_name=structured_catalog_by_name,
                 )[0]
-                role_counts[muscle] = role_index + 1
                 used.add(name)
                 ref = catalog_by_name[name]
                 exercise = {

@@ -794,6 +794,8 @@ def _generate_document_body(
         "weekly_primary_sets": training_evidence.get("weekly_primary_sets", {}),
         "volume_plan": training_evidence.get("volume_plan", {}),
         "volume_audit": training_evidence.get("volume_audit", {}),
+        "movement_coverage": training_evidence.get("movement_coverage", {}),
+        "system_warnings": training_evidence.get("system_warnings", []),
         "strong_muscles": training_evidence.get("strong_muscles", []),
         "injury_rules_applied": training_evidence.get("injury_rules_applied", []),
         "excluded_injury": training_evidence.get("excluded_injury", []),
@@ -1156,6 +1158,8 @@ def _build_training(
 
     summary = f"{days_per_week} روز تمرین بر اساس {template.name} و سطح {_level_label(level)}"
     training_evidence = {
+        "movement_coverage": selection_evidence.get("movement_coverage", {}),
+        "system_warnings": selection_evidence.get("system_warnings", []),
         "observed_weak_muscles": selection_evidence.get("observed_weak_muscles", []),
         "generation_policy": selection_evidence.get("generation_policy", {}),
         "prescription_version": selection_evidence.get("prescription_version"),
@@ -1218,6 +1222,9 @@ def _build_training(
             "volume_plan": selection_evidence.get("volume_plan", {}),
             "volume_audit": selection_evidence.get("volume_audit", {}),
             "volume_policy": selection_evidence.get("generation_policy", {}),
+            "planning_version": 3,
+            "system_warnings": selection_evidence.get("system_warnings", []),
+            "required_system_keys": selection_evidence.get("required_system_keys", []),
             "session_duration_minutes": (student.training_conditions or {}).get(
                 "session_duration_minutes"
             ),

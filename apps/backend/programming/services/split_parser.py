@@ -74,6 +74,11 @@ MUSCLE_ALIASES: dict[str, str] = {
 
 # Longer Persian phrases first so "پشت بازو" wins over bare "پشت".
 _PERSIAN_PHRASES: tuple[tuple[str, str], ...] = (
+    ("چهارسر ران", "چهارسر ران"),
+    ("چهارسر", "چهارسر ران"),
+    ("پشت پا", "پشت پا"),
+    ("همسترینگ", "پشت پا"),
+    ("باسن", "باسن"),
     ("پشت بازو", "پشت بازو"),
     ("پشت‌بازو", "پشت بازو"),
     ("جلو بازو", "جلو بازو"),
@@ -118,20 +123,24 @@ def parse_split_day(label: str) -> list[str]:
         return []
 
     # Collect phrase hits with leftmost index so order follows the label.
-    hits: list[tuple[int, str]] = []
+    hits: list[tuple[int, int, str]] = []
     for phrase, canonical in _PERSIAN_PHRASES:
         start = 0
         while True:
             idx = text.find(phrase, start)
             if idx < 0:
                 break
-            hits.append((idx, canonical))
+            hits.append((idx, idx + len(phrase), canonical))
             start = idx + len(phrase)
 
     if hits:
-        hits.sort(key=lambda item: item[0])
+        hits.sort(key=lambda item: (item[0], -(item[1] - item[0])))
         ordered: list[str] = []
-        for _idx, canonical in hits:
+        occupied_until = -1
+        for start, end, canonical in hits:
+            if start < occupied_until:
+                continue
+            occupied_until = end
             if canonical not in ordered:
                 ordered.append(canonical)
         return ordered

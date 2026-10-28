@@ -193,8 +193,12 @@ def metadata_issues(exercise):
             return getattr(exercise, key, default)
 
         targets = [
-            {"muscle_key": target.muscle.key, "role": target.role}
-            for target in exercise.muscle_targets.select_related("muscle").all()
+            {
+                "muscle_key": target.muscle.key,
+                "role": target.role,
+                "region_key": target.region.key if target.region else None,
+            }
+            for target in exercise.muscle_targets.select_related("muscle", "region").all()
         ]
 
     pattern = get("movement_pattern", "")
@@ -232,6 +236,19 @@ def metadata_issues(exercise):
         issues.append("pattern_primary_mismatch")
     if pattern in COMPOUND_PATTERNS and mechanics in MECHANICS and mechanics != "multi_joint":
         issues.append("pattern_mechanics_mismatch")
+    region_patterns = {
+        "front_delt": {"shoulder_flexion", "push_vertical", "push_horizontal"},
+        "side_delt": {"shoulder_abduction", "push_vertical"},
+        "rear_delt": {"shoulder_horizontal_abduction", "pull_horizontal"},
+    }
+    if any(
+        target.get("role") == "primary"
+        and target.get("region_key") in region_patterns
+        and pattern not in region_patterns[target["region_key"]]
+        for target in targets
+        if isinstance(target, dict)
+    ):
+        issues.append("pattern_region_mismatch")
     return issues
 
 
@@ -254,14 +271,14 @@ def movement_role(snapshot):
         "shoulder_adduction": "chest_accessory",
         "shoulder_abduction": "lateral",
         "shoulder_horizontal_abduction": "rear_delt",
-        "shoulder_flexion": "lateral",
+        "shoulder_flexion": "front_delt",
         "shoulder_extension": "back_accessory",
         "elbow_flexion": "biceps",
         "elbow_extension": "triceps",
         "knee_dominant": "quad",
         "knee_extension": "quad",
         "hip_hinge": "hinge",
-        "knee_flexion": "hinge",
+        "knee_flexion": "knee_curl",
         "hip_extension": "leg_accessory",
         "hip_abduction": "leg_accessory",
         "hip_adduction": "leg_accessory",

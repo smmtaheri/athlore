@@ -532,7 +532,8 @@ class GeneratorQualityTests(APITestCase):
         self.assertGreater(leg_sets, 0)
         profile = document["training"]["volume_plan"]["muscles"]["chest"]
         self.assertTrue(profile["priority"])
-        self.assertEqual(profile["target"], profile["target_max"])
+        self.assertEqual(profile["preferred_target"], profile["target_max"])
+        self.assertEqual(profile["target"], min(profile["target_max"], profile["session_cap"]))
 
     def test_observed_strength_preserves_structural_coverage_and_typed_caps(self):
         student = self._mohammad()

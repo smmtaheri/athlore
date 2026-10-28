@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from rest_framework.exceptions import ValidationError
 
 from accounts.exercise_metadata import MUSCLE_NAMES, muscle_key
+from programming.services.execution import rest_seconds
 
 PROFILE_SOURCE = {
     "version": "athlore-volume-v1",
@@ -91,6 +92,12 @@ def build_volume_plan(policy, level, goal, muscle_decisions=None):
             else row["target_min"]
         )
         row["priority"] = effective_decision == "focus"
+        row["minimum"] = (
+            row["maintenance"] if effective_decision == "maintenance" else row["growth_start"]
+        )
+        if goal == "strength" and effective_decision != "maintenance":
+            row["minimum"] = row["maintenance"]
+            row["target"] = row["growth_start"]
     return {
         "source": PROFILE_SOURCE,
         "goal": goal,
@@ -105,6 +112,7 @@ def build_volume_plan(policy, level, goal, muscle_decisions=None):
             "fat_loss",
             "maintain",
             "maintain_weight",
+            "strength",
         },
     }
 
@@ -158,11 +166,7 @@ def plan_session_exercise_counts(demands, duration_minutes, base_sets, policy):
         selected[row["muscle_key"]] += 1
         remaining_slots -= 1
 
-    uncovered = [
-        row["muscle_key"]
-        for row in ordered
-        if row["available"] > 0 and selected[row["muscle_key"]] == 0
-    ]
+    uncovered = [row["muscle_key"] for row in ordered if selected[row["muscle_key"]] == 0]
     return {
         "slot_budget": slot_budget,
         "selected_counts": selected,
@@ -172,8 +176,7 @@ def plan_session_exercise_counts(demands, duration_minutes, base_sets, policy):
 
 
 def _rest_seconds(item, policy):
-    match = re.search(r"\d+", str(item.get("rest", "")))
-    return int(match[0]) if match else policy["rest_seconds"]
+    return rest_seconds(item) if item.get("rest") else policy["rest_seconds"]
 
 
 def estimated_seconds(item, policy):
@@ -230,7 +233,7 @@ def session_seconds(day, policy):
         else:
             seconds += estimated_seconds(item, policy)
     for items in grouped.values():
-        rounds = max(int(item["sets"]) for item in items)
+        rounds = min(int(item["sets"]) for item in items)
         after = max(
             int(item["supersetRestAfterSeconds"])
             if item.get("supersetRestAfterSeconds") is not None
@@ -243,16 +246,25 @@ def session_seconds(day, policy):
             for item in items
         )
         seconds += rounds * (after + between * max(0, len(items) - 1))
+        seconds += sum((int(item["sets"]) - rounds) * _rest_seconds(item, policy) for item in items)
     return seconds
 
 
 def allocate_volume(days, plan, policy, student, warnings):
-    """Allocate before techniques. No extra focus or legacy per-exercise set boosts."""
+    """Allocate a weekly target while respecting each session's real execution cost."""
     remaining_days = Counter(
         key for day in days for key in {primary_key(item) for item in day["exercises"]}
     )
     allocated = Counter()
     duration = int((student.training_conditions or {}).get("session_duration_minutes") or 0)
+
+    def fixed_sets(item):
+        return any(
+            step.get("op") == "prescribe" and "sets" in step
+            for technique in item.get("techniques", [])
+            for step in (technique.get("recipe") or {}).get("steps", [])
+        )
+
     for day in days:
         remaining_items = Counter(primary_key(item) for item in day["exercises"])
         used = Counter()
@@ -272,14 +284,17 @@ def allocate_volume(days, plan, policy, student, warnings):
                 warnings.append(f"volume_profile_missing:{key}")
                 continue
             left = max(0, targets[key] - used[key])
-            item["sets"] = min(5, (left + remaining_items[key] - 1) // remaining_items[key])
+            if not fixed_sets(item):
+                item["sets"] = min(5, (left + remaining_items[key] - 1) // remaining_items[key])
             used[key] += item["sets"]
             remaining_items[key] -= 1
         scheduled_keys = set(remaining_items)
         day["exercises"] = [item for item in day["exercises"] if item["sets"] > 0]
         if duration:
             while session_seconds(day, policy) > duration * 60:
-                candidates = [item for item in day["exercises"] if item["sets"] > 0]
+                candidates = [
+                    item for item in day["exercises"] if item["sets"] > 0 and not fixed_sets(item)
+                ]
                 if not candidates:
                     break
                 item = min(
@@ -295,6 +310,88 @@ def allocate_volume(days, plan, policy, student, warnings):
             allocated[primary_key(item)] += item["sets"]
         for key in scheduled_keys:
             remaining_days[key] -= 1
+    # Repair weekly shortfalls using existing eligible movements, never random additions.
+    # Minimum coverage outranks a preferred target, including a focus maximum.
+    for minimum_only in (True, False):
+        for key, row in sorted(plan["muscles"].items(), key=lambda pair: not pair[1]["priority"]):
+            target = row.get("minimum", row["target"]) if minimum_only else row["target"]
+            while allocated[key] < target:
+                candidates = []
+                for day in days:
+                    local = sum(
+                        int(item["sets"]) for item in day["exercises"] if primary_key(item) == key
+                    )
+                    if local >= row["session_cap"]:
+                        continue
+                    for item in day["exercises"]:
+                        if primary_key(item) != key or item["sets"] >= 5 or fixed_sets(item):
+                            continue
+                        item["sets"] += 1
+                        fits = not duration or session_seconds(day, policy) <= duration * 60
+                        item["sets"] -= 1
+                        if fits:
+                            candidates.append((local, session_seconds(day, policy), item))
+                if not candidates:
+                    # Rebalance optional sets before declaring a full session infeasible.
+                    transfers = []
+                    if minimum_only:
+                        for day in days:
+                            recipients = [
+                                item
+                                for item in day["exercises"]
+                                if primary_key(item) == key
+                                and item["sets"] < 5
+                                and not fixed_sets(item)
+                            ]
+                            local = sum(
+                                item["sets"]
+                                for item in day["exercises"]
+                                if primary_key(item) == key
+                            )
+                            if local >= row["session_cap"]:
+                                continue
+                            for recipient in recipients:
+                                for donor in day["exercises"]:
+                                    donor_key = primary_key(donor)
+                                    donor_profile = plan["muscles"].get(donor_key, {})
+                                    surplus = allocated[donor_key] - donor_profile.get(
+                                        "minimum", allocated[donor_key]
+                                    )
+                                    if (
+                                        donor_key == key
+                                        or surplus <= 0
+                                        or donor["sets"] <= 1
+                                        or fixed_sets(donor)
+                                    ):
+                                        continue
+                                    donor["sets"] -= 1
+                                    recipient["sets"] += 1
+                                    fits = (
+                                        not duration
+                                        or session_seconds(day, policy) <= duration * 60
+                                    )
+                                    donor["sets"] += 1
+                                    recipient["sets"] -= 1
+                                    if fits:
+                                        transfers.append(
+                                            (
+                                                donor_profile.get("priority", False),
+                                                -surplus,
+                                                donor,
+                                                recipient,
+                                            )
+                                        )
+                    if transfers:
+                        _, _, donor, recipient = min(transfers, key=lambda transfer: transfer[:2])
+                        donor["sets"] -= 1
+                        recipient["sets"] += 1
+                        allocated[primary_key(donor)] -= 1
+                        allocated[key] += 1
+                        continue
+                    break
+                chosen = min(candidates, key=lambda candidate: candidate[:2])[2]
+                chosen["sets"] += 1
+                allocated[key] += 1
     return days
 
 
@@ -334,15 +431,18 @@ def audit_volume(days, plan, policy, student):
     for key, profile in plan["muscles"].items():
         actual = direct[key]
         # Do not pretend to have covered a prioritized muscle omitted by a split.
-        if not actual and not profile["priority"]:
+        if not actual and not profile["priority"] and key not in plan.get("required_muscles", []):
             continue
         rows[key] = {**profile, "actual": actual, "name": MUSCLE_NAMES.get(key, key)}
         if actual < profile["target"]:
             warnings.append(f"volume_target_shortfall:{key}:{actual}/{profile['target']}")
+        if key in plan.get("required_muscles", []) and actual < profile.get("minimum", 1):
+            warnings.append(f"volume_required_shortfall:{key}:{actual}/{profile.get('minimum', 1)}")
         if (
             actual
             and actual < profile["growth_start"]
-            and plan["goal"] not in {"maintain", "maintain_weight"}
+            and profile.get("decision") != "maintenance"
+            and plan["goal"] not in {"maintain", "maintain_weight", "strength"}
         ):
             warnings.append(f"volume_below_growth_start:{key}")
         if actual > profile["weekly_cap"]:
@@ -357,10 +457,13 @@ def audit_volume(days, plan, policy, student):
     }, list(dict.fromkeys(warnings))
 
 
-def refresh_volume_audit(training, *, reject_excess=True):
+def refresh_volume_audit(training, *, reject_excess=True, require_complete=False):
     """Re-audit the saved generation contract after edits, regeneration and before publication."""
     if not training.get("volume_plan") or not training.get("volume_policy"):
         return
+    from programming.services.execution import compile_execution
+
+    compile_execution(training.get("days", []))
     student = SimpleNamespace(
         training_conditions={"session_duration_minutes": training.get("session_duration_minutes")}
     )
@@ -372,13 +475,50 @@ def refresh_volume_audit(training, *, reject_excess=True):
     blocking = [
         warning
         for warning in warnings
-        if "exceeded" in warning or warning == "invalid_working_sets"
+        if "exceeded" in warning
+        or warning == "invalid_working_sets"
+        or (
+            require_complete
+            and training.get("planning_version") == 3
+            and warning.startswith("volume_required_shortfall:")
+        )
     ]
+    if training.get("planning_version") == 3 and require_complete:
+        eligible = set(training.get("eligible_exercise_ids", []))
+        for day in training.get("days", []):
+            if not day.get("exercises"):
+                blocking.append(f"empty_session:{day.get('id')}")
+            for item in day.get("exercises", []):
+                if item.get("exercise_id") not in eligible:
+                    blocking.append(f"ineligible_exercise:{item.get('id')}")
+        blocking.extend(training.get("system_warnings", []))
+        present_systems = {
+            technique.get("key")
+            for day in training.get("days", [])
+            for item in day.get("exercises", [])
+            for technique in item.get("techniques", [])
+        }
+        blocking.extend(
+            f"training_system_removed:{key}"
+            for key in training.get("required_system_keys", [])
+            if key not in present_systems
+        )
+        if training["volume_plan"].get("goal_review_required"):
+            blocking.append(f"unsupported_goal:{training['volume_plan']['goal']}")
+        for day in training.get("days", []):
+            groups = Counter(
+                item.get("trainingGroupId") or item.get("supersetGroupId")
+                for item in day.get("exercises", [])
+            )
+            for item in day.get("exercises", []):
+                key = item.get("trainingGroupId") or item.get("supersetGroupId")
+                if key and groups[key] < int(item.get("trainingGroupSize") or 2):
+                    blocking.append(f"incomplete_training_group:{key}")
     if blocking and reject_excess:
         raise ValidationError(
             {
                 "training": [
-                    "حجم یا زمان برنامه از سقف قوانین تأییدشده بیشتر است؛ ست‌ها یا سیستم تمرینی را اصلاح کنید.",
+                    "برنامه با پوشش عضلات، محدودیت زمان یا سیستم‌های انتخاب‌شده سازگار نیست؛ جزئیات زیر را اصلاح کنید و دوباره تأیید کنید.",
                     *blocking,
                 ]
             }

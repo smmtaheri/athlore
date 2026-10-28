@@ -251,6 +251,9 @@ def serialize_student_program_detail(program: Program) -> dict:
             "volume_audit",
             "volume_warnings",
             "eligible_exercise_ids",
+            "planning_version",
+            "system_warnings",
+            "required_system_keys",
         ):
             training.pop(private_key, None)
         ensure_workout_schedule(training, program.date_range_start, program.date_range_end)
@@ -1023,6 +1026,9 @@ def update_draft_version(version: ProgramVersion, payload: dict) -> ProgramVersi
             "volume_policy",
             "session_duration_minutes",
             "eligible_exercise_ids",
+            "planning_version",
+            "system_warnings",
+            "required_system_keys",
         )
         if key in (version.training or {})
     }
@@ -1182,7 +1188,7 @@ def finalize_version(version: ProgramVersion, *, actor) -> ProgramVersion:
         raise InvalidStateError(detail="Only draft versions can be finalized.")
     from programming.services.volume_planning import refresh_volume_audit
 
-    refresh_volume_audit(version.training or {})
+    refresh_volume_audit(version.training or {}, require_complete=True)
     from programming.services.split_parser import normalize_muscle
 
     for day in (version.training or {}).get("days", []):
@@ -1212,7 +1218,7 @@ def finalize_version(version: ProgramVersion, *, actor) -> ProgramVersion:
     version.status = ProgramVersion.Status.FINALIZED
     version.finalized_at = timezone.now()
     version.finalized_by = actor
-    version.save(update_fields=["status", "finalized_at", "finalized_by", "updated_at"])
+    version.save(update_fields=["status", "finalized_at", "finalized_by", "training", "updated_at"])
     version.program.updated_at = timezone.now()
     version.program.save(update_fields=["updated_at"])
     return version

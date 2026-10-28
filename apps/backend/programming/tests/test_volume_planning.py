@@ -270,6 +270,7 @@ class VisitVolumeWorkflowTests(TestCase):
             ("glutes", "hip_extension"),
             ("hamstrings", "knee_flexion"),
             ("quadriceps", "knee_extension"),
+            ("calves", "ankle_extension"),
         ):
             for index in range(4):
                 self.refs.append(
@@ -282,7 +283,9 @@ class VisitVolumeWorkflowTests(TestCase):
                             "equipment_keys": ["machine"],
                             "movement_pattern": pattern,
                             "mechanics": "single_joint",
-                            "joint_keys": ["hip" if key == "glutes" else "knee"],
+                            "joint_keys": [
+                                "hip" if key == "glutes" else "ankle" if key == "calves" else "knee"
+                            ],
                             "prescription_unit": "reps",
                         },
                     )

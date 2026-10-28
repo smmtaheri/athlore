@@ -30,11 +30,14 @@ class ProgramRequestInputSerializer(serializers.Serializer):
                 "cable",
                 "machines",
                 "resistance_band",
+                "bench_flat",
+                "bench_adjustable",
+                "pullup_bar",
             ]
         ),
         required=False,
         allow_empty=True,
-        max_length=7,
+        max_length=10,
     )
     training_environment = serializers.ChoiceField(
         choices=[
@@ -65,7 +68,9 @@ class ProgramRequestInputSerializer(serializers.Serializer):
 
     def validate_equipment_available(self, value):
         if "full_gym" in value and len(value) > 1:
-            raise serializers.ValidationError("انتخاب همهٔ تجهیزات باشگاه با گزینه‌های دیگر هم‌زمان نیست.")
+            raise serializers.ValidationError(
+                "انتخاب همهٔ تجهیزات باشگاه با گزینه‌های دیگر هم‌زمان نیست."
+            )
         if "bodyweight_only" in value and len(value) > 1:
             raise serializers.ValidationError("تمرین فقط با وزن بدن با گزینه‌های دیگر هم‌زمان نیست.")
         return value

@@ -123,6 +123,7 @@ GOAL_OPTIONS = [
     _opt("lose_weight", "کاهش وزن"),
     _opt("maintain_weight", "حفظ وزن"),
     _opt("hypertrophy", "هایپرتروفی / حجم عضله"),
+    _opt("strength", "افزایش قدرت"),
 ]
 
 TRAINING_ENVIRONMENT_OPTIONS = [
@@ -140,6 +141,9 @@ EQUIPMENT_OPTIONS = [
     _opt("cable", "کابل"),
     _opt("machines", "دستگاه"),
     _opt("resistance_band", "کش تمرینی"),
+    _opt("bench_flat", "نیمکت صاف"),
+    _opt("bench_adjustable", "نیمکت شیب‌دار"),
+    _opt("pullup_bar", "میله بارفیکس"),
 ]
 
 SESSION_DURATION_OPTIONS = [

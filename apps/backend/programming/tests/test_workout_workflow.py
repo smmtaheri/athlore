@@ -52,12 +52,22 @@ class WorkoutWorkflowTests(TestCase):
             "پشت بازو": ["پشت بازو سیمکش"],
         }.items():
             for name in names:
+                metadata = infer_legacy_metadata(name)
+                primary = (
+                    {
+                        "knee_dominant": "چهارسر ران",
+                        "knee_extension": "چهارسر ران",
+                        "knee_flexion": "پشت پا",
+                    }.get(metadata.get("movement_pattern"), muscle)
+                    if muscle == "پا"
+                    else muscle
+                )
                 Exercise.objects.create(
                     coach=cls.coach,
                     name=name,
-                    primary_muscle=muscle,
+                    primary_muscle=primary,
                     level="intermediate",
-                    **infer_legacy_metadata(name),
+                    **metadata,
                 )
 
     def visit(self):
@@ -613,6 +623,9 @@ class WorkoutWorkflowTests(TestCase):
         day["exercises"][0]["locked"] = True
         for item in day["exercises"][:2]:
             item["trainingGroupId"] = "locked-pair"
+        from programming.services.execution import compile_execution
+
+        compile_execution(version.training["days"])
         version.save()
         locked_pair = deepcopy(day["exercises"][:2])
         fresh = deepcopy(version.training)
